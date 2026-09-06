@@ -51,3 +51,8 @@ def test_feature_branches_use_pr_checks_without_duplicate_push_runs():
     events = workflows()["check.yml"]["on"]
     assert set(events) == {"push", "pull_request", "workflow_dispatch"}
     assert events["push"]["branches"] == ["main"]
+
+
+def test_dependabot_version_updates_are_paused():
+    assert not (ROOT / ".github/dependabot.yml").exists()
+    assert not (ROOT / ".github/dependabot.yaml").exists()

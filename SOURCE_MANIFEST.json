@@ -17,12 +17,6 @@
   ],
   "files": [
     {
-      "path": ".github/dependabot.yml",
-      "bytes": 377,
-      "sha256": "2f483dd2d6833970a442cccdd1c354db5c8f82b7c68fd4ca111477b59d0f8953",
-      "executable": false
-    },
-    {
       "path": ".github/workflows/check.yml",
       "bytes": 2311,
       "sha256": "7cc03c0e3874b33dffd67b909e8f1659889415b7d4c0a185e6b38e54db625f9a",
@@ -594,8 +588,8 @@
     },
     {
       "path": "docs/releasing.md",
-      "bytes": 8230,
-      "sha256": "69ca1a4dcdd337f0a2ed6d90d3b1af2bb162387bfaeae1d7b4734c9c3f92feb4",
+      "bytes": 8676,
+      "sha256": "4034442a4e2f22d2152a4aa323b79a5243b50644df87c02cca94143a8157cf51",
       "executable": false
     },
     {
@@ -2040,8 +2034,8 @@
     },
     {
       "path": "tests/test_ci_policy.py",
-      "bytes": 2132,
-      "sha256": "1fc79d267815adee534a970094ae473806cf00a8124297305eed87da1852dd44",
+      "bytes": 2301,
+      "sha256": "8dcc9598622e4be2ba2c425e54ebaecdcb1904cbe93af60443a6edd2ecec52ca",
       "executable": false
     },
     {

@@ -69,6 +69,13 @@ as evidence for changed binaries. Keep successes and failures in the release not
 
 ## CI policy
 
+Dependabot automatic updates and pull requests are paused at the owner's request;
+there is no active dependabot.yml configuration. Repository vulnerability-alert
+settings are separate and are not disabled by removing this configuration.
+Re-enabling automation requires an explicit maintainer decision and a reviewed
+low-volume policy. Simulator dependency changes still require normal resolution,
+source-identity and replay checks.
+
 CPU and Python compatibility jobs run on unprivileged hosted runners without
 submodules or simulator assets. Source discovery has a separate scheduled/manual
 job and uses selective public pins. The manual candidate job additionally creates
@@ -77,7 +84,7 @@ It does not turn an unsuccessful preflight into a passing release.
 
 Top-level actions use immutable commit pins, checkouts do not retain credentials,
 and default token permissions are read-only. Scanner tools have explicit versions.
-Dependabot proposes updates; review tool transitive downloads and action changes.
+Dependency changes are reviewed manually; review tool transitive downloads and action changes.
 These choices follow [GitHub's secure-use guidance](https://docs.github.com/en/actions/reference/security/secure-use).
 An action pin does not by itself make every transitive download reproducible.
 
