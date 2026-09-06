@@ -55,7 +55,7 @@ def main(argv=None):
     program = commands.add_parser("replay")
     program.add_argument("program", type=Path)
     sources = commands.add_parser("sources")
-    sources.add_argument("operation", choices=("status", "sync"))
+    sources.add_argument("operation", choices=("status", "sync", "check-updates"))
     sources.add_argument("--project", type=Path)
     sources.add_argument("--backends", nargs="+")
     privacy = commands.add_parser("audit-privacy")
@@ -115,11 +115,16 @@ def main(argv=None):
 
             client = connect(args.run, endpoint=args.endpoint)
         if args.command == "sources":
-            from roboenv.provisioning.sources import status, sync
+            from roboenv.provisioning.sources import check_updates, status, sync
 
-            result = (sync if args.operation == "sync" else status)(args.project, args.backends)
+            operation = {"status": status, "sync": sync, "check-updates": check_updates}[
+                args.operation
+            ]
+            result = operation(args.project, args.backends)
             print(json.dumps(result))
-            return 0 if result["ready"] else 1
+            return (
+                0 if result["up_to_date" if args.operation == "check-updates" else "ready"] else 1
+            )
         elif args.command == "audit-privacy":
             from roboenv.privacy import audit
             from roboenv.project import project_root

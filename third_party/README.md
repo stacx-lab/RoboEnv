@@ -6,6 +6,7 @@ in upstreams.lock.json. Source initialization is selective, not recursive.
 
     roboenv sources sync --backends libero robocasa
     roboenv sources status --backends libero robocasa
+    roboenv sources check-updates --backends robotwin
 
 The sync command initializes missing registered submodules, checks origin URLs,
 checks out exact reachable commits and applies only checksum-verified managed
@@ -29,6 +30,27 @@ on a hidden nested clone.
 Our SDK, adapters, bindings, tests and scoring remain outside submodules. Changes
 to an upstream are recorded in patches/ and in the lock; do not make unrecorded
 development-tree modifications part of a published environment.
+
+## Maintaining upstreams
+
+Never create commits inside submodules. `check-updates` queries live upstream
+default-branch tips for the selected source closure; it does not initialize,
+checkout, stage, or modify sources. It exits nonzero when pins are behind or a
+remote query fails. Ordinary `sync` continues to use exact pins for reproducibility.
+
+When updating, first verify that `sources status` reports an exact managed tree.
+Review the upstream diff and test the existing patches against the latest commit
+in an isolated checkout or temporary index. If they need changes, preserve local
+work, regenerate the patch against the new base, and update its SHA256 in the lock.
+Advance the submodule gitlink and lock revision together, check license notices,
+and rerun source checks and tests before committing in RoboEnv. Do not force a
+checkout over local edits. Keep historical receipts tied to their original base;
+CPU and patch checks do not certify simulator replay on the new revision.
+
+A patched submodule normally appears dirty in `git status`, including untracked
+files added by a patch. This is expected when `sources status` reports
+`managed_tree_matches: true`: the patch in RoboEnv already records those changes.
+Do not hide this state with Git ignore flags or commit the patched tree upstream.
 
 Assets and checkpoints are separate licensed downloads, not submodule contents
 guaranteed by this command. LFS smudging is disabled during source sync. The image

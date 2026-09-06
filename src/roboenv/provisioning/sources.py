@@ -175,6 +175,34 @@ def status(project=None, backends=None):
     }
 
 
+def check_updates(project=None, backends=None):
+    """Compare pins to live upstream default-branch tips without changing checkouts."""
+    root, lock = load_lock(project)
+    results = []
+    for name in selected_sources(lock, backends or lock["backends"]):
+        item = lock["sources"][name]
+        lines = git(root, "ls-remote", "--symref", item["url"], "HEAD", timeout=60).splitlines()
+        revisions = [
+            line.split()[0] for line in lines if re.fullmatch(r"[0-9a-f]{40}\s+HEAD", line)
+        ]
+        if len(revisions) != 1:
+            raise ValueError(f"Cannot resolve upstream default-branch tip for {name}")
+        branch = next(
+            (line.split()[1] for line in lines if line.startswith("ref: ")),
+            None,
+        )
+        results.append(
+            {
+                "name": name,
+                "pinned": item["revision"],
+                "upstream": revisions[0],
+                "branch": branch,
+                "up_to_date": item["revision"] == revisions[0],
+            }
+        )
+    return {"sources": results, "up_to_date": all(item["up_to_date"] for item in results)}
+
+
 def sync(project=None, backends=None):
     root, lock = load_lock(project)
     if not (root / ".git").exists():
