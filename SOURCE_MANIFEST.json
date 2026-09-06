@@ -552,14 +552,20 @@
     },
     {
       "path": "docs/adding-devices.md",
-      "bytes": 5652,
-      "sha256": "8f97aac3a4cdf845a4eefd18ca6f94a3362ea4b8d204f4e6d45f027946421df8",
+      "bytes": 5868,
+      "sha256": "501f8691e2e1e525f3e16da065c0a6c92976a045b43241d6f8d983ec792c9190",
       "executable": false
     },
     {
       "path": "docs/adding-simulators.md",
       "bytes": 4924,
       "sha256": "547a69d5122c753890121473710f0a7211079a7eb6b74fd399d89718de3bb2fa",
+      "executable": false
+    },
+    {
+      "path": "docs/design/shared-arm-driver.md",
+      "bytes": 9449,
+      "sha256": "c426a80ccb5f39adc7f0bf044e6e31ae8d818181d9992364d001222c91498c9d",
       "executable": false
     },
     {
@@ -1224,14 +1230,20 @@
     },
     {
       "path": "runtime/src/roboenv_runtime/bindings/__init__.py",
-      "bytes": 620,
-      "sha256": "6796dd92c268a8d26d989b268bf81d4e10cc3b52bcc4ac6c1013f2f8a0f0cd26",
+      "bytes": 744,
+      "sha256": "d035e440daf68ee74be33544a71c77cf8500fad7719b4953a4e34ca4d4d7f648",
       "executable": false
     },
     {
       "path": "runtime/src/roboenv_runtime/bindings/actions.py",
       "bytes": 2000,
       "sha256": "bc8ee1168d5e9d88f55eb8cd7b34ae70f27e57371a4740c4269f2c7cc6d1869d",
+      "executable": false
+    },
+    {
+      "path": "runtime/src/roboenv_runtime/bindings/arm_ports.py",
+      "bytes": 4735,
+      "sha256": "4c6122ac78b2d38a8ea5df9407901c3abde0b14a05747cbb5c1f2ed32e81e085",
       "executable": false
     },
     {
@@ -1514,6 +1526,18 @@
       "path": "runtime/src/roboenv_runtime/core/types.py",
       "bytes": 4879,
       "sha256": "4ed589c61bd1efce23eb4bfc49a6d2fd51560de1657797d71f435663b78fdd73",
+      "executable": false
+    },
+    {
+      "path": "runtime/src/roboenv_runtime/drivers/__init__.py",
+      "bytes": 78,
+      "sha256": "bee523c3a744e9a0e0451108a6ffb74ea987bdb9517cb2303f9fb6829a859294",
+      "executable": false
+    },
+    {
+      "path": "runtime/src/roboenv_runtime/drivers/arm.py",
+      "bytes": 7898,
+      "sha256": "84cf1760672626fc0a7707105da58fae5bfaa480cb1d78861211f309b58a19e0",
       "executable": false
     },
     {
@@ -2126,6 +2150,12 @@
       "path": "tests/test_setup.py",
       "bytes": 12437,
       "sha256": "49a182ef5a8e8be61c6e431b5c2a873f88ecc695e769df98fdd624b23bbc72ac",
+      "executable": false
+    },
+    {
+      "path": "tests/test_shared_arm_proposal.py",
+      "bytes": 11698,
+      "sha256": "9104cebebb05785303cd7904a35a3c7ea473e9b0c35efc59ca51699f74bc4b72",
       "executable": false
     },
     {

@@ -4,6 +4,9 @@
 路径以 Roboenv 仓库为根；世界初始化见
 [Simulator 接入](adding-simulators.md)。
 
+跨后端机械臂驱动的实验方案见 [Shared ArmDriver RFC](design/shared-arm-driver.md)。
+它是显式启用的设计原型，未替换本文的默认 binding，也尚未通过真实机械臂运行验收。
+
 ## 1. Definition、binding 和 world
 
 - Definition：设备类型、内参、外参、公开控制模式；不持有 simulator。
