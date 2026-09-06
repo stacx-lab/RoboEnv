@@ -16,11 +16,11 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 import yaml
-from roboenv.catalogue import load_catalog
-from roboenv.deployment import load_deployment
-from roboenv.harbor import Bundle
+from roboenv.harbor.deployment import load_deployment
+from roboenv.harbor.taskset import deployment_map, export_taskset, validate_harbor_task
 from roboenv.privacy import validate_public_text
-from roboenv.taskset import deployment_map, export_taskset, validate_harbor_task
+from roboenv.tasks.artifacts import Bundle
+from roboenv.tasks.catalog import load_catalog
 from roboenv.validation import json_loads
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -473,7 +473,7 @@ def run_validation(out, deployments):
     receipt["phase"] = "running"
     write_receipt(out / "receipt.json", receipt)
     code = (
-        "import sys; from roboenv.taskset import run_taskset; "
+        "import sys; from roboenv.harbor.taskset import run_taskset; "
         "raise SystemExit(run_taskset(sys.argv[1], sys.argv[2], agent='oracle'))"
     )
     environment = {

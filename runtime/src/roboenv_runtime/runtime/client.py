@@ -220,7 +220,9 @@ class RemoteAPI:
         if not isinstance(name, str) or not name:
             raise ValueError("skill name must be a non-empty string")
         try:
-            from roboenv_runtime.skills.packs import get_primitives  # available from refactor phase P4
+            from roboenv_runtime.skills.packs import (
+                get_primitives,  # available from refactor phase P4
+            )
         except ImportError as exc:  # pragma: no cover - until P4 lands
             raise ClientError(f"primitive packs are not installed: {exc}") from exc
         primitive = get_primitives().get(name)

@@ -296,7 +296,6 @@ class BehaviorBackend:
         0.3 m behind it, so the near plane is not inside a surface). The robot
         and the focus object are allowed in the way — they are the subject."""
         import torch as th
-
         from omnigibson.utils.sampling_utils import raytest
 
         ignore = list(getattr(self.robot, "link_prim_paths", []) or [])
@@ -317,9 +316,8 @@ class BehaviorBackend:
         loading_the_car never showed the car): behind the robot relative to the
         focus point, offset to one side so the body does not occlude the object,
         pulled back and raised with the robot-object spread."""
-        import torch as th
-
         import omnigibson.utils.transform_utils as T
+        import torch as th
 
         pos, orn = (t.cpu().numpy() for t in self.robot.get_position_orientation())
         focus = self._focus_point(pos)

@@ -118,7 +118,7 @@ def list_robotwin_tasks() -> list[str]:
 
 
 def _load_yaml(path: str) -> dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.load(f.read(), Loader=yaml.FullLoader)
 
 

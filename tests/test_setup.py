@@ -6,12 +6,52 @@ import shutil
 from pathlib import Path
 
 import pytest
-from roboenv.asset_manifest import create, inventory, verify
+from roboenv.provisioning.assets import create, inventory, verify
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_prepare_default_install_and_reuse(tmp_path, monkeypatch):
+    from roboenv.provisioning import setup
+    from roboenv.provisioning import sources as upstreams
+
+    monkeypatch.setattr(setup, "project_root", lambda project: tmp_path)
+    monkeypatch.setattr(setup, "audit", lambda *args: ({}, {}))
+    calls = []
+    monkeypatch.setattr(upstreams, "sync", lambda *args: calls.append("sync"))
+    monkeypatch.setattr(
+        setup, "install", lambda backend, destination, **kwargs: calls.append(destination)
+    )
+    setup.prepare("robotwin")
+    assert calls == ["sync", tmp_path / ".venv-sim/robotwin"]
+    calls.clear()
+    interpreter = tmp_path / ".venv-sim/robotwin/bin/python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.touch()
+    registration = tmp_path / ".cache/roboenv/installations/robotwin.json"
+    registration.parent.mkdir(parents=True)
+    registration.write_text(json.dumps({"python": str(interpreter), "report": {"reused": True}}))
+    assert setup.prepare("robotwin") == {"reused": True}
+    assert not calls
+    interpreter.unlink()
+    with pytest.raises(ValueError, match="existing environments are preserved"):
+        setup.prepare("robotwin")
+    assert not calls
+
+
+def test_prepare_rejects_unknown_backend_without_effects(tmp_path):
+    from roboenv.provisioning import setup
+
+    with pytest.raises(ValueError, match="unknown simulator"):
+        setup.prepare("../unknown", project=ROOT, install_to=tmp_path / "unused")
+    assert list(tmp_path.iterdir()) == []
+
+
 def tool(name):
+    if name == "setup_simulator":
+        from roboenv.provisioning import setup
+
+        return setup
     spec = importlib.util.spec_from_file_location(name, ROOT / "tools" / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -159,6 +199,7 @@ def installer_fixture(tmp_path, monkeypatch):
     setup = tool("setup_simulator")
     project = tmp_path / "project"
     (project / "runtime").mkdir(parents=True)
+    (project / "src/roboenv").mkdir(parents=True)
     (project / "pyproject.toml").write_text('[project]\nname="roboenv"\nversion="0.2.0"\n')
     (project / "runtime/pyproject.toml").write_text(
         '[project]\nname="roboenv-runtime"\nversion="0.2.0"\n'

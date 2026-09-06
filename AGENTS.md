@@ -7,7 +7,8 @@ for task generation.
 
 ## Layout
 
-- src/roboenv/: lightweight SDK/CLI, device contracts, bindings, task exporter.
+- src/roboenv/: public client/lifecycle and shared validation infrastructure.
+  Domain packages: devices/, tasks/, provisioning/, harbor/, cli/, control/.
 - runtime/: separate runtime package, simulator adapters, scoring, workers, image recipes.
 - catalog/: robot/device facts and small task examples, not a full generated benchmark.
 - third_party/: pinned upstream submodules and checksum-verified patches.
@@ -40,10 +41,14 @@ Initialize only selected upstreams; do not recursively fetch every submodule.
 
     roboenv sources sync --backends libero
     roboenv sources status --backends libero
-    python tools/setup_simulator.py libero
+    roboenv prepare libero
     python tools/generate_tasks.py --help
 
-Setup audits by default; --install requires a new explicit environment.
+Bootstrap the CLI with `bash tools/bootstrap.sh`, activate `.venv`, then use
+`roboenv prepare SIMULATOR` and `roboenv start TASK_ID`.
+Preparation uses a managed default environment or an explicit --prefix;
+`roboenv doctor SIMULATOR` only audits. Registered interpreters may be reused; existing environments
+are never overwritten. Clean-install verification is for developers, not users.
 The generator discovers pinned upstream tasks or reads an explicit source catalog.
 Supply built SDK/runtime artifacts and a real deployment manifest; generation
 does not install assets or start an agent. Large interpreters may use a separately

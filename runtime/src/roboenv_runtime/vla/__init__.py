@@ -6,7 +6,7 @@
 * :mod:`roboenv_runtime.vla.runner` — the shared ``vla_run`` loop and its before/after report
 
 Adapters add a ``vla_run`` tool by implementing :class:`roboenv_runtime.vla.runner.VlaHooks`
-(see ``roboenv/adapters/libero_vla.py``); the worker's ``vla`` operation and
+(see ``roboenv_runtime/adapters/libero/vla.py``); the worker's ``vla`` operation and
 ``finalize``'s action accounting work unchanged.  The client (``roboenv_runtime.vla.client``)
 needs ``msgpack`` and ``websockets`` and is imported where it is used, so this
 package imports cleanly in every simulator interpreter.

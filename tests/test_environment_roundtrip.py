@@ -129,7 +129,7 @@ def test_oracle_and_verifier_need_no_agent_runtime(service):
         "ROBOENV_VERIFIER_OUT": str(temporary / "verdict"),
     }
     replay = subprocess.run(
-        [sys.executable, "-m", "roboenv.cli", "replay", str(program)],
+        [sys.executable, "-m", "roboenv.cli.main", "replay", str(program)],
         cwd=temporary,
         env=env,
         capture_output=True,

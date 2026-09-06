@@ -1279,7 +1279,7 @@ class VlaManager:
             self._log_handle = None
 
 
-def _dispatch(self: "VlaManager", args: dict) -> Any:
+def _dispatch(self: VlaManager, args: dict) -> Any:
     """Route the worker's allowlisted policy, replay, hold, or event mode."""
     args = dict(args)
     mode = args.pop("mode", "policy")

@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from roboenv.policy import run_with_callback
+from roboenv.control.policy import run_with_callback
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "runtime/src"))

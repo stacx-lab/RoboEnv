@@ -31,7 +31,9 @@ class RoboCasaAdapter(AdapterBase):
     )
 
     def __init__(self, task_name: str = "PickPlaceCounterToCabinet", **env_kwargs: Any) -> None:
-        from roboenv_runtime.adapters.robocasa.backend import RoboCasaEnv  # heavy: builds the kitchen
+        from roboenv_runtime.adapters.robocasa.backend import (
+            RoboCasaEnv,  # heavy: builds the kitchen
+        )
 
         self.task_name = task_name
         self._env = RoboCasaEnv(task_name=task_name, **env_kwargs)

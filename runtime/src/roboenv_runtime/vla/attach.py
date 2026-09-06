@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 
 #: simulator name -> "package.module:callable(adapter, spec, instruction) -> VlaHooks"
 HOOKS: dict[str, str] = {
-    "libero": "roboenv_runtime.adapters.libero_vla:LiberoPolicyHooks",
+    "libero": "roboenv_runtime.adapters.libero.vla:LiberoPolicyHooks",
     "robocasa": "roboenv_runtime.adapters.robocasa.vla:RoboCasaPolicyHooks",
     "robotwin": "roboenv_runtime.adapters.robotwin.vla:RoboTwinPolicyHooks",
 }

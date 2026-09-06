@@ -225,8 +225,10 @@ def main():
             type(task.get("seed")) is not int
             or task["seed"] < 0
             or mode not in {"official", "practice"}
-            or any(not isinstance(task.get(key), str) or not task[key]
-                   for key in ("task_id", "session"))
+            or any(
+                not isinstance(task.get(key), str) or not task[key]
+                for key in ("task_id", "session")
+            )
         ):
             raise ValueError("invalid verifier task identity or budget mode")
         report.update(
@@ -238,7 +240,9 @@ def main():
         health, _ = rpc("health", task["session"])
         report["health"] = health
         if type(health.get("seed")) is not int or (
-            health.get("task"), health.get("seed"), health.get("budget_mode")
+            health.get("task"),
+            health.get("seed"),
+            health.get("budget_mode"),
         ) != (
             task["task_id"],
             task["seed"],

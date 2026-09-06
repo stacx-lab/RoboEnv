@@ -7,8 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
-from roboenv.device_model import Action, BoundDevice, DeviceDefinition
-from roboenv.device_service import DeviceService
+from roboenv.devices.model import Action, BoundDevice, DeviceDefinition
+from roboenv.devices.service import DeviceService
 from roboenv_runtime.adapters.fakeshell import FakeShell
 from roboenv_runtime.core.adapter import AdapterBase
 from roboenv_runtime.core.types import Budget
@@ -126,9 +126,7 @@ def test_post_submit_device_reads_cannot_change_authority_or_enable_motion(tmp_p
                         "read": Action(
                             lambda args, context: instance._tool("get_object_pose")("puck")
                         ),
-                        "write": Action(
-                            lambda args, context: instance._tool("push")(dx=0.3)
-                        ),
+                        "write": Action(lambda args, context: instance._tool("push")(dx=0.3)),
                     },
                     implementation="test-counted-binding",
                 )

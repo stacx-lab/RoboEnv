@@ -19,9 +19,10 @@ import os
 import re
 import socket
 from collections import OrderedDict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, BinaryIO, Mapping
+from typing import Any, BinaryIO
 
 from roboenv.validation import json_loads
 
@@ -75,7 +76,7 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@+-]{0,127}$")
 SOCKET_PATH_LIMIT = 100
 
 
-def socket_address(path: "Path | str") -> str:
+def socket_address(path: Path | str) -> str:
     """The string to bind or connect a Unix socket at ``path`` — the path itself, or a
     short alias when it would exceed the kernel's limit.
 
@@ -179,7 +180,7 @@ class Request:
         *,
         allowed_ops: frozenset[str] | set[str] | None = ALLOWED_OPS,
         reject_unknown: bool = True,
-    ) -> "Request":
+    ) -> Request:
         if not isinstance(raw, Mapping):
             raise ProtocolError("invalid_request", "request must be a JSON object")
         fields = set(raw)
@@ -290,7 +291,7 @@ class Response:
     error: dict[str, Any] | None = None
 
     @classmethod
-    def success(cls, request: Request, result: Any = None) -> "Response":
+    def success(cls, request: Request, result: Any = None) -> Response:
         return cls(
             protocol=PROTOCOL_VERSION,
             session=request.session,
@@ -309,7 +310,7 @@ class Response:
         *,
         details: Any = None,
         retryable: bool = False,
-    ) -> "Response":
+    ) -> Response:
         error: dict[str, Any] = {
             "code": str(code),
             "message": str(message),
@@ -327,7 +328,7 @@ class Response:
         )
 
     @classmethod
-    def from_mapping(cls, raw: Mapping[str, Any]) -> "Response":
+    def from_mapping(cls, raw: Mapping[str, Any]) -> Response:
         if not isinstance(raw, Mapping):
             raise ProtocolError("invalid_response", "response must be a JSON object")
         required = {"protocol", "session", "generation", "request_id", "ok"}

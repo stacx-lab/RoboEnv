@@ -53,7 +53,7 @@ tool_doc: |
   four phrasings of "open the bottom drawer" all opened the middle one.  Language selects
   a skill, not an object.
 
-  **Call it in chunks, not once.**  ``roboenv.patterns.supervised_chunks(vla_run,
+  **Call it in chunks, not once.**  ``roboenv.control.patterns.supervised_chunks(vla_run,
   chunk=100, budget=600)`` is the measured default.  Two reasons: the report is the reward
   after the LAST frame and this policy reaches the goal and then keeps moving (sliced in
   50s, one task reads ``[0, 0, 1.0, 0, 0, …]`` — solved at frame 150, undone by 200); and
@@ -81,4 +81,3 @@ tool_doc: |
   less reliable than one that does not (18 % of 98 were not reproducible, against 69 of 69
   for code-only programs) — verify it on a *second server process*, which is a stronger
   test than three replays on the same one.
-

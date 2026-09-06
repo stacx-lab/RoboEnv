@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import pytest
-from roboenv.harbor import Bundle
 from roboenv.privacy import audit
+from roboenv.tasks.artifacts import Bundle
 
 ROOT = Path(__file__).resolve().parents[1]
 

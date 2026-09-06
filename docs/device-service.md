@@ -1,8 +1,7 @@
 # Roboenv device service v1
 
-The wire contract below is unchanged by simulator/device separation. The generic
-service now lives in `device_service.py`; catalog drivers are a compatibility
-binding, not its implementation. For current extension points and assembly
+The generic service lives in `src/roboenv/devices/service.py`; backend bindings implement
+device actions without loading executable catalog drivers. For extension points and assembly
 configuration, see [simulators](adding-simulators.md) and [devices](adding-devices.md).
 
 Status: implemented on the native Harbor path. The wire envelope remains
@@ -62,7 +61,15 @@ responsibility of its Harbor integration, not the environment image.
 
 All requests retain protocol, session, generation, request_id, deadline_s, op,
 and object args. Messages are one NDJSON object per connection, at most 8 MiB.
-The current transport is a local Unix socket, not HTTP, WebSocket, or MCP.
+Harbor uses the local Unix socket. Local `roboenv start` also exposes a loopback
+HTTP endpoint at `http://127.0.0.1:PORT`. The SDK discovers internal session and
+generation metadata with a GET to `/`; users need only the endpoint. Established
+clients remain fenced to their original world if the port is reused.
+Both transports use the same
+request envelope, execution lane, and journal; a request ID deduplicates across
+transports. HTTP accepts JSON POST requests and public client operations only.
+Owner shutdown/reset/submit operations remain on the Unix transport. There is
+no WebSocket or MCP transport.
 
 | Operation | Exact args | Result |
 |---|---|---|
@@ -73,9 +80,9 @@ The current transport is a local Unix socket, not HTTP, WebSocket, or MCP.
 | `operations.get` | `{request_id}` | Current state of a journaled request in this session/generation |
 
 `api`, `call`, `observe`, `score.peek`, `capture` and `vla` remain available.
-Native primitive parameters are unchanged. No automatic fallback to a local
-implementation occurs if the server rejects a command. `describe --local`,
-`devices --local`, and `device --local` explicitly retain offline/legacy access.
+Native primitive parameters are unchanged. Device calls always use the service;
+there is no alternate local driver execution path. Read exported profile files
+directly when inspecting an offline definition.
 
 The [JSON Schema](../src/roboenv/specs/device-service.schema.json) describes
 discovery, descriptors and successful call results. New optional fields may be
@@ -98,7 +105,7 @@ not yet provide fully typed per-argument schemas for every migrated action.
 `supported` means an implementation is registered, not that this hardware has
 passed a calibration or replay test. `validation` makes that distinction explicit.
 
-For the catalog bridge, `stop`, general `ik`/`fk`, and `unload` are unsupported.
+For current simulator-controller bindings, `stop`, general `ik`/`fk`, and `unload` are unsupported.
 In particular, killing a simulator worker on timeout is NOT an emergency stop
 for physical hardware. `load` is a readiness check, not a world reset. `policy_run`
 is not a device-server action: use `Client.vla` so policy execution retains its
@@ -168,10 +175,9 @@ image and SDK wheel together before exporting upgraded tasks. A stale image
 does not pass the new device-registry readiness probe.
 
 `ROBOENV_SERVER_ROBOT` and `ROBOENV_SERVER_MANIFEST` are owner-only startup
-configuration, never request arguments. Catalog drivers are trusted environment
-implementation code, loaded once. They can only use the bridge's allowlisted
-public primitive dispatcher during device calls; they receive no arbitrary code
-or module name from the agent. New backends should implement real device
+configuration, never request arguments. Bindings are registered environment
+implementation code. Task catalogs provide facts and explicit binding selectors;
+they cannot name arbitrary Python imports or executable drivers. New backends implement real device
 semantics server-side rather than growing agent-side translation logic.
 
 Images are currently returned as paths in the shared read-only run volume.

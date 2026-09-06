@@ -6,6 +6,7 @@ older wire identifiers are not aliases. This module uses only the standard libra
 
 from __future__ import annotations
 
+import http.client
 import json
 import math
 import os
@@ -13,12 +14,11 @@ import re
 import socket
 import time
 import uuid
-from contextlib import contextmanager
-from contextvars import ContextVar
 from typing import Any
+from urllib.parse import urlsplit
 
-from .contract import SERVICE_OPS
-from .validation import json_loads
+from roboenv.devices.contract import SERVICE_OPS
+from roboenv.validation import json_loads
 
 PROTOCOL = "roboenv/1"
 MAX_BYTES = 8 * 1024 * 1024
@@ -60,7 +60,31 @@ class Client:
 
     allowed_ops = PUBLIC_OPS
 
-    def __init__(self, socket_path=None, *, session=None, generation=None):
+    def __init__(self, socket_path=None, *, endpoint=None, session=None, generation=None):
+        if socket_path is not None and str(socket_path).startswith(("http://", "https://")):
+            if endpoint is not None:
+                raise ValueError("Choose one endpoint")
+            endpoint, socket_path = str(socket_path), None
+        if socket_path is not None and endpoint is not None:
+            raise ValueError("Choose a Unix socket or an HTTP endpoint")
+        endpoint = endpoint or (os.environ.get("ROBOENV_ENDPOINT") if socket_path is None else None)
+        self.endpoint = None
+        if endpoint:
+            parsed = urlsplit(endpoint)
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+                or parsed.path not in {"", "/"}
+            ):
+                raise ValueError("endpoint must be http(s)://HOST:PORT")
+            if parsed.port == 0:
+                raise ValueError("endpoint must identify an assigned nonzero port")
+            self.endpoint = endpoint.rstrip("/")
+        self._discover_identity = bool(self.endpoint and session is None)
         self.socket_path = str(
             socket_path or os.environ.get("ROBOENV_SOCKET") or "/run/roboenv/sim.sock"
         )
@@ -70,7 +94,7 @@ class Client:
         if not isinstance(self.session, str) or not IDENTIFIER.fullmatch(self.session):
             raise ValueError("session must be a protocol identifier")
         if generation is None:
-            generation = int(os.environ.get("ROBOENV_GENERATION", "0"))
+            generation = 0 if self.endpoint else int(os.environ.get("ROBOENV_GENERATION", "0"))
         if type(generation) is not int or generation < 0:
             raise ValueError("generation must be a nonnegative integer")
         self.generation = generation
@@ -92,6 +116,8 @@ class Client:
             raise ValueError("request_id must be a protocol identifier")
         if args is not None and not isinstance(args, dict):
             raise ValueError("args must be a JSON object")
+        if self._discover_identity:
+            self._identify(timeout)
         request = {
             "protocol": PROTOCOL,
             "session": self.session,
@@ -104,28 +130,10 @@ class Client:
         payload = json.dumps(request, default=jsonable, allow_nan=False).encode() + b"\n"
         if len(payload) > MAX_BYTES:
             raise ValueError("request exceeds the protocol size limit")
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-            sock.settimeout(timeout + 5)
-            deadline = time.monotonic() + min(timeout, 30)
-            while True:
-                try:
-                    sock.connect(self.socket_path)
-                    break
-                except (
-                    BlockingIOError,
-                    InterruptedError,
-                    ConnectionRefusedError,
-                    FileNotFoundError,
-                ):
-                    if time.monotonic() >= deadline:
-                        raise
-                    time.sleep(0.1)
-            try:
-                sock.sendall(payload)
-                with sock.makefile("rb") as stream:
-                    raw = stream.readline(MAX_BYTES + 1)
-            except OSError as exc:
-                raise UncertainResult(op, request["request_id"], str(exc)) from exc
+        if self.endpoint:
+            raw = self._http_exchange(payload, timeout, op, request["request_id"])
+        else:
+            raw = self._unix_exchange(payload, timeout, op, request["request_id"])
         if len(raw) > MAX_BYTES or not raw.endswith(b"\n"):
             raise UncertainResult(op, request["request_id"], "incomplete or oversized response")
         try:
@@ -146,6 +154,73 @@ class Client:
         if response.get("ok") is not True:
             raise RemoteError(op, response.get("error") or {}, request["request_id"])
         return response.get("result")
+
+    def _identify(self, timeout):
+        """Discover internal journal identity; users select services by host and port."""
+        raw = self._http_exchange(None, timeout, "connect", "connect", method="GET")
+        identity = json_loads(raw)
+        if (
+            not isinstance(identity, dict)
+            or identity.get("protocol") != PROTOCOL
+            or not isinstance(identity.get("session"), str)
+            or not IDENTIFIER.fullmatch(identity["session"])
+            or type(identity.get("generation")) is not int
+            or identity["generation"] < 0
+        ):
+            raise ValueError("Endpoint did not return a valid environment identity")
+        self.session, self.generation = identity["session"], identity["generation"]
+        self._discover_identity = False
+
+    def _http_exchange(self, payload, timeout, op, request_id, *, method="POST"):
+        url = urlsplit(self.endpoint)
+        connection_type = (
+            http.client.HTTPSConnection if url.scheme == "https" else http.client.HTTPConnection
+        )
+        connection = connection_type(url.hostname, url.port, timeout=timeout + 5)
+        try:
+            connection.connect()  # failure here proves no command has been sent
+            try:
+                connection.request(
+                    method,
+                    url.path or "/",
+                    body=payload,
+                    headers={"Content-Type": "application/json"},
+                )
+                response = connection.getresponse()
+                raw = response.read(MAX_BYTES + 1)
+                if response.status != 200:
+                    raise UncertainResult(
+                        op, request_id, f"HTTP endpoint returned {response.status}"
+                    )
+                return raw
+            except (OSError, http.client.HTTPException) as exc:
+                raise UncertainResult(op, request_id, str(exc)) from exc
+        finally:
+            connection.close()
+
+    def _unix_exchange(self, payload, timeout, op, request_id):
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(timeout + 5)
+            deadline = time.monotonic() + min(timeout, 30)
+            while True:
+                try:
+                    sock.connect(self.socket_path)
+                    break
+                except (
+                    BlockingIOError,
+                    InterruptedError,
+                    ConnectionRefusedError,
+                    FileNotFoundError,
+                ):
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.1)
+            try:
+                sock.sendall(payload)
+                with sock.makefile("rb") as stream:
+                    return stream.readline(MAX_BYTES + 1)
+            except OSError as exc:
+                raise UncertainResult(op, request_id, str(exc)) from exc
 
     def describe(self):
         return self.request("environment.describe")
@@ -176,7 +251,7 @@ class Client:
                 != "roboenv/vla-callback/1"
             ):
                 raise ValueError("environment does not advertise per-action policy callbacks")
-            from .policy import run_with_callback
+            from roboenv.control.policy import run_with_callback
 
             return run_with_callback(self, arguments, until)
         return self.request("vla", arguments)
@@ -215,31 +290,26 @@ class Device:
     def read(self, **kwargs):
         return self.call("read", kwargs)
 
-    def write(self, target, **kwargs):
-        return self.call("write", {"target": target, **kwargs})
+    def write(self, target, *, timeout=600.0, request_id=None, **kwargs):
+        return self.call(
+            "write", {"target": target, **kwargs}, timeout=timeout, request_id=request_id
+        )
 
     def stop(self):
         return self.call("stop")
 
+    def fk(self, joints):
+        return self.call("fk", {"joints": joints})
+
+    def ik(self, pose, *, seed=None):
+        return self.call("ik", {"pose": pose, **({"seed": seed} if seed is not None else {})})
+
 
 _default = None
-_bound_client = ContextVar("roboenv_bound_client", default=None)
-
-
-@contextmanager
-def _bind_client(client):
-    """Private hook for trusted runtime drivers; never accepts code from the wire."""
-    token = _bound_client.set(client)
-    try:
-        yield
-    finally:
-        _bound_client.reset(token)
 
 
 def default_client():
     global _default
-    if _bound_client.get() is not None:
-        return _bound_client.get()
     if _default is None:
         _default = Client()
     return _default

@@ -34,15 +34,18 @@ def test_candidate_preserves_core_pins_and_changes_only_recorded_dependencies():
 
 def test_candidate_receipt_does_not_overstate_the_installation_or_replay_scope():
     report = json.loads((ROOT / "runtime/locks/robotwin.candidate.json").read_text())
-    assert report["source_lock_sha256"] == hashlib.sha256(
-        (ROOT / report["source_lock"]).read_bytes()
-    ).hexdigest()
+    assert (
+        report["source_lock_sha256"]
+        == hashlib.sha256((ROOT / report["source_lock"]).read_bytes()).hexdigest()
+    )
     for recipe_key, digest_key in (
-        ("lock", "candidate_lock_sha256"), ("source_pins", "source_pins_sha256")
+        ("lock", "candidate_lock_sha256"),
+        ("source_pins", "source_pins_sha256"),
     ):
-        assert report[digest_key] == hashlib.sha256(
-            (ROOT / report["recipe"][recipe_key]).read_bytes()
-        ).hexdigest()
+        assert (
+            report[digest_key]
+            == hashlib.sha256((ROOT / report["recipe"][recipe_key]).read_bytes()).hexdigest()
+        )
     assert report["recipe"]["editables"] == []
     assert "third_party/cap-x" in report["recipe"]["source_only"]
     assert report["verification"]["dependency_bypass_used"] is False

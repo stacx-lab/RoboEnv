@@ -15,11 +15,11 @@ from pathlib import Path
 import pytest
 import yaml
 from jsonschema import Draft202012Validator
-from roboenv.bindings.registry import BindingContext
-from roboenv.bindings.spec import BindingPlan
 from roboenv.client import Client, RemoteError
-from roboenv.contract import DEVICE_CONTRACT
-from roboenv.harbor import export_task
+from roboenv.devices.bindings.registry import BindingContext
+from roboenv.devices.bindings.spec import BindingPlan
+from roboenv.devices.contract import DEVICE_CONTRACT
+from roboenv.harbor.export import export_task
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "runtime/src"))
@@ -34,29 +34,17 @@ from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError  # noqa: E4
 def device_service(tmp_path, monkeypatch, request):
     robot = tmp_path / "robot"
     shutil.copytree(ROOT / "tests/fixtures/native-toy/catalog/robots/toy-puck", robot)
-    # This fixture deliberately tests the legacy macro binding's error paths.
+    # A test-only binding injects partial effects, delay, and read violations.
     if getattr(request, "param", None) != "native":
         (robot / "bindings.yaml").write_text(
             yaml.safe_dump(
                 {
                     "schema_version": "roboenv/bindings/1",
                     "backend": "fakeshell",
-                    "devices": {"controller": {"binding": "catalog/1", "entity": "controller"}},
+                    "devices": {"controller": {"binding": "test.device/1", "entity": "controller"}},
                 }
             )
         )
-    driver = robot / "devices/controller/driver.py"
-    driver.write_text(
-        "import time\nfrom roboenv.client import call, rpc\n"
-        "def handle(action, args):\n"
-        "    if args.get('bad_read'): return call('push', dx=0.1)\n"
-        "    if action == 'invoke':\n"
-        "        result = call(args['tool_name'], **args.get('kwargs', {}))\n"
-        "        time.sleep(args.get('sleep_s', 0))\n"
-        "        if args.get('fail_after'): raise RuntimeError('partial motion')\n"
-        "        return {'result': result}\n"
-        "    return rpc('observe')\n"
-    )
     tasks = tmp_path / "tasks"
     tasks.mkdir()
     (tasks / "device-toy.yaml").write_text(
@@ -68,7 +56,7 @@ def device_service(tmp_path, monkeypatch, request):
     monkeypatch.setenv("ROBOENV_TASKS", str(tasks))
     monkeypatch.setenv(
         "PYTHONPATH",
-        os.pathsep.join([str(ROOT / "runtime/src"), str(ROOT / "src")]),
+        os.pathsep.join([str(ROOT / "runtime/src"), str(ROOT / "src"), str(ROOT / "tests")]),
     )
     config = SupervisorConfig(
         run_dir=tmp_path / "run",
@@ -78,6 +66,8 @@ def device_service(tmp_path, monkeypatch, request):
         session="harbor",
         cache_entries=2,
         terminate_grace_s=0.2,
+        worker_module="device_test_worker",
+        http_port=0 if getattr(request, "param", None) == "http" else None,
     )
     supervisor = Supervisor(config)
     supervisor.start_worker()
@@ -200,7 +190,7 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
         ["device", "controller", "invoke", '{"tool_name":"push","kwargs":{"dx":0.3}}'],
     ):
         result = subprocess.run(
-            [sys.executable, "-m", "roboenv.cli", *arguments],
+            [sys.executable, "-m", "roboenv.cli.main", *arguments],
             env=env,
             capture_output=True,
             text=True,
@@ -322,7 +312,6 @@ def test_native_export_has_ready_server_and_thin_drivers(tmp_path):
         ROOT / "tests/fixtures/native-toy/task.yaml",
         ROOT / "tests/fixtures/native-toy/catalog",
         out,
-        None,
         wheel,
         deployment_path=deployment,
     )

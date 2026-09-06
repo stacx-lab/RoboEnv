@@ -12,12 +12,13 @@ dependencies = ["PyYAML>=6"]
 
 [project.optional-dependencies]
 server = ["jsonschema>=4.18"]
+setup = ["packaging>=24", "build>=1"]
 replay = ["numpy>=1.23"]
 dev = ["pytest>=8", "ruff>=0.5", "build>=1"]
 harbor = ["harbor==0.22.0; python_version >= '3.12'"]
 
 [project.scripts]
-roboenv = "roboenv.cli:main"
+roboenv = "roboenv.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

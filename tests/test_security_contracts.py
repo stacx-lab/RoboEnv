@@ -10,14 +10,14 @@ import sys
 from pathlib import Path
 
 import pytest
-from roboenv.bindings.spec import BindingSpec
 from roboenv.client import Client, UncertainResult
-from roboenv.deployment import load_deployment, native_service
-from roboenv.device_model import Action, BoundDevice, DeviceDefinition, DeviceError
-from roboenv.device_service import DeviceService
-from roboenv.harbor import Bundle
-from roboenv.task import Task
-from roboenv.taskset import deployment_environment, export_taskset, run_taskset
+from roboenv.devices.bindings.spec import BindingSpec
+from roboenv.devices.model import Action, BoundDevice, DeviceDefinition, DeviceError
+from roboenv.devices.service import DeviceService
+from roboenv.harbor.deployment import load_deployment, native_service
+from roboenv.harbor.taskset import deployment_environment, export_taskset, run_taskset
+from roboenv.tasks.artifacts import Bundle
+from roboenv.tasks.model import Task
 from roboenv.validation import action_validator, json_loads, json_value, yaml_load
 from roboenv_runtime.runtime.protocol import ProtocolError, decode_ndjson
 
@@ -155,9 +155,7 @@ def test_run_time_depot_mapping_enforces_readonly_and_redacts_paths(tmp_path):
 
 def test_deployment_rejects_overlapping_depots(tmp_path):
     path, spec = deployment(tmp_path)
-    spec["mounts"].append(
-        {**spec["mounts"][0], "target": "/opt/roboenv/runtime/assets/nested"}
-    )
+    spec["mounts"].append({**spec["mounts"][0], "target": "/opt/roboenv/runtime/assets/nested"})
     path.write_text(json.dumps(spec))
     with pytest.raises(ValueError, match="overlap"):
         load_deployment(path, "libero")
@@ -168,7 +166,10 @@ def test_healthcheck_does_not_execute_an_unverified_interpreter_depot(tmp_path):
     task = Task.load(ROOT / "catalog/tasks/libero-drawer-and-bowl/task.yaml")
     service = native_service(path, task, portable=True)
     assert service["healthcheck"]["test"] == [
-        "CMD", "/usr/bin/python3", "-I", "/opt/serve/healthcheck.py"
+        "CMD",
+        "/usr/bin/python3",
+        "-I",
+        "/opt/serve/healthcheck.py",
     ]
 
 
@@ -179,10 +180,8 @@ def test_task_runner_rejects_changed_deployment_identity_before_launch(tmp_path,
     wheel = tmp_path / "roboenv-test.whl"
     wheel.write_bytes(b"test-only input")
     destination = tmp_path / "generated"
-    export_taskset(
-        ROOT, ROOT / "catalog/tasks", mapping, destination, wheel, backends=["libero"]
-    )
-    monkeypatch.setattr("roboenv.taskset.shutil.which", lambda name: name)
+    export_taskset(ROOT, ROOT / "catalog/tasks", mapping, destination, wheel, backends=["libero"])
+    monkeypatch.setattr("roboenv.harbor.taskset.shutil.which", lambda name: name)
     spec["image"] = "sha256:" + "b" * 64
     path.write_text(json.dumps(spec))
     with pytest.raises(ValueError, match="regenerate the taskset"):
@@ -281,8 +280,7 @@ def test_untrustworthy_response_is_uncertain_and_never_retried(monkeypatch, defe
 
         def makefile(self, _):
             response = {
-                key: sent[-1][key]
-                for key in ("protocol", "session", "generation", "request_id")
+                key: sent[-1][key] for key in ("protocol", "session", "generation", "request_id")
             }
             response.update(ok=True, result={})
             if defect == "boolean-generation":
