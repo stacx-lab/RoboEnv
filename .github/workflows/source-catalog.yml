@@ -17,7 +17,7 @@ jobs:
         with:
           submodules: false
           persist-credentials: false
-      - uses: astral-sh/setup-uv@c7f87aa956e4c323abf06d5dec078e358f6b4d04 # v6.0.0
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - run: bash tools/bootstrap.sh
       - run: .venv/bin/roboenv sources sync
       - run: >-
