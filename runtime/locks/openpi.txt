@@ -45,7 +45,7 @@ docstring_parser==0.16
 draccus==0.10.0
 einops==0.8.1
 equinox==0.12.2
-etils==1.12.2
+etils==1.13.0
 evdev==1.9.2
 executing==2.2.0
 Farama-Notifications==0.0.4

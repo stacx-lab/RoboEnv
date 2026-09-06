@@ -33,7 +33,7 @@ diffusers==0.40.0
 dill==0.3.8
 draccus==0.10.0
 einops==0.8.2
-etils==1.14.0
+etils==1.13.0
 evdev==2.0.0
 Farama-Notifications==0.0.6
 filelock==3.32.4
