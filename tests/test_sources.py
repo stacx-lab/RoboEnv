@@ -15,6 +15,57 @@ from roboenv.provisioning.sources import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize("current", [True, False])
+def test_check_updates_queries_selected_remotes_without_mutation(tmp_path, monkeypatch, current):
+    from roboenv.provisioning import sources
+
+    revision = "a" * 40
+    tip = revision if current else "b" * 40
+    lock = {
+        "backends": ["selected", "other"],
+        "sources": {
+            name: {
+                "revision": revision,
+                "url": f"https://github.com/example/{name}",
+                "backends": [name],
+            }
+            for name in ("selected", "other")
+        },
+    }
+    monkeypatch.setattr(sources, "load_lock", lambda project: (tmp_path, lock))
+    calls = []
+
+    def remote(root, *args, **kwargs):
+        calls.append(args)
+        return f"ref: refs/heads/main\tHEAD\n{tip}\tHEAD"
+
+    monkeypatch.setattr(sources, "git", remote)
+    report = sources.check_updates(tmp_path, ["selected"])
+    assert report["up_to_date"] is current
+    assert report["sources"][0]["branch"] == "refs/heads/main"
+    assert report["sources"][0]["upstream"] == tip
+    assert calls == [("ls-remote", "--symref", "https://github.com/example/selected", "HEAD")]
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_check_updates_rejects_unresolved_remote(monkeypatch):
+    from roboenv.provisioning import sources
+
+    monkeypatch.setattr(sources, "git", lambda *args, **kwargs: "")
+    with pytest.raises(ValueError, match="Cannot resolve"):
+        sources.check_updates(ROOT, ["robotwin"])
+
+
+@pytest.mark.parametrize("current", [True, False])
+def test_check_updates_cli_exit_status(monkeypatch, capsys, current):
+    from roboenv.cli.main import main
+    from roboenv.provisioning import sources
+
+    monkeypatch.setattr(sources, "check_updates", lambda *args: {"up_to_date": current})
+    assert main(["sources", "check-updates", "--backends", "robotwin"]) == (0 if current else 1)
+    assert '"up_to_date":' in capsys.readouterr().out
+
+
 def test_every_source_and_patch_is_pinned_and_public():
     root, lock = load_lock(ROOT)
     for item in lock["sources"].values():

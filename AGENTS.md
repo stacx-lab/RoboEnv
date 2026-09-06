@@ -64,6 +64,12 @@ not official solutions and need explicit opt-in and provenance.
 - Validate inputs before effects; unsupported actions must fail explicitly.
 - Keep read-only operations, lifecycle ownership, retries, and final snapshots consistent.
 - Record upstream changes as locked patches; never rely on unrecorded checkout edits.
+- Never create commits inside submodules. Before maintaining a selected upstream,
+  run `roboenv sources check-updates --backends BACKEND`. Use the latest upstream
+  default-branch commit as the base, review changes, and rebase managed patches.
+  Commit only the upstream gitlink, lock revision, patch files/checksums, and
+  corresponding notices in RoboEnv. Preserve historical validation receipts;
+  a new upstream base requires new validation, not relabeled old evidence.
 - Add positive and negative tests, then run tools/check.sh.
 - CPU checks and task-format checks are not GPU replay certificates.
 - Report boot, device checks, task success, and fresh-process replay separately.
