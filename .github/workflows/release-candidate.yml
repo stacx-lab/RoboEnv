@@ -42,7 +42,7 @@ jobs:
             .venv/bin/python -m zipfile -e "$wheel" build/release-inspect
           done
       - name: Artifact SBOM (two wheels, not simulator images)
-        uses: anchore/sbom-action@9246b90769f852b3a8921f330c59e0b3f439d6e9 # v0.20.1
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: build/release-inspect
           syft-version: v1.22.0
