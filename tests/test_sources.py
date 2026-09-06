@@ -4,7 +4,13 @@ import hashlib
 from pathlib import Path
 
 import pytest
-from roboenv.upstreams import git, load_lock, managed_tree_matches, selected_sources, status
+from roboenv.provisioning.sources import (
+    git,
+    load_lock,
+    managed_tree_matches,
+    selected_sources,
+    status,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -26,7 +32,7 @@ def test_every_source_and_patch_is_pinned_and_public():
 
 
 def test_status_does_not_claim_readiness_without_checkout(tmp_path, monkeypatch):
-    import roboenv.upstreams as upstreams
+    import roboenv.provisioning.sources as upstreams
 
     lock = {
         "backends": ["test"],
@@ -47,8 +53,8 @@ def test_status_does_not_claim_readiness_without_checkout(tmp_path, monkeypatch)
 
 
 def test_source_cli_exits_unsuccessfully_when_not_ready(monkeypatch, capsys):
-    import roboenv.upstreams as upstreams
-    from roboenv.cli import main
+    import roboenv.provisioning.sources as upstreams
+    from roboenv.cli.main import main
 
     monkeypatch.setattr(upstreams, "status", lambda *args: {"ready": False, "sources": []})
     assert main(["sources", "status"]) == 1

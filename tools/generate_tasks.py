@@ -3,7 +3,7 @@
 
 import sys
 
-from roboenv.cli import main
+from roboenv.cli.main import main
 
 if __name__ == "__main__":
     raise SystemExit(main(["tasks", "generate", *sys.argv[1:]]))

@@ -49,8 +49,8 @@ from typing import Any
 
 import numpy as np
 
-from roboenv_runtime.core.adapter import EnvAdapter, make_adapter
 from roboenv_runtime.core.access import is_read_only
+from roboenv_runtime.core.adapter import EnvAdapter, make_adapter
 from roboenv_runtime.core.tools import ToolSpec
 from roboenv_runtime.runtime.protocol import (
     ALLOWED_OPS,
@@ -641,7 +641,7 @@ class SimWorker:
         if op in {"environment.describe", "devices.list", "devices.describe", "devices.call"}:
             if self.devices is None:
                 raise WorkerRPCError("devices_unconfigured", "No server-owned robot catalog configured")
-            from roboenv.device_model import DeviceError
+            from roboenv.devices.model import DeviceError
 
             try:
                 if op in {"environment.describe", "devices.list"}:

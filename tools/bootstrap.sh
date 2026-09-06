@@ -26,3 +26,5 @@ uv pip install --python "$environment_dir/bin/python" --no-deps -r locks/dev.txt
 uv pip install --python "$environment_dir/bin/python" --no-deps --no-build-isolation -e . -e runtime
 uv pip check --python "$environment_dir/bin/python"
 echo 'Development environment ready; simulator dependencies are installed separately.'
+echo "Activate: source $environment_dir/bin/activate"
+echo 'Prepare a simulator: roboenv prepare robotwin'

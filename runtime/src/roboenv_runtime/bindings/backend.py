@@ -7,7 +7,7 @@ code from the task's catalog, and no function here connects to a worker socket.
 
 from contextvars import ContextVar
 
-from roboenv.device_model import DeviceError
+from roboenv.devices.model import DeviceError
 
 
 class _Functions:

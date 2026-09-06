@@ -4,16 +4,33 @@ import json
 import sys
 from pathlib import Path
 
-from roboenv.client import Client, RemoteError
+from roboenv.client import Client, RemoteError, UncertainResult
 
 
 def handle(action, args):
     try:
-        reply = Client().device(Path(__file__).parent.name).call(action, args)
+        connection = Path(__file__).with_name("connection.json")
+        if connection.is_file():
+            config = json.loads(connection.read_text())
+            client = Client(
+                config.get("endpoint") or config["socket"],
+                session=config["session"],
+                generation=config["generation"],
+            )
+        else:
+            client = Client()
+        reply = client.device(Path(__file__).parent.name).call(action, args)
         data = reply["data"]
         return {**(data if isinstance(data, dict) else {"result": data}), "ok": True}
     except RemoteError as exc:
         return {"ok": False, "error": str(exc), "code": exc.code, "request_id": exc.request_id}
+    except UncertainResult as exc:
+        return {
+            "ok": False,
+            "error": str(exc),
+            "code": "outcome_unknown",
+            "request_id": exc.request_id,
+        }
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 

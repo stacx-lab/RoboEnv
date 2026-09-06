@@ -9,9 +9,9 @@ from types import SimpleNamespace
 import pytest
 import yaml
 from harbor.models.job.config import JobConfig
-from roboenv.catalogue import BACKENDS, discover, summary
-from roboenv.harbor import export_task
-from roboenv.taskset import export_taskset, run_taskset, validate_harbor_task
+from roboenv.harbor.export import export_task
+from roboenv.harbor.taskset import export_taskset, run_taskset, validate_harbor_task
+from roboenv.tasks.catalog import BACKENDS, discover, summary
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -94,9 +94,9 @@ def test_runner_ignores_unselected_unprepared_deployments(tmp_path, monkeypatch)
     mapping["unused"] = "not-prepared-yet.json"
     deployments.write_text(json.dumps(mapping))
     calls = []
-    monkeypatch.setattr("roboenv.taskset.shutil.which", lambda executable: executable)
+    monkeypatch.setattr("roboenv.harbor.taskset.shutil.which", lambda executable: executable)
     monkeypatch.setattr(
-        "roboenv.taskset.subprocess.run",
+        "roboenv.harbor.taskset.subprocess.run",
         lambda command, **kwargs: calls.append((command, kwargs)) or SimpleNamespace(returncode=0),
     )
     assert run_taskset(result_dir, deployments, agent="test-agent") == 0
@@ -112,7 +112,7 @@ def test_generator_discovers_when_source_is_omitted(tmp_path, monkeypatch):
         called.append(tuple(backends))
         shutil.copytree(ROOT / "catalog/tasks", Path(out) / "tasks")
 
-    monkeypatch.setattr("roboenv.taskset.discover", discover)
+    monkeypatch.setattr("roboenv.harbor.taskset.discover", discover)
     result = export_taskset(ROOT, None, deployments, tmp_path / "generated", wheel)
     assert called == [BACKENDS]
     assert result["references"] == 0
@@ -130,7 +130,6 @@ def test_project_reference_is_opt_in_and_not_an_official_certificate(tmp_path):
         task,
         ROOT / "catalog",
         out,
-        None,
         wheel,
         deployment_path=tmp_path / "robocasa.json",
         include_reference=True,
@@ -146,7 +145,6 @@ def test_project_reference_is_opt_in_and_not_an_official_certificate(tmp_path):
             task,
             ROOT / "catalog",
             tmp_path / "bad",
-            None,
             wheel,
             deployment_path=tmp_path / "robocasa.json",
             include_reference=True,
@@ -161,7 +159,6 @@ def test_missing_verifier_is_rejected_by_harbor(tmp_path):
         ROOT / "catalog/tasks/robocasa-arrange-vegetables/task.yaml",
         ROOT / "catalog",
         out,
-        None,
         wheel,
         deployment_path=tmp_path / "robocasa.json",
     )

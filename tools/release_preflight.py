@@ -27,7 +27,7 @@ from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name, parse_wheel_filename
 from packaging.version import Version
 from roboenv.privacy import audit, owned_files, validate_public_text
-from roboenv.upstreams import load_lock, status
+from roboenv.provisioning.sources import load_lock, status
 
 PACKAGES = {"roboenv": ".", "roboenv-runtime": "runtime"}
 SECRET_PATTERNS = {

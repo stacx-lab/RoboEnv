@@ -9,7 +9,7 @@ mkdir -p "$TMPDIR" build/wheels
 "$python_bin" -m ruff check src tests tools
 "$python_bin" -m ruff check --select E9,F63,F7,F82 runtime/src runtime/packaging
 "$python_bin" -m pytest -c pyproject.toml --confcutdir=. tests -q
-"$python_bin" -m roboenv.cli audit-privacy --project .
+"$python_bin" -m roboenv.cli.main audit-privacy --project .
 SOURCE_DATE_EPOCH=1788480000 "$python_bin" -m build --no-isolation --wheel --outdir build/wheels .
 SOURCE_DATE_EPOCH=1788480000 "$python_bin" -m build --no-isolation --wheel --outdir build/wheels runtime
 "$python_bin" tools/check_wheels.py build/wheels

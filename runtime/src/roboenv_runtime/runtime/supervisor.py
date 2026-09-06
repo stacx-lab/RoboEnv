@@ -24,9 +24,10 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from roboenv_runtime.runtime.atomic import AtomicJournal, atomic_write_json
 from roboenv_runtime.runtime.protocol import (
@@ -84,8 +85,13 @@ class SupervisorConfig:
     worker_startup_timeout_s: float = 900.0
     terminate_grace_s: float = 10.0
     max_ndjson_bytes: int = MAX_NDJSON_BYTES
+    http_port: int | None = None
 
     def __post_init__(self) -> None:
+        if self.http_port is not None and (
+            type(self.http_port) is not int or not 0 <= self.http_port <= 65535
+        ):
+            raise ValueError("HTTP port must be an integer between 0 and 65535")
         self.run_dir = self.run_dir.resolve()
         self.run_dir.mkdir(parents=True, exist_ok=True)
         # sockets must live below the run directory (or $ROBOENV_SOCKET_ROOT: Unix socket
@@ -147,6 +153,8 @@ class Supervisor:
         self._started_monotonic = time.monotonic()
         self._started_wall = time.time()
         self._server: _ThreadingUnixServer | None = None
+        self._http_server = None
+        self._http_thread = None
         self._closing = False
         self._restore_cache()
 
@@ -160,6 +168,7 @@ class Supervisor:
         worker = self._worker
         return {
             "protocol": PROTOCOL_VERSION,
+            "endpoint": self.http_endpoint,
             "session": self.config.session,
             "generation": self.config.generation,
             "task": self.config.task,
@@ -372,6 +381,7 @@ class Supervisor:
         worker = self._worker
         return {
             "supervisor": "ok" if not self._closing else "closing",
+            "endpoint": self.http_endpoint,
             "protocol": PROTOCOL_VERSION,
             "session": self.config.session,
             "generation": self.config.generation,
@@ -679,7 +689,7 @@ class Supervisor:
                         and isinstance(result.get("devices"), list)
                         and bool(result["devices"])
                     )
-            except (TimeoutError, socket.timeout) as exc:
+            except TimeoutError as exc:
                 worker_was_alive = self._worker_alive()
                 self.terminate_worker(reason=str(exc), timed_out=True)
                 worker_killed = worker_was_alive and self._worker_state == "timed_out"
@@ -794,6 +804,14 @@ class Supervisor:
             threading.Thread(target=server.shutdown, daemon=True).start()
 
     def serve_forever(self) -> None:
+        if self.config.http_port is not None and self._http_server is None:
+            from .http_service import bind_http
+
+            self._http_server = bind_http(self, self.config.http_port)
+            self._http_thread = threading.Thread(
+                target=self._http_server.serve_forever, kwargs={"poll_interval": 0.1}, daemon=True
+            )
+            self._http_thread.start()
         if self._worker is None:
             self.start_worker()
         if self._server is None:
@@ -805,6 +823,11 @@ class Supervisor:
         if self._closing:
             return
         self._closing = True
+        if self._http_server is not None:
+            self._http_server.shutdown()
+            self._http_server.server_close()
+            self._http_thread.join(timeout=5)
+            self._http_server = None
         server, self._server = self._server, None
         if server is not None:
             server.server_close()
@@ -816,6 +839,12 @@ class Supervisor:
             if self.config.public_socket.is_socket():
                 self.config.public_socket.unlink()
         self._write_state()
+
+    @property
+    def http_endpoint(self):
+        if self._http_server is None:
+            return None
+        return f"http://127.0.0.1:{self._http_server.server_port}"
 
 
 def _session_default(task: str, seed: int) -> str:
@@ -837,6 +866,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--worker-arg", action="append", default=[])
     parser.add_argument("--worker-startup-timeout", type=float, default=900.0)
     parser.add_argument("--terminate-grace", type=float, default=10.0)
+    parser.add_argument("--port", type=int, help="Loopback HTTP port; 0 selects a free port")
     return parser
 
 
@@ -861,6 +891,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         worker_extra_args=tuple(args.worker_arg),
         worker_startup_timeout_s=args.worker_startup_timeout,
         terminate_grace_s=args.terminate_grace,
+        http_port=args.port,
     )
     supervisor = Supervisor(config)
 

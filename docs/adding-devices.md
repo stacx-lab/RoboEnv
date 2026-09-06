@@ -25,7 +25,7 @@ exporter 会为 agent 生成统一薄客户端。
 
 ## 3. 实现 factory
 
-接口在 [device_model.py](../src/roboenv/device_model.py)：
+接口在 [devices/model.py](../src/roboenv/devices/model.py)：
 DeviceDefinition、Action、BoundDevice、ExecutionContext。
 factory 签名为 factory(spec, root, context) -> BoundDevice。
 

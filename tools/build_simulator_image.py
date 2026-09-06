@@ -15,7 +15,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from roboenv.upstreams import status
+from roboenv.provisioning.sources import status
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 INTERPRETERS = {

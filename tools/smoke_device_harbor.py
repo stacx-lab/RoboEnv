@@ -15,7 +15,7 @@ import uuid
 from pathlib import Path
 
 from harbor.models.job.config import JobConfig
-from roboenv.harbor import export_task
+from roboenv.harbor.export import export_task
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -76,7 +76,6 @@ def main():
         ROOT / "tests/fixtures/native-toy/task.yaml",
         ROOT / "tests/fixtures/native-toy/catalog",
         task,
-        None,
         args.sdk_wheel,
         deployment_path=deployment,
     )

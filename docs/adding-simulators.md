@@ -60,7 +60,7 @@ robodojo.device/1、behavior.device/1。
 不再执行 catalog 里的 Python driver，也不连接回自己的 socket。
 
 这是一层后端控制器适配，不是所有模拟器都已实现统一低级关节控制。
-catalog/1 只保留旧 bundle 兼容；fakeshell.puck/1 是不使用 primitive 表的
+fakeshell.puck/1 是不使用 primitive 表的
 直接实体示例。中立 DeviceService 不依赖以上任何具体绑定。
 
 ## 5. 接上任务发现与镜像
@@ -68,7 +68,7 @@ catalog/1 只保留旧 bundle 兼容；fakeshell.puck/1 是不使用 primitive �
 新增后端须同时完成：
 
 1. tools/build_simulator_image.py 中解释器、源码和资产切片映射。
-2. src/roboenv/catalogue.py 中轻量 discoverer 和默认 robot。
+2. src/roboenv/tasks/catalog.py 中轻量 discoverer 和默认 robot。
 3. 从上游真实 registry/config 提取 id、初始化参数、任务语言及来源哈希。
 4. 每个生成定义能被 Task.load 验证，并通过真实 Harbor loader。
 5. 缺失场景、配置或资源的任务明确排除，并记录原因。

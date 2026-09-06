@@ -12,10 +12,10 @@ from pathlib import Path
 import pytest
 import test_device_service as wire_tests
 import yaml
-from roboenv.bindings.registry import BindingContext, BindingRegistry
-from roboenv.bindings.spec import BindingPlan
-from roboenv.device_model import Action, BoundDevice, DeviceError
-from roboenv.harbor import export_task
+from roboenv.devices.bindings.registry import BindingContext, BindingRegistry
+from roboenv.devices.bindings.spec import BindingPlan
+from roboenv.devices.model import Action, BoundDevice, DeviceError
+from roboenv.harbor.export import export_task
 
 device_service = wire_tests.device_service
 
@@ -35,14 +35,14 @@ def robot(tmp_path):
 
 
 def test_neutral_core_has_no_simulator_client_or_binding_dependency():
-    for name in ("device_model.py", "device_service.py"):
-        tree = ast.parse((ROOT / "src/roboenv" / name).read_text())
+    for name in ("model.py", "service.py"):
+        tree = ast.parse((ROOT / "src/roboenv/devices" / name).read_text())
         modules = [n.module or "" for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)]
         modules += [a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names]
         assert not any(
             part in module
             for module in modules
-            for part in ("runtime", "adapters", "bindings", "client", "runpy", "devices")
+            for part in ("runtime", "adapters", "bindings", "client", "runpy")
         )
 
 
@@ -219,6 +219,28 @@ def test_registry_cleanup_on_partial_assembly_failure(robot):
     assert closed == ["a"]
 
 
+def test_missing_binding_plan_does_not_execute_catalog_drivers(robot):
+    (robot / "bindings.yaml").unlink()
+    with pytest.raises(ValueError, match="explicit bindings.yaml"):
+        BindingPlan.load(robot, backend="fakeshell")
+
+
+def test_catalog_execution_is_not_a_registered_backend(robot):
+    from roboenv_runtime.bindings import default_registry
+
+    plan = BindingPlan.load(
+        robot,
+        backend="fakeshell",
+        devices={
+            "controller": {"binding": "catalog/1", "entity": "controller"},
+        },
+    )
+    with pytest.raises(ValueError, match="unknown registered binding"):
+        default_registry().assemble(
+            plan, robot, BindingContext("fakeshell", "general", FakeShell())
+        )
+
+
 def test_native_read_context_refuses_effectful_backend_operation(robot):
     registry = BindingRegistry()
     moved = []
@@ -284,7 +306,7 @@ def test_task_export_freezes_explicit_bindings_and_only_selected_client_devices(
         )
     )
     out = tmp_path / "export"
-    export_task(task, catalog, out, None, wheel, deployment_path=deployment)
+    export_task(task, catalog, out, wheel, deployment_path=deployment)
     base = out / "environment"
     bound = yaml.safe_load((base / "sim/robot/bindings.yaml").read_text())
     assert set(bound["devices"]) == {"puck"}

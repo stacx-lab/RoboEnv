@@ -1,133 +1,133 @@
 {
   "libero:panda:arm": {
-    "module": "libero_panda__arm",
+    "module": "libero.arm",
     "source_sha256": "10e8d0869d2baa4dc11b19b61c417820c1a865048838a7335bc6631f9c82647a"
   },
   "libero:panda:camera": {
-    "module": "libero_panda__camera",
+    "module": "shared.camera",
     "source_sha256": "c0c7c5491963d3284a50a160a68b590adedeb0b5b50fc6af8ba48a9ef9dc3748"
   },
   "libero:panda:gripper": {
-    "module": "libero_panda__gripper",
+    "module": "libero.gripper",
     "source_sha256": "b2c66a7ce22416d8086e2c86db9cb99ab324818c663aeacab8ff71b9dbd11745"
   },
   "libero:panda:world": {
-    "module": "libero_panda__world",
+    "module": "libero.world",
     "source_sha256": "29901c0c397cfb24e96a9a6d2f54032f231c26785ac38a5c058677cf4af99c43"
   },
   "robocasa:panda_omron:arm": {
-    "module": "robocasa_panda_omron__arm",
+    "module": "robocasa.arm",
     "source_sha256": "c5303213b9e563d34910815af672dfa3cc4385b1c8428b571f041f3ddef53207"
   },
   "robocasa:panda_omron:base": {
-    "module": "robocasa_panda_omron__base",
+    "module": "robocasa.base",
     "source_sha256": "1578059c9335848ec40c95e0ece1c93ccc976df118380a61478d61b938a3f57b"
   },
   "robocasa:panda_omron:camera": {
-    "module": "robocasa_panda_omron__camera",
+    "module": "shared.camera",
     "source_sha256": "50aa059ba039c57167b786be2bc5484ec9d365bab73352e3b1ec1f6f18446936"
   },
   "robocasa:panda_omron:gripper": {
-    "module": "robocasa_panda_omron__gripper",
+    "module": "robocasa.gripper",
     "source_sha256": "ec9903a03a0a6cb62d069333c0c4473d8e80195a4f70f7dd4b300e1a80c0109e"
   },
   "robocasa:panda_omron:torso": {
-    "module": "robocasa_panda_omron__torso",
+    "module": "robocasa.torso",
     "source_sha256": "8281b9ba5972d0180a1166d0f95536e3f6d99893f61f06bc2fffa003bc8fcbc4"
   },
   "robocasa:panda_omron:world": {
-    "module": "robocasa_panda_omron__world",
+    "module": "robocasa.world",
     "source_sha256": "7213a2885912f84931e0258e0d64033a87004b3fa5c57ef8370255a92bb68660"
   },
   "robodojo:arx_x5:arm": {
-    "module": "robodojo_arx_x5__arm",
+    "module": "robodojo.arm",
     "source_sha256": "c84583350dc85cefe62a254416a32d1c00eaf7e51d2201767dd617c08dfa8e58"
   },
   "robodojo:arx_x5:camera": {
-    "module": "robodojo_arx_x5__camera",
+    "module": "shared.camera",
     "source_sha256": "c0c7c5491963d3284a50a160a68b590adedeb0b5b50fc6af8ba48a9ef9dc3748"
   },
   "robodojo:arx_x5:gripper": {
-    "module": "robodojo_arx_x5__gripper",
+    "module": "robodojo.gripper",
     "source_sha256": "12a2a4e406180506049f34ca29184777ada94dedf23583e54489df4c312e4225"
   },
   "robodojo:arx_x5:left_arm": {
-    "module": "robodojo_arx_x5__left_arm",
+    "module": "robodojo.left_arm",
     "source_sha256": "633691d1e5c0cc793732729b51be9e7e35ddeea51a77a8cde746267981139f5d"
   },
   "robodojo:arx_x5:left_gripper": {
-    "module": "robodojo_arx_x5__left_gripper",
+    "module": "robodojo.left_gripper",
     "source_sha256": "9ef499ebbcd0c7db8a3336a31739b63fa8bef45cf53f3c3393c04cd9e31733fd"
   },
   "robodojo:arx_x5:right_arm": {
-    "module": "robodojo_arx_x5__right_arm",
+    "module": "robodojo.right_arm",
     "source_sha256": "5c6e0d0f3dbddab4caaec809c59a7422ad40ed77a853449da530af3475b17f3e"
   },
   "robodojo:arx_x5:right_gripper": {
-    "module": "robodojo_arx_x5__right_gripper",
+    "module": "robodojo.right_gripper",
     "source_sha256": "d56a2fe777e9a62e90213cf8dd2ccb9f995f374fed3b5dc5c03df02eef0b0c2e"
   },
   "robodojo:arx_x5:world": {
-    "module": "robodojo_arx_x5__world",
+    "module": "robodojo.world",
     "source_sha256": "edfa78a296c4c16e7089dd4c027ea23ac377587b4afbbd0a4ea5250779b10c52"
   },
   "robodojo:yam:left_arm": {
-    "module": "robodojo_yam__left_arm",
+    "module": "robodojo.left_arm",
     "source_sha256": "633691d1e5c0cc793732729b51be9e7e35ddeea51a77a8cde746267981139f5d"
   },
   "robodojo:yam:left_gripper": {
-    "module": "robodojo_yam__left_gripper",
+    "module": "robodojo.left_gripper",
     "source_sha256": "9ef499ebbcd0c7db8a3336a31739b63fa8bef45cf53f3c3393c04cd9e31733fd"
   },
   "robodojo:yam:right_arm": {
-    "module": "robodojo_yam__right_arm",
+    "module": "robodojo.right_arm",
     "source_sha256": "5c6e0d0f3dbddab4caaec809c59a7422ad40ed77a853449da530af3475b17f3e"
   },
   "robodojo:yam:right_gripper": {
-    "module": "robodojo_yam__right_gripper",
+    "module": "robodojo.right_gripper",
     "source_sha256": "d56a2fe777e9a62e90213cf8dd2ccb9f995f374fed3b5dc5c03df02eef0b0c2e"
   },
   "robotwin:aloha_agilex:left_arm": {
-    "module": "robotwin_aloha_agilex__left_arm",
+    "module": "robotwin.left_arm",
     "source_sha256": "750563a80b69bf5f3a7d75c9995fb9e34eeb072b89f2a36c2b75ac7fe2348911"
   },
   "robotwin:aloha_agilex:left_gripper": {
-    "module": "robotwin_aloha_agilex__left_gripper",
+    "module": "robotwin.left_gripper",
     "source_sha256": "17eb54621fd963494e68aab4625738fc0e4501d09fe599dc896f9e09b977cbd7"
   },
   "robotwin:aloha_agilex:right_arm": {
-    "module": "robotwin_aloha_agilex__right_arm",
+    "module": "robotwin.right_arm",
     "source_sha256": "f64c23c71a91e72a9b2787b472608639e5508298d126c90e807556d9ac5d3311"
   },
   "robotwin:aloha_agilex:right_gripper": {
-    "module": "robotwin_aloha_agilex__right_gripper",
+    "module": "robotwin.right_gripper",
     "source_sha256": "aacf8aaf7a72b539e49c1bee6d15cd9e1d601cafb8d63c275940b089ab78a444"
   },
   "robotwin:piper:camera": {
-    "module": "robotwin_dual_piper__camera",
+    "module": "shared.camera",
     "source_sha256": "c0c7c5491963d3284a50a160a68b590adedeb0b5b50fc6af8ba48a9ef9dc3748"
   },
   "robotwin:piper:left_arm": {
-    "module": "robotwin_dual_piper__left_arm",
+    "module": "robotwin.left_arm",
     "source_sha256": "750563a80b69bf5f3a7d75c9995fb9e34eeb072b89f2a36c2b75ac7fe2348911"
   },
   "robotwin:piper:left_gripper": {
-    "module": "robotwin_dual_piper__left_gripper",
+    "module": "robotwin.left_gripper",
     "source_sha256": "17eb54621fd963494e68aab4625738fc0e4501d09fe599dc896f9e09b977cbd7"
   },
   "robotwin:piper:right_arm": {
-    "module": "robotwin_dual_piper__right_arm",
+    "module": "robotwin.right_arm",
     "source_sha256": "f64c23c71a91e72a9b2787b472608639e5508298d126c90e807556d9ac5d3311"
   },
   "robotwin:piper:right_gripper": {
-    "module": "robotwin_dual_piper__right_gripper",
+    "module": "robotwin.right_gripper",
     "source_sha256": "aacf8aaf7a72b539e49c1bee6d15cd9e1d601cafb8d63c275940b089ab78a444"
   },
   "robotwin:piper:world": {
-    "module": "robotwin_dual_piper__world",
+    "module": "robotwin.world",
     "source_sha256": "eb30ba26d3d3e77afd129ae828567587546e1f7343f9a3a831724920e9acfe7b"
   },
   "behavior:r1pro:controller": {
-    "module": "behavior_r1pro__controller"
+    "module": "behavior.controller"
   }
 }

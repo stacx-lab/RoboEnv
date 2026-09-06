@@ -19,8 +19,9 @@ from __future__ import annotations
 
 import math
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any
 
 _MISSING = object()
 
@@ -217,7 +218,7 @@ class ScoreClock:
 
         clocked_step.__name__ = "score_clock_step"
         clocked_step.__doc__ = "EvalEnv.step wrapped by ScoreClock."
-        setattr(self.eval_env, "step", clocked_step)
+        self.eval_env.step = clocked_step
 
     def _restore_patches(self) -> None:
         for name, original_instance_value in reversed(list(self._saved_instance_attrs.items())):
@@ -398,7 +399,7 @@ class ScoreClock:
             if getattr(self.eval_env, self._OWNER_ATTR, None) is self:
                 delattr(self.eval_env, self._OWNER_ATTR)
 
-    def __enter__(self) -> "ScoreClock":
+    def __enter__(self) -> ScoreClock:
         return self
 
     def __exit__(self, _exc_type: Any, _exc: Any, _tb: Any) -> None:

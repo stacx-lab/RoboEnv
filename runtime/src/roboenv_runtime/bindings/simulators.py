@@ -4,8 +4,8 @@ import importlib
 import json
 from importlib.resources import files
 
-from roboenv.contract import UNSUPPORTED_ACTIONS
-from roboenv.device_model import Action, BoundDevice
+from roboenv.devices.contract import UNSUPPORTED_ACTIONS
+from roboenv.devices.model import Action, BoundDevice
 
 from .backend import BackendControllers
 

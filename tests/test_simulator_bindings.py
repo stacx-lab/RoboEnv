@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from roboenv.bindings.registry import BindingContext
-from roboenv.bindings.spec import BindingPlan
-from roboenv.device_model import DeviceError
+from roboenv.devices.bindings.registry import BindingContext
+from roboenv.devices.bindings.spec import BindingPlan
+from roboenv.devices.model import DeviceError
 from roboenv_runtime.adapters.fakeshell import FakeShell
 from roboenv_runtime.bindings import default_registry
 from roboenv_runtime.bindings.backend import BackendControllers
@@ -151,7 +151,9 @@ def piper_world_service(*, functional_controller=True, failed_pose=False):
         "score.peek": {"reward": 0.0, "submitted": False},
     }
     context = BindingContext(
-        "robotwin", "piper", object(),
+        "robotwin",
+        "piper",
+        object(),
         public_dispatch=lambda op, args: observations[op],
         public_tools=controllers,
     )

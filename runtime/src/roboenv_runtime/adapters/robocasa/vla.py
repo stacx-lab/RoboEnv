@@ -153,7 +153,7 @@ class RoboCasaPolicyHooks:
         """Object positions, plus the moving part of every fixture joint this task scores.
 
         Without the second half ``vla_run``'s ``objects_moved_m`` is ``{}`` for every
-        articulated-fixture task, and :func:`roboenv_runtime.vla.patterns.stalled` -- the campaign's
+        articulated-fixture task, and :func:`roboenv.control.patterns.stalled` -- the campaign's
         stopping rule -- reads a swinging door as "nothing moved".  Measured 2026-08-28 on
         the certified ``robocasa.OpenCabinet`` run: the door goes 0 -> 1.0 by frame 600
         while the first three 150-frame chunks reported ``{}``, so the default ``give_up``

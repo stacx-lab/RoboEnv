@@ -1,206 +1,125 @@
-# Installation and reproducibility
+# Setup and local use
 
-Roboenv has three separately verified inputs: its own Python distributions,
-simulator source and dependencies, and licensed asset depots. A passing check at
-one boundary is not evidence that the next boundary works.
+Use Linux and uv. From a source checkout:
 
-## CPU development and an independent wheel installation
-
-From the Roboenv repository root, install uv using its
-[official installation instructions](https://docs.astral.sh/uv/getting-started/installation/), then:
-
-```bash
+```sh
 bash tools/bootstrap.sh
-bash tools/check.sh
-.venv/bin/python tools/clean_install.py --wheels build/wheels \
-  --out .cache/clean-install-receipt.json
+source .venv/bin/activate
 ```
 
-Bootstrap uses Python 3.12 and the development lock, disables user site-packages,
-and finishes with a dependency consistency check. An optional first argument
-selects a different virtual environment. Existing non-environment directories are
-rejected; an existing development environment is reused, never deleted.
+This installs the CLI into the development virtual environment. Activate it in
+each new shell, or use `.venv/bin/roboenv` directly.
 
-The clean-install check does something different from editable-source tests: it
-creates a new temporary environment, installs both wheels with normal dependency
-resolution and Harbor 0.22.0, checks dependencies, changes outside the source
-tree, and probes the SDK, worker, supervisor, and Harbor commands. It verifies
-that imports actually originate in the new environment and that the real Harbor
-task model accepts schema 1.4. No parent workspace, agent implementation, GPU,
-simulator installation or credential is needed. Dependencies still require an
-accessible package index; `--offline` requires a populated uv cache.
+## Prepare a simulator
 
-The receipt records wheel hashes and completed checks, not host locations.
-Failed installation diagnostics remain in the ignored, owner-readable file
-`.cache/clean-install/last-run.private.log`. Do not publish raw installer logs.
-
-## Select and inspect one simulator
-
-```bash
-.venv/bin/roboenv sources sync --backends robocasa
-.venv/bin/roboenv sources status --backends robocasa
-.venv/bin/python tools/setup_simulator.py robocasa
+```sh
+roboenv prepare robotwin
 ```
 
-Source readiness verifies public origin URLs, exact commits, patch hashes, and
-the exact tracked tree after those patches. The check uses a temporary Git index:
-it does not overwrite a contributor's working tree or staging area. Unrecorded
-source edits fail readiness. Ignored caches and asset depots are checked separately.
+This synchronizes RoboTwin sources, installs its isolated interpreter, and
+reports setup checks. Substitute another simulator as needed.
+No manual source sync, wheel build, clean-install verification, or separate
+doctor command is required. Each simulator runs in its own interpreter; the SDK
+does not import simulator dependencies. This may download many GB.
 
-`runtime/environments.json` names each interpreter version, resolved dependency
-lock, editable packages, **source-only** checkouts, Git source pins, package
-indexes, and upstream asset instructions. The default setup command is read-only.
-It rejects duplicate, ranged, malformed, or unresolved requirements and reports
-known conflicts explicitly. Recipe paths must stay inside the selected checkout.
+## Optional setup controls
 
-An explicit installation can download many GB and creates a **new** environment:
-
-```bash
-.venv/bin/python tools/setup_simulator.py robotwin \
-  --install --prefix .venv-sim/robotwin --wheels build/wheels
+```sh
+roboenv doctor robotwin
+roboenv prepare robotwin --prefix .venv-sim/robotwin-fresh
 ```
 
-It never modifies an existing environment or silently bypasses the dependency
-resolver. One normal resolver invocation installs the lock, selected SDK/runtime,
-and required editable packages together. It then runs dependency consistency,
-installed Git identity and import-origin checks. Source-only checkouts are not
-installed as Python distributions. Import probes disable GPU visibility and do
-not create an episode. Failure preserves the partial new environment and a unique
-owner-readable log under `.cache/setup/`; it never produces a successful certificate.
+`prepare` defaults to `.venv-sim/robotwin`, checks dependencies and import origins, and
+records the interpreter for launch. Repeating it reuses a registered interpreter
+if its executable still exists; it does not upgrade or certify that environment
+again. `doctor` provides read-only diagnostics. Existing environments are never
+overwritten. Failed installations
+retain their environment and private logs. Use `--prefix NEW_DIRECTORY`
+for a fresh installation or recovery after failure.
 
-Package inputs are explicit and independent of the shell's active environment:
+Assets are acquired separately using the pinned upstream's instructions. Setup
+does not accept licenses or download model checkpoints. `doctor` reports recipe
+and source blockers and whether an interpreter has been registered; it does not
+certify GPU, asset, or task readiness. Add `--json` for automation.
 
-```bash
-# Default: SDK at this project root and runtime at this project's runtime/.
-.venv/bin/python tools/setup_simulator.py libero \
-  --install --prefix .venv-sim/libero
+For explicit wheels, mixed package inputs, dependency recipes, asset manifests,
+and historical evidence, see [installation reference](installation-reference.md).
 
-# Both selected wheels; neither package falls back to a neighboring workspace.
-.venv/bin/python tools/setup_simulator.py libero \
-  --install --prefix .venv-sim/libero-wheels --wheels build/wheels
+## Start a task
 
-# Mixed inputs, when intentionally validating a different package build.
-.venv/bin/python tools/setup_simulator.py robotwin \
-  --install --prefix .venv-sim/robotwin-mixed \
-  --sdk build/wheels/roboenv-0.2.0-py3-none-any.whl --runtime runtime
+```sh
+roboenv tasks list --simulator robotwin
+roboenv start TASK_ID
 ```
 
-`--sdk` and `--runtime` each accept a package source directory or a wheel.
-They cannot be combined with `--wheels`. `--project` selects a different Roboenv
-checkout explicitly; omitted package arguments then resolve inside that checkout,
-not its parent. Running the installed simulator outside that checkout requires
-`ROBOENV_ROOT` to identify the selected, pinned source root. Generated native
-images set their own container-local source root.
+Choose a task ID from the list. With `.venv` activated, you can use `roboenv`
+instead of `.venv/bin/roboenv`. Startup uses the registered interpreter and waits
+for the live device registry.
+It assigns a free loopback HTTP port and prints an endpoint and directory
+containing profiles and thin drivers. Select a fixed port with `--port 8123`;
+an occupied port fails startup instead of attaching to another environment. Keep
+the command running; Ctrl-C closes the environment. Use `--detach` to leave it
+running and `roboenv stop http://127.0.0.1:8123` to close it later from the same
+project. `roboenv status http://127.0.0.1:8123` reports service health.
 
-## Promoted LIBERO and RoboTwin recipes
+An existing prepared interpreter can be selected with `--interpreter ENV/bin/python`.
+Custom tasks accept a task.yaml path and `--catalog CATALOG`. No simulator
+installation or asset download occurs during launch. Local launch is intended
+for development; Harbor provides the container boundary for agent evaluation.
 
-The defaults now use `runtime/locks/libero-resolved.txt` and
-`runtime/locks/robotwin-resolved.txt`. Original `libero.txt` and `robotwin.txt`
-freezes and the candidate receipts remain untouched as historical evidence.
-The promoted locks match the tested candidate requirements exactly.
+## Connect and use devices
 
-Both install **one** OpenCV distribution, `opencv-python==4.11.0.86`, because
-the selected robosuite/SAPIEN packages require that distribution. NumPy stays at
-1.26.4; installing desktop and headless OpenCV together is not a substitute for
-dependency consistency. RoboTwin retains Torch 2.4.1, SciPy 1.10.1, and JAX 0.4.29.
-LIBERO retains its tested MuJoCo, Torch, NumPy, and JAX core pins; its full resolved
-dependency changes are recorded in the [LIBERO validation receipt](validation/libero-candidate.md).
+In another terminal with the development environment active:
 
-The full cap-x distribution includes agent/training requirements that are not
-the Roboenv simulator dependency boundary. Instead, these recipes load the needed
-bridge modules from the source-locked checkout. LIBERO-PRO and its robosuite fork
-still install normally as editable packages; RoboTwin's benchmark source is
-source-only. No fake `capx` distribution is installed, and no dependency resolver
-is bypassed. Current cap-x initialization eagerly imports Franka IK types, so
-the locks still include PyRoKi/JAXLS even on RoboTwin's native-planner path.
-
-The two `*-source-pins.txt` files only bind PyRoKi's floating JAXLS Git URL to the
-same exact Git source already declared in the resolved lock. The setup audit
-rejects numeric version overrides, a different repository/revision, extras,
-markers, or packages absent from the lock. Installation additionally checks the
-installed commit and the actual consuming packages' source/version requirements.
-It is not permission to overwrite incompatible dependency constraints.
-
-Current validation boundaries:
-
-| Backend | Setup preflight | Remaining installation evidence |
-|---|---|---|
-| LIBERO / LIBERO-PRO | Resolved recipe; clean installation checked | One fresh host seed-0 reference and device checks passed; new clean-environment container verification remains separate |
-| RoboCasa | Source and freeze syntax pass | Execute and verify a fresh full simulator installation, assets, and GPU episode |
-| RoboTwin | Resolved recipe; clean installation checked | One fresh host seed-0 reference and unchanged independent verifier passed; new clean-environment container verification remains separate |
-| RoboDojo | Source and freeze syntax pass | Execute and verify a fresh full simulator installation, assets, and GPU episode |
-| BEHAVIOR | Blocked | No clean-install dependency lock published yet; upstream license acceptance remains explicit |
-
-Read-only audit results keep `clean_install_verified` and `gpu_replay_verified`
-false for the current invocation. `recorded_recipe_validation` separately reports
-the checked-in historical evidence. A successful new installation sets only its
-clean-install result; it does not inherit another machine's GPU result.
-
-The host proofs cover LIBERO `libero.90_8`, seed 0, at 2779/4000 simulation steps,
-and RoboTwin `robotwin.handover_mic`, seed 0, at 64/60000 API calls. The reference
-programs are project-authored, not claims of official benchmark solutions.
-See the [RoboTwin candidate receipt](../runtime/locks/robotwin.candidate.json)
-for its exact package/source changes and the independently checked trial.
-Neither proof covers all tasks, seeds, embodiments, optional services, training,
-or a newly built Docker image. The locks pin package versions and Git revisions;
-they are not yet hash-locked binary wheel sets.
-
-## Assets: explicit provenance and content verification
-
-Follow the asset instructions in the selected **pinned upstream**, review its
-license, and acquire assets independently. Roboenv setup does not accept dataset
-terms, download checkpoints or imply permission to redistribute an image.
-
-Record a data-only depot after acquisition, using the actual source/version and
-license URL rather than copying the placeholders below:
-
-```bash
-.venv/bin/python -m roboenv.asset_manifest create ASSET_DEPOT \
-  --asset-id example-assets \
-  --source-url https://example.org/assets \
-  --source-revision RELEASE_VERSION \
-  --license-url https://example.org/license \
-  --out deployments/local/example-assets.json
-.venv/bin/python -m roboenv.asset_manifest verify ASSET_DEPOT \
-  deployments/local/example-assets.json
+```sh
+roboenv devices
+roboenv device arm read '{}'
+roboenv devices --endpoint http://127.0.0.1:8123
 ```
 
-Manifests contain relative filenames, byte sizes, SHA256s and declared provenance,
-never the depot's host location. Absolute or escaping symlinks, special files,
-source-checkout roots and tokenized provenance URLs are rejected. Internal links
-are recorded without following them outside the depot. Keep depots quiescent while
-hashing; full verification deliberately reads all bytes and may take time for
-large assets. Verification detects changed, missing, or extra files.
+With one ready local run, discovery selects it. With several, specify
+`--endpoint`. `ROBOENV_ENDPOINT` also selects an HTTP service; `ROBOENV_SOCKET`
+selects the existing Unix transport used by Harbor. HTTP binds to loopback only.
+Remote networking and remote image-file transfer are not provided by this listener.
 
-The manifest does **not** authenticate an upstream release or approve its license.
-Reviewing redistribution rights is still a separate release gate. Store the
-receipt outside the depot; a new output is required, so an old receipt cannot be
-silently overwritten. Asset verification is an explicit operator check today,
-not an automatically enforced part of every deployment manifest.
+```python
+import roboenv
 
-## Device-contract dependencies in simulator images
+env = roboenv.connect("http://127.0.0.1:8123")
+print(env.devices())
+print(env.device("arm").read())
+```
 
-The image builder accepts --interpreter ENV/bin/python independently of
---dependencies, so a freshly installed environment need not use a historical
-directory layout. --interpreter-mode image embeds it; --interpreter-mode depot
-creates an independently copied, relocated, read-only executable depot and a
-smaller image. The latter verifies complete content/modes/symlink targets using
-trusted image Python before executing the interpreter. It is not a mount of the
-original prepared environment, and it is not an ordinary non-executable asset.
+`roboenv.launch(task="TASK_ID")` returns an owner context manager. Launch
+accepts `port=8123` or defaults to automatic port assignment. The endpoint is
+available as `env.record["endpoint"]`. Concurrent runs use separate ports. After
+a run ends, its port can be reused and a fresh client can connect at the same URL.
+Context exit stops the
+environment; `connect` only creates a client. Devices support
+`read`, `write`, `stop`, `ik`, and `fk` only when their live descriptors advertise
+them. Results retain `data`, budget, and execution evidence. Unsupported
+kinematics or calibration are not synthesized.
 
-Staging and Docker storage are checked separately. Failed build copies are
-reproducible scratch data, but never remove original interpreters, assets or
-experiment evidence to make space. Installed Kit extension links must be copied
-into the frozen dependency group; unknown external links are rejected.
+Run definitions, device exports, and logs remain in the project's ignored cache.
+Exported local drivers carry a connection file, so they work outside the source
+directory with the SDK installed. These local connection files are not portable
+Harbor task inputs.
 
-The image builder stages `runtime/locks/device-service.txt` into a fresh directory
-using `tools/contract_dependencies.py`. It selects wheels for the supplied
-simulator interpreter without installing into that interpreter. This keeps JSON
-Schema validation available even when an old simulator freeze did not contain it.
+## Export to Harbor
 
-The complete six-package closure is pinned; its Python 3.10-compatible `rpds-py`
-pin comes from the existing RoboTwin freeze. Actual isolated probes on Python
-3.10, 3.11, and 3.12 verify Draft 2020-12 schema resources, accepted/rejected
-instances and native-extension imports. Targets are Python-ABI-specific and must
-not be copied between incompatible interpreter versions. This is a contract
-dependency check, not simulator replay evidence.
+After preparing a native image deployment:
+
+```sh
+roboenv export libero-mug-into-microwave --out generated/example
+```
+
+The default deployment is `.cache/images/libero/deployment.json`; use
+`--deployment FILE` to select another. The command builds a fresh SDK wheel
+unless `--wheel FILE` is supplied, and validates the task with the real Harbor
+loader. Local launch and export use the same task resolver and device binding
+configuration. Image and asset preparation are described in
+[Harbor tasks](harbor-tasks.md).
+
+For development verification run `bash tools/check.sh`. CPU checks, container
+boot, device conformance, benchmark success, and fresh-process replay are
+separate results.

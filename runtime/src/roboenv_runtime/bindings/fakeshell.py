@@ -3,7 +3,7 @@
 import math
 from dataclasses import replace
 
-from roboenv.device_model import Action, BoundDevice, DeviceError
+from roboenv.devices.model import Action, BoundDevice, DeviceError
 
 from roboenv_runtime.adapters.fakeshell import FakeShell
 

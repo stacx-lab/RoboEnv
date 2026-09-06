@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from roboenv.deployment import native_service
+from roboenv.harbor.deployment import native_service
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTAINER_PREFIX = "/opt/roboenv/runtime/dependencies"
@@ -173,9 +173,7 @@ def test_venv_python_alias_is_replaced_without_reading_its_original_target(tmp_p
     )
     (tmp_path / "bin").mkdir()
     (tmp_path / "bin/python").symlink_to("/unavailable/original/python3.12")
-    module.relocate(
-        tmp_path, {"replacements": {}, "python_base": True, "python_version": "3.12"}
-    )
+    module.relocate(tmp_path, {"replacements": {}, "python_base": True, "python_version": "3.12"})
     assert (tmp_path / "bin/python").readlink() == Path("/opt/python/bin/python3.12")
 
 
@@ -191,9 +189,7 @@ def test_base_relocation_does_not_follow_a_bin_directory_link(tmp_path):
     (outside / "python").write_text("untouched")
     (stage / "bin").symlink_to(outside, target_is_directory=True)
     with pytest.raises(ValueError, match="real staging"):
-        module.relocate(
-            stage, {"replacements": {}, "python_base": True, "python_version": "3.12"}
-        )
+        module.relocate(stage, {"replacements": {}, "python_base": True, "python_version": "3.12"})
     assert (outside / "python").read_text() == "untouched"
 
 
