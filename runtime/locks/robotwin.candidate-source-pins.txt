@@ -1,0 +1,3 @@
+# Resolve PyRoKi's floating JAXLS source to this immutable source identity.
+# This does not override any package version or numeric dependency requirement.
+jaxls @ git+https://github.com/brentyi/jaxls.git@6fe7cf9d56223736b2c0272d080ec7346203c648

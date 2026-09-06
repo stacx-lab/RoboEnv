@@ -1,0 +1,81 @@
+simulator: robodojo
+description: Two I2RT YAM 6-DoF arms with parallel grippers on a tabletop (RoboDojo,
+  additive embodiment).
+arms:
+- left
+- right
+frame:
+  quaternion_order: wxyz
+  up_axis: z
+  table_z: 0.765
+  arm_bases:
+    left:
+    - -0.3
+    - -0.45
+    - 0.765
+    right:
+    - 0.3
+    - -0.45
+    - 0.765
+workspace:
+  spawn_x:
+  - -0.45
+  - 0.45
+  spawn_y:
+  - -0.25
+  - 0.0
+  high_carry_overlap: minimal
+gripper:
+  max_opening_m: 0.094
+  open_gap_m: 0.101
+  closed_gap_m: 0.048
+  pad_height_m: 0.035
+  pad_thickness_m: 0.009
+  joint_range_m:
+  - -0.04695
+  - 0.0
+  close_stages:
+  - 0.45
+  - 0.0
+  min_command_steps: 150
+tool:
+  axis: gripper local -z
+  tcp_bias_m: 0.0567
+  pad_midpoint_below_wrist_m: 0.135
+  down_quaternions_wxyz:
+  - - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+  - - 0.7071
+    - 0.0
+    - 0.0
+    - -0.7071
+  self_collision_buffer: -0.01
+planner:
+  kind: curobo-ik + straight cartesian path
+  obstacle_avoidance: false
+situation: "You are controlling a dual-arm robot (two I2RT YAM 6-DoF arms with parallel\n\
+  grippers) in a tabletop scene, by writing Python code against the API below.\n\n\
+  Coordinate system (world frame):\n- Z-axis is up; the tabletop surface is at z ~=\
+  \ 0.765.\n- The LEFT arm base sits at x ~= -0.3 and the RIGHT arm base at x ~= +0.3,\
+  \ both\n  on the negative-Y side of the table (y = -0.45). Objects spawn roughly\
+  \ within\n  x in [-0.45, 0.45], y in [-0.25, 0.0].\n- All quaternions are WXYZ order:\
+  \ [qw, qx, qy, qz].\n- Both arms can work; each has limited reach around its own\
+  \ base. CAUTION: the\n  two arms' HIGH-CARRY/PLACE envelopes barely overlap \u2014\
+  \ build stacks inside the\n  SAME arm's zone that will finish them.\n"
+facts: "Environment mechanics:\n- The episode has a fixed simulation-step budget (see\
+  \ get_step_budget());\n  every motion and wait consumes it, and the episode ends\
+  \ mid-action when it\n  runs out.\n\nYAM tool conventions (pre-calibrated; pick()/goto_pose\
+  \ already apply them):\n- Tool-down WORLD quaternion family: [0,0,0,1] (jaw opens\
+  \ along world Y) and\n  [0.7071,0,0,-0.7071] (jaw along world X); other yaws = Rz(theta)\
+  \ composed.\n- goto_pose targets the FINGER-PAD midpoint (tcp). The pads hang 13.5\
+  \ cm below\n  the wrist link and are 3.5 cm tall, 9 mm thick; max jaw opening 9.4\
+  \ cm.\n- Grasp recipe (what pick() does; follow it for manual grasps): open the\n\
+  \  gripper FULLY, descend with a tool-down quat so the pad midpoint is at the\n\
+  \  object's CENTER height (thin-wall rims: 1.5 cm below the rim top), close in\n\
+  \  two stages (0.45 then 0.0), then micro-lift 3-4 cm and VERIFY the object\n  rose\
+  \ >1.5 cm before committing to the carry.\n- Gripper commands need >=150 control\
+  \ steps or the two fingers move\n  asymmetrically and sweep the object away.\n-\
+  \ Wide thin-walled containers (bowls ~13.6 cm) exceed the jaw span: pinch the\n\
+  \  RIM WALL (pads straddling it) exactly per the recipe above; carry slowly.\n"

@@ -1,0 +1,291 @@
+"""GPU validation orchestration is tested without Docker, GPUs or model calls."""
+
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def module():
+    spec = importlib.util.spec_from_file_location(
+        "validate_simulators", ROOT / "tools/validate_simulators.py"
+    )
+    result = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(result)
+    return result
+
+
+def inputs(tmp_path):
+    wheel = tmp_path / "roboenv-test.whl"
+    wheel.write_bytes(b"test-only wheel; never installed")
+    mapping = {}
+    for backend in ("libero", "robocasa", "robotwin", "robodojo", "behavior"):
+        deployment = tmp_path / f"{backend}.json"
+        deployment.write_text(
+            json.dumps(
+                {
+                    "schema": "roboenv/deployment/1",
+                    "backend": backend,
+                    "image": "sha256:" + "a" * 64,
+                    "legacy_tree_required": False,
+                    "runtime_wheel_sha256": "b" * 64,
+                    "upstream_lock_sha256": "c" * 64,
+                    "source_revisions": {"source": "d" * 40},
+                }
+            )
+        )
+        mapping[backend] = deployment.name
+    deployments = tmp_path / "map.json"
+    deployments.write_text(json.dumps(mapping))
+    return wheel, deployments
+
+
+def test_default_preparation_covers_eight_references_without_execution(tmp_path, monkeypatch):
+    tool = module()
+    wheel, deployments = inputs(tmp_path)
+    monkeypatch.setattr(
+        tool.subprocess, "run", lambda *args, **kwargs: pytest.fail("must not execute")
+    )
+    out = tmp_path / "validation"
+    receipt = tool.prepare(deployments, wheel, out)
+    assert len(receipt["cases"]) == 8
+    assert receipt["phase"] == "prepared" and receipt["model_calls"] == 0
+    assert receipt["reference_official"] is False
+    assert receipt["harbor_loader_validated"] is True
+    assert not receipt["all_selected_checks_passed"]
+    assert str(tmp_path) not in (out / "receipt.json").read_text()
+    with pytest.raises(ValueError, match="must be new"):
+        tool.prepare(deployments, wheel, out)
+
+
+def test_seven_probe_plans_use_explicit_behavior_scene_and_yam_config(tmp_path):
+    tool = module()
+    source = tmp_path / "source/behavior-probe"
+    source.mkdir(parents=True)
+    task = {
+        "id": "explicit-behavior-case",
+        "backend": "behavior",
+        "backend_task": "behavior.explicit",
+        "robot": "behavior-r1pro",
+        "instruction": "Fixture instruction from explicit source",
+        "backend_kwargs": {"activity_name": "fixture", "scene_model": "explicit_scene"},
+        "action_abstraction": "symbolic-primitives",
+    }
+    (source / "task.yaml").write_text(yaml.safe_dump(task))
+    cases = tool.select_cases(
+        source=source.parent, backends=[*tool.DEFAULT_BACKENDS, "behavior"], modes=["probe"]
+    )
+    assert len(cases) == 7
+    yam = next(task for _, task, _, _ in cases if task.robot == "robodojo-yam")
+    assert yam.backend_kwargs["env_cfg_type"] == "yam"
+    aloha = next(task for _, task, _, _ in cases if task.robot == "robotwin-aloha-agilex")
+    assert aloha.backend_kwargs["embodiment"] == "aloha_agilex"
+    behavior = next(task for _, task, _, _ in cases if task.backend == "behavior")
+    assert behavior.backend_kwargs["scene_model"] == "explicit_scene"
+    for _, _, _, program in cases:
+        assert "client.device(descriptor['name']).read()" in program
+        assert not any(value in program for value in ("submit", "reset", "shutdown", "_private"))
+    wheel, deployments = inputs(tmp_path)
+    prepared = tool.prepare(
+        deployments,
+        wheel,
+        tmp_path / "seven-probes",
+        source=source.parent,
+        backends=[*tool.DEFAULT_BACKENDS, "behavior"],
+        modes=["probe"],
+    )
+    assert len(prepared["cases"]) == 7 and prepared["harbor_loader_validated"]
+    task["backend_kwargs"].pop("scene_model")
+    (source / "task.yaml").write_text(yaml.safe_dump(task))
+    with pytest.raises(ValueError, match="explicit scene_model"):
+        tool.select_cases(source=source.parent, backends=["behavior"], modes=["probe"])
+
+
+def write_trial(out, record, *, reward, program_completed=True):
+    trial = out / "taskset/jobs/gpu-validation/trial"
+    (trial / "verifier").mkdir(parents=True)
+    (trial / "agent").mkdir()
+    events = [
+        {
+            "phase": "commit",
+            "request": {"op": "devices.call", "args": {"device": name, "action": "read"}},
+            "response": {"ok": True, "result": {"read_only": True}},
+        }
+        for name in record["expected_devices"]
+    ]
+    raw = "".join(json.dumps(event) + "\n" for event in events)
+    (trial / "verifier/actions.jsonl").write_text(raw)
+    (trial / "verifier/submit.json").write_text(
+        json.dumps(
+            {
+                "task": record["backend_task"],
+                "seed": record["seed"],
+                "valid": True,
+                "health": {"worker": {"state": "ready"}},
+                "benchmark_eligible": True,
+                "trial_success": reward == 1,
+                "journal": {"sha256": hashlib.sha256(raw.encode()).hexdigest()},
+            }
+        )
+    )
+    (trial / "verifier/reward.json").write_text(json.dumps({"reward": reward}))
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "task_name": record["name"],
+                "exception_info": None,
+                "verifier_result": {"rewards": {"reward": reward}},
+            }
+        )
+    )
+    if program_completed:
+        (trial / "agent/validation-program.json").write_text(
+            json.dumps(
+                {
+                    "schema": "roboenv/validation-program/1",
+                    "case_id": record["id"],
+                    "seed": record["seed"],
+                    "program_sha256": record["program_sha256"],
+                }
+            )
+        )
+    return trial
+
+
+@pytest.mark.parametrize(
+    "mode,reward,expected", [("reference", 0, False), ("reference", 1, True), ("probe", 0, True)]
+)
+def test_runner_classifies_real_success_separately_from_probe_connectivity(
+    tmp_path, monkeypatch, mode, reward, expected
+):
+    tool = module()
+    wheel, deployments = inputs(tmp_path)
+    out = tmp_path / "validation"
+    receipt = tool.prepare(
+        deployments, wheel, out, backends=["libero"], cases=["libero-drawer-and-bowl"], modes=[mode]
+    )
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        if command[0] == "docker":
+            return SimpleNamespace(stdout="sha256:" + "a" * 64 + "\n", returncode=0)
+        assert "agent='oracle'" in command[3]
+        assert "run_taskset" in command[3]
+        assert kwargs["stdout"] is not None and kwargs["stderr"] is not None
+        write_trial(out, receipt["cases"][0], reward=reward)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(tool.subprocess, "run", run)
+    result = tool.run_validation(out, deployments)
+    case = result["cases"][0]
+    assert result["all_selected_checks_passed"] is expected
+    assert case["reference_replay_passed"] is (mode == "reference" and reward == 1)
+    assert case["device_read_probe_passed"] is (mode == "probe")
+    assert case["final_verifier_success"] is (reward == 1)
+    assert result["fresh_process_replay_certificate"] is False
+    assert result["model_calls"] == 0 and len(calls) == 2
+    assert str(tmp_path) not in (out / "receipt.json").read_text()
+
+
+def test_missing_completion_or_modified_journal_cannot_certify_a_reference(tmp_path):
+    tool = module()
+    wheel, deployments = inputs(tmp_path)
+    out = tmp_path / "validation"
+    receipt = tool.prepare(
+        deployments, wheel, out, backends=["libero"], cases=["libero-drawer-and-bowl"]
+    )
+    record = receipt["cases"][0]
+    trial = write_trial(out, record, reward=1, program_completed=False)
+    evidence = tool._trial_evidence(record, trial / "result.json")
+    assert not evidence["reference_replay_passed"]
+    (trial / "verifier/actions.jsonl").write_text("changed")
+    evidence = tool._trial_evidence(record, trial / "result.json")
+    assert not evidence["verifier_evidence_valid"] and not evidence["final_verifier_success"]
+
+
+def test_gpu_workflow_requires_trusted_manual_context_and_privacy_gate():
+    workflow = yaml.load(
+        (ROOT / ".github/workflows/gpu-validation.yml").read_text(), Loader=yaml.BaseLoader
+    )
+    assert set(workflow["on"]) == {"workflow_dispatch"}
+    job = workflow["jobs"]["validate"]
+    assert "default_branch" in job["if"]
+    assert job["environment"] == "gpu-validation"
+    assert "self-hosted" in job["runs-on"]
+    upload = next(
+        step for step in job["steps"] if step.get("uses", "").startswith("actions/upload-artifact@")
+    )
+    assert "steps.privacy.outcome == 'success'" in upload["if"]
+    assert upload["with"]["path"] == "build/gpu-validation/receipt.json"
+
+
+def test_unavailable_image_is_a_recorded_preflight_failure_not_a_trial(tmp_path, monkeypatch):
+    tool = module()
+    wheel, deployments = inputs(tmp_path)
+    out = tmp_path / "validation"
+    tool.prepare(deployments, wheel, out, backends=["libero"], cases=["libero-drawer-and-bowl"])
+
+    def fail(*args, **kwargs):
+        raise FileNotFoundError("fixture Docker unavailable")
+
+    monkeypatch.setattr(tool.subprocess, "run", fail)
+    result = tool.run_validation(out, deployments)
+    assert result["phase"] == "preflight-failed"
+    assert not result["all_selected_checks_passed"]
+    assert result["failure_category"] == "image-unavailable"
+    assert not result["cases"][0]["execution_attempted"]
+
+
+def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path, monkeypatch):
+    tool = module()
+    wheel, deployments = inputs(tmp_path)
+    out = tmp_path / "validation"
+    receipt = tool.prepare(
+        deployments, wheel, out, backends=["libero"], cases=["libero-drawer-and-bowl"]
+    )
+    program = out / "taskset" / receipt["cases"][0]["path"] / "solution/solution.py"
+    program.write_text("# changed after preparation\n")
+    monkeypatch.setattr(tool.subprocess, "run", lambda *a, **k: pytest.fail("must not execute"))
+    with pytest.raises(ValueError, match="bundle changed"):
+        tool.run_validation(out, deployments)
+
+
+def test_case_selection_alone_narrows_probe_backends_without_guessing():
+    tool = module()
+    cases = tool.select_cases(cases=["libero-drawer-and-bowl"], modes=["probe"])
+    assert len(cases) == 1 and cases[0][1].backend == "libero"
+
+
+def test_failed_advertised_device_read_has_a_failure_category_without_harbor_exception(tmp_path):
+    tool = module()
+    record = {
+        "id": "world-probe",
+        "name": "roboenv/world-probe",
+        "program_sha256": "a" * 64,
+        "backend_task": "robotwin.handover_mic",
+        "seed": 0,
+        "mode": "probe",
+        "expected_devices": ["left_arm", "world"],
+    }
+    trial = write_trial(tmp_path, record, reward=0, program_completed=False)
+    path = trial / "verifier/actions.jsonl"
+    events = [json.loads(line) for line in path.read_text().splitlines()]
+    events[-1].update(phase="error", response={"ok": False, "error": {"code": "device_failed"}})
+    raw = "".join(json.dumps(event) + "\n" for event in events)
+    path.write_text(raw)
+    report_path = trial / "verifier/submit.json"
+    report = json.loads(report_path.read_text())
+    report["journal"]["sha256"] = hashlib.sha256(raw.encode()).hexdigest()
+    report_path.write_text(json.dumps(report))
+    evidence = tool._trial_evidence(record, trial / "result.json")
+    assert evidence["verifier_evidence_valid"]
+    assert not evidence["device_read_probe_passed"]
+    assert evidence["failure_category"] == "device-read-failed"
+    assert evidence["failed_device_reads"] == ["world"]

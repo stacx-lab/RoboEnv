@@ -1,0 +1,9 @@
+# The lifting torso between the Omron pedestal and the Panda's shoulder: one prismatic
+# joint, a stiff position servo.  Neither arm nor gripper nor base - the `actuator` kind
+# the coverage table (design doc 2.6) added for exactly this part.
+kind: actuator
+id: panda_omron_torso
+joint: mobilebase0_joint_torso_height
+axis: z
+range_m: [0.0, 0.34]
+control: position          # JOINT_POSITION, kp 2000

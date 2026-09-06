@@ -1,0 +1,95 @@
+diff --git a/src/eval_client/eval_env.py b/src/eval_client/eval_env.py
+index 182e91d..5a32f64 100644
+--- a/src/eval_client/eval_env.py
++++ b/src/eval_client/eval_env.py
+@@ -5,7 +5,6 @@ import inspect
+ import json
+ import os
+ 
+-from client_server.ws.model_client import WsModelClient
+ import numpy as np
+ import transforms3d as t3d
+ import websockets
+@@ -40,7 +39,29 @@ def _patch_websockets_proxy_compat():
+     websockets.connect = connect_without_proxy
+ 
+ 
+-def create_eval_env(config, app, resume_state=None, **kwargs):
++def _default_model_client_factory(**kwargs):
++    """Import the optional policy client only when the default policy path is used."""
++    from client_server.ws.model_client import WsModelClient
++
++    _patch_websockets_proxy_compat()
++    return WsModelClient(**kwargs)
++
++
++def create_eval_env(
++    config, app, resume_state=None, *, model_client=None, model_client_factory=None, **kwargs
++):
++    """Construct a task with an optional injected policy client.
++
++    An existing client is used unchanged and does not require a policy address.
++    A factory receives the same keyword arguments as the default WsModelClient.
++    Omitting both preserves the upstream websocket-policy behavior.
++    """
++    if model_client is not None and model_client_factory is not None:
++        raise ValueError("Specify model_client or model_client_factory, not both")
++    if model_client is not None and not callable(getattr(model_client, "call", None)):
++        raise TypeError("model_client must provide a callable call method")
++    if model_client_factory is not None and not callable(model_client_factory):
++        raise TypeError("model_client_factory must be callable")
+     task_name = config.eval_cfg.get("task_name", None)
+     if task_name is None:
+         raise ValueError("Task name must be specified in eval_cfg!")
+@@ -176,24 +197,34 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+ 
+             self.deploy_cfg = config.deploy_cfg
+             self.port = self.deploy_cfg.get("port", None)
+-            if self.port is None:
+-                raise ValueError("Port must be specified in deploy_cfg for the policy server!")
+             self.host = self.deploy_cfg.get("host", "localhost")
+-            _patch_websockets_proxy_compat()
+-
+-            policy_server_url = self.deploy_cfg.get("policy_server_url") or f"ws://{self.host}:{self.port}"
+-            evaluation_id = self.deploy_cfg.get("evaluation_id", self.run_id)
+-            trial_id = self.deploy_cfg.get("trial_id", f"{self.task_name}-{self.run_id}")
+-            action_case_id = self.deploy_cfg.get("action_case_id", f"{self.task_name}_case")
+-            self.model_client = WsModelClient(
+-                url=policy_server_url,
+-                evaluation_id=evaluation_id,
+-                trial_id=trial_id,
+-                action_case_id=action_case_id,
+-                repeat_index=self.deploy_cfg.get("repeat_index"),
+-                ws_ping_interval_s=self.deploy_cfg.get("ws_ping_interval_s", 20.0),
+-                ws_ping_timeout_s=self.deploy_cfg.get("ws_ping_timeout_s", 20.0),
+-            )
++            if model_client is not None:
++                self.model_client = model_client
++            else:
++                if self.port is None:
++                    raise ValueError("Port must be specified in deploy_cfg for the policy server!")
++                factory = (
++                    _default_model_client_factory
++                    if model_client_factory is None
++                    else model_client_factory
++                )
++                policy_server_url = (
++                    self.deploy_cfg.get("policy_server_url") or f"ws://{self.host}:{self.port}"
++                )
++                evaluation_id = self.deploy_cfg.get("evaluation_id", self.run_id)
++                trial_id = self.deploy_cfg.get("trial_id", f"{self.task_name}-{self.run_id}")
++                action_case_id = self.deploy_cfg.get("action_case_id", f"{self.task_name}_case")
++                self.model_client = factory(
++                    url=policy_server_url,
++                    evaluation_id=evaluation_id,
++                    trial_id=trial_id,
++                    action_case_id=action_case_id,
++                    repeat_index=self.deploy_cfg.get("repeat_index"),
++                    ws_ping_interval_s=self.deploy_cfg.get("ws_ping_interval_s", 20.0),
++                    ws_ping_timeout_s=self.deploy_cfg.get("ws_ping_timeout_s", 20.0),
++                )
++                if not callable(getattr(self.model_client, "call", None)):
++                    raise TypeError("model_client_factory must return a client with a call method")
+             self.robot_action_dim_info = get_robot_action_dim_info(env_cfg=self.eval_cfg)
+ 
+         def close(self):

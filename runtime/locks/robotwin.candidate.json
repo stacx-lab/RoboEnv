@@ -1,0 +1,111 @@
+{
+  "schema": "roboenv/environment-candidate/1",
+  "backend": "robotwin",
+  "status": "clean-installed-and-one-host-replay-passed; pending-default-recipe-review",
+  "tested_at_utc": "2026-09-06T00:45:45Z",
+  "source_lock": "runtime/locks/robotwin.txt",
+  "source_lock_sha256": "f88aa61139becc2a6257e67dc2f52f14f3d6fff6ec8650fefa58ae14e33e186b",
+  "candidate_lock_sha256": "4a4b2a785d0296b9a8083bd55a759f054523ff12646263051c177f65e5c8806f",
+  "source_pins_sha256": "b950f91c358d898bb803c15b190731147d00a76ab9c25ab5bc3422f178880adc",
+  "recipe": {
+    "python": "3.10",
+    "lock": "runtime/locks/robotwin.candidate.txt",
+    "source_pins": "runtime/locks/robotwin.candidate-source-pins.txt",
+    "editables": [],
+    "source_only": ["third_party/cap-x", "third_party/RoboTwin"],
+    "extra_indexes": [],
+    "sdk_requirement": "roboenv[server]==0.2.0",
+    "runtime_requirement": "roboenv-runtime==0.2.0"
+  },
+  "changes": [
+    {
+      "kind": "opencv-distribution-and-version",
+      "before": "opencv-python-headless==4.12.0.88",
+      "after": "opencv-python==4.11.0.86",
+      "reason": "SAPIEN 3.0.0b1 requires opencv-python>=4.0. Its 4.11.0.86 wheel permits NumPy 1.26.4 on Python 3.10. Install one cv2 provider, not desktop and headless together.",
+      "metadata_evidence": {
+        "sapien": "opencv-python >=4.0",
+        "opencv-python": "numpy>=1.21.2; python_version >= \"3.10\""
+      },
+      "upstream_guidance": "https://pypi.org/project/opencv-python-headless/4.11.0.86/"
+    },
+    {
+      "kind": "jaxls-source-identity",
+      "before": "50a58be88c5ef74532f09e3f55268b4f02c490e3",
+      "after": "6fe7cf9d56223736b2c0272d080ec7346203c648",
+      "reason": "The original freeze's JAXLS source requires jaxlib>=0.6.0; the selected historical source requires jax>=0.4.0 and does not impose that jaxlib lower bound. JAX and JAXlib remain 0.4.29.",
+      "source_override_scope": "Only bind PyRoKi's floating JAXLS Git URL to the same immutable source identity; no numeric version constraints are overridden.",
+      "pyroki_unchanged_revision": "388e43e1fc0d0ee382968d3dd72970fd62a0450c"
+    },
+    {
+      "kind": "source-only-capx",
+      "reason": "Roboenv loads the required bridge modules from its locked checkout through ensure_capx_importable. Installing the full cap-x distribution would additionally require training/agent dependencies and incompatible Torch/SciPy pins.",
+      "capx_distribution_installed": false,
+      "important_boundary": "The current cap-x package initializer eagerly imports Franka IK types, so JAXLS and PyRoKi remain installed even though this RoboTwin native-planner replay does not execute local IK."
+    }
+  ],
+  "unchanged_core_versions": {
+    "numpy": "1.26.4",
+    "torch": "2.4.1",
+    "torchvision": "0.19.1",
+    "scipy": "1.10.1",
+    "jax": "0.4.29",
+    "jaxlib": "0.4.29",
+    "sapien": "3.0.0b1"
+  },
+  "sources": {
+    "capx": "53e9966d7a8e2fa7494676772bccc35280f5c0ed",
+    "robotwin": "266f3aadf505a4f7fe9af0faa41a20f5f47cd123",
+    "managed_patches": "upstreams.lock.json"
+  },
+  "verification": {
+    "python": "3.10.20",
+    "installed_packages": 204,
+    "normal_dependency_resolution": true,
+    "dependency_bypass_used": false,
+    "uv_pip_check_passed": true,
+    "opencv_distributions": ["opencv-python"],
+    "required_bridge_imports_passed": true,
+    "source_exact_tree_checked_before_and_after": true,
+    "fresh_environment_size_gib_approx": 8.0,
+    "shared_uv_cache": true,
+    "wheels": [
+      {
+        "file": "roboenv-0.2.0-py3-none-any.whl",
+        "sha256": "a15371240428282cf5fa070192092aacad6327768ef8c68e657da398dd81489d",
+        "installed_content_matches": true
+      },
+      {
+        "file": "roboenv_runtime-0.2.0-py3-none-any.whl",
+        "sha256": "0787316e60e4568c5e19f78d0a65a227d18376172edb13ebe36a25222e0068f0",
+        "installed_content_matches": true
+      }
+    ]
+  },
+  "replay": {
+    "task": "robotwin.handover_mic",
+    "seed": 0,
+    "reference_origin": "project-reference",
+    "reference_sha256": "a4c9cc9fa55a246c10fe67578fc0a4b5be82bf016a1de7f96b16c9034e98e07d",
+    "fresh_process": true,
+    "containerized": false,
+    "worker_home_and_caches_isolated": true,
+    "assets": "Existing data depot referenced from a private source copy; host read-only mount enforcement was not available.",
+    "reference_exit_code": 0,
+    "verifier_exit_code": 0,
+    "verifier_valid": true,
+    "trial_success": true,
+    "budget_mode": "official",
+    "budget": {"max": 60000, "unit": "api_calls", "used": 64},
+    "journal_sha256": "d3962fbb1e724f1782886de7e9a2f0abd51d7356f0590d4c33dd54dc5c3d7b35",
+    "journal_requests": 56
+  },
+  "not_covered": [
+    "Container image built from this candidate with enforced read-only asset mounts.",
+    "Other tasks, seeds, embodiments, or planners.",
+    "Local JAX IK solving, external policy services, or training.",
+    "The full cap-x distribution, agent interfaces, or training commands.",
+    "A minimum-size environment; unchanged historical dependencies are retained."
+  ],
+  "promotion_recommendation": "Adopt this resolved lock and source-only cap-x recipe after review; retain the single-seed and host-only limits until the new candidate image is verified. Never restore --no-deps to hide conflicts."
+}

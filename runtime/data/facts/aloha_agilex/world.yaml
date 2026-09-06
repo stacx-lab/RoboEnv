@@ -1,0 +1,25 @@
+# The episode itself.
+- device: world
+  key: table_z
+  value: 0.740
+  unit: m
+  measured: 2026-08-28
+  by: agent robotwin-hybrid (IK sweep; table top read against the fingertip floor)
+  evidence: docs/campaign_2026-08-vla-hybrid/findings.jsonl#ts=2026-08-28T06:10:00
+  note: the fingertip floor sits table_z + 0.04 above it
+- device: world
+  key: budget_unit
+  value: api_calls
+  measured: 2026-08-28
+  by: agent robotwin-devices (this rig, device_replay)
+  evidence: roboenv/adapters/base.py#CapxBridge.budget
+  note: >
+    counted TOOL calls (CapxBridge._counted), the same as the Piper rig; it flips to
+    sim_steps for the episode as soon as something ticks physics directly - which on
+    this rig is usually vla_run, since 45 of the 49 robotwin-aloha certificates are one.
+- device: world
+  key: budget_max
+  value: 60000
+  measured: 2026-08-28
+  by: harness (CapxBridge.fallback_call_budget)
+  evidence: roboenv/adapters/base.py

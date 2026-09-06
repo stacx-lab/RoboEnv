@@ -1,0 +1,40 @@
+name: left_gripper
+type: end_effector
+loaded: true
+access:
+  source: user
+  kind: sim
+  device: /run/roboenv/sim.sock
+  control_mode: position_goal
+  driver:
+    entry: driver.py
+    interpreter: python3
+    actions:
+    - catalog
+    - load
+    - move
+    - read
+    - state
+    - status
+    - stop
+    - unload
+    - write
+    timeout_s: 900
+intrinsics:
+  source: user
+  tool_type: parallel gripper
+  actions:
+  - component: grip
+    units: normalized
+    bounds:
+      min: 0.0
+      max: 1.0
+    meaning: 0 closed, 1 open
+extrinsics:
+  source: user
+  mount:
+    parent: left_arm
+    pose: ???
+meta:
+  created_at: '2026-08-31T06:00:00Z'
+  updated_at: '2026-08-31T06:00:00Z'

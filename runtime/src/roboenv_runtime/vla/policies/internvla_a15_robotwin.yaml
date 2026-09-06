@@ -1,0 +1,150 @@
+# InternVLA-A1.5 (Qwen3.5-2B VLM + flow-matching action expert) fine-tuned by
+# InternRobotics on RoboTwin 2.0, ALOHA-AgileX embodiment: 93.3 clean / 93.0
+# randomized in the authors' own evaluation.  Served through the XPolicyLab
+# adapter vendored under RoboDojo/XPolicyLab/policy/InternVLA_A1_5 (conda env
+# `internvla_a1_5`: torch 2.10 cu128 + transformers 5.2 + the vendored
+# internvla_a1_5 lerobot fork).
+name: internvla_a15_robotwin
+simulator: robotwin
+protocol: xpolicylab-ws
+description: "InternVLA-A1.5 fine-tuned on RoboTwin 2.0 (14-dim dual-arm joint actions)"
+interpreter: ${REPO}/miniconda3/envs/internvla_a1_5/bin/python
+cwd: ${REPO}/third_party/RoboDojo/XPolicyLab/policy/InternVLA_A1_5
+argv:
+  - ${REPO}/third_party/RoboDojo/XPolicyLab/setup_policy_server.py
+  - --config_path
+  - ${REPO}/third_party/RoboDojo/XPolicyLab/policy/InternVLA_A1_5/deploy.yml
+  - --overrides
+  - port={port}
+  - host=127.0.0.1
+  - policy_name=InternVLA_A1_5
+  - bench_name=RoboTwin
+  - task_name=robotwin
+  - seed=0
+  # aloha_agilex in RoboDojo/XPolicyLab/utils/robot/_robot_info.json is
+  # arm_dim [6, 6] + ee_dim [1, 1] = 14, the RoboTwin dual-arm joint vector
+  - env_cfg_type=aloha_agilex
+  - action_type=joint
+  - action_dim=14
+  - ckpt_path=${REPO}/.cache/vla/InternVLA-A1.5-RoboTwin
+  # the checkpoint's stats.json carries ONE key, `aloha` (deploy.yml's default
+  # `unified_robot` is the RoboDojo export and is absent here); both schemas
+  # have the same 14 -> 16 reorder, so only the normalisation stats differ
+  - stats_key=aloha
+  # measured from stats.json: action min/max/mean/std are identical to the
+  # state's, i.e. the head predicts ABSOLUTE joint targets, not deltas —
+  # deploy.yml's `delta` would add the current qpos on top of them
+  - action_mode=abs
+env:
+  HF_HOME: ${REPO}/.cache/huggingface
+  XDG_CACHE_HOME: ${REPO}/.cache
+  TMPDIR: ${REPO}/tmp
+  PYTHONWARNINGS: "ignore::UserWarning"
+  PYTHONUNBUFFERED: "1"
+port_base: 8840
+default: true
+# the XPolicyLab protocol has no call that reseeds a policy's sampler, and this
+# one draws flow-matching noise per chunk, so a replay is not bit-identical
+deterministic: false
+checkpoint: ${REPO}/.cache/vla/InternVLA-A1.5-RoboTwin
+download: "HF_HOME=${REPO}/.cache/huggingface python -c \"from huggingface_hub import snapshot_download; snapshot_download('InternRobotics/InternVLA-A1.5-RoboTwin', local_dir='${REPO}/.cache/vla/InternVLA-A1.5-RoboTwin')\""
+boot_timeout_s: 900
+gpu_mib: 17000            # measured 15.5 GiB resident in float32 on an L40S
+obs:
+  cameras: {head: head_camera, left_wrist: left_camera, right_wrist: right_camera}
+  render_size: 0            # RoboTwin's own D435 frames (320x240) go out untouched
+  resize: 224               # the server resize-with-pads them (deploy.yml resize_size)
+  frequency: 30             # additional_info.frequency, as the upstream RoboTwin eval sends it
+  state: [left_arm_joint_state, left_ee_joint_state, right_arm_joint_state, right_ee_joint_state]
+action:
+  dim: 14                   # [left arm 6, left gripper, right arm 6, right gripper]
+  replan_steps: 20          # deploy.yml infer_horizon: the whole chunk, as upstream executes it
+  keys: [left_arm_joint_state, left_ee_joint_state, right_arm_joint_state, right_ee_joint_state]
+  action_type: qpos         # RoboTwin take_action(action_type='qpos'): joint targets, TOPP-interpolated
+notes: >
+  Chosen over 2toINF/X-VLA-RoboTwin2 and SidneyXie/pi05_robotwin because the
+  XPolicyLab zoo already vendors a complete serving adapter for it (install.sh,
+  setup_eval_policy_server.sh, deploy.yml) and its conda env plus the 5.4 GB
+  checkpoint were already resident, so it was the only RoboTwin 2.0 policy that
+  could actually be served inside the time budget.  Two deploy.yml defaults are
+  wrong for THIS checkpoint and are overridden above (stats_key `aloha`,
+  action_mode `abs`); leaving them would either KeyError on stats.json or double
+  the joint targets.  Distribution caveat, measured not assumed: the checkpoint
+  was fine-tuned on the ALOHA-AgileX embodiment (one dual-arm URDF whose base
+  sits at z = 0), while the roboenv RoboTwin adapter runs two separate Piper arms
+  at z = 0.75 spaced 0.6 m apart.  The head camera pose is identical between the
+  two embodiments (-0.032, -0.45, 1.35) and both are 6-DoF + 1-DoF-gripper per
+  arm, so images, state and action layouts line up — but the joint targets the
+  policy emits are ALOHA-AgileX poses replayed on Piper kinematics.  Probed on
+  8 diverse tasks (seed 0, 600 frames each, 2026-08-28): 0/8 scored and no object
+  moved 1 cm; after 80 frames of click_bell the left TCP sits at z = 0.67, under
+  the 0.74 m table top, and both wrist views go blank.  The integration itself
+  checks out (in-limit targets, no frozen frames, marching absolute chunks), so
+  registering an aloha_agilex RoboTwin env is the one change between this spec
+  and the checkpoint's published 93 %.  See
+  skills/knowledge/shared/piper/vla-internvla-a15-robotwin.md.
+tool_doc: |
+  Hand closed-loop control to a pretrained vision-language-action policy (default
+  ``internvla_a15_robotwin``: InternVLA-A1.5, a Qwen3.5-2B VLM with a flow-matching
+  action expert, fine-tuned by InternRobotics on RoboTwin 2.0 — 93 % on the benchmark's
+  own ALOHA-AgileX evaluation) for up to ``n_actions`` control steps, then get control
+  back with a before/after report ``{"policy", "actions_taken", "reward_before",
+  "reward_after", "objects_moved_m", "budget", "note"}``.
+
+  It sees the three benchmark cameras (head, left wrist, right wrist), the 14-dim
+  dual-arm joint state, and a language instruction — by default the episode's own
+  RoboTwin sentence; ``instruction`` overrides it (phrase sub-goals the way RoboTwin
+  does: "grab the bottle with the left arm and place it on the pad"). It commands both
+  arms at once and cannot be told poses or coordinates, so it is the opposite of the
+  planner tools: use it for contact-rich stretches, not for precise placement.
+
+  One ``n_actions`` is one RoboTwin policy frame (a joint-target waypoint the simulator
+  interpolates over 40-110 physics steps, all charged to the episode); the benchmark's
+  own per-task limits are 400-1700 frames, and a 600-frame call spends about 35000 of
+  the episode's 60000 sim steps.  The first call boots the policy server (40 s - 4 min,
+  once per process; later calls are immediate).  Refused when the horizon is exhausted.
+
+  WHICH ROBOT YOU ARE ON DECIDES EVERYTHING.  The checkpoint was trained on RoboTwin's
+  ALOHA-AgileX.  Under ``embodiment="aloha_agilex"`` it scores **7 of 8** on a diverse
+  probe (click_bell 70 frames, open_laptop 80, lift_pot 100, beat_block_hammer 113,
+  place_empty_cup 149, move_stapler_pad 164, stack_blocks_two 273; only handover_block
+  failed), and repeats 10/10 across fresh processes with the frame count varying 4-13 %.
+  Under the default two Piper arms — mounted 0.75 m higher on separate bases — the same
+  joint targets put the hands 7 cm UNDER the table, out of every camera: **0/8, nothing
+  moved**.  If ``get_gripper_pose_left()`` reads z below the table top, you are on the
+  wrong robot for this policy; solve with the planner primitives instead.
+
+  Chunking buys nothing here (unlike LIBERO): the adapter stops the run as soon as
+  RoboTwin latches success, so one long call is already self-terminating.  On a
+  marginal task one call is not a verdict, though — ``handover_block`` reads as a
+  failure or a 279-frame win depending on the run.
+
+  **Ask for 750 frames, not 600.**  Each task has its own cap in RoboTwin's
+  ``_eval_step_limit.yml`` (700-1700), and asking for 600 was the *program's* limit, not
+  the benchmark's: every failing repeat of the long tasks stopped at exactly 600, and at
+  700-750 the same tasks score 8 of 10 against 7 of 13.  ``put_bottles_dustbin``, recorded
+  as "never scores", solves itself at 664.  The real ceiling is the episode budget — about
+  71 simulator steps per policy frame against 60000, so ~840 frames.
+
+  **This policy cannot be reseeded**, so a repeat on a *different* server is worth no more
+  than a repeat on the same one (7 of 13 exclusive against 11 of 19 shared); the repeat
+  count is the instrument.  But never run two episodes against one server: the model keeps
+  a single ``_latest_obs`` that each new client's ``reset()`` empties, and 3 of 11
+  concurrent replays died on it.
+
+  Coded primitives work alongside it on ALOHA, bounded by one number: the fingertips
+  cannot go below **z = 0.780** over the table (the gripper's collision mesh against the
+  table, not the arm's reach — off the table's front edge the same arm reaches 0.55).
+  What decides a grasp is the height of the *annotated contact point*, not the object's:
+  the bell and the coaster share an origin z of 0.741, and the bell grasps at the
+  default while the coaster cannot be grasped at all.  So ``grasp_dis`` is a rescue,
+  not a default — call ``grasp_object`` as it comes, retry with ``grasp_dis`` 0.02-0.04
+  after an ``IK Failed``, and when no contact point clears the floor hand that object to
+  the policy.  A failing ``grasp_object`` costs ~197 s here against ~4 s on Piper, so
+  probe with ``find_grasp`` before spending it four times over.
+
+  Do NOT hand the policy a state your code built: given the block carried to within a
+  centimetre of RoboTwin's own scripted mid-task pose it moved 0.17 m and then stalled
+  dead, while the same task from a fresh episode takes it 279 frames.  It was trained on
+  its own rollouts; stage a scene only the way its own trajectories would have reached
+  one — objects down, arms retracted, nothing held.

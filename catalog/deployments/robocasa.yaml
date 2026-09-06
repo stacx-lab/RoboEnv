@@ -1,0 +1,3 @@
+interpreter: miniconda3/envs/robocasa/bin/python
+writable_mounts:
+- third_party/robocasa

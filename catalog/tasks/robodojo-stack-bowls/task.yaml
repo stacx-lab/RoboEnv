@@ -1,0 +1,8 @@
+id: robodojo-stack-bowls
+backend: robodojo
+backend_task: robodojo.stack_bowls
+robot: robodojo-arx-x5
+instruction: Stack the three bowls into one pile
+seed: 0
+budget_mode: official
+backend_kwargs: {"max_steps":240000,"respect_task_step_lim":false,"task_name":"stack_bowls"}

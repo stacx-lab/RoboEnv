@@ -1,0 +1,11 @@
+identity:
+  source: user
+  id: toy-puck
+  name: Toy puck fixture
+  platform: sim
+  kind: other
+  model: Synthetic one-dimensional world, not a physical robot benchmark
+devices: {source: user}
+meta:
+  created_at: '2026-09-05'
+  updated_at: '2026-09-05'

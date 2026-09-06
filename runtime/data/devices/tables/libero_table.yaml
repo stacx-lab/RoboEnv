@@ -1,0 +1,4 @@
+# The LIBERO table.  Descriptive only: no driver, nothing to query.
+kind: body
+id: libero_table
+static: true

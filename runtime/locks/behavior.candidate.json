@@ -1,0 +1,464 @@
+{
+  "schema": "roboenv/environment-candidate/1",
+  "backend": "behavior",
+  "status": "blocked-by-upstream-metadata-conflicts; not-a-resolved-lock",
+  "inspected_at_utc": "2026-09-06T00:54:54Z",
+  "candidate_lock_sha256": "d6e54ce1f3ad54cc6826f14d8624f45f63b120ca07bc5f69c37f8189b7e73778",
+  "source_pins_sha256": "d68a4fb4260caa9ef297e36caca07117fb72fb309363dc4720cebd47db4460da",
+  "observed_interpreter": {
+    "python": "3.11.16",
+    "platform": "Linux x86_64",
+    "distributions": 242,
+    "user_site_included": false
+  },
+  "recipe": {
+    "python": "3.11",
+    "lock": "runtime/locks/behavior.candidate.txt",
+    "source_pins": "runtime/locks/behavior.candidate-source-pins.txt",
+    "editables": [
+      "third_party/BEHAVIOR-1K/bddl3",
+      "third_party/BEHAVIOR-1K/OmniGibson"
+    ],
+    "source_only": [
+      "third_party/BEHAVIOR-1K/docs/challenge"
+    ],
+    "unused_source_components": [
+      "third_party/BEHAVIOR-1K/joylo",
+      "third_party/BEHAVIOR-1K/eval-jobqueue",
+      "third_party/BEHAVIOR-1K/asset_pipeline"
+    ],
+    "extra_indexes": [
+      "https://pypi.nvidia.com",
+      "https://download.pytorch.org/whl/cu128"
+    ],
+    "sdk_requirement": "roboenv[server]==0.2.0",
+    "runtime_requirement": "roboenv-runtime==0.2.0",
+    "source_pin_scope": "Only immutable VCS identity. Never use overrides to remove numeric dependency conflicts.",
+    "installable": false
+  },
+  "sources": {
+    "behavior": {
+      "url": "https://github.com/StanfordVL/BEHAVIOR-1K.git",
+      "revision": "22d19cd2f99d6ae15dd0fb62e90363410cdd3260",
+      "prepared_revision_matches_locked_source": true,
+      "tracked_modifications_observed": false,
+      "installed_distributions": [
+        {
+          "name": "bddl",
+          "version": "3.7.0",
+          "subdirectory": "bddl3",
+          "editable": true
+        },
+        {
+          "name": "omnigibson",
+          "version": "3.9.2",
+          "subdirectory": "OmniGibson",
+          "editable": true
+        }
+      ]
+    },
+    "git_distributions": [
+      {
+        "name": "lerobot",
+        "version": "0.5.2",
+        "url": "https://github.com/wensi-ai/lerobot",
+        "revision": "436812bd8ee39b768c645c248c91f1330834e687",
+        "requested_revision": "release/b1k",
+        "editable": false
+      },
+      {
+        "name": "nvidia-curobo",
+        "version": "0.0.0",
+        "url": "https://github.com/StanfordVL/curobo",
+        "revision": "78612f45cef52c3fa0298de243a54cd7ca614414",
+        "requested_revision": "78612f45cef52c3fa0298de243a54cd7ca614414",
+        "editable": false
+      }
+    ],
+    "source_identity_gap": {
+      "source": "third_party/BEHAVIOR-1K/OmniGibson/setup.py",
+      "declared": "lerobot[dataset] @ git+https://github.com/wensi-ai/lerobot@release/b1k",
+      "candidate_revision": "436812bd8ee39b768c645c248c91f1330834e687",
+      "required_action": "Pin this source identity in a reviewed source patch or source-identity-only override before a full reproducible resolve."
+    }
+  },
+  "installed_distribution_classes": {
+    "requirements_entries": 240,
+    "no_direct_source_metadata": 211,
+    "local_checkout_editables_excluded_from_candidate_file": 2,
+    "pinned_git_distributions_in_candidate_file": 2,
+    "locally_cached_wheel_distributions": 27,
+    "caveat": "A local wheel installation records identity and sometimes archive hash, not an authenticated public download origin. Registry availability for every pin is not yet established."
+  },
+  "locally_cached_wheel_evidence": [
+    {
+      "name": "isaacsim-storage",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "57d90579ef9ce8e89e39bd38f30f81577a051c19e5950e8d4a67c3af894fd625"
+      },
+      "metadata_sha256": "c70d0cfcae387d753f7d9fe42dfe1ee192ae7f269569db30785c31079d1f2c33"
+    },
+    {
+      "name": "isaacsim",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "ad2c027831ed5d4a62552735bb799dea4e4604530d2ab9b526ddb6cd19a98c11"
+      },
+      "metadata_sha256": "62886aa8eed75cdd927a5865055e4cf957b271a623f9c1c74e1cbcb51a84a7b9"
+    },
+    {
+      "name": "isaacsim-extscache-physics",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "a4b450c7b33d2ada42e1736ac48e002103aac0b93e4f618d9fa4c212762dc74b"
+      },
+      "metadata_sha256": "e0df1c986706bedbc97bbe9856aebf57759e0fee00851507d4659b02423d6ef5"
+    },
+    {
+      "name": "isaacsim-robot-setup",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "9d48262259e89cb1d02c325d69cca6ece24919d4736f8a5ac3db861ddb962de0"
+      },
+      "metadata_sha256": "66275ccf0c4d9d89a23712d29ae0891f52e2894780adccbe611d29ad9b58c277"
+    },
+    {
+      "name": "isaacsim-extscache-kit-sdk",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "be8cb4520eb9c97c4ddd46e1c92885bb9e5dbc581e407930f186a3808eafc038"
+      },
+      "metadata_sha256": "22d20067c0feed341ce90ba8d516cd5f3a7c78c12df82b2c70eed15b5b5ba835"
+    },
+    {
+      "name": "isaacsim-robot",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "3d7529f76b390210fd3dad66101958f4292f7306c9182b06cf532763341087e2"
+      },
+      "metadata_sha256": "7dc133caaaa71f49db55249264a6ed32ce311193889db57f9d9a94170fb0995c"
+    },
+    {
+      "name": "isaacsim-robot-motion",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "0163f3d3243f0641502527f066febe22c93e651eb54e911442f88bc3fb37db9c"
+      },
+      "metadata_sha256": "eee501f840a7e8f5cf13edf8ca76180d122bcb6e7cd39d77a5ca8a490922a07b"
+    },
+    {
+      "name": "isaacsim-code-editor",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "4dbc1833765987aa614e78f4166ef1dcddd5282fe4f395ffc5e3b6ebee653b10"
+      },
+      "metadata_sha256": "f58b6e68004c5a8c3c00771cc0b91ee9076891d63b5673dae27e48f5c9153478"
+    },
+    {
+      "name": "isaacsim-kernel",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "f981290a70ad89f169fb9c47bd55833665677879ebc46ed3992756c617ac02fc"
+      },
+      "metadata_sha256": "f956aeb5e3ab54c0610f89b629619316a136c7c6ec3ab903d250efee498ec7f5"
+    },
+    {
+      "name": "isaacsim-utils",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "becd39be3fc0d3b5abe332febf50c2af518aa99db5582344b53cba6076385116"
+      },
+      "metadata_sha256": "d632b453d8b7879a886380ceaa7ea5d685c01d4ae8801e1db8de34aee617192e"
+    },
+    {
+      "name": "isaacsim-template",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "76e19875380d9e5432a01b3b14d2d640d1d092069518e36c597eb79ff1a06474"
+      },
+      "metadata_sha256": "9c93d9972a5e3d5bb6029aad82fefe4e6f3877f8b0e42f3061c4836d8a94c306"
+    },
+    {
+      "name": "omniverse-kit",
+      "version": "107.3.1.206797",
+      "archive_hashes": {
+        "sha256": "15b14affe6390adca27b36e5f5eae153666440dfe61a7b17b23356f12544f43d"
+      },
+      "metadata_sha256": "3a549b8fd5f847c8c99197be32db0fb4308cae7d24ebf099ccd51cd654b73d4a"
+    },
+    {
+      "name": "isaacsim-replicator",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "8fe63ec5adf9fbe12aef82b4634a9662f8ad933d8f8428c64f11dc71406e4948"
+      },
+      "metadata_sha256": "6ac1e774ca21a8788ed1d2e15bbdd384a2f7b5824882ae68e403ce47a4a76238"
+    },
+    {
+      "name": "isaacsim-ros1",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "a0b541c266c409b7e48388f2f2bfce8a0417735b4fb238dd0b1dbf9f1a9df06e"
+      },
+      "metadata_sha256": "89ca7bdec66f91f83ea638d561292ff01b0ec77572f8a69003467bbb7440ba4d"
+    },
+    {
+      "name": "isaacsim-rl",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "d1fdc4f2046a205ba34a3a69c96f5a51744783f74cd824e047f43bc1ee66c7b9"
+      },
+      "metadata_sha256": "b682902682e8d79815a13aea62194e414a98c09b144125247294df1c373c75c5"
+    },
+    {
+      "name": "isaacsim-core",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "cfdd5d82ce455d654c68d37ff4fdd062190e3414289beb6f9b876a10a851b92d"
+      },
+      "metadata_sha256": "e2e691259ea437045130e014a9f7a6fe720f637203be9009261d364f62299a13"
+    },
+    {
+      "name": "isaacsim-benchmark",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "8353d696c1231524ac263b5700f79fe5f9b8c9dd0ef003580fec5d9c166bc5b3"
+      },
+      "metadata_sha256": "5320ecf14874af02cbb85c35d57db2a666b6fa0ae059b34bce9f65445bffb649"
+    },
+    {
+      "name": "isaacsim-asset",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "260bb3486e263488fd406c28da37ef79d73da7fd9f9ea6c7a36b111a8a6f8361"
+      },
+      "metadata_sha256": "0f8406e0435efc9c45401b4bd4b5203f398c13d2b1cc1fcfaabdd8a8e1e04232"
+    },
+    {
+      "name": "isaacsim-sensor",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "3c52d04aa11a213103031a3a53f2a74866a27dc47fd88bbd3eb6c52c65f163f1"
+      },
+      "metadata_sha256": "6ed45fa52d62150f7a647d36339794b87013f7b12a1c8ed6274b54deea0961f9"
+    },
+    {
+      "name": "isaacsim-test",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "b3a1b647d6bec16b649b5d6f4199b0dd8aa3d70fcc5cc9603fef8e6e9bf986dc"
+      },
+      "metadata_sha256": "b092cf6bee55ad3ee07920b98d2c7a62d9acfb757f23e9e3860a994f1bc3df1c"
+    },
+    {
+      "name": "isaacsim-cortex",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "b2f9b7f2f4aa8b856bb7a5f7808aec90f633b2ee409e709099a0d071c57a6296"
+      },
+      "metadata_sha256": "fdf65bc95d805f8c69d1c2db5803b932abc8a8ce398dd2581313d0956700fd2e"
+    },
+    {
+      "name": "isaacsim-example",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "a537336402f631921da4bee742ad846949824d48c84dacfbc7e8fd97b2d23c04"
+      },
+      "metadata_sha256": "a6437f0992f6ff4bfdcfc2c387b09ff0ec39d82998c785f335c3e40224646e89"
+    },
+    {
+      "name": "pip",
+      "version": "26.2.1",
+      "archive_hashes": {},
+      "metadata_sha256": "b24017be6015980d95415353ffb2aef504d616ad6015833a1671d8fd3e7dea84"
+    },
+    {
+      "name": "isaacsim-ros2",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "0b9ee70c64a54a8ee416de2a785b71270832c15b901f86adf6bd18153dc66662"
+      },
+      "metadata_sha256": "8abe50978c3c21f7a4477296d323abf3590ae2271426cf08b789645c3ec43011"
+    },
+    {
+      "name": "isaacsim-gui",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "af0a3e2eb9ecd6c5a6088fcd50a480736c391f72bd38a854cc69a1c13861800b"
+      },
+      "metadata_sha256": "b706a7dfc8be26835b3b01d982b2808a85d021f6ffb7fa751a47a7319e0c82e8"
+    },
+    {
+      "name": "isaacsim-extscache-kit",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "82c0c43a4a8a62a37c82a6c32a489be6ac2fb52baf17041dcccb80295d94721f"
+      },
+      "metadata_sha256": "ecd73330f338ca3cc6f2ec50018cc130d21154de5fae958b0b39576377c1cee6"
+    },
+    {
+      "name": "isaacsim-app",
+      "version": "5.1.0.0",
+      "archive_hashes": {
+        "sha256": "88d0ad9d56439aacd670490dab7cf55c72cece72894e3932a9a0493b12fa60a2"
+      },
+      "metadata_sha256": "12cc2a76453d17854ab380cbd20b56be51eca9d62207c28c4554bd861e45b1fe"
+    }
+  ],
+  "metadata_audit": {
+    "scope": "interpreter-local metadata; transitive requested extras propagated",
+    "packages": 242,
+    "conflicts": [
+      {
+        "package": "isaacsim-core",
+        "version": "5.1.0.0",
+        "requires": "packaging==23.0",
+        "installed": "25.0"
+      },
+      {
+        "package": "isaacsim-kernel",
+        "version": "5.1.0.0",
+        "requires": "Pillow==11.3.0",
+        "installed": "11.0.0"
+      },
+      {
+        "package": "isaacsim-kernel",
+        "version": "5.1.0.0",
+        "requires": "click==8.1.7",
+        "installed": "8.5.0"
+      },
+      {
+        "package": "isaacsim-kernel",
+        "version": "5.1.0.0",
+        "requires": "websockets==12.0",
+        "installed": "17.1"
+      },
+      {
+        "package": "isaacsim-kernel",
+        "version": "5.1.0.0",
+        "requires": "psutil==5.9.8",
+        "installed": "7.2.2"
+      },
+      {
+        "package": "nvidia-curobo",
+        "version": "0.0.0",
+        "requires": "importlib_resources",
+        "installed": null
+      },
+      {
+        "package": "trimesh",
+        "version": "4.5.1",
+        "requires": "chardet; extra == \"easy\"",
+        "installed": null
+      },
+      {
+        "package": "trimesh",
+        "version": "4.5.1",
+        "requires": "xatlas; extra == \"easy\"",
+        "installed": null
+      }
+    ],
+    "passed": false
+  },
+  "irreducible_conflicts": [
+    {
+      "name": "websockets",
+      "constraints": [
+        "websockets==12.0",
+        "websockets>=15.0.1"
+      ],
+      "required_by": [
+        "isaacsim-kernel==5.1.0.0",
+        "omnigibson==3.9.2"
+      ],
+      "installed": "17.1"
+    },
+    {
+      "name": "Pillow",
+      "constraints": [
+        "Pillow==11.3.0",
+        "Pillow~=11.0.0"
+      ],
+      "required_by": [
+        "isaacsim-kernel==5.1.0.0",
+        "omnigibson==3.9.2"
+      ],
+      "installed": "11.0.0"
+    },
+    {
+      "name": "packaging",
+      "constraints": [
+        "packaging==23.0",
+        "packaging>=24.2,<26.0"
+      ],
+      "required_by": [
+        "isaacsim-core==5.1.0.0",
+        "lerobot==0.5.2 at its recorded Git revision"
+      ],
+      "installed": "25.0"
+    }
+  ],
+  "verification": {
+    "pin_syntax_audit_passed": true,
+    "resolver": "uv 0.12.7",
+    "normal_dependency_resolution_used_for_unsatisfiable_cores": true,
+    "dependency_bypass_used": false,
+    "numeric_requirement_overrides_used": false,
+    "resolver_cores": [
+      {
+        "name": "websockets",
+        "requirements": [
+          "websockets==12.0",
+          "websockets>=15.0.1"
+        ],
+        "command": "uv pip compile --offline --python-version 3.11 --no-build --no-header --no-annotate -",
+        "exit_code": 1,
+        "conclusion": "unsatisfiable"
+      },
+      {
+        "name": "pillow",
+        "requirements": [
+          "Pillow==11.3.0",
+          "Pillow~=11.0.0"
+        ],
+        "command": "uv pip compile --offline --python-version 3.11 --no-build --no-header --no-annotate -",
+        "exit_code": 1,
+        "conclusion": "unsatisfiable"
+      },
+      {
+        "name": "packaging",
+        "requirements": [
+          "packaging==23.0",
+          "packaging>=24.2,<26.0"
+        ],
+        "command": "uv pip compile --offline --python-version 3.11 --no-build --no-header --no-annotate -",
+        "exit_code": 1,
+        "conclusion": "unsatisfiable"
+      }
+    ],
+    "full_online_compile_attempted": false,
+    "full_compile_reason": "Three mandatory dependency intersections are already empty. Downloading vendor packages cannot make them satisfiable; metadata-only unsatisfiable-core resolution avoids multi-GB downloads.",
+    "fresh_install_performed": false,
+    "clean_install_verified": false,
+    "gpu_replay_verified": false,
+    "asset_downloads": 0,
+    "license_acceptance_performed": false,
+    "extra_disk_usage": "Only candidate text/JSON and metadata audit; no new environment, wheel download or asset copy."
+  },
+  "minimal_next_steps": [
+    "Resolve the three contradictory mandatory upstream metadata bounds through a compatible upstream release or reviewed, explicitly versioned packaging changes. Merely swapping the installed version cannot satisfy both sides.",
+    "Bind OmniGibson's floating LeRobot source to the observed immutable commit; keep cuRobo at its observed immutable commit.",
+    "Reconcile the remaining installed-metadata drift and missing dependencies reported by the audit; do not silently inherit Kit prebundles or user site-packages.",
+    "Then run a full normal resolver with the public NVIDIA/PyTorch indexes, establish actual artifact availability/hashes, install SDK/runtime normally, and require a passing dependency consistency check.",
+    "Only after that, perform fresh GPU boot/device-read/reference verification against independently acquired licensed assets. Keep this candidate non-default until those gates pass."
+  ],
+  "not_claimed": [
+    "A clean-install recipe",
+    "GPU execution of this candidate",
+    "Compatibility beyond the inspected Python/platform",
+    "Public artifact availability for every cached wheel",
+    "Asset redistribution permission",
+    "Default-recipe promotion"
+  ]
+}

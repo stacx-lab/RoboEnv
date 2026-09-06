@@ -1,0 +1,18 @@
+[submodule "behavior"]
+	path = third_party/BEHAVIOR-1K
+	url = https://github.com/StanfordVL/BEHAVIOR-1K.git
+[submodule "capx"]
+	path = third_party/cap-x
+	url = https://github.com/capgym/cap-x.git
+[submodule "robodojo"]
+	path = third_party/RoboDojo
+	url = https://github.com/RoboDojo-Benchmark/RoboDojo.git
+[submodule "robocasa"]
+	path = third_party/robocasa
+	url = https://github.com/robocasa/robocasa.git
+[submodule "robosuite"]
+	path = third_party/robosuite
+	url = https://github.com/ARISE-Initiative/robosuite
+[submodule "robotwin"]
+	path = third_party/RoboTwin
+	url = https://github.com/RoboTwin-Platform/RoboTwin.git

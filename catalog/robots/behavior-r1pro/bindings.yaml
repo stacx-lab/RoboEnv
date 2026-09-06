@@ -1,0 +1,7 @@
+schema_version: roboenv/bindings/1
+backend: behavior
+embodiment: r1pro
+devices:
+  controller:
+    binding: behavior.device/1
+    entity: controller

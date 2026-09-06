@@ -1,0 +1,5 @@
+# LIBERO's fixed front camera.
+kind: camera
+id: libero_agentview
+resolution: [128, 128]
+image_convention: rgb_hwc_uint8

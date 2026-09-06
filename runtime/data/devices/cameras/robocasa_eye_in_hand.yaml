@@ -1,0 +1,7 @@
+# RoboCasa's wrist camera.  Configured by the simulator but not requested by the
+# roboenv adapter's default camera_names, so no driver reads it today.
+kind: camera
+id: robocasa_eye_in_hand
+mujoco_name: robot0_eye_in_hand
+resolution: [256, 256]
+image_convention: rgb_hwc_uint8

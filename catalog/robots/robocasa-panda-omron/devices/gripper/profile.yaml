@@ -1,0 +1,44 @@
+name: gripper
+type: end_effector
+loaded: true
+access:
+  source: user
+  kind: sim
+  device: /run/roboenv/sim.sock
+  control_mode: position_goal
+  driver:
+    entry: driver.py
+    interpreter: python3
+    actions:
+    - catalog
+    - load
+    - move
+    - read
+    - state
+    - status
+    - stop
+    - unload
+    - write
+    timeout_s: 300
+intrinsics:
+  source: user
+  tool_type: parallel gripper
+  aperture_m:
+    min: 0.0
+    max: 0.08
+  actions:
+  - component: grip
+    units: normalized
+    bounds:
+      min: 0.0
+      max: 1.0
+    meaning: 0 closed, 1 open
+extrinsics:
+  source: user
+  mount:
+    parent: arm
+    pose: ???
+  needs_calibration: TCP offset (the mount pose IS the TCP; calibrate-tcp-offset)
+meta:
+  created_at: '2026-08-31T03:30:00Z'
+  updated_at: '2026-08-31T03:30:00Z'

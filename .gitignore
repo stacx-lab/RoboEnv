@@ -1,0 +1,15 @@
+.venv*/
+.cache/
+.pytest_cache/
+.ruff_cache/
+**/__pycache__/
+**/*.pyc
+**/*.egg-info/
+**/build/
+dist/
+.env
+.env.*
+jobs/
+generated/
+benchmarks/manipulation/
+deployments/local/

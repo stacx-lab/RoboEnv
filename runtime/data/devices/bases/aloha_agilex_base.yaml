@@ -1,0 +1,7 @@
+# The ALOHA-AgileX mobile base.  Present in the model and it is what puts the arms
+# where they are, but RoboTwin's task set never drives it and no tool commands it,
+# so it is descriptive: no driver, no exported methods.
+kind: base
+id: aloha_agilex_base
+vendor: AgileX
+drivable_here: false

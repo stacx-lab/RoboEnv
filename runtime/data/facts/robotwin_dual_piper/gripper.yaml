@@ -1,0 +1,80 @@
+# Measured facts about the Piper parallel grippers.  A program reads
+# facts["left_gripper.<key>"]; nothing here may be a constant in code.
+- device: left_gripper
+  key: tcp_offset_m
+  value: 0.12
+  unit: m
+  measured: 2026-08-27
+  by: agent robotwin-round3 (TCP calibration sweep)
+  evidence: roboenv/embodiments/piper.yaml#tool.tcp_offset_m
+  note: >
+    get_tcp_pose() == get_gripper_pose_left() + 0.12 * R @ [1,0,0]; verified on both
+    arms.  A top-down tool therefore has its flange 12 cm ABOVE the fingertips.
+- device: right_gripper
+  key: tcp_offset_m
+  value: 0.12
+  unit: m
+  measured: 2026-08-27
+  by: agent robotwin-round3 (TCP calibration sweep)
+  evidence: roboenv/embodiments/piper.yaml#tool.tcp_offset_m
+  note: same offset on the right arm, verified separately
+- device: left_gripper
+  key: max_opening_m
+  value: 0.08
+  unit: m
+  measured: 2026-08-27
+  by: piper embodiment profile (gripper section)
+  evidence: roboenv/embodiments/piper.yaml#gripper
+  note: nominal stroke a fraction normalises over; 0.0 = fully closed, 1.0 = fully open
+- device: right_gripper
+  key: max_opening_m
+  value: 0.08
+  unit: m
+  measured: 2026-08-27
+  by: piper embodiment profile (gripper section)
+  evidence: roboenv/embodiments/piper.yaml#gripper
+- device: left_gripper
+  key: grasp_dis_window_m
+  value: [0.02, 0.03]
+  unit: m
+  measured: 2026-08-27
+  by: agent robotwin-round3 on 018_microphone (handover_mic seed 0, --planner-budget deterministic)
+  evidence: roboenv/embodiments/piper.yaml#grasp_annotations.grasp_dis_window_m
+  note: >
+    THE GRASP-WINDOW RULE.  grasp_dis is not a constant: the window is bounded below by
+    (fingertip floor - contact-point z) and above by the object's half size.  Measured
+    here: 0.02 holds; 0.03 plans but the fingers close outside the body (lift 0.1 mm);
+    0.04 never touches; 0.0 does not plan for ANY annotated point of that asset.
+    Verify a searched grasp with a LIFT, not with the return value.
+- device: left_gripper
+  key: fingertip_floor_z
+  value: null
+  measured: 2026-08-28
+  by: agent robotwin-hybrid (IK sweep, compared against aloha_agilex)
+  evidence: docs/campaign_2026-08-vla-hybrid/findings.jsonl#ts=2026-08-28T06:10:00
+  note: >
+    Piper has NO fingertip floor over the table: grasp_object at grasp_dis=0 planned in
+    3.9 s where the same call on ALOHA raises IK Failed.  Recorded as null on purpose —
+    a program that reads this fact learns "no floor here", which is what makes the same
+    program port to a rig that has one.
+- device: left_gripper
+  key: finger_links
+  value: [link7, link8]
+  measured: 2026-08-27
+  by: agent robotwin-round3 (contact attribution)
+  evidence: roboenv/embodiments/piper.yaml#gripper.finger_links
+  note: >
+    BOTH arms use these two names (one URDF loaded twice), so a contact can be
+    attributed to a hand only by entity identity, never by link name.  That is why
+    Gripper.holding() goes through check_grasp and not through a name match.
+- device: left_gripper
+  key: scorer_reads_commanded_fraction
+  value: true
+  measured: 2026-08-27
+  by: agent robotwin-round3 (handover_mic gripper predicates)
+  evidence: roboenv/adapters/robotwin/adapter.py#get_gripper_state
+  note: >
+    The benchmark's own is_<arm>_gripper_open/close are thresholds on the LAST COMMANDED
+    fraction (> 0.8 open, < 0.2 closed), not on the fingers: a jaw clamped on a 5 cm
+    object reads closed=True.  Gripper.state() reports both; Gripper.holding() is the
+    physics.

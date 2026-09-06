@@ -1,0 +1,326 @@
+diff --git a/capx/envs/simulators/__init__.py b/capx/envs/simulators/__init__.py
+index fad2d87..9f92842 100644
+--- a/capx/envs/simulators/__init__.py
++++ b/capx/envs/simulators/__init__.py
+@@ -68,3 +68,10 @@ except Exception:
+     # import traceback
+     print("R1Pro not installed!")
+     # traceback.print_exc()
++
++# RoboTwin bimanual tasks (SAPIEN 3). Requires .venv-robotwin and the roboenv-runtime package:
++# importing the shim registers robotwin_<task>_{piper,piper_curobo,yam}_low_level.
++try:
++    from . import robotwin  # noqa: F401
++except Exception:
++    print("RoboTwin not installed!")
+diff --git a/capx/envs/simulators/robodojo.py b/capx/envs/simulators/robodojo.py
+new file mode 100644
+index 0000000..7a4d1e5
+--- /dev/null
++++ b/capx/envs/simulators/robodojo.py
+@@ -0,0 +1,6 @@
++"""Compatibility shim — this module moved to ``roboenv_runtime.adapters.robodojo.backend`` (roboenv-runtime, refactor P2).
++
++Kept so existing ``capx.*`` import paths and YAML ``_target_`` strings keep working.
++"""
++
++from roboenv_runtime.adapters.robodojo.backend import *  # noqa: F401,F403
+diff --git a/capx/envs/simulators/robotwin.py b/capx/envs/simulators/robotwin.py
+new file mode 100644
+index 0000000..675fb68
+--- /dev/null
++++ b/capx/envs/simulators/robotwin.py
+@@ -0,0 +1,6 @@
++"""Compatibility shim — this module moved to ``roboenv_runtime.adapters.robotwin.backend`` (roboenv-runtime, refactor P2).
++
++Kept so existing ``capx.*`` import paths and YAML ``_target_`` strings keep working.
++"""
++
++from roboenv_runtime.adapters.robotwin.backend import *  # noqa: F401,F403
+diff --git a/capx/envs/tasks/arx_x5/__init__.py b/capx/envs/tasks/arx_x5/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/capx/envs/tasks/arx_x5/robodojo_tasks.py b/capx/envs/tasks/arx_x5/robodojo_tasks.py
+new file mode 100644
+index 0000000..30101ea
+--- /dev/null
++++ b/capx/envs/tasks/arx_x5/robodojo_tasks.py
+@@ -0,0 +1,6 @@
++"""Compatibility shim — this module moved to ``roboenv_runtime.adapters.robodojo.capx_env`` (roboenv-runtime, refactor P2).
++
++Kept so existing ``capx.*`` import paths and YAML ``_target_`` strings keep working.
++"""
++
++from roboenv_runtime.adapters.robodojo.capx_env import *  # noqa: F401,F403
+diff --git a/capx/envs/tasks/piper/__init__.py b/capx/envs/tasks/piper/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/capx/envs/tasks/piper/robotwin_tasks.py b/capx/envs/tasks/piper/robotwin_tasks.py
+new file mode 100644
+index 0000000..455f26b
+--- /dev/null
++++ b/capx/envs/tasks/piper/robotwin_tasks.py
+@@ -0,0 +1,6 @@
++"""Compatibility shim — this module moved to ``roboenv_runtime.adapters.robotwin.capx_env`` (roboenv-runtime, refactor P2).
++
++Kept so existing ``capx.*`` import paths and YAML ``_target_`` strings keep working.
++"""
++
++from roboenv_runtime.adapters.robotwin.capx_env import *  # noqa: F401,F403
+diff --git a/capx/integrations/__init__.py b/capx/integrations/__init__.py
+index 7aff0bf..0bc6ca1 100644
+--- a/capx/integrations/__init__.py
++++ b/capx/integrations/__init__.py
+@@ -126,4 +126,14 @@ if _libero_available:
+     register_api("FrankaLiberoPrivilegedApi", FrankaLiberoPrivilegedApi)
+     register_api("FrankaLiberoApi", lambda env: FrankaLiberoApi(env, use_sam3=True))
+     register_api("FrankaLiberoApiReduced", FrankaLiberoApiReduced)
+-    register_api("FrankaLiberoApiReducedSkillLibrary", FrankaLiberoApiReducedSkillLibrary)
+\ No newline at end of file
++    register_api("FrankaLiberoApiReducedSkillLibrary", FrankaLiberoApiReducedSkillLibrary)
++# RoboTwin dual-arm Piper APIs live in roboenv-runtime (roboenv_runtime.adapters.robotwin.api_*); importing the
++# shims below registers them for configs that name them.  Guarded on purpose: when roboenv-runtime's
++# API module is the FIRST importer of this package (it imports capx.integrations.base_api),
++# the shim would see a half-initialised roboenv-runtime module -- roboenv-runtime then registers itself as soon
++# as its own import completes, so a failure here is harmless.
++try:
++    from .piper import robotwin_joint as _robotwin_joint  # noqa: F401
++    from .piper import robotwin_planner as _robotwin_planner  # noqa: F401
++except Exception:  # noqa: BLE001
++    pass
+diff --git a/capx/integrations/arx_x5/__init__.py b/capx/integrations/arx_x5/__init__.py
+new file mode 100644
+index 0000000..4c427ac
+--- /dev/null
++++ b/capx/integrations/arx_x5/__init__.py
+@@ -0,0 +1,15 @@
++"""ARX X5 (RoboDojo) APIs.
++
++Self-registering: importing this package makes the API names resolvable through
++`capx.integrations.base_api.get_api`, so RoboDojo configs work without editing
++`capx/integrations/__init__.py`. The task env module imports this package, which
++runs before `CodeExecutionEnvBase` looks the API up.
++"""
++
++from capx.integrations.base_api import register_api
++
++from .robodojo_planner import RoboDojoPlannerPrivilegedApi
++
++register_api("RoboDojoPlannerPrivilegedApi", RoboDojoPlannerPrivilegedApi)
++
++__all__ = ["RoboDojoPlannerPrivilegedApi"]
+diff --git a/capx/integrations/arx_x5/robodojo_planner.py b/capx/integrations/arx_x5/robodojo_planner.py
+new file mode 100644
+index 0000000..2f57270
+--- /dev/null
++++ b/capx/integrations/arx_x5/robodojo_planner.py
+@@ -0,0 +1,6 @@
++"""Compatibility shim — this module moved to ``roboenv_runtime.adapters.robodojo.api`` (roboenv-runtime, refactor P2).
++
++Kept so existing ``capx.*`` import paths and YAML ``_target_`` strings keep working.
++"""
++
++from roboenv_runtime.adapters.robodojo.api import *  # noqa: F401,F403
+diff --git a/capx/integrations/piper/__init__.py b/capx/integrations/piper/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/capx/integrations/piper/robotwin_joint.py b/capx/integrations/piper/robotwin_joint.py
+new file mode 100644
+index 0000000..6a58f55
+--- /dev/null
++++ b/capx/integrations/piper/robotwin_joint.py
+@@ -0,0 +1,10 @@
++"""Compatibility shim — this module moved to ``roboenv_runtime.adapters.robotwin.api_joint`` (roboenv-runtime, refactor P2).
++
++Kept so existing ``capx.*`` import paths and YAML ``_target_`` strings keep working.
++"""
++
++from roboenv_runtime.adapters.robotwin.api_joint import *  # noqa: F401,F403
++
++from roboenv_runtime.adapters.robotwin.api_joint import register as _register  # noqa: E402
++
++_register()  # make the API resolvable through capx.integrations.base_api.get_api
+diff --git a/capx/integrations/piper/robotwin_planner.py b/capx/integrations/piper/robotwin_planner.py
+new file mode 100644
+index 0000000..a7f0d15
+--- /dev/null
++++ b/capx/integrations/piper/robotwin_planner.py
+@@ -0,0 +1,10 @@
++"""Compatibility shim — this module moved to ``roboenv_runtime.adapters.robotwin.api_planner`` (roboenv-runtime, refactor P2).
++
++Kept so existing ``capx.*`` import paths and YAML ``_target_`` strings keep working.
++"""
++
++from roboenv_runtime.adapters.robotwin.api_planner import *  # noqa: F401,F403
++
++from roboenv_runtime.adapters.robotwin.api_planner import register as _register  # noqa: E402
++
++_register()  # make the API resolvable through capx.integrations.base_api.get_api
+diff --git a/capx/serving/launch_pyroki_server.py b/capx/serving/launch_pyroki_server.py
+index ff4550b..b4d30d4 100644
+--- a/capx/serving/launch_pyroki_server.py
++++ b/capx/serving/launch_pyroki_server.py
+@@ -278,12 +278,18 @@ def init_pyroki_server(
+     urdf = set_min_distance_from_limits(load_robot_description(robot_urdf_name))
+ 
+     _ROBOT = pk.Robot.from_urdf(urdf)
+-    # _ROBOT_COLL = pk.collision.RobotCollision.from_urdf(urdf)
+-    sphere_decomposition = json.load(open(Path(__file__).parent / "assets" / "panda_spheres.json"))
+-    _ROBOT_COLL = pk.collision.RobotCollision.from_sphere_decomposition(
+-        sphere_decomposition=sphere_decomposition,
+-        urdf=urdf,
+-    )
++    if "panda" in robot_urdf_name:
++        sphere_decomposition = json.load(
++            open(Path(__file__).parent / "assets" / "panda_spheres.json")
++        )
++        _ROBOT_COLL = pk.collision.RobotCollision.from_sphere_decomposition(
++            sphere_decomposition=sphere_decomposition,
++            urdf=urdf,
++        )
++    else:
++        # Non-panda robots (e.g. piper_description) have no curated sphere
++        # decomposition; build collision geometry from the URDF directly.
++        _ROBOT_COLL = pk.collision.RobotCollision.from_urdf(urdf)
+     _TARGET_LINK = target_link_name
+ 
+     logger.info("PyRoki loaded and ready!")
+diff --git a/capx/serving/openrouter_server.py b/capx/serving/openrouter_server.py
+index 63609e1..7d4f5f9 100644
+--- a/capx/serving/openrouter_server.py
++++ b/capx/serving/openrouter_server.py
+@@ -1,6 +1,7 @@
+ import itertools
+ import json
+ import logging
++import os
+ from pathlib import Path
+ from typing import List, Literal, Optional, Union
+ 
+@@ -70,11 +71,28 @@ def _load_api_keys(key_file: str) -> list[str]:
+     return keys
+ 
+ 
+-def create_app(api_key: str, base_url: str, async_client: bool = True) -> FastAPI:
++def _adapt_client_kwargs(client_kwargs: dict, prefer_max_completion_tokens: bool) -> dict:
++    """Adapt request kwargs for providers with stricter parameter rules."""
++    if prefer_max_completion_tokens and "max_tokens" in client_kwargs:
++        client_kwargs.setdefault("max_completion_tokens", client_kwargs.pop("max_tokens"))
++    return client_kwargs
++
++
++def create_app(
++    api_key: str,
++    base_url: str,
++    async_client: bool = True,
++    auth_header: str | None = None,
++    prefer_max_completion_tokens: bool = False,
++) -> FastAPI:
+     default_headers = {
+         "HTTP-Referer": "https://github.com/nvidia-gear/CaP-X",
+         "X-Title": "CaP-X",
+     }
++    # Some third-party OpenAI-compatible gateways expect the key in a custom
++    # header (e.g. "api-key") instead of the standard Authorization bearer.
++    if auth_header:
++        default_headers[auth_header] = api_key
+ 
+     if async_client:
+         client = AsyncOpenAI(
+@@ -112,6 +130,8 @@ def create_app(api_key: str, base_url: str, async_client: bool = True) -> FastAP
+                 if model.startswith("openrouter/"):
+                     client_kwargs["model"] = model[len("openrouter/"):]
+ 
++                client_kwargs = _adapt_client_kwargs(client_kwargs, prefer_max_completion_tokens)
++
+                 if request.stream:
+                     client_kwargs["stream"] = True
+                     response = await client.chat.completions.create(**client_kwargs)
+@@ -154,6 +174,8 @@ def create_app(api_key: str, base_url: str, async_client: bool = True) -> FastAP
+                 if model.startswith("openrouter/"):
+                     client_kwargs["model"] = model[len("openrouter/"):]
+ 
++                client_kwargs = _adapt_client_kwargs(client_kwargs, prefer_max_completion_tokens)
++
+                 client_kwargs["stream"] = False
+ 
+                 response = client.chat.completions.create(**client_kwargs)
+@@ -184,22 +206,41 @@ def create_app(api_key: str, base_url: str, async_client: bool = True) -> FastAP
+ def main(
+     key_file: str = ".openrouterkey",
+     api_key: str | None = None,
++    key_env: str | None = None,
+     host: str = "0.0.0.0",
+     port: int = 8111,
+     base_url: str = "https://openrouter.ai/api/v1/",
++    auth_header: str | None = None,
++    prefer_max_completion_tokens: bool = False,
+     async_client: bool = True,
+ ):
+     """
+-    Start the OpenRouter Proxy Server.
++    Start an OpenAI-compatible proxy server.
++
++    Defaults to OpenRouter. Point --base-url at any third-party OpenAI-compatible
++    gateway to use it instead; if the gateway expects the key in a custom header
++    (e.g. "api-key"), pass it via --auth-header.
+ 
+-    Reads an API key from --api-key or from the key file (one key per line).
++    The key is resolved from --api-key, then --key-env (name of an environment
++    variable), then the key file (one key per line).
+     """
++    if api_key is None and key_env is not None:
++        api_key = os.environ.get(key_env)
++        if not api_key:
++            raise ValueError(f"Environment variable {key_env} is not set or empty")
++        logger.info(f"Loaded API key from ${key_env}")
+     if api_key is None:
+         keys = _load_api_keys(key_file)
+         api_key = keys[0]
+         logger.info(f"Loaded API key from {key_file}")
+ 
+-    app = create_app(api_key=api_key, base_url=base_url, async_client=async_client)
++    app = create_app(
++        api_key=api_key,
++        base_url=base_url,
++        async_client=async_client,
++        auth_header=auth_header,
++        prefer_max_completion_tokens=prefer_max_completion_tokens,
++    )
+     uvicorn.run(app, host=host, port=port)
+ 
+ 
+diff --git a/capx/utils/promptkit.py b/capx/utils/promptkit.py
+new file mode 100644
+index 0000000..137839d
+--- /dev/null
++++ b/capx/utils/promptkit.py
+@@ -0,0 +1,28 @@
++"""Compatibility shim — prompt sections and skill loading now live in roboenv-runtime (refactor P2).
++
++``PromptSpec`` is :class:`roboenv_runtime.prompt.PromptSpec`; ``load_skills``/``render_skills`` read the
++roboenv-runtime knowledge store (``skills/knowledge/shared/<domain>``) instead of ``capx/skills/<domain>``.
++"""
++
++from __future__ import annotations
++
++from roboenv_runtime.prompt import PromptSpec  # noqa: F401
++from roboenv_runtime.skills.store import SkillStore, default_store
++
++
++def load_skills(domain: str, names: list[str] | None = None, kinds: list[str] | None = None) -> list[dict]:
++    """Skill records for a domain (same dict shape as before)."""
++    skills = default_store().shared([domain], kinds=kinds, names=names)
++    return [
++        {"name": s.name, "kind": s.kind, "confidence": s.confidence, "source": s.source, "body": s.body}
++        for s in skills
++    ]
++
++
++def render_skills(skills: list[dict]) -> str:
++    """Render skill records as a prompt section (empty string if none)."""
++    if not skills:
++        return ""
++    lines = ["Field notes from previous work on this platform (hard-won; trust them):"]
++    lines += [f"- [{rec['kind'] or 'note'}] {rec['body']}" for rec in skills]
++    return "\n".join(lines)

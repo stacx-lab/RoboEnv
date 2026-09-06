@@ -1,0 +1,221 @@
+diff --git a/env/robot_manager/robot_class/yam.py b/env/robot_manager/robot_class/yam.py
+new file mode 100644
+index 0000000..c6d87b4
+--- /dev/null
++++ b/env/robot_manager/robot_class/yam.py
+@@ -0,0 +1,50 @@
++import os
++
++import numpy as np
++
++from utils.pipeline_utils import get_embodiment_config_by_robot_type
++
++
++class Yam:
++    """I2RT YAM 6-DoF arm + parallel gripper. Fully config-driven, identical
++    in structure to the X5 wrapper — all embodiment specifics live in
++    Assets/Robots/yam/robot_config.yml."""
++
++    def __init__(self, cfg: dict):
++        self.robot_type = cfg.get("robot_type", None)
++        self.robot_name = cfg.get("robot_name", None)
++        self.is_coupled = cfg.get("coupled", False)
++        self.default_root_pos = cfg.get("default_root_pos", None)
++        self.default_root_rot = cfg.get("default_root_rot", None)
++        self.grasp_perfect_direction = cfg.get("grasp_perfect_direction", None)
++        self.SceneCfg = None
++        self.static_camera_list = None
++        self.robot_cfg = get_embodiment_config_by_robot_type(robot_type=self.robot_type, robot_name=self.robot_name)
++
++        self.robot_file = self.robot_cfg["robot_file"]
++        self.robot_args = self.robot_cfg["robot_config"]
++        self.urdf_path = os.path.join(self.robot_file, self.robot_args.get("urdf_path"))
++        self.srdf_path = os.path.join(self.robot_file, self.robot_args.get("srdf_path", ""))
++        self.curobo_yml_path = os.path.join(self.robot_file, "curobo.yml")
++        self.ee_joint_name = self.robot_args["ee_joints"]
++        self.ee_link_name = self.robot_args["ee_link"]
++        self.arm_joints_name = self.robot_args["arm_joints_name"]
++        self.gripper_move = self.robot_args["gripper_move"]
++        self.gripper_joints_name = self.robot_args["gripper_joints_name"]
++        self.gripper_bias = self.robot_args["gripper_bias"]
++        self.gripper_scale = self.robot_args["gripper_scale"]
++        self.base_link = self.robot_args.get("base_link", "base_link")
++        self.delta_matrix = np.array(self.robot_args.get("delta_matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]]))
++        self.grasp_camera_reference_axis = self.robot_args.get("grasp_camera_reference_axis", [1, 0, 0])
++        self.inv_delta_matrix = np.linalg.inv(self.delta_matrix)
++        self.global_trans_matrix = np.array(
++            self.robot_args.get("global_trans_matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
++        )
++        self.ee_type = self.robot_args.get("ee_type", "gripper")
++        self.rotate_lim = self.robot_args.get("rotate_lim", [0, 0])
++
++        self.entity_origin_pose = self.default_root_pos + self.default_root_rot
++        self.camera = self.robot_args.get("camera", None)
++
++        self.mesh_dir = self.robot_args.get("mesh_dir", self.robot_file)
++        self.save_gripper_joints_name = self.robot_args.get("save_gripper_joints_name", self.gripper_joints_name)
+diff --git a/env/robot_manager/robot_config/yam.py b/env/robot_manager/robot_config/yam.py
+new file mode 100644
+index 0000000..003d06a
+--- /dev/null
++++ b/env/robot_manager/robot_config/yam.py
+@@ -0,0 +1,60 @@
++from isaaclab.actuators import ImplicitActuatorCfg
++from isaaclab.assets.articulation import ArticulationCfg
++import isaaclab.sim as sim_utils
++
++from env.global_configs import ROBOTS_PATH
++
++
++def get_robot_config():
++    return ArticulationCfg(
++        spawn=sim_utils.UsdFileCfg(
++            usd_path=f"{ROBOTS_PATH}/yam/YAM.usd",
++            rigid_props=sim_utils.RigidBodyPropertiesCfg(
++                disable_gravity=True,
++                max_depenetration_velocity=5.0,
++            ),
++            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
++                # PhysX self-collision OFF: the injected convex-hull colliders
++                # (visual-mesh copies) interpenetrate between gripper body and
++                # finger tips and jam the gripper closed; planning-time
++                # self-collision is curobo's job anyway
++                enabled_self_collisions=False,
++                solver_position_iteration_count=8,
++                solver_velocity_iteration_count=0,
++                fix_root_link=True,
++            ),
++        ),
++        init_state=ArticulationCfg.InitialStateCfg(
++            joint_pos={
++                "joint1": 0.0,
++                "joint2": 0.0,
++                "joint3": 0.0,
++                "joint4": 0.0,
++                "joint5": 0.0,
++                "joint6": 0.0,
++                "joint7": 0.0,
++                "joint8": 0.0,
++            },
++            pos=(0.25, -0.25, 0.0),
++            rot=(0.707, 0, 0, 0.707),
++        ),
++        actuators={
++            "arm": ImplicitActuatorCfg(
++                joint_names_expr=["joint[1-6]"],
++                effort_limit_sim=100.0,
++                velocity_limit_sim=5.0,
++                stiffness=4400.0,
++                damping=40.0,
++                armature=0.01,
++            ),
++            "gripper": ImplicitActuatorCfg(
++                joint_names_expr=["joint7", "joint8"],
++                # thin-wall pinches (bowl rims ~5mm) need real clamp force:
++                # at X5-like gains the pad normal force barely beats the
++                # bowl's weight and lifts slip. 8k/400 measured to hold.
++                effort_limit_sim=400.0,
++                stiffness=8000,
++                damping=200,
++            ),
++        },
++    )
+diff --git a/env/robot_manager/robot_manager.py b/env/robot_manager/robot_manager.py
+index 11b552c..5ada1c2 100644
+--- a/env/robot_manager/robot_manager.py
++++ b/env/robot_manager/robot_manager.py
+@@ -681,10 +681,15 @@ ROBOT_CLASS_REGISTRY = {
+         "module": "x5",
+         "classes": ("X5",),
+     },
++    "yam": {
++        "module": "yam",
++        "classes": ("Yam",),
++    },
+ }
+ 
+ 
+ ROBOT_CONFIG_REGISTRY = {
+     "franka": "franka",
+     "x5": "x5",
++    "yam": "yam",
+ }
+diff --git a/env_cfg/robot/_robot_info.json b/env_cfg/robot/_robot_info.json
+index 48fd5fa..ec2d066 100644
+--- a/env_cfg/robot/_robot_info.json
++++ b/env_cfg/robot/_robot_info.json
+@@ -1,6 +1,22 @@
+ {
+     "dual_x5": {
+-        "arm_dim": [6, 6],
+-        "ee_dim": [1, 1]
++        "arm_dim": [
++            6,
++            6
++        ],
++        "ee_dim": [
++            1,
++            1
++        ]
++    },
++    "dual_yam": {
++        "arm_dim": [
++            6,
++            6
++        ],
++        "ee_dim": [
++            1,
++            1
++        ]
+     }
+-}
++}
+\ No newline at end of file
+diff --git a/env_cfg/robot/dual_yam.yml b/env_cfg/robot/dual_yam.yml
+new file mode 100644
+index 0000000..23820d9
+--- /dev/null
++++ b/env_cfg/robot/dual_yam.yml
+@@ -0,0 +1,17 @@
++robots:
++  - {
++    robot_type: arm,
++    robot_name: yam,
++    coupled: False,
++    default_root_pos: [-0.3, -0.45, 0.765],
++    default_root_rot: [0.707, 0, 0, 0.707],
++    grasp_perfect_direction: "top_down_little_right"
++  }
++  - {
++    robot_type: arm,
++    robot_name: yam,
++    coupled: False,
++    default_root_pos: [0.3, -0.45, 0.765],
++    default_root_rot: [0.707, 0, 0, 0.707],
++    grasp_perfect_direction: "top_down_little_left"
++  }
+diff --git a/env_cfg/yam.yml b/env_cfg/yam.yml
+new file mode 100644
+index 0000000..a68faf4
+--- /dev/null
++++ b/env_cfg/yam.yml
+@@ -0,0 +1,19 @@
++config_name: yam
++
++config:
++  sim: sim_config
++  scene: default
++  robot: dual_yam
++  camera: camera_config
++
++observation:
++  collect_freq: 25
++  robot:
++    joint_states: true
++    world_ee_state: true
++  vision:
++    approximate_depth: false
++    depth: false
++    intrinsic_matrix: false
++    extrinsic_matrix: false
++    shape: true

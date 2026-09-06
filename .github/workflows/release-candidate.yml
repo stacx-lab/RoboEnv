@@ -1,0 +1,104 @@
+name: Release candidate checks (no package publication)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-candidate
+  cancel-in-progress: false
+jobs:
+  candidate:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: false
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c7f87aa956e4c323abf06d5dec078e358f6b4d04 # v6.0.0
+      - run: bash tools/bootstrap.sh
+      - run: bash tools/check.sh
+      - run: .venv/bin/roboenv sources sync
+      - name: Install hash-locked audit tools and only candidate core dependencies
+        run: |
+          mkdir -p .cache
+          uv venv --python .venv/bin/python .cache/release-tools > .cache/core-audit-setup.log 2>&1
+          uv pip sync --python .cache/release-tools/bin/python --require-hashes --index-url https://pypi.org/simple locks/release-tools.txt >> .cache/core-audit-setup.log 2>&1
+          uv venv --python .venv/bin/python .cache/release-core >> .cache/core-audit-setup.log 2>&1
+          uv pip install --python .cache/release-core/bin/python --index-url https://pypi.org/simple build/wheels/*.whl >> .cache/core-audit-setup.log 2>&1
+          uv pip check --python .cache/release-core/bin/python >> .cache/core-audit-setup.log 2>&1
+      - name: Query real core advisories and validate installed-environment CycloneDX SBOM
+        run: >-
+          .venv/bin/python tools/audit_core_release.py
+          --python .cache/release-core/bin/python
+          --tool-python .cache/release-tools/bin/python
+          --wheels build/wheels --out build/release/core
+      - name: Prepare scanner inputs from the pinned development lock
+        run: |
+          mkdir -p .cache/release-input build/release build/release-inspect
+          cp locks/dev.txt .cache/release-input/requirements.txt
+          for wheel in build/wheels/*.whl; do
+            .venv/bin/python -m zipfile -e "$wheel" build/release-inspect
+          done
+      - name: Artifact SBOM (two wheels, not simulator images)
+        uses: anchore/sbom-action@9246b90769f852b3a8921f330c59e0b3f439d6e9 # v0.20.1
+        with:
+          path: build/release-inspect
+          syft-version: v1.22.0
+          format: spdx-json
+          output-file: build/release/packages.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+          dependency-snapshot: false
+      - name: Scan locked development dependencies
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        with:
+          version: v0.60.0
+          scan-type: fs
+          scan-ref: .cache/release-input
+          scanners: vuln
+          format: json
+          output: .cache/dependency-scan.json
+          list-all-pkgs: true
+          ignore-unfixed: false
+          exit-code: "0"
+          cache: false
+      - name: Scan owned source for secrets (raw findings remain private)
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        with:
+          version: v0.60.0
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          format: json
+          output: .cache/source-scan.json
+          skip-dirs: .git,.cache,.venv,third_party/cap-x,third_party/RoboDojo,third_party/RoboTwin,third_party/BEHAVIOR-1K,third_party/robocasa,third_party/robosuite,build,generated,benchmarks,deployments/local
+          exit-code: "0"
+          cache: false
+      - name: Enforce scanner results; never upload raw finding snippets
+        run: >-
+          .venv/bin/python tools/check_security_report.py
+          --dependencies .cache/dependency-scan.json --source .cache/source-scan.json
+          --output build/release/security.json
+      - name: Enforce strict packaging and license gate
+        if: always()
+        run: >-
+          .venv/bin/python tools/release_preflight.py --verify-upstreams
+          --wheels build/wheels --output build/release/preflight.json
+      - name: Audit candidate report privacy before artifact upload
+        id: artifact-privacy
+        if: always()
+        run: >-
+          .venv/bin/python -c "from pathlib import Path;
+          from roboenv.privacy import validate_public_text;
+          [validate_public_text(p.read_text(), p.name)
+          for p in Path('build/release').rglob('*.json')]"
+      - name: Upload only reviewed-form reports (not packages or raw scans)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always() && steps.artifact-privacy.outcome == 'success'
+        with:
+          name: candidate-evidence
+          path: build/release/
+          if-no-files-found: error
+          retention-days: 30

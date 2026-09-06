@@ -1,0 +1,6 @@
+# RoboCasa's default robot-mounted front camera (the one roboenv records video from).
+kind: camera
+id: robocasa_agentview_center
+mujoco_name: robot0_agentview_center
+resolution: [256, 256]
+image_convention: rgb_hwc_uint8

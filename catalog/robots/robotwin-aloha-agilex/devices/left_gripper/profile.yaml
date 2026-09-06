@@ -1,0 +1,31 @@
+name: left_gripper
+type: end_effector
+loaded: true
+access:
+  source: user
+  kind: sim
+  device: /run/roboenv/sim.sock
+  driver:
+    entry: driver.py
+    interpreter: python3
+    actions:
+    - catalog
+    - load
+    - move
+    - read
+    - state
+    - status
+    - stop
+    - unload
+    - write
+    timeout_s: 900
+intrinsics:
+  source: user
+  needs_calibration: See facts.yaml. Joint FK/IK and precise flange transforms are
+    not exposed by this primitive driver.
+  tool_type: parallel gripper
+extrinsics:
+  source: user
+  mount:
+    parent: world
+    pose: ???

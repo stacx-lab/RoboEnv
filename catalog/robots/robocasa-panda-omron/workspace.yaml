@@ -1,0 +1,28 @@
+identity:
+  source: user
+  id: robocasa-panda-omron
+  name: robocasa-panda-omron
+  platform: sim
+  kind: mobile
+  model: Franka Panda on an Omron mobile base
+sim:
+  source: user
+  simulator: robocasa
+  repo_path: ???
+  composition:
+  - base
+  - torso
+  - arm
+  - gripper
+devices:
+  source: user
+safety:
+  source: user
+  max_cartesian_velocity: ???
+  max_joint_velocity: ???
+  keep_out_zones: []
+  notes: Only advertised capabilities are available. Unsupported stop and kinematics
+    never report success. Budgets and verification remain environment-owned.
+meta:
+  created_at: '2026-08-31T03:30:00Z'
+  updated_at: '2026-08-31T03:30:00Z'

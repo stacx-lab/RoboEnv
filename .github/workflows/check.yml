@@ -1,0 +1,62 @@
+name: CPU checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cpu-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: false
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c7f87aa956e4c323abf06d5dec078e358f6b4d04 # v6.0.0
+      - run: bash tools/bootstrap.sh
+      - run: bash tools/check.sh
+      - name: Development readiness (not release approval)
+        run: >-
+          .venv/bin/python tools/release_preflight.py --mode development
+          --wheels build/wheels --output build/release/preflight.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: packaging-readiness
+          path: build/release/preflight.json
+          if-no-files-found: warn
+          retention-days: 14
+  compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    env:
+      PYTHON_VERSION: ${{ matrix.python }}
+      PYTHONNOUSERSITE: "1"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: false
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c7f87aa956e4c323abf06d5dec078e358f6b4d04 # v6.0.0
+      - name: Install regular distributions, not editables
+        run: |
+          uv venv --python "$PYTHON_VERSION" .venv-matrix
+          uv pip install --python .venv-matrix/bin/python . ./runtime "pytest>=8"
+          uv pip check --python .venv-matrix/bin/python
+          .venv-matrix/bin/python -I -c "import roboenv, roboenv_runtime; assert roboenv.__version__ == roboenv_runtime.__version__"
+          .venv-matrix/bin/roboenv --help
+      - name: Device and environment contract compatibility
+        run: >-
+          .venv-matrix/bin/python -m pytest -c pyproject.toml --confcutdir=.
+          tests/test_device_service.py tests/test_device_binding_separation.py
+          tests/test_environment_roundtrip.py -q

@@ -1,0 +1,8 @@
+id: robotwin-stack-blocks-three
+backend: robotwin
+backend_task: robotwin.stack_blocks_three
+robot: robotwin-dual-piper
+instruction: Stack the three blocks into a tower (block2 on block1, block3 on block2)
+seed: 0
+budget_mode: official
+backend_kwargs: {"task_name":"stack_blocks_three"}

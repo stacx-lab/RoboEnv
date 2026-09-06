@@ -1,0 +1,10 @@
+interpreter: miniconda3/envs/RoboDojo/bin/python
+shm_size: 4gb
+start_period: 900s
+writable_mounts:
+- miniconda3/envs/RoboDojo/lib/python3.11/site-packages/isaacsim/kit/cache
+- miniconda3/envs/RoboDojo/lib/python3.11/site-packages/isaacsim/kit/logs
+- miniconda3/envs/RoboDojo/lib/python3.11/site-packages/isaacsim/kit/data
+- .cache/ov
+- .cache/warp
+- .cache/nvidia

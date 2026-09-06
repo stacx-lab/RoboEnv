@@ -1,0 +1,4 @@
+# The RoboTwin table.  Descriptive only: no driver, nothing to query.
+kind: body
+id: robotwin_table
+static: true

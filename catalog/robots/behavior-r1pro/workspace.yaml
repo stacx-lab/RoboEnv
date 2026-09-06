@@ -1,0 +1,21 @@
+identity:
+  source: user
+  id: behavior-r1pro
+  name: behavior-r1pro
+  platform: sim
+  kind: mobile
+  model: Dual-arm R1 Pro on a holonomic base, driven through symbolic primitives in
+    a multi-room house.
+sim:
+  source: user
+  simulator: behavior
+  composition:
+  - controller
+devices:
+  source: user
+safety:
+  source: user
+  max_cartesian_velocity: ???
+  max_joint_velocity: ???
+  keep_out_zones: []
+  notes: Native primitive control only; unknown calibration is not invented.

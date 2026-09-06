@@ -1,0 +1,76 @@
+# I2RT YAM dual-arm embodiment in RoboDojo (env_cfg yam / dual_yam), added 2026-08-18.
+# Kinematic facts from the URDF and measured in-sim (docs/yam: YAM_INTEGRATION.md).
+simulator: robodojo
+description: Two I2RT YAM 6-DoF arms with parallel grippers on a tabletop (RoboDojo, additive embodiment).
+arms: [left, right]
+
+frame:
+  quaternion_order: wxyz
+  up_axis: z
+  table_z: 0.765
+  arm_bases:
+    left: [-0.3, -0.45, 0.765]
+    right: [0.3, -0.45, 0.765]
+
+workspace:
+  spawn_x: [-0.45, 0.45]
+  spawn_y: [-0.25, 0.0]
+  high_carry_overlap: minimal     # the two arms' high-carry/place envelopes barely overlap
+
+gripper:
+  max_opening_m: 0.094
+  open_gap_m: 0.101               # tip-body distance as get_gripper_state() reports it; NOTE the
+  closed_gap_m: 0.048             # reading is inverted vs the command (0.048 at fraction 1.0 = open)
+  pad_height_m: 0.035
+  pad_thickness_m: 0.009
+  joint_range_m: [-0.04695, 0.0]  # joint7/joint8 prismatic; 0 = open
+  close_stages: [0.45, 0.0]
+  min_command_steps: 150          # fewer and the fingers move asymmetrically
+
+tool:
+  axis: gripper local -z
+  tcp_bias_m: 0.0567              # vertical fingertip depth below the gripper link
+  pad_midpoint_below_wrist_m: 0.135
+  down_quaternions_wxyz:
+    - [0.0, 0.0, 0.0, 1.0]        # jaw opens along world Y
+    - [0.7071, 0.0, 0.0, -0.7071] # jaw along world X
+  self_collision_buffer: -0.01    # the curobo fix that made IK succeed at extended poses
+
+planner:
+  kind: curobo-ik + straight cartesian path
+  obstacle_avoidance: false
+
+situation: |
+  You are controlling a dual-arm robot (two I2RT YAM 6-DoF arms with parallel
+  grippers) in a tabletop scene, by writing Python code against the API below.
+
+  Coordinate system (world frame):
+  - Z-axis is up; the tabletop surface is at z ~= 0.765.
+  - The LEFT arm base sits at x ~= -0.3 and the RIGHT arm base at x ~= +0.3, both
+    on the negative-Y side of the table (y = -0.45). Objects spawn roughly within
+    x in [-0.45, 0.45], y in [-0.25, 0.0].
+  - All quaternions are WXYZ order: [qw, qx, qy, qz].
+  - Both arms can work; each has limited reach around its own base. CAUTION: the
+    two arms' HIGH-CARRY/PLACE envelopes barely overlap — build stacks inside the
+    SAME arm's zone that will finish them.
+
+facts: |
+  Environment mechanics:
+  - The episode has a fixed simulation-step budget (see get_step_budget());
+    every motion and wait consumes it, and the episode ends mid-action when it
+    runs out.
+
+  YAM tool conventions (pre-calibrated; pick()/goto_pose already apply them):
+  - Tool-down WORLD quaternion family: [0,0,0,1] (jaw opens along world Y) and
+    [0.7071,0,0,-0.7071] (jaw along world X); other yaws = Rz(theta) composed.
+  - goto_pose targets the FINGER-PAD midpoint (tcp). The pads hang 13.5 cm below
+    the wrist link and are 3.5 cm tall, 9 mm thick; max jaw opening 9.4 cm.
+  - Grasp recipe (what pick() does; follow it for manual grasps): open the
+    gripper FULLY, descend with a tool-down quat so the pad midpoint is at the
+    object's CENTER height (thin-wall rims: 1.5 cm below the rim top), close in
+    two stages (0.45 then 0.0), then micro-lift 3-4 cm and VERIFY the object
+    rose >1.5 cm before committing to the carry.
+  - Gripper commands need >=150 control steps or the two fingers move
+    asymmetrically and sweep the object away.
+  - Wide thin-walled containers (bowls ~13.6 cm) exceed the jaw span: pinch the
+    RIM WALL (pads straddling it) exactly per the recipe above; carry slowly.

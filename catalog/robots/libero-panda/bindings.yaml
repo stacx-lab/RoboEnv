@@ -1,0 +1,16 @@
+schema_version: roboenv/bindings/1
+backend: libero
+embodiment: panda
+devices:
+  arm:
+    binding: libero.device/1
+    entity: arm
+  camera:
+    binding: libero.device/1
+    entity: camera
+  gripper:
+    binding: libero.device/1
+    entity: gripper
+  world:
+    binding: libero.device/1
+    entity: world
