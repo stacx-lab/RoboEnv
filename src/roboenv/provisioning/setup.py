@@ -18,6 +18,7 @@ from pathlib import Path
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name, parse_wheel_filename
 from roboenv.project import project_root
+from roboenv.provisioning.progress import stage
 from roboenv.provisioning.sources import status
 from roboenv.validation import json_loads
 
@@ -290,11 +291,14 @@ print("Selected packages, source identities and declared import probes passed; n
 """
 
 
-def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=None):
+def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=None, progress=None):
     project = project_root(project)
-    report, recipe = audit(backend, project)
-    if not report["install_preflight_passed"]:
-        raise ValueError("installation preflight failed; run without --install for blockers")
+    with stage(progress, "Validating installation prerequisites"):
+        report, recipe = audit(backend, project)
+        if not report["install_preflight_passed"]:
+            raise ValueError(
+                f"installation preflight failed; run 'roboenv doctor {backend}' for blockers"
+            )
     if not shutil.which("uv"):
         raise ValueError("uv is required")
     project = Path(project).resolve()
@@ -373,27 +377,36 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
     ]
     with logfile.open("w") as log:
         logfile.chmod(0o600)
+        if progress:
+            progress(f"Detailed installation log: {logfile.relative_to(project).as_posix()}")
 
-        def run(command, *, env=None):
+        def run(label, command, *, env=None):
+            log.write(f"\n--- {label} ---\n")
+            log.flush()
             try:
-                subprocess.run(
-                    command,
-                    cwd=project,
-                    env=environment if env is None else env,
-                    stdin=subprocess.DEVNULL,
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    check=True,
-                    timeout=1800,
-                )
+                with stage(progress, label):
+                    subprocess.run(
+                        command,
+                        cwd=project,
+                        env=environment if env is None else env,
+                        stdin=subprocess.DEVNULL,
+                        stdout=log,
+                        stderr=subprocess.STDOUT,
+                        check=True,
+                        timeout=1800,
+                    )
             except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
                 raise RuntimeError(
                     f"installation failed; inspect {logfile.relative_to(project).as_posix()}; "
                     "the new partial environment was preserved, not certified"
                 ) from error
 
-        run(["uv", "venv", "--python", recipe["python"], str(prefix)])
         run(
+            "Creating isolated Python environment",
+            ["uv", "venv", "--python", recipe["python"], str(prefix)],
+        )
+        run(
+            "Installing dependencies and RoboEnv (downloads may be large)",
             [
                 "uv",
                 "pip",
@@ -407,9 +420,9 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
                 *components["roboenv"]["arguments"],
                 *components["roboenv_runtime"]["arguments"],
                 *local,
-            ]
+            ],
         )
-        run(["uv", "pip", "check", "--python", python])
+        run("Checking dependency consistency", ["uv", "pip", "check", "--python", python])
         probe_settings = {
             "backend": backend,
             "project": str(project),
@@ -419,6 +432,7 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
             "import_probes": recipe.get("import_probes", []),
         }
         run(
+            "Verifying imports and pinned package origins",
             [python, "-I", "-c", PROBE, json.dumps(probe_settings)],
             env={**environment, "CUDA_VISIBLE_DEVICES": "", "JAX_PLATFORMS": "cpu"},
         )
@@ -433,19 +447,29 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
     temporary.write_text(json.dumps(record, indent=2) + "\n")
     temporary.chmod(0o600)
     temporary.replace(registration)
+    if progress:
+        progress(
+            "Interpreter registered; installation checks passed. "
+            "Assets and GPU readiness are separate."
+        )
     return report
 
 
-def prepare(backend, *, project=None, install_to=None):
+def prepare(backend, *, project=None, install_to=None, progress=None):
     """Synchronize and install a simulator, or reuse its registered interpreter."""
     root = project_root(project)
     # Validate the backend before using it in a filesystem path or syncing sources.
-    audit(backend, root)
+    with stage(progress, "Checking simulator configuration and existing sources"):
+        audit(backend, root)
     if install_to is None:
         registration = root / ".cache/roboenv/installations" / f"{backend}.json"
         if registration.is_file():
             record = json_loads(registration.read_text())
             if Path(record["python"]).is_file():
+                if progress:
+                    progress(
+                        "Reusing registered interpreter; no installation or revalidation performed."
+                    )
                 return record["report"]
         destination = root / ".venv-sim" / backend
     else:
@@ -454,8 +478,9 @@ def prepare(backend, *, project=None, install_to=None):
         raise ValueError("Select a new --prefix; existing environments are preserved")
     from roboenv.provisioning.sources import sync
 
-    sync(root, [backend])
-    return install(backend, destination, project=root)
+    with stage(progress, "Synchronizing pinned simulator sources and patches"):
+        sync(root, [backend])
+    return install(backend, destination, project=root, progress=progress)
 
 
 def doctor(backend, *, project=None):
