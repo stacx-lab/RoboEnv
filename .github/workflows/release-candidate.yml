@@ -52,7 +52,7 @@ jobs:
           upload-release-assets: false
           dependency-snapshot: false
       - name: Scan locked development dependencies
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.60.0
           scan-type: fs
@@ -65,7 +65,7 @@ jobs:
           exit-code: "0"
           cache: false
       - name: Scan owned source for secrets (raw findings remain private)
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.60.0
           scan-type: fs
