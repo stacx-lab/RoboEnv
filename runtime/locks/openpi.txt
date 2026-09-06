@@ -8,7 +8,7 @@
 #   openpi-client==0.2.0  <- ${ROBOENV_ROOT}/RoboDojo/XPolicyLab/policy/Pi_05/openpi/packages/openpi-client
 #   xpolicylab==0.0.1  <- ${ROBOENV_ROOT}/RoboDojo/XPolicyLab
 
-absl-py==2.3.0
+absl-py==2.5.0
 accelerate==1.13.0
 aiohappyeyeballs==2.6.1
 aiohttp==3.12.4
