@@ -18,6 +18,10 @@ roboenv prepare robotwin
 
 This synchronizes RoboTwin sources, installs its isolated interpreter, and
 reports setup checks. Substitute another simulator as needed.
+Progress is printed to stderr as each stage starts and finishes, with elapsed-time
+updates every 15 seconds during long stages. Installation output stays in the
+private log whose path is printed before installation; use `tail -f LOG_PATH`
+to follow its details. `--json` keeps stdout machine-readable.
 No manual source sync, wheel build, clean-install verification, or separate
 doctor command is required. Each simulator runs in its own interpreter; the SDK
 does not import simulator dependencies. This may download many GB.

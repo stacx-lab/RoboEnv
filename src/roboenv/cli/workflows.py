@@ -1,6 +1,7 @@
 """User workflows, composed from the same package APIs used by Python callers."""
 
 import json
+import sys
 from pathlib import Path
 
 COMMANDS = {"prepare", "doctor", "start", "status", "stop", "export"}
@@ -73,7 +74,11 @@ def execute(args):
         from roboenv.provisioning.setup import doctor, prepare
 
         if args.command == "prepare":
-            prepare(args.simulator, project=args.project, install_to=args.prefix)
+
+            def progress(message):
+                print(f"[prepare] {message}", file=sys.stderr, flush=True)
+
+            prepare(args.simulator, project=args.project, install_to=args.prefix, progress=progress)
         result = doctor(args.simulator, project=args.project)
         emit(result, machine=args.json)
         return 0 if result["install_preflight_passed"] else 1

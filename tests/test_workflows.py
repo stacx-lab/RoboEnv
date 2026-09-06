@@ -202,6 +202,8 @@ def test_prepare_uses_managed_default_or_explicit_prefix(monkeypatch, prefix):
     if prefix is not None:
         command.extend(["--prefix", prefix])
     assert main(command) == 0
+    assert len(calls) == 1
+    assert callable(calls[0].pop("progress"))
     assert calls == [{"project": None, "install_to": Path(prefix) if prefix else None}]
     calls.clear()
     assert main(["doctor", "libero"]) == 0

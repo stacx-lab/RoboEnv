@@ -22,7 +22,9 @@ def test_prepare_default_install_and_reuse(tmp_path, monkeypatch):
     monkeypatch.setattr(
         setup, "install", lambda backend, destination, **kwargs: calls.append(destination)
     )
-    setup.prepare("robotwin")
+    progress = []
+    setup.prepare("robotwin", progress=progress.append)
+    assert any("Synchronizing" in message for message in progress)
     assert calls == ["sync", tmp_path / ".venv-sim/robotwin"]
     calls.clear()
     interpreter = tmp_path / ".venv-sim/robotwin/bin/python"
@@ -31,7 +33,8 @@ def test_prepare_default_install_and_reuse(tmp_path, monkeypatch):
     registration = tmp_path / ".cache/roboenv/installations/robotwin.json"
     registration.parent.mkdir(parents=True)
     registration.write_text(json.dumps({"python": str(interpreter), "report": {"reused": True}}))
-    assert setup.prepare("robotwin") == {"reused": True}
+    assert setup.prepare("robotwin", progress=progress.append) == {"reused": True}
+    assert "Reusing registered interpreter" in progress[-1]
     assert not calls
     interpreter.unlink()
     with pytest.raises(ValueError, match="existing environments are preserved"):
@@ -235,7 +238,15 @@ def test_installer_resolves_sources_once_without_installing_source_only_capx(tmp
     monkeypatch.setenv("PYTHONPATH", "unselected-checkout")
     monkeypatch.setenv("UV_NO_DEPS", "1")
     monkeypatch.setenv("PIP_NO_DEPS", "1")
-    result = setup.install("robotwin", tmp_path / "new-env", project=project)
+    progress = []
+    result = setup.install(
+        "robotwin", tmp_path / "new-env", project=project, progress=progress.append
+    )
+    assert any("Detailed installation log: .cache/setup/" in line for line in progress)
+    assert any("Installing dependencies" in line for line in progress)
+    assert any("Verifying imports" in line for line in progress)
+    assert "Interpreter registered" in progress[-1]
+    assert str(tmp_path) not in "\n".join(progress)
     installation = next(command for command, _ in calls if command[1:3] == ["pip", "install"])
     assert installation.count("--override") == 1
     assert str(project / "pins.txt") in installation
