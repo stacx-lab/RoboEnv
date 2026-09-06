@@ -1,0 +1,22 @@
+schema_version: roboenv/bindings/1
+backend: robocasa
+embodiment: panda_omron
+devices:
+  arm:
+    binding: robocasa.device/1
+    entity: arm
+  base:
+    binding: robocasa.device/1
+    entity: base
+  camera:
+    binding: robocasa.device/1
+    entity: camera
+  gripper:
+    binding: robocasa.device/1
+    entity: gripper
+  torso:
+    binding: robocasa.device/1
+    entity: torso
+  world:
+    binding: robocasa.device/1
+    entity: world

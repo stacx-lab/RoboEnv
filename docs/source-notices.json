@@ -1,0 +1,108 @@
+{
+  "schema": "roboenv/source-notices/1",
+  "scope": "Source notice inventory only; not asset, checkpoint, binary, or redistribution approval.",
+  "sources": {
+    "capx": {
+      "revision": "53e9966d7a8e2fa7494676772bccc35280f5c0ed",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "ad82ce2e6eb6e594af189655ae2f1592d0c91649d2745ad715c65850126cc6cc"
+        }
+      ]
+    },
+    "libero_pro": {
+      "revision": "5368540790fde9a18584d64105ec5ac16d8926bd",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "e2885fd30a08381b799c4a33385522b23d637b4051b8f9a7f9f2519944b68ff6"
+        }
+      ]
+    },
+    "libero_robosuite": {
+      "revision": "a498b087d4bc5a3981e3d27030d09bc537a537f3",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "177978cbece0a4c454c2aaec5b3f145b39270814874c43109da9e829c39d9cba"
+        }
+      ]
+    },
+    "robocasa": {
+      "revision": "a07e365c958c4216cd6bbd5f30b47f09a65c6f00",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "5da18670b3f00c59847b1ded9c28dee59940d963b1e03b528b0108d9c5a09885"
+        }
+      ]
+    },
+    "robosuite": {
+      "revision": "5ce6643f3092639d08f7b0f90ed1c6a84f50552c",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "177978cbece0a4c454c2aaec5b3f145b39270814874c43109da9e829c39d9cba"
+        }
+      ]
+    },
+    "robodojo": {
+      "revision": "36bfcb7c580b149c6e39ed2eb77d60689152e570",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "7794bb06af8fe5485ca912454ad1665ccd7846c45f9c2b1258658e480948cdbe"
+        }
+      ]
+    },
+    "isaaclab": {
+      "revision": "afca7b09d60d8beb9c1cb28b43066499940b969b",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "df351ebfa8af317bf5a9ad83df63a8b68e4f5c04b71f30767cdb27aa434eac62"
+        },
+        {
+          "path": "LICENSE-mimic",
+          "sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
+        }
+      ]
+    },
+    "curobo": {
+      "revision": "895c6517243f8cb091c73c018c8167192d39599a",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "f39b6dc8b687586fe57a7d6dd6df4d241575e9dea459dbc4c2c080452397b45c"
+        },
+        {
+          "path": "LICENSE_ASSETS",
+          "sha256": "1875daf7da4ff7554e49558b734a42af5d7077703f8bf6ec0239765b9225e4c1"
+        }
+      ]
+    },
+    "robotwin": {
+      "revision": "266f3aadf505a4f7fe9af0faa41a20f5f47cd123",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "c695d421718e54e6f3a60858f0c601125c3ecc60c199332c15947360561e2a9f"
+        }
+      ]
+    },
+    "behavior": {
+      "revision": "22d19cd2f99d6ae15dd0fb62e90363410cdd3260",
+      "notices": [
+        {
+          "path": "OmniGibson/LICENSE",
+          "sha256": "bd06773d35549a0dfb4d6526190c80cea09d54a9e3033e98654999e51efcc0ca"
+        },
+        {
+          "path": "bddl3/LICENSE",
+          "sha256": "7cdbfab482b23a4d925d59ff169ab0bc5f8c97ceb0db79f9fd5bf46ef8aa1556"
+        }
+      ]
+    }
+  }
+}

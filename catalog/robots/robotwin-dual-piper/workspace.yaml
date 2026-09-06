@@ -1,0 +1,27 @@
+identity:
+  source: user
+  id: robotwin-dual-piper
+  name: robotwin-dual-piper
+  platform: sim
+  kind: other
+  model: Two AgileX Piper arms, tabletop
+sim:
+  source: user
+  simulator: robotwin
+  composition:
+  - left_arm
+  - left_gripper
+  - right_arm
+  - right_gripper
+devices:
+  source: user
+safety:
+  source: user
+  max_cartesian_velocity: ???
+  max_joint_velocity: ???
+  keep_out_zones: []
+  notes: every actuated device implements stop; service motions are synchronous; the
+    episode step budget is the hard cap; the verifier's submit freezes the episode
+meta:
+  created_at: '2026-08-31T06:00:00Z'
+  updated_at: '2026-08-31T06:00:00Z'

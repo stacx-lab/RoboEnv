@@ -1,0 +1,12 @@
+# Omron LD-60 mobile pedestal, as robosuite's "PandaOmron" models it: a holonomic
+# wheeled base carrying a lifting torso and the arm.  Descriptive only - the measured
+# numbers (velocity knee, push force, footprint in the heading frame) are facts on the
+# rig that uses it.
+kind: base
+id: omron_ld
+vendor: Omron
+holonomic: true
+control: velocity          # forward / left / turn in [-1, 1], stepped at 20 Hz
+pedestal_height_m: 0.38    # mobilebase0_pedestal_feet_col; what can push a door panel
+footprint_half_m: [0.35, 0.25]
+footprint_offset_m: [-0.20, 0.0]   # the box is centred this far BEHIND the base origin

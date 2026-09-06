@@ -1,0 +1,7 @@
+schema_version: roboenv/bindings/1
+backend: fakeshell
+embodiment: general
+devices:
+  controller:
+    binding: fakeshell.puck/1
+    entity: puck

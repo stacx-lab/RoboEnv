@@ -1,0 +1,27 @@
+identity:
+  source: user
+  id: robotwin-aloha-agilex
+  name: robotwin-aloha-agilex
+  platform: sim
+  kind: other
+  model: 'One dual-arm ALOHA-AgileX (two 6-DoF arms with parallel grippers on a single
+    mobile base) facing a table.  Used for pretrained-policy runs (`vla_run`); the
+    harness''s own primitives and certificates use the `piper` profile.
+
+    '
+sim:
+  source: user
+  simulator: robotwin
+  composition:
+  - left_arm
+  - right_arm
+  - left_gripper
+  - right_gripper
+devices:
+  source: user
+safety:
+  source: user
+  max_cartesian_velocity: ???
+  max_joint_velocity: ???
+  keep_out_zones: []
+  notes: Native primitive control only; unknown calibration is not invented.

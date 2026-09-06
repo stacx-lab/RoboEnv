@@ -1,0 +1,10 @@
+id: robocasa-pick-place-microwave
+backend: robocasa
+backend_task: robocasa.PickPlaceCounterToMicrowave
+robot: robocasa-panda-omron
+instruction: 'Drive a mobile Panda in a RoboCasa kitchen: pick the object off the
+  counter and place it into the container in the microwave. The simulator is a device
+  service; the agent works through file-defined devices and tools.'
+seed: 0
+budget_mode: official
+backend_kwargs: {"task_name":"PickPlaceCounterToMicrowave"}

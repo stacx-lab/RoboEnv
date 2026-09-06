@@ -1,0 +1,47 @@
+# Measured facts about the Panda hand on the LIBERO rig.  A program reads
+# facts["gripper.<key>"]; nothing here may be a constant in code.
+- device: gripper
+  key: fingertip_below_tcp_m
+  value: 0.016
+  unit: m
+  measured: 2026-08-27
+  by: libero primitives (FINGERTIP_BELOW_TCP)
+  evidence: roboenv/adapters/libero_primitives.py
+  note: fingertips sit this far below the TCP along the tool axis
+- device: gripper
+  key: tcp_offset_hand_m
+  value: [0.0, 0.0, 0.1]
+  unit: m
+  measured: 2026-08-27
+  by: libero primitives (TCP_OFFSET_HAND)
+  evidence: roboenv/adapters/libero_primitives.py
+  note: fingertip midpoint in the hand frame
+- device: gripper
+  key: max_opening_measured_m
+  value: 0.077
+  unit: m
+  measured: 2026-08-27
+  by: libero adapter (open_gripper docstring)
+  evidence: roboenv/adapters/libero.py
+- device: gripper
+  key: command_kind
+  value: sign
+  measured: 2026-08-27
+  by: libero adapter
+  evidence: roboenv/adapters/libero.py
+  note: the gripper command is a sign, not a position; partial opening is an integrator hold (gap_m)
+- device: gripper
+  key: material_contact_opening_m
+  value: 0.004
+  unit: m
+  measured: 2026-08-27
+  by: libero adapter (close_gripper docstring)
+  evidence: roboenv/adapters/libero.py
+  note: a closed gripper reading above this met material; ~0.0 closed on nothing
+- device: gripper
+  key: open_close_step_cost
+  value: 40
+  unit: sim_steps
+  measured: 2026-08-27
+  by: libero adapter
+  evidence: roboenv/adapters/libero.py

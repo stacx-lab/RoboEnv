@@ -1,0 +1,35 @@
+# What the two arms can and cannot get to.
+- device: left_arm
+  key: base_xyz
+  value: [-0.30, -0.45, 0.75]
+  unit: m
+  measured: 2026-08-27
+  by: agent robotwin-round3 (URDF root read back from the live scene)
+  evidence: roboenv/embodiments/piper.yaml#frame.arm_base_xyz
+  note: each Piper arm has its OWN base, bolted at table height - not a shared floor base
+- device: right_arm
+  key: base_xyz
+  value: [0.30, -0.45, 0.75]
+  unit: m
+  measured: 2026-08-27
+  by: agent robotwin-round3 (URDF root read back from the live scene)
+  evidence: roboenv/embodiments/piper.yaml#frame.arm_base_xyz
+- device: left_arm
+  key: topdown_far_edge_y
+  value: -0.10
+  unit: m
+  measured: 2026-08-27
+  by: agent robotwin-round3 (pose grid in put_object_cabinet seed 0)
+  evidence: roboenv/embodiments/piper.yaml#workspace.topdown_far_edge_y
+  note: >
+    with the tool pointing straight down, no pose at y > -0.05 planned for either arm.
+    The top-down orientation is the ONE that fails everywhere, and it is the only one
+    check_reachable_* tries - sweep the dive angle with planner.probe() instead.
+- device: left_arm
+  key: fold_limit_y
+  value: -0.22
+  unit: m
+  measured: 2026-08-27
+  by: agent robotwin-round3 (handle-drag sweep)
+  evidence: roboenv/embodiments/piper.yaml#workspace.fold_limit_y
+  note: pulling a handle toward the robot, the flange cannot retract past y ~ -0.22 in any wrist orientation

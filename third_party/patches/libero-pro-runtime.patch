@@ -1,0 +1,16 @@
+diff --git a/libero/libero/envs/objects/self_designed_object.py b/libero/libero/envs/objects/self_designed_object.py
+index c566197..b229377 100644
+--- a/libero/libero/envs/objects/self_designed_object.py
++++ b/libero/libero/envs/objects/self_designed_object.py
+@@ -39,8 +39,10 @@ class RedSticker(CustomObjects):
+                  obj_name="red_sticker",
+                  ):
+         super().__init__(
++            # local patch (roboenv-runtime, 2026-08-27): the notebooks/custom_assets copy is not shipped;
++            # the identical asset lives under the package's own assets tree
+             custom_path=os.path.abspath(os.path.join(
+-                os.path.dirname(__file__), "../../../../notebooks/custom_assets/red_sticker/red_sticker.xml"
++                os.path.dirname(__file__), "../../assets/stable_scanned_objects/red_sticker/red_sticker.xml"
+             )),
+             name=name,
+             obj_name=obj_name,

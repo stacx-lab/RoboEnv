@@ -1,0 +1,612 @@
+diff --git a/env_cfg/task_config/_embodiment_config.yml b/env_cfg/task_config/_embodiment_config.yml
+index 672c88e..9401c45 100644
+--- a/env_cfg/task_config/_embodiment_config.yml
++++ b/env_cfg/task_config/_embodiment_config.yml
+@@ -12,3 +12,6 @@ ARX-X5:
+ 
+ ur5-wsg:
+   file_path: "./assets/embodiments/ur5-wsg"
++
++yam:
++  file_path: "./assets/embodiments/yam"
+diff --git a/envs/_base_task.py b/envs/_base_task.py
+index 301da9f..063c1f4 100644
+--- a/envs/_base_task.py
++++ b/envs/_base_task.py
+@@ -1128,8 +1128,15 @@ class Base_Task(gym.Env):
+             pre_path = plan_func(pre_pose)
+             if pre_path["status"] != "Success":
+                 return False
+-            pre_qpos = pre_path["position"][-1]
+-            return plan_func(pose)["status"] == "Success"
++            # local patch: verify the descend FROM the pre-grasp end config
++            # (stock dead code planned from the current config instead).
++            # float32 cast: curobo chokes on float64 joint states.
++            pre_qpos = np.asarray(pre_path["position"][-1], dtype=np.float32)
++            full_q = np.asarray(
++                (self.robot.left_entity if arm_tag == "left" else self.robot.right_entity).get_qpos(),
++                dtype=np.float32).copy()
++            full_q[:pre_qpos.shape[0]] = pre_qpos
++            return plan_func(pose, last_qpos=full_q)["status"] == "Success"
+ 
+         if contact_point_id is not None:
+             if type(contact_point_id) != list:
+@@ -1138,6 +1145,7 @@ class Base_Task(gym.Env):
+         else:
+             contact_point_id = actor.iter_contact_points()
+ 
++        _all_cands = []  # local patch: keep every candidate for strict mode
+         for i, _ in contact_point_id:
+             pre_pose = self.get_grasp_pose(actor, arm_tag, contact_point_id=i, pre_dis=pre_dis)
+             if pre_pose is None:
+@@ -1148,6 +1156,7 @@ class Base_Task(gym.Env):
+                 GRASP_DIRECTION_DIC[("top_down_little_left" if arm_tag == "right" else "top_down_little_right")],
+             )
+             now_dis_side = cal_quat_dis(pose[-4:], GRASP_DIRECTION_DIC[pref_direction])
++            _all_cands.append((now_dis_top_down, now_dis_side, pre_pose, pose))
+ 
+             if res_pre_top_down_pose is None or now_dis_top_down < dis_top_down:
+                 res_pre_top_down_pose = pre_pose
+@@ -1165,6 +1174,27 @@ class Base_Task(gym.Env):
+                 res_pose = pose
+                 dis = now_dis
+ 
++        # Local patch (gated by embodiment config strict_grasp_check): the
++        # stock path scores by angle only and never verifies that BOTH the
++        # pre-grasp and the descend pose are plannable (check_pose above is
++        # dead code upstream).  Wrists with tight limits (yam) need the
++        # verification + next-best fallback.  Without the flag, behavior is
++        # byte-identical to stock.
++        if getattr(self.robot, "strict_grasp_check", False) and _all_cands:
++            ordered = []
++            for td, sd, pre_p, p in sorted([c for c in _all_cands if c[0] < 0.15], key=lambda c: c[0]):
++                ordered.append((pre_p, p))
++            for td, sd, pre_p, p in sorted([c for c in _all_cands if c[1] < 0.15], key=lambda c: c[1]):
++                if (pre_p, p) not in ordered:
++                    ordered.append((pre_p, p))
++            for td, sd, pre_p, p in sorted(_all_cands, key=lambda c: 0.7 * c[0] + 0.3 * c[1]):
++                if (pre_p, p) not in ordered:
++                    ordered.append((pre_p, p))
++            for pre_p, p in ordered:
++                if check_pose(pre_p, p, arm_tag):
++                    return pre_p, p
++            # none verified; fall through to stock choice
++
+         if dis_top_down < 0.15:
+             return res_pre_top_down_pose, res_top_down_pose
+         if dis_side < 0.15:
+diff --git a/envs/robot/planner.py b/envs/robot/planner.py
+index 21ae432..0ca4ddc 100644
+--- a/envs/robot/planner.py
++++ b/envs/robot/planner.py
+@@ -1,5 +1,6 @@
+ import mplib.planner
+ import mplib
++import os
+ import numpy as np
+ import pdb
+ import traceback
+@@ -54,7 +55,33 @@ try:
+             self.frame_bias = yml_data["planner"]["frame_bias"]
+ 
+             # motion generation
+-            if True:
++            if "yam" in os.path.basename(os.path.dirname(str(self.yml_path))):
++                # Local patch: the legacy branch below hardcodes an
++                # aloha-base-frame table; for other base poses it lands as a
++                # giant vertical wall through the workspace (own-pose IK
++                # fails).  Transform the REAL scene table (top z=0.74, slab
++                # 1.2x0.7x0.05 centered at (0,0,0.715) in world) into this
++                # robot's base frame properly.
++                op = np.array(self.robot_origion_pose.p, dtype=np.float64)
++                oq = np.array(self.robot_origion_pose.q, dtype=np.float64)  # wxyz
++                w, x, y, z = oq
++                R = np.array([
++                    [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
++                    [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
++                    [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
++                ])
++                c_world = np.array([0.0, 0.0, 0.715])
++                c_base = R.T @ (c_world - op)
++                q_base = np.array([w, -x, -y, -z])  # inv rotation (world->base)
++                world_config = {
++                    "cuboid": {
++                        "table": {
++                            "dims": [1.2, 0.7, 0.05],
++                            "pose": list(map(float, c_base)) + list(map(float, q_base)),
++                        },
++                    }
++                }
++            elif True:
+                 world_config = {
+                     "cuboid": {
+                         "table": {
+@@ -75,7 +102,7 @@ try:
+                 self.yml_path,
+                 world_config,
+                 interpolation_dt=1 / 250,
+-                num_trajopt_seeds=1,
++                num_trajopt_seeds=4,  # local patch: 1 seed misses hard orientations (handover receive)
+             )
+ 
+             self.motion_gen = MotionGen(motion_gen_config)
+@@ -84,7 +111,7 @@ try:
+                 self.yml_path,
+                 world_config,
+                 interpolation_dt=1 / 250,
+-                num_trajopt_seeds=1,
++                num_trajopt_seeds=4,  # local patch: 1 seed misses hard orientations (handover receive)
+                 num_graph_seeds=1,
+             )
+             self.motion_gen_batch = MotionGen(motion_gen_config)
+@@ -132,7 +159,7 @@ try:
+                 joint_names=self.active_joints_name,
+             )
+             # plan
+-            plan_config = MotionGenPlanConfig(max_attempts=10)
++            plan_config = _curobo_plan_config()  # Local patch: effort from CAPX_PLANNER_* (see top of file)
+             if constraint_pose is not None:
+                 pose_cost_metric = PoseCostMetric(
+                     hold_partial_pose=True,
+@@ -217,7 +244,7 @@ try:
+             joint_angles_cuda = torch.cat([joint_angles_cuda] * num_poses, dim=0)
+             start_joint_states = JointState.from_position(joint_angles_cuda, joint_names=self.active_joints_name)
+             # plan
+-            plan_config = MotionGenPlanConfig(max_attempts=10)
++            plan_config = _curobo_plan_config()  # Local patch: effort from CAPX_PLANNER_* (see top of file)
+             if constraint_pose is not None:
+                 pose_cost_metric = PoseCostMetric(
+                     hold_partial_pose=True,
+@@ -277,6 +304,45 @@ except Exception as e:
+ 
+ 
+ # ********************** MplibPlanner **********************
++
++# --------------------------------------------------------------------------- local patch
++# Planner effort is controlled by environment variables so a replay can reproduce the
++# conditions of the run that produced a solution:
++#   CAPX_PLANNER_GENEROUS=1  -> replay defaults (mplib 5 s, curobo 10 attempts)
++#   CAPX_PLANNER_TIME=<s>    -> explicit wall-clock budget for mplib planning_time AND the
++#                               curobo MotionGenPlanConfig.timeout (overrides GENEROUS)
++#   CAPX_PLANNER_SEED=<int>  -> seed OMPL's global RNG (mplib.set_global_seed) so RRT sampling
++#                               is a fixed sequence; the found path then depends only on the
++#                               seed and on the budget being large enough to reach it.
++def _planner_time_s(agent_default, generous_default):
++    explicit = os.environ.get("CAPX_PLANNER_TIME")
++    if explicit:
++        return float(explicit)
++    return generous_default if os.environ.get("CAPX_PLANNER_GENEROUS") else agent_default
++
++
++def _curobo_plan_config(**kwargs):
++    kwargs.setdefault("max_attempts", 10 if os.environ.get("CAPX_PLANNER_GENEROUS") else 4)
++    explicit = os.environ.get("CAPX_PLANNER_TIME")
++    if explicit:
++        kwargs.setdefault("timeout", float(explicit))
++    return MotionGenPlanConfig(**kwargs)
++
++
++def _seed_planners_from_env():
++    seed = os.environ.get("CAPX_PLANNER_SEED")
++    if seed is None or seed == "":
++        return
++    try:
++        import mplib
++
++        mplib.set_global_seed(int(seed))
++    except Exception as exc:  # noqa: BLE001
++        print(f"[planner] CAPX_PLANNER_SEED ignored: {exc}")
++
++
++_seed_planners_from_env()
++
+ class MplibPlanner:
+     # links=None, joints=None
+     def __init__(
+@@ -336,7 +402,7 @@ class MplibPlanner:
+                 goal_pose=target_pose,
+                 current_qpos=np.array(now_qpos),
+                 time_step=1 / 250,
+-                planning_time=5,
++                planning_time=_planner_time_s(2, 5),  # Local patch: effort from CAPX_PLANNER_* (see top of file)
+                 # rrt_range=0.05
+                 # =================== mplib 0.1.1 ===================
+                 # use_point_cloud=use_point_cloud,
+diff --git a/envs/robot/robot.py b/envs/robot/robot.py
+index 9dfc08f..a2f25b6 100644
+--- a/envs/robot/robot.py
++++ b/envs/robot/robot.py
+@@ -12,7 +12,14 @@ from copy import deepcopy
+ import sapien.core as sapien
+ import envs._GLOBAL_CONFIGS as CONFIGS
+ from envs.utils import transforms
+-from .planner import CuroboPlanner
++try:
++    from .planner import CuroboPlanner
++except ImportError:
++    # curobo not installed; mplib planners still work (planner.py already
++    # prints a warning). Keep a stub so isinstance() checks stay valid.
++    class CuroboPlanner:
++        def __init__(self, *args, **kwargs):
++            raise ModuleNotFoundError("curobo is not installed; use an mplib planner")
+ import torch.multiprocessing as mp
+ 
+ 
+@@ -50,6 +57,10 @@ class Robot:
+         self.left_move_group = left_embodiment_args["move_group"][0]
+         self.left_ee_name = left_embodiment_args["ee_joints"][0]
+         self.left_arm_joints_name = left_embodiment_args["arm_joints_name"][0]
++        self.left_ee_frame = left_embodiment_args.get("ee_frame", "joint")  # local patch, see init_joints
++        self.left_gripper_drive_mode = left_embodiment_args.get("gripper_drive_mode", "force")  # local patch
++        self.strict_grasp_check = bool(left_embodiment_args.get("strict_grasp_check", False)
++                                       or right_embodiment_args.get("strict_grasp_check", False))  # local patch
+         self.left_gripper_name = left_embodiment_args["gripper_name"][0]
+         self.left_gripper_bias = left_embodiment_args["gripper_bias"]
+         self.left_gripper_scale = left_embodiment_args["gripper_scale"]
+@@ -77,6 +88,8 @@ class Robot:
+         self.right_move_group = right_embodiment_args["move_group"][1]
+         self.right_ee_name = right_embodiment_args["ee_joints"][1]
+         self.right_arm_joints_name = right_embodiment_args["arm_joints_name"][1]
++        self.right_ee_frame = right_embodiment_args.get("ee_frame", "joint")  # local patch, see init_joints
++        self.right_gripper_drive_mode = right_embodiment_args.get("gripper_drive_mode", "force")  # local patch
+         self.right_gripper_name = right_embodiment_args["gripper_name"][1]
+         self.right_gripper_bias = right_embodiment_args["gripper_bias"]
+         self.right_gripper_scale = right_embodiment_args["gripper_scale"]
+@@ -173,6 +186,31 @@ class Robot:
+         self.left_ee = self.left_entity.find_joint_by_name(self.left_ee_name)
+         self.right_ee = self.right_entity.find_joint_by_name(self.right_ee_name)
+ 
++        # Local patch: PhysX articulation joints articulate about local +X, so
++        # SAPIEN bakes an "URDF axis -> +X" rotation into joint anchor frames;
++        # joint.global_pose therefore differs from the child-LINK frame for
++        # any ee joint whose axis isn't +x (e.g. yam joint6, axis -z).  The
++        # planner (curobo) targets the LINK frame, so embodiments can set
++        # `ee_frame: link` in config.yml to make endpose readback use the
++        # child link frame too.  Without the key, behavior is unchanged.
++        class _LinkFrameEE:
++
++            def __init__(self, joint):
++                self._joint = joint
++                self._link = joint.get_child_link()
++
++            @property
++            def global_pose(self):
++                return self._link.get_pose()
++
++            def get_name(self):
++                return self._joint.get_name()
++
++        if getattr(self, "left_ee_frame", "joint") == "link":
++            self.left_ee = _LinkFrameEE(self.left_ee)
++        if getattr(self, "right_ee_frame", "joint") == "link":
++            self.right_ee = _LinkFrameEE(self.right_ee)
++
+         self.left_gripper_val = 0.0
+         self.right_gripper_val = 0.0
+ 
+@@ -219,13 +257,27 @@ class Robot:
+                     damping=self.right_joint_damping,
+                 )
+ 
++        # Local patch: optional acceleration-mode gripper drives (config key
++        # gripper_drive_mode: acceleration).  Mass-normalized response kills
++        # pose-dependent inertia coupling that slows/asymmetrizes force-mode
++        # prismatic closes (yam).  Default "force" = original behavior.
++        _l_mode = getattr(self, "left_gripper_drive_mode", "force")
++        _r_mode = getattr(self, "right_gripper_drive_mode", "force")
+         for joint in self.left_gripper:
+-            joint[0].set_drive_property(stiffness=self.left_gripper_stiffness, damping=self.left_gripper_damping)
++            try:
++                joint[0].set_drive_property(stiffness=self.left_gripper_stiffness,
++                                            damping=self.left_gripper_damping, mode=_l_mode)
++            except TypeError:
++                joint[0].set_drive_property(stiffness=self.left_gripper_stiffness, damping=self.left_gripper_damping)
+         for joint in self.right_gripper:
+-            joint[0].set_drive_property(
+-                stiffness=self.right_gripper_stiffness,
+-                damping=self.right_gripper_damping,
+-            )
++            try:
++                joint[0].set_drive_property(stiffness=self.right_gripper_stiffness,
++                                            damping=self.right_gripper_damping, mode=_r_mode)
++            except TypeError:
++                joint[0].set_drive_property(
++                    stiffness=self.right_gripper_stiffness,
++                    damping=self.right_gripper_damping,
++                )
+ 
+     def move_to_homestate(self):
+         for i, joint in enumerate(self.left_arm_joints):
+@@ -258,6 +310,36 @@ class Robot:
+         abs_left_curobo_yml_path = os.path.join(CONFIGS.ROOT_PATH, self.left_curobo_yml_path)
+         abs_right_curobo_yml_path = os.path.join(CONFIGS.ROOT_PATH, self.right_curobo_yml_path)
+ 
++        # Local patch: when both arms use mplib planners, skip CuroboPlanner
++        # entirely (curobo may not be installed); paths then go through
++        # left/right_mplib_planner in left/right_plan_path.
++        self._use_mplib_paths = str(self.left_planner_type).startswith("mplib") and str(
++            self.right_planner_type).startswith("mplib")
++        if self._use_mplib_paths:
++            self.communication_flag = False
++            self.left_planner = None
++            self.right_planner = None
++            if self.need_topp:
++                self.left_mplib_planner = MplibPlanner(
++                    self.left_urdf_path,
++                    self.left_srdf_path,
++                    self.left_move_group,
++                    self.left_entity_origion_pose,
++                    self.left_entity,
++                    self.left_planner_type,
++                    scene,
++                )
++                self.right_mplib_planner = MplibPlanner(
++                    self.right_urdf_path,
++                    self.right_srdf_path,
++                    self.right_move_group,
++                    self.right_entity_origion_pose,
++                    self.right_entity,
++                    self.right_planner_type,
++                    scene,
++                )
++            return
++
+         self.communication_flag = (abs_left_curobo_yml_path != abs_right_curobo_yml_path)
+ 
+         if self.is_dual_arm:
+@@ -339,6 +421,9 @@ class Robot:
+         return sapien.Pose(gripper_pose_pos, gripper_pose_quat)
+ 
+     def left_plan_grippers(self, now_val, target_val):
++        # Local patch: mplib planner path (curobo not installed)
++        if getattr(self, "_use_mplib_paths", False):
++            return self.left_mplib_planner.plan_grippers(now_val, target_val)
+         if self.communication_flag:
+             self.left_conn.send({"cmd": "plan_grippers", "now_val": now_val, "target_val": target_val})
+             return self.left_conn.recv()
+@@ -346,6 +431,9 @@ class Robot:
+             return self.left_planner.plan_grippers(now_val, target_val)
+ 
+     def right_plan_grippers(self, now_val, target_val):
++        # Local patch: mplib planner path (curobo not installed)
++        if getattr(self, "_use_mplib_paths", False):
++            return self.right_mplib_planner.plan_grippers(now_val, target_val)
+         if self.communication_flag:
+             self.right_conn.send({"cmd": "plan_grippers", "now_val": now_val, "target_val": target_val})
+             return self.right_conn.recv()
+@@ -370,6 +458,17 @@ class Robot:
+         for i in range(len(target_lst_copy)):
+             target_lst_copy[i] = self._trans_from_gripper_to_endlink(target_lst_copy[i], arm_tag="left")
+ 
++        # Local patch: mplib has no batch planner; plan candidates sequentially
++        if getattr(self, "_use_mplib_paths", False):
++            res = {"status": [], "position": [], "velocity": []}
++            for tp in target_lst_copy:
++                r = self.left_mplib_planner.plan_pose(
++                    now_qpos, tp, arms_tag="left", try_times=(6 if os.environ.get("CAPX_PLANNER_GENEROUS") else 2), log=False)
++                res["status"].append(r.get("status", "Fail"))
++                res["position"].append(r.get("position", []))
++                res["velocity"].append(r.get("velocity", []))
++            return res
++
+         if self.communication_flag:
+             self.left_conn.send({
+                 "cmd": "plan_batch",
+@@ -378,14 +477,29 @@ class Robot:
+                 "constraint_pose": constraint_pose,
+                 "arms_tag": "left",
+             })
+-            return self.left_conn.recv()
++            result = self.left_conn.recv()
+         else:
+-            return self.left_planner.plan_batch(
++            result = self.left_planner.plan_batch(
+                 now_qpos,
+                 target_lst_copy,
+                 constraint_pose=constraint_pose,
+                 arms_tag="left",
+             )
++        # Local patch: if curobo's batch planner fails every candidate, retry
++        # sequentially with mplib RRT (stronger on hard orientations).
++        if (
++            (result is None or not any(s == "Success" for s in result.get("status", [])))
++            and constraint_pose is None
++            and hasattr(self, "left_mplib_planner")
++        ):
++            result = {"status": [], "position": [], "velocity": []}
++            for tp in target_lst_copy:
++                r = self.left_mplib_planner.plan_pose(
++                    now_qpos, tp, arms_tag="left", try_times=(6 if os.environ.get("CAPX_PLANNER_GENEROUS") else 2), log=False)
++                result["status"].append(r.get("status", "Fail"))
++                result["position"].append(r.get("position", []))
++                result["velocity"].append(r.get("velocity", []))
++        return result
+ 
+     def right_plan_multi_path(
+         self,
+@@ -405,6 +519,17 @@ class Robot:
+         for i in range(len(target_lst_copy)):
+             target_lst_copy[i] = self._trans_from_gripper_to_endlink(target_lst_copy[i], arm_tag="right")
+ 
++        # Local patch: mplib has no batch planner; plan candidates sequentially
++        if getattr(self, "_use_mplib_paths", False):
++            res = {"status": [], "position": [], "velocity": []}
++            for tp in target_lst_copy:
++                r = self.right_mplib_planner.plan_pose(
++                    now_qpos, tp, arms_tag="right", try_times=(6 if os.environ.get("CAPX_PLANNER_GENEROUS") else 2), log=False)
++                res["status"].append(r.get("status", "Fail"))
++                res["position"].append(r.get("position", []))
++                res["velocity"].append(r.get("velocity", []))
++            return res
++
+         if self.communication_flag:
+             self.right_conn.send({
+                 "cmd": "plan_batch",
+@@ -413,14 +538,29 @@ class Robot:
+                 "constraint_pose": constraint_pose,
+                 "arms_tag": "right",
+             })
+-            return self.right_conn.recv()
++            result = self.right_conn.recv()
+         else:
+-            return self.right_planner.plan_batch(
++            result = self.right_planner.plan_batch(
+                 now_qpos,
+                 target_lst_copy,
+                 constraint_pose=constraint_pose,
+                 arms_tag="right",
+             )
++        # Local patch: if curobo's batch planner fails every candidate, retry
++        # sequentially with mplib RRT (stronger on hard orientations).
++        if (
++            (result is None or not any(s == "Success" for s in result.get("status", [])))
++            and constraint_pose is None
++            and hasattr(self, "right_mplib_planner")
++        ):
++            result = {"status": [], "position": [], "velocity": []}
++            for tp in target_lst_copy:
++                r = self.right_mplib_planner.plan_pose(
++                    now_qpos, tp, arms_tag="right", try_times=(6 if os.environ.get("CAPX_PLANNER_GENEROUS") else 2), log=False)
++                result["status"].append(r.get("status", "Fail"))
++                result["position"].append(r.get("position", []))
++                result["velocity"].append(r.get("velocity", []))
++        return result
+ 
+     def left_plan_path(
+         self,
+@@ -439,6 +579,16 @@ class Robot:
+ 
+         trans_target_pose = self._trans_from_gripper_to_endlink(target_pose, arm_tag="left")
+ 
++        # Local patch: mplib planner path (curobo not installed)
++        if getattr(self, "_use_mplib_paths", False):
++            return self.left_mplib_planner.plan_path(
++                now_qpos,
++                trans_target_pose,
++                use_point_cloud=use_point_cloud,
++                use_attach=use_attach,
++                arms_tag="left",
++            )
++
+         if self.communication_flag:
+             self.left_conn.send({
+                 "cmd": "plan_path",
+@@ -447,14 +597,26 @@ class Robot:
+                 "constraint_pose": constraint_pose,
+                 "arms_tag": "left",
+             })
+-            return self.left_conn.recv()
++            result = self.left_conn.recv()
+         else:
+-            return self.left_planner.plan_path(
++            result = self.left_planner.plan_path(
+                 now_qpos,
+                 trans_target_pose,
+                 constraint_pose=constraint_pose,
+                 arms_tag="left",
+             )
++        # Local patch: curobo trajopt misses some hard-orientation poses that
++        # RRT can reach (e.g. handover receive); fall back to mplib.
++        if (
++            (result is None or result.get("status") != "Success")
++            and constraint_pose is None
++            and hasattr(self, "left_mplib_planner")
++        ):
++            # plan_pose directly: the mplib planner instance carries the
++            # embodiment's planner_type ("curobo"), so plan_path would no-op.
++            result = self.left_mplib_planner.plan_pose(
++                now_qpos, trans_target_pose, arms_tag="left", try_times=(10 if os.environ.get("CAPX_PLANNER_GENEROUS") else 3), log=False)
++        return result
+ 
+     def right_plan_path(
+         self,
+@@ -473,6 +635,16 @@ class Robot:
+ 
+         trans_target_pose = self._trans_from_gripper_to_endlink(target_pose, arm_tag="right")
+ 
++        # Local patch: mplib planner path (curobo not installed)
++        if getattr(self, "_use_mplib_paths", False):
++            return self.right_mplib_planner.plan_path(
++                now_qpos,
++                trans_target_pose,
++                use_point_cloud=use_point_cloud,
++                use_attach=use_attach,
++                arms_tag="right",
++            )
++
+         if self.communication_flag:
+             self.right_conn.send({
+                 "cmd": "plan_path",
+@@ -481,14 +653,26 @@ class Robot:
+                 "constraint_pose": constraint_pose,
+                 "arms_tag": "right",
+             })
+-            return self.right_conn.recv()
++            result = self.right_conn.recv()
+         else:
+-            return self.right_planner.plan_path(
++            result = self.right_planner.plan_path(
+                 now_qpos,
+                 trans_target_pose,
+                 constraint_pose=constraint_pose,
+                 arms_tag="right",
+             )
++        # Local patch: curobo trajopt misses some hard-orientation poses that
++        # RRT can reach (e.g. handover receive); fall back to mplib.
++        if (
++            (result is None or result.get("status") != "Success")
++            and constraint_pose is None
++            and hasattr(self, "right_mplib_planner")
++        ):
++            # plan_pose directly: the mplib planner instance carries the
++            # embodiment's planner_type ("curobo"), so plan_path would no-op.
++            result = self.right_mplib_planner.plan_pose(
++                now_qpos, trans_target_pose, arms_tag="right", try_times=(10 if os.environ.get("CAPX_PLANNER_GENEROUS") else 3), log=False)
++        return result
+ 
+     # The data of gripper has been normalized
+     def get_left_arm_jointState(self) -> list:
+diff --git a/env_cfg/task_config/taskgen_dr_visual.yml b/env_cfg/task_config/taskgen_dr_visual.yml
+new file mode 100644
+index 0000000..7dc7635
+--- /dev/null
++++ b/env_cfg/task_config/taskgen_dr_visual.yml
+@@ -0,0 +1,38 @@
++# if you want to modify the config, please check the following tutorial first:
++# https://robotwin-platform.github.io/doc/usage/configurations.html
++render_freq: 0
++episode_num: 50
++use_seed: false
++save_freq: 15
++embodiment: [aloha-agilex]
++language_num: 100
++eval_instruction: seen
++domain_randomization:
++  random_background: true
++  cluttered_table: true
++  clean_background_rate: 0.05
++  random_head_camera_dis: 0
++  random_table_height: 0
++  random_light: true
++  crazy_random_light_rate: 0
++camera:
++  head_camera_type: D435
++  wrist_camera_type: D435
++  collect_head_camera: true
++  collect_wrist_camera: true
++data_type:
++  rgb: true
++  third_view: false
++  depth: false
++  pointcloud: false
++  observer: false
++  endpose: true
++  qpos: true
++  mesh_segmentation: false
++  actor_segmentation: false
++pcd_down_sample_num: 1024
++pcd_crop: true
++save_path: ./data
++clear_cache_freq: 5
++collect_data: true
++eval_video_log: true

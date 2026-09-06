@@ -1,0 +1,178 @@
+{
+  "schema": "roboenv/libero-install-acceptance/1",
+  "status": "candidate-verified-local",
+  "historical_freeze_unchanged": true,
+  "python": "3.12.12",
+  "resolver": "uv 0.12.7",
+  "dependency_resolution_bypassed": false,
+  "pip_check": {
+    "passed": true,
+    "distribution_count": 176
+  },
+  "versions": {
+    "numpy": "1.26.4",
+    "opencv-python": "4.11.0.86",
+    "pyopengl": "3.1.6",
+    "mujoco": "3.5.0",
+    "jax": "0.4.29",
+    "jaxlib": "0.4.29",
+    "torch": "2.8.0",
+    "future": "0.18.2",
+    "pyroki": "0.0.0",
+    "jaxls": "0.0.0",
+    "libero": "0.1.0",
+    "robosuite": "1.4.0",
+    "roboenv": "0.2.0",
+    "roboenv-runtime": "0.2.0"
+  },
+  "locks": {
+    "runtime/locks/libero.candidate.in": "2a804ea7be4b7328597e5c93be342e5f85be96f26c8e5d4286de9d73b7099e63",
+    "runtime/locks/libero.candidate.txt": "89a5b40403ff35eac7a4a5521884dde4f32c4c8747be9334545ec9c7bcf75c2b",
+    "runtime/locks/libero.candidate-source-pins.txt": "8d89344bf4bf2b8e053c717d73b0f25c07d9129e85788873e5e8fe0274e72705"
+  },
+  "sources": {
+    "capx": {
+      "path": "third_party/cap-x",
+      "url": "https://github.com/capgym/cap-x.git",
+      "revision": "53e9966d7a8e2fa7494676772bccc35280f5c0ed"
+    },
+    "libero_pro": {
+      "path": "third_party/cap-x/capx/third_party/LIBERO-PRO",
+      "url": "https://github.com/uynitsuj/LIBERO-PRO.git",
+      "revision": "5368540790fde9a18584d64105ec5ac16d8926bd"
+    },
+    "libero_robosuite": {
+      "path": "third_party/cap-x/capx/third_party/libero_dependencies/robosuite",
+      "url": "https://github.com/Max-Fu/robosuite",
+      "revision": "a498b087d4bc5a3981e3d27030d09bc537a537f3"
+    }
+  },
+  "source_only": [
+    "capx"
+  ],
+  "replay": {
+    "schema": "roboenv/libero-candidate-replay/1",
+    "scope": "local isolated-interpreter worker and public SDK; not Docker/Harbor",
+    "task": "libero.90_8",
+    "seed": 0,
+    "init_order": "capx",
+    "budget_mode": "official",
+    "model_calls": 0,
+    "phases": [
+      {
+        "phase": "device-probe",
+        "fresh_worker": true,
+        "boot_passed": true,
+        "devices": [
+          "arm",
+          "camera",
+          "gripper",
+          "world"
+        ],
+        "initial_budget": {
+          "max": 4000,
+          "unit": "sim_steps",
+          "used": 10
+        },
+        "device_reads_and_motion_passed": true,
+        "final_budget": {
+          "max": 4000,
+          "unit": "sim_steps",
+          "used": 50
+        },
+        "duration_seconds": 32.74
+      },
+      {
+        "phase": "reference-replay",
+        "fresh_worker": true,
+        "boot_passed": true,
+        "devices": [
+          "arm",
+          "camera",
+          "gripper",
+          "world"
+        ],
+        "initial_budget": {
+          "max": 4000,
+          "unit": "sim_steps",
+          "used": 10
+        },
+        "verdict": {
+          "budget": {
+            "max": 4000,
+            "unit": "sim_steps",
+            "used": 2779
+          },
+          "completed": true,
+          "detail": {},
+          "latched": true,
+          "raw_score": 1,
+          "reward": 1,
+          "submitted": true,
+          "tier": 0
+        },
+        "post_submit_budget": {
+          "max": 4000,
+          "unit": "sim_steps",
+          "used": 2779
+        },
+        "reference_sha256": "8dcc1119e69a1004971ea865baffffd1c11fc1ecf46c2304d80158884d6451fe",
+        "reference_replay_passed": true,
+        "duration_seconds": 59.96
+      }
+    ],
+    "passed": true,
+    "module_sources": {
+      "roboenv": {
+        "origin": "candidate-environment",
+        "sha256": "a420fe62e6251d008a4fa3881a5b14e67fd44304194e58f92dcc5a37ce2b06a3"
+      },
+      "roboenv_runtime": {
+        "origin": "candidate-environment",
+        "sha256": "aa570d516fa3f7372ccf2a2a718e7821393315fa701e11f42965584cc353a318"
+      },
+      "libero": {
+        "origin": "third_party/cap-x/capx/third_party/LIBERO-PRO/libero/libero/__init__.py",
+        "sha256": "0f3263e04e58acef0a2184a8b73639292fe9ded83e87ff5d786606ca75bcfb94"
+      },
+      "robosuite": {
+        "origin": "third_party/cap-x/capx/third_party/libero_dependencies/robosuite/robosuite/__init__.py",
+        "sha256": "3139a789f00b56c25372069be8d99ebaa67bd06f59425acd207ea84acb8cef69"
+      },
+      "capx": {
+        "origin": "locked-source-only",
+        "installed_distribution": false
+      }
+    }
+  },
+  "trajectory_identity_claimed": false,
+  "docker_harbor_verified": false,
+  "all_tasks_or_seeds_verified": false,
+  "recorded_at": "2026-09-06T00:54:25.053666+00:00",
+  "configs_point_to_locked_source": true,
+  "robot_asset": {
+    "url": "https://github.com/Gepetto/example-robot-data.git",
+    "revision": "d0d9098d752014aec3725b07766962acf06c5418",
+    "urdf": "robots/panda_description/urdf/panda.urdf",
+    "sha256": "63792d2679f22c4e41cda2c4d9d903644e628970ad0656b9eec8485113941555"
+  },
+  "sources_exact_managed_tree_verified": true,
+  "footprint": {
+    "interpreter_bytes": 9376387072,
+    "new_robot_and_config_cache_bytes": 504639488,
+    "installer_cache_shared_via_hardlinks": true,
+    "additional_budget_bytes": 20000000000
+  },
+  "opencv_metadata": {
+    "url": "https://pypi.org/pypi/opencv-python/4.11.0.86/json",
+    "python312_numpy_requirement": "numpy>=1.26.0",
+    "one_cv2_provider": true,
+    "headless_variant_installed": false
+  },
+  "scope_exclusions": [
+    "cap-x distribution, agent/training extras, perception-model servers",
+    "unselected VLA/learned policy execution",
+    "Docker and Harbor verifier execution",
+    "multi-seed or all-task coverage"
+  ]
+}

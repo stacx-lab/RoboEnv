@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:roboenv:devices:1",
+  "title": "Roboenv device service v1 results",
+  "oneOf": [
+    {"$ref": "#/$defs/inventory"},
+    {"$ref": "#/$defs/device"},
+    {"$ref": "#/$defs/callResult"}
+  ],
+  "$defs": {
+    "action": {
+      "type": "object",
+      "required": ["supported", "read_only", "input_schema"],
+      "properties": {
+        "supported": {"type": "boolean"},
+        "read_only": {"type": "boolean"},
+        "input_schema": {"type": "object"},
+        "reason": {"type": "string"}
+      },
+      "if": {"properties": {"supported": {"const": false}}},
+      "then": {"required": ["reason"]}
+    },
+    "device": {
+      "type": "object",
+      "required": ["schema_version", "name", "type", "intrinsics", "extrinsics", "actions", "execution"],
+      "properties": {
+        "schema_version": {"const": "roboenv/devices/1"},
+        "name": {"type": "string", "minLength": 1},
+        "type": {"type": "string"},
+        "intrinsics": {"type": "object"},
+        "extrinsics": {"type": "object"},
+        "control_mode": {"type": ["string", "null"]},
+        "actions": {"type": "object", "additionalProperties": {"$ref": "#/$defs/action"}},
+        "execution": {
+          "type": "object", "required": ["mode", "interruptible"],
+          "properties": {"mode": {"const": "synchronous"}, "interruptible": {"type": "boolean"}}
+        }
+      }
+    },
+    "inventory": {
+      "type": "object", "required": ["schema_version", "devices"],
+      "properties": {
+        "schema_version": {"const": "roboenv/devices/1"},
+        "devices": {"type": "array", "items": {"$ref": "#/$defs/device"}}
+      }
+    },
+    "callResult": {
+      "type": "object",
+      "required": ["schema_version", "device", "action", "sequence", "started_unix_ns", "finished_unix_ns", "read_only", "data", "calls", "budget"],
+      "properties": {
+        "schema_version": {"const": "roboenv/devices/1"},
+        "device": {"type": "string"},
+        "action": {"type": "string"},
+        "sequence": {"type": "integer", "minimum": 1},
+        "started_unix_ns": {"type": "integer"},
+        "finished_unix_ns": {"type": "integer"},
+        "read_only": {"type": "boolean"},
+        "data": {},
+        "calls": {"type": "array", "items": {
+          "type": "object", "required": ["op", "args", "ok"],
+          "properties": {"op": {"type": "string"}, "args": {"type": "object"}, "ok": {"type": "boolean"}}
+        }},
+        "budget": {"type": "object"}
+      }
+    }
+  }
+}

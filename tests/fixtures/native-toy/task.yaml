@@ -1,0 +1,8 @@
+id: native-toy-push
+backend: fakeshell
+backend_task: fakeshell.native-push
+backend_kwargs: {max_budget: 1000, goal_x: 0.3}
+robot: toy-puck
+instruction: Synthetic integration fixture. Push the toy puck to x >= 0.3.
+seed: 0
+budget_mode: official

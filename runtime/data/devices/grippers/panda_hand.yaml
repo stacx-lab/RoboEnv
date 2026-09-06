@@ -1,0 +1,6 @@
+# The Panda's two-finger parallel gripper.
+kind: gripper
+id: panda_hand
+type: parallel
+finger_joints: [gripper0_finger_joint1, gripper0_finger_joint2]
+max_opening_m: 0.08          # nominal; the measured value on a rig is a fact

@@ -1,0 +1,132 @@
+{
+  "schema": "roboenv/upstreams/1",
+  "backends": [
+    "libero",
+    "robocasa",
+    "robodojo",
+    "robotwin",
+    "behavior"
+  ],
+  "sources": {
+    "capx": {
+      "path": "third_party/cap-x",
+      "url": "https://github.com/capgym/cap-x.git",
+      "revision": "53e9966d7a8e2fa7494676772bccc35280f5c0ed",
+      "backends": [
+        "libero",
+        "robotwin",
+        "robodojo"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/capx-runtime.patch",
+          "sha256": "c97c33e63139829113768a1d3cdc5783ce52e088dad705b70d9eb9112330ce51"
+        }
+      ]
+    },
+    "libero_pro": {
+      "path": "third_party/cap-x/capx/third_party/LIBERO-PRO",
+      "parent": "capx",
+      "url": "https://github.com/uynitsuj/LIBERO-PRO.git",
+      "revision": "5368540790fde9a18584d64105ec5ac16d8926bd",
+      "backends": [
+        "libero"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/libero-pro-runtime.patch",
+          "sha256": "8af0243b52b96d78b93281b4a11a65eac0f9ab7c841e0df0ff667d732c0fc7df"
+        }
+      ]
+    },
+    "libero_robosuite": {
+      "path": "third_party/cap-x/capx/third_party/libero_dependencies/robosuite",
+      "parent": "capx",
+      "url": "https://github.com/Max-Fu/robosuite",
+      "revision": "a498b087d4bc5a3981e3d27030d09bc537a537f3",
+      "backends": [
+        "libero"
+      ]
+    },
+    "robocasa": {
+      "path": "third_party/robocasa",
+      "url": "https://github.com/robocasa/robocasa.git",
+      "revision": "a07e365c958c4216cd6bbd5f30b47f09a65c6f00",
+      "backends": [
+        "robocasa"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/robocasa-readonly-assets.patch",
+          "sha256": "1ca1dee4eff91bf951d11f7d0759be643cf9f68dce3faa16e241e001290518cb"
+        }
+      ]
+    },
+    "robosuite": {
+      "path": "third_party/robosuite",
+      "url": "https://github.com/ARISE-Initiative/robosuite",
+      "revision": "5ce6643f3092639d08f7b0f90ed1c6a84f50552c",
+      "backends": [
+        "robocasa"
+      ]
+    },
+    "robodojo": {
+      "path": "third_party/RoboDojo",
+      "url": "https://github.com/RoboDojo-Benchmark/RoboDojo.git",
+      "revision": "36bfcb7c580b149c6e39ed2eb77d60689152e570",
+      "backends": [
+        "robodojo"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/robodojo-yam-runtime.patch",
+          "sha256": "81fe6bad700366fecfa311961be5b811e5bd19d0c1b8481d8bb4e72f33b57adc"
+        },
+        {
+          "path": "third_party/patches/robodojo-optional-policy-client.patch",
+          "sha256": "edfd16f3d1f7d6d4407699e85ab0e8c1056a0f8bd521da9999cdfbbb4b47aecc"
+        }
+      ]
+    },
+    "isaaclab": {
+      "path": "third_party/RoboDojo/third_party/IsaacLab",
+      "parent": "robodojo",
+      "url": "https://github.com/yuechen0614/IsaacLab.git",
+      "revision": "afca7b09d60d8beb9c1cb28b43066499940b969b",
+      "backends": [
+        "robodojo"
+      ]
+    },
+    "curobo": {
+      "path": "third_party/RoboDojo/third_party/curobo",
+      "parent": "robodojo",
+      "url": "https://github.com/yuechen0614/curobo.git",
+      "revision": "895c6517243f8cb091c73c018c8167192d39599a",
+      "backends": [
+        "robodojo"
+      ]
+    },
+    "robotwin": {
+      "path": "third_party/RoboTwin",
+      "url": "https://github.com/RoboTwin-Platform/RoboTwin.git",
+      "revision": "266f3aadf505a4f7fe9af0faa41a20f5f47cd123",
+      "backends": [
+        "robotwin"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/robotwin-runtime.patch",
+          "sha256": "8fcd1f5f9e81d022f8f5941edb26728e419f6483b931b0b88c212e96f89f2526"
+        }
+      ]
+    },
+    "behavior": {
+      "path": "third_party/BEHAVIOR-1K",
+      "url": "https://github.com/StanfordVL/BEHAVIOR-1K.git",
+      "revision": "22d19cd2f99d6ae15dd0fb62e90363410cdd3260",
+      "backends": [
+        "behavior"
+      ]
+    }
+  }
+}

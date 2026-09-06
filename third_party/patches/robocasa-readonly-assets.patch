@@ -1,0 +1,44 @@
+--- a/robocasa/models/objects/objects.py
++++ b/robocasa/models/objects/objects.py
+@@ -1,5 +1,5 @@
+ import os
+-import time
++from roboenv_runtime.adapters.robocasa.assets import writable_object_xml
+ import xml.etree.ElementTree as ET
+ 
+ import numpy as np
+@@ -244,25 +244,15 @@
+         # write modified xml (and make sure to postprocess any paths just in case)
+         xml_str = ET.tostring(root, encoding="utf8").decode("utf8")
+         xml_str = self.postprocess_model_xml(xml_str)
+-        time_str = str(time.time()).replace(".", "_")
+-        new_xml_path = os.path.join(folder, "{}_{}.xml".format(time_str, os.getpid()))
+-        f = open(new_xml_path, "w")
+-        f.write(xml_str)
+-        f.close()
+-
+-        # initialize object with new xml we wrote
+-        super().__init__(
+-            fname=new_xml_path,
+-            name=name,
+-            joints=[dict(type="free", damping="0.0005")],
+-            obj_type="all",
+-            duplicate_collision_geoms=False,
+-            scale=scale,
+-        )
+-
+-        # clean up xml - we don't need it anymore
+-        if os.path.exists(new_xml_path):
+-            os.remove(new_xml_path)
++        with writable_object_xml(xml_str, folder) as new_xml_path:
++            super().__init__(
++                fname=new_xml_path,
++                name=name,
++                joints=[dict(type="free", damping="0.0005")],
++                obj_type="all",
++                duplicate_collision_geoms=False,
++                scale=scale,
++            )
+ 
+         self._regions = dict()
+         self._setup_region_dict()

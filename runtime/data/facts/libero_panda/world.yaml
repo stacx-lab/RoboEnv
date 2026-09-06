@@ -1,0 +1,9 @@
+# The episode itself.
+- device: world
+  key: horizon_steps
+  value: 4000
+  unit: sim_steps
+  measured: 2026-08-27
+  by: libero primitives (get_step_budget docstring)
+  evidence: roboenv/adapters/libero_primitives.py
+  note: hard; the 4001st step raises inside the simulator and the program dies

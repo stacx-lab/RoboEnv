@@ -1,0 +1,67 @@
+# Galaxea R1 Pro — BEHAVIOR-1K's default robot: two 7-DoF arms with parallel
+# grippers, a torso, and a holonomic base, in house-scale OmniGibson scenes.
+# This profile describes the SYMBOLIC primitive tier (2026-09-02): motion is
+# semantic (the controller teleports through free space and lets physics settle
+# contacts), so centimetre-level motion facts are not the game here — task
+# structure, object states and the BDDL judge are.
+simulator: behavior
+description: Dual-arm R1 Pro on a holonomic base, driven through symbolic primitives in a multi-room house.
+arms: [left, right]
+
+frame:
+  quaternion_order: xyzw
+  up_axis: z
+  note: scenes are house-scale (several rooms); positions are world-frame metres
+
+workspace:
+  scale: multi-room; primitives walk the robot themselves — there is no separate navigate tool
+  one_object_per_hand: true
+
+gripper:
+  fraction_convention: handled inside the primitives (sticky grasp)
+  note: grasp() either holds the object or refuses; there is no partial-grip control at this tier
+
+planner:
+  kind: symbolic primitives (grasp / place / open / close / toggle / cut / wipe / soak / release), teleport-style with physics settling
+  step_costs: grasp ~100 steps, placements ~150, settle as requested
+  known_limit: place_inside's pose sampler fails on narrow-mouthed containers — release() then drop_into()
+
+situation: |
+  You are controlling a dual-arm R1 Pro robot in a simulated multi-room house
+  (BEHAVIOR-1K on OmniGibson), by writing Python code against the API below.
+
+  The world is house-scale: rooms, furniture, appliances, and many loose
+  objects with real states (open, toggled on, inside, on top, covered,
+  cooked...). You act through SYMBOLIC primitives — grasp(), place_on_top(),
+  open_object(), toggle_on() and friends walk the robot and settle physics for
+  you; they either succeed or refuse with a reason. One object per hand.
+
+  The episode is scored by the benchmark's BDDL goal conditions, evaluated by
+  the simulator — get_goal() shows every condition and which are currently
+  satisfied. The judge is the only score that counts.
+
+facts: |
+  - get_goal() first: it lists the exact conditions you are scored on, in
+    natural language, with live satisfied/unsatisfied status.
+  - get_task_objects() names every object the goal mentions (BDDL names like
+    "can__of__soda.n.01_2" work in every tool, as do sim names).
+  - Primitives refuse honestly: ok=False with error strings means change the
+    plan (hand full, unreachable, sampler failed) — retrying the same call
+    seldom helps.
+  - place_inside() often fails on narrow containers (SAMPLING_ERROR); the
+    working pattern is release() near the container, then drop_into(obj,
+    container), then check_state("inside", obj, container).
+  - Object states are the judge's vocabulary: probe them with check_state()
+    rather than reasoning from positions alone.
+  - Tool use is grasp-then-act: grasp the knife/axe/cloth first, then cut(x)
+    / wipe(x) / soak_under(faucet). Goal conditions phrased "real <x>" mean an
+    object that does not exist yet (halves, dice) — cutting creates it, and
+    get_task_objects() shows it as null until then.
+  - A result carrying PHYSICS_NAN means the physics engine diverged inside that
+    call and the world was rolled back to just before it (the result says
+    whether you still hold the object). The same call will diverge again —
+    take another route: release() then drop_into(), or a different target.
+  - Containers with lids/doors (car trunk, jars, cabinets, laptops) must be
+    open_object()-ed before placing inside and close_object()-ed after when
+    the goal says so; check_state("open", x) tells you which state it is in.
+  - Budget is simulator steps (get_step_budget()); a grasp costs ~100.

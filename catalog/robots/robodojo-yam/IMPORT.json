@@ -1,0 +1,9 @@
+{
+  "embodiment": "yam",
+  "source": "roboenv/embodiments/yam.yaml",
+  "calibration_claim": "only measured facts in facts.yaml; unknown values remain unknown",
+  "source_facts_sha256": "cd33619ae7f43821cdcea0399346a71191e6ca13dc32e833f4e74431f9be9987",
+  "rendered_facts_sha256": "b0b9267b7c21c36a7a9c70106cb35202c6d40b14761aed5a852865dd6c13bd8f",
+  "planner_override_source": null
+}
+

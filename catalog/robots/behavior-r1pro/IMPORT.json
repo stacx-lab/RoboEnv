@@ -1,0 +1,9 @@
+{
+  "embodiment": "r1pro",
+  "source": "roboenv/embodiments/r1pro.yaml",
+  "calibration_claim": "only measured facts in facts.yaml; unknown values remain unknown",
+  "source_facts_sha256": "6433e3c4b8f8a04d16ba373d501d3fb115d1072205c01aa8efc7c185d1fd9f55",
+  "rendered_facts_sha256": "a335e93ef4d2321af9995beb5ddbed46bb1e45987b547e60cbf11dbbb562cdfc",
+  "planner_override_source": null
+}
+
