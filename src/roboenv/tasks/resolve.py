@@ -1,6 +1,6 @@
 """Resolve user task references once for local runs and Harbor exports."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from roboenv.devices.bindings.spec import BindingPlan
@@ -27,13 +27,13 @@ class ResolvedTask:
         }
 
 
-def resolve_task(reference, *, project=None, catalog=None):
+def resolve_task(reference, *, project=None, catalog=None, realtime=None):
     catalog = Path(catalog).resolve() if catalog else project_root(project) / "catalog"
     path = Path(reference)
     if not path.is_file():
         matches = [
             candidate
-            for candidate in sorted((catalog / "tasks").glob("*/task.yaml"))
+            for candidate in sorted((catalog / "tasks").rglob("task.yaml"))
             if Task.load(candidate).id == str(reference)
         ]
         if len(matches) != 1:
@@ -43,6 +43,12 @@ def resolve_task(reference, *, project=None, catalog=None):
             )
         path = matches[0]
     task = Task.load(path)
+    if realtime is not None:
+        if type(realtime) is not bool:
+            raise ValueError("realtime must be a boolean")
+        if task.backend != "robocasa":
+            raise ValueError(f"Clock selection is not supported for {task.backend}")
+        task = replace(task, backend_kwargs={**task.backend_kwargs, "realtime": realtime})
     robot = catalog / "robots" / task.robot
     if robot.is_symlink() or not robot.resolve().is_relative_to(catalog):
         raise ValueError("robot definition must remain inside the source catalog")

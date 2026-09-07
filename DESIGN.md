@@ -38,7 +38,7 @@ catalog/
       profile.yaml
       driver.py          # absent for world
   bindings/<robot-id>.yaml
-  tasks/<task-id>/task.yaml
+  tasks/<simulator>/<task-name>/task.yaml
 ```
 
 The copyable robot directory contains only `workspace.yaml` and `devices/`.
@@ -74,7 +74,7 @@ A new task with the same hardware should simply reuse the existing robot ID.
 
 ```sh
 roboenv prepare robocasa
-roboenv launch robocasa-pick-place-microwave --port 8123
+roboenv launch robocasa/pick-place-microwave --port 8123
 ```
 
 `prepare` installs a selected backend in an isolated interpreter and acquires its

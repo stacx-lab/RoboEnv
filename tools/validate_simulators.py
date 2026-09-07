@@ -131,7 +131,7 @@ def select_cases(
             plans.append(
                 (
                     "reference",
-                    replace(task, id="reference-" + task.id),
+                    replace(task, id=task.backend + "/reference-" + task.id.split("/")[-1]),
                     source_path,
                     reference.read_text(),
                 )
@@ -150,7 +150,7 @@ def select_cases(
                 raise ValueError("BEHAVIOR validation needs an explicit scene_model in task source")
             task = replace(
                 task,
-                id=f"probe-{robot}-{task.id}",
+                id=f"{task.backend}/probe-{robot}-{task.id.split('/')[-1]}",
                 robot=robot,
                 device_bindings=None,
                 backend_kwargs={**task.backend_kwargs, **overrides},

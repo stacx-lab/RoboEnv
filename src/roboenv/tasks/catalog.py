@@ -28,7 +28,7 @@ ROBOTS = {
 
 def load_catalog(root):
     result = {}
-    for path in sorted(Path(root).glob("*/task.yaml")):
+    for path in sorted(Path(root).rglob("task.yaml")):
         task = Task.load(path)
         if task.id in result:
             raise ValueError(f"duplicate task id: {task.id}")
@@ -58,11 +58,12 @@ def _literal(path, variable):
 
 
 def _task(backend, identifier, kwargs, instruction, *, robot=None):
+    task_name = identifier.removeprefix(backend + ".")
     return Task(
-        id=identifier,
+        id=f"{backend}/{task_name}",
         backend=backend,
         backend_task=identifier,
-        backend_kwargs=kwargs,
+        backend_kwargs={**({"realtime": True} if backend == "robocasa" else {}), **kwargs},
         robot=robot or ROBOTS[backend],
         instruction=instruction,
         action_abstraction="devices" if backend == "robocasa" else "symbolic-primitives"
@@ -246,7 +247,8 @@ def discover(project, destination, backends=BACKENDS):
             if task.id in existing:
                 old, _ = existing[task.id]
                 task = _task(
-                    backend, task.id, task.backend_kwargs, old.instruction, robot=task.robot
+                    backend, task.backend_task, task.backend_kwargs, old.instruction,
+                    robot=task.robot,
                 )
             bundle.add_yaml(f"tasks/{task.id}/task.yaml", asdict(task))
             records[task.id] = {

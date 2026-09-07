@@ -1,4 +1,4 @@
-id: robodojo-stack-bowls
+id: robodojo/stack-bowls
 backend: robodojo
 backend_task: robodojo.stack_bowls
 robot: robodojo-arx-x5

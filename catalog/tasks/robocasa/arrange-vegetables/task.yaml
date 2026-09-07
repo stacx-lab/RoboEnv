@@ -1,4 +1,4 @@
-id: robocasa-arrange-vegetables
+id: robocasa/arrange-vegetables
 backend: robocasa
 backend_task: robocasa.ArrangeVegetables
 robot: robocasa-panda-omron
@@ -8,5 +8,6 @@ instruction: 'Arrange the vegetables: move each vegetable from the sink area ont
 seed: 0
 budget_mode: official
 backend_kwargs:
+  realtime: true
   task_name: ArrangeVegetables
 action_abstraction: devices

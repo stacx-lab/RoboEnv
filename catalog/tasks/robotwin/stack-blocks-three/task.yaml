@@ -1,4 +1,4 @@
-id: robotwin-stack-blocks-three
+id: robotwin/stack-blocks-three
 backend: robotwin
 backend_task: robotwin.stack_blocks_three
 robot: robotwin-dual-piper

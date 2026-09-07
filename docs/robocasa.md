@@ -10,7 +10,7 @@ After [preparing RoboCasa](setup.md), launch a catalog task:
 
 ```sh
 roboenv prepare robocasa
-roboenv launch robocasa-pick-place-microwave --port 8123
+roboenv launch robocasa/pick-place-microwave --port 8123
 ```
 
 Use separate ports for concurrent worlds, `--port 0` for automatic assignment, or
@@ -35,6 +35,34 @@ not the world. Device results contain data directly; execution receipts stay in
 the service journal. An uncertain motion result carries a request ID and is never
 automatically retried.
 
+For two independent worlds, run these commands in separate terminals:
+
+```sh
+roboenv launch robocasa/pick-place-microwave --port 8123
+roboenv launch robocasa/arrange-vegetables --port 8124
+```
+
+Copy the same robot directory into two harness workspaces and set each process's
+`ROBOENV_ENDPOINT` to its world. Changing endpoints does not require editing
+profiles. See [Complex local testing](complex-local.md).
+
+## Implementation boundary
+
+[RoboCasaAdapter](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py) connects
+lifecycle, instruction, native success checking, budget, and owner evidence to the
+shared worker. Its [backend](../runtime/src/roboenv_runtime/adapters/robocasa/backend.py)
+creates one `robosuite` environment and configures its controllers. The
+[native binding](../runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py)
+attaches selected devices to that environment through `robocasa.device/1`.
+The shared `WorldSession` schedules realtime ticks and serializes them with device
+operations and finalization. Drivers neither own physics nor start another world.
+
+The backend still contains private scene-inspection helpers, and adapter `observe`
+returns privileged object poses for owner use. These are not public device
+capabilities or examples for a sensor-only integration. Local IK/FK belongs in the
+exported driver; task-solving programs belong in the harness. Use the
+[integration guide](simulator-integration.md) when adapting another simulator.
+
 ## Devices and control
 
 The standard [Panda–Omron catalog](../catalog/robots/robocasa-panda-omron/workspace.yaml)
@@ -56,12 +84,32 @@ motion without restarting interpolation. Their native joint-position controllers
 use torque control. Body and gripper commands persist until replaced or stopped;
 writing one device preserves all other goals.
 
+The backend selects absolute `JOINT_POSITION` arm control and absolute torso
+inputs while retaining native base and gripper semantics. During each interval it
+uses the normal `robosuite` step, preserving physics, observables, and task hooks.
+It replaces the composite goal update for that call so arm/lift goals persist and
+base/gripper inputs are refreshed, then restores the hook even on failure.
+
 A successful write returns `accepted: true`, never arrival. `stop` holds the
 arm/torso/gripper or requests zero base velocity. It neither teleports joints nor
 pauses realtime physics; an in-flight synchronous interval finishes before stop.
 Reads include faults and simulation acquisition `sample_time_s` and do not step.
 
-Choose the clock in the task's `backend_kwargs` before launch:
+Choose the clock at launch; these mutually exclusive flags override the task YAML
+for this run without changing the catalog:
+
+```sh
+roboenv launch robocasa/pick-place-microwave --realtime
+roboenv launch robocasa/pick-place-microwave --sync
+```
+
+Without either flag, launch uses the task's `backend_kwargs.realtime`. Checked-in
+and discovered RoboCasa tasks explicitly set `realtime: true`. Python owners can
+pass `realtime=True` or `realtime=False` to `roboenv.launch`; `None` uses the task
+setting. Clock selection currently supports RoboCasa only; other simulators reject
+an explicit override.
+
+To change the task default before launch:
 
 ```yaml
 backend_kwargs:
@@ -97,7 +145,7 @@ catalog/robots/robocasa-panda-omron/
   devices/<name>/profile.yaml
   devices/<name>/driver.py       # except world
 catalog/bindings/robocasa-panda-omron.yaml
-catalog/tasks/<task>/task.yaml
+catalog/tasks/<simulator>/<task-name>/task.yaml
 ```
 
 The robot directory contains only `workspace.yaml` and `devices/`, ready to copy
@@ -125,6 +173,12 @@ are also checked after changing arm/lift configuration.
 
 A custom task's `device_bindings` replaces the complete default selection. Logical
 names, profiles, and mounts must match the published device directories.
+The standard map binds logical `body` to native entity `base`; logical and native
+names need not match. Renaming requires changing the directory, profile name,
+binding key, and dependent mount references together. The binding also supports a
+custom composite `robot` actuator with a native action vector; it cannot be selected
+alongside its component actuators and is not part of the standard eight-device rig.
+
 `config.camera` selects an existing sensor, which must also be enabled through
 `backend_kwargs.camera_names`. A profile does not create a camera.
 

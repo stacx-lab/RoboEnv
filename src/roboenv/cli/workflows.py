@@ -29,9 +29,19 @@ def add_commands(commands):
                 "--prefix", type=Path, help="New environment (default: .venv-sim/SIMULATOR)"
             )
         if name in {"launch", "export"}:
-            parser.add_argument("task", help="Catalog task ID or task.yaml path")
+            parser.add_argument("task", help="simulator/task_name or task.yaml path")
             parser.add_argument("--catalog", type=Path)
         if name == "launch":
+            clock = parser.add_mutually_exclusive_group()
+            clock.add_argument(
+                "--realtime", dest="realtime", action="store_true",
+                help="Run continuous physics (RoboCasa)",
+            )
+            clock.add_argument(
+                "--sync", dest="realtime", action="store_false",
+                help="Advance one control interval per write (RoboCasa)",
+            )
+            parser.set_defaults(realtime=None)
             parser.add_argument("--host", default="127.0.0.1")
             parser.add_argument("--interpreter", type=Path)
             parser.add_argument("--timeout", type=float, default=900)
@@ -105,6 +115,7 @@ def execute(args):
             timeout=args.timeout,
             port=args.port,
             host=args.host,
+            realtime=args.realtime,
         )
         emit(environment.record, machine=args.json)
         if args.detach:

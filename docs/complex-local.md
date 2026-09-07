@@ -17,7 +17,7 @@ The mobile `body` is the robot's frame root, with no declared world mount.
 ```sh
 source .venv/bin/activate
 roboenv prepare robocasa
-roboenv launch robocasa-pick-place-microwave --port 8123
+roboenv launch robocasa/pick-place-microwave --port 8123
 ```
 
 Preparation is needed only if the simulator is not already prepared. Wait for

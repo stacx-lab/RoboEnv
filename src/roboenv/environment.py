@@ -200,9 +200,11 @@ def launch(
     timeout=900,
     host="127.0.0.1",
     port=0,
+    realtime=None,
 ):
     """Start a task in its isolated interpreter; return after device readiness.
 
+    realtime=None preserves the task clock; True/False override it for RoboCasa.
     Backend assets must already be prepared. No installation or download occurs.
     All run definitions and logs are retained under the selected project's cache.
     """
@@ -216,7 +218,7 @@ def launch(
 
     ipaddress.IPv4Address(host)
     root = project_root(project)
-    resolved = resolve_task(task, project=root, catalog=catalog)
+    resolved = resolve_task(task, project=root, catalog=catalog, realtime=realtime)
     spec = resolved.task
     if interpreter is None:
         if spec.backend == "fakeshell":

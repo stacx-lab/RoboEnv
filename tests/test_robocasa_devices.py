@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_task_selects_and_renames_its_own_devices(tmp_path):
     task = yaml.safe_load(
-        (ROOT / "catalog/tasks/robocasa-arrange-vegetables/task.yaml").read_text()
+        (ROOT / "catalog/tasks/robocasa/arrange-vegetables/task.yaml").read_text()
     )
     task["device_bindings"] = {
         "overview": {
@@ -490,7 +490,7 @@ def test_task_clock_setting_reaches_runtime_adapter(realtime):
     from roboenv_runtime.tasks.schema import TaskSpec
 
     task = yaml.safe_load(
-        (ROOT / "catalog/tasks/robocasa-pick-place-microwave/task.yaml").read_text()
+        (ROOT / "catalog/tasks/robocasa/pick-place-microwave/task.yaml").read_text()
     )
     task["backend_kwargs"]["realtime"] = realtime
     spec = TaskSpec.from_dict(task)

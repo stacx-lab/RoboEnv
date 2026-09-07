@@ -123,7 +123,7 @@ def test_project_reference_is_opt_in_and_not_an_official_certificate(tmp_path):
     source = tmp_path / "source"
     source.mkdir()
     task = source / "task.yaml"
-    shutil.copy2(ROOT / "catalog/tasks/robocasa-arrange-vegetables/task.yaml", task)
+    shutil.copy2(ROOT / "catalog/tasks/robocasa/arrange-vegetables/task.yaml", task)
     (source / "solution.py").write_text("# project-authored test reference\n")
     out = tmp_path / "task"
     export_task(
@@ -156,7 +156,7 @@ def test_missing_verifier_is_rejected_by_harbor(tmp_path):
     wheel, _ = inputs(tmp_path)
     out = tmp_path / "task"
     export_task(
-        ROOT / "catalog/tasks/robocasa-arrange-vegetables/task.yaml",
+        ROOT / "catalog/tasks/robocasa/arrange-vegetables/task.yaml",
         ROOT / "catalog",
         out,
         wheel,
@@ -184,3 +184,36 @@ def test_every_discoverable_upstream_task_passes_harbor_loader(tmp_path):
     assert result["references"] == 0
     assert result["execution_verified"] is False
     print(json.dumps({"discovered": discovery, "harbor": result}, sort_keys=True))
+
+
+def test_discovery_emits_namespaced_catalog_with_explicit_clock(tmp_path, monkeypatch):
+    from roboenv.tasks import catalog
+
+    monkeypatch.setattr(catalog, "load_lock", lambda _: (ROOT, {"sources": {}}))
+    monkeypatch.setattr(catalog, "status", lambda *a: {"ready": True, "sources": []})
+    monkeypatch.setitem(
+        catalog.DISCOVERERS,
+        "robocasa",
+        lambda *a: [
+            (catalog._task("robocasa", "robocasa.Example", {"task_name": "Example"}, "Do it"),
+             ROOT / "README.md")
+        ],
+    )
+    destination = tmp_path / "discovered"
+    discover(ROOT, destination, ["robocasa"])
+    task, path = catalog.load_catalog(destination / "tasks")["robocasa/Example"]
+    assert path == destination / "tasks/robocasa/Example/task.yaml"
+    assert task.backend_task == "robocasa.Example"
+    assert task.backend_kwargs["realtime"] is True
+
+
+def test_nested_catalog_duplicate_ids_are_rejected(tmp_path):
+    source = ROOT / "catalog/tasks/robocasa/arrange-vegetables/task.yaml"
+    for name in ("one", "two"):
+        directory = tmp_path / name / "nested"
+        directory.mkdir(parents=True)
+        shutil.copy2(source, directory / "task.yaml")
+    from roboenv.tasks.catalog import load_catalog
+
+    with pytest.raises(ValueError, match="duplicate task id"):
+        load_catalog(tmp_path)

@@ -1,4 +1,4 @@
-id: libero-drawer-and-bowl
+id: libero/drawer-and-bowl
 backend: libero
 backend_task: libero.90_8
 robot: libero-panda

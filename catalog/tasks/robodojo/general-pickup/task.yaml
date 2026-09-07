@@ -1,4 +1,4 @@
-id: robodojo-general-pickup
+id: robodojo/general-pickup
 backend: robodojo
 backend_task: robodojo.general_pickup
 robot: robodojo-arx-x5

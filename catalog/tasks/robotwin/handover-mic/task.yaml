@@ -1,4 +1,4 @@
-id: robotwin-handover-mic
+id: robotwin/handover-mic
 backend: robotwin
 backend_task: robotwin.handover_mic
 robot: robotwin-dual-piper
