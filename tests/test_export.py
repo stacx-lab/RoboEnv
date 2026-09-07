@@ -27,7 +27,7 @@ def inputs(tmp_path):
             }
         )
     )
-    return ROOT / "catalog/tasks/robocasa-arrange-vegetables/task.yaml", deployment, wheel
+    return ROOT / "catalog/tasks/robocasa/arrange-vegetables/task.yaml", deployment, wheel
 
 
 def test_native_task_is_harbor_format_without_a_solution(tmp_path):

@@ -115,7 +115,7 @@ def run_phase(root, out, gpu, phase):
     local = out / phase
     socket = local / "worker.sock"
     log_path = local / "worker.private.log"
-    task = root / "catalog/tasks/libero-drawer-and-bowl/task.yaml"
+    task = root / "catalog/tasks/libero/drawer-and-bowl/task.yaml"
     reference = task.with_name("solution.py")
     command = [
         sys.executable,

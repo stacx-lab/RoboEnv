@@ -26,7 +26,7 @@ see [setup](docs/setup.md) for prerequisites and diagnostics.
 
 ```sh
 roboenv tasks list --simulator robocasa
-roboenv launch TASK_ID --port 8123
+roboenv launch robocasa/pick-place-microwave --port 8123
 ```
 
 In another terminal:
@@ -54,7 +54,7 @@ RoboCasa implements the device-first API: `env.task`, `env.devices()`, and
 continuously while the agent thinks. Writes update persistent controller goals;
 reads do not request extra steps. Exported arm/torso drivers solve IK/FK locally
 using Complex utilities and static profile geometry; they do not require RoboEnv
-in the agent environment. Set `backend_kwargs.realtime: false`
+in the agent environment. Pass `--sync` to `roboenv launch`, or set `backend_kwargs.realtime: false`
 in the task YAML for synchronous mode, where each write advances one control period, retaining all active goals.
 Arm and torso targets are absolute joint positions in radians/metres; gripper
 commands keep their native signed format. Acceptance never implies arrival.
@@ -67,7 +67,7 @@ for action spaces, task-specific device selection, and validation coverage.
 With a [prepared native deployment](docs/harbor-tasks.md):
 
 ```sh
-roboenv export robocasa-pick-place-microwave --out generated/example
+roboenv export robocasa/pick-place-microwave --out generated/example
 ```
 
 Export resolves the same task configuration as local startup, builds the SDK

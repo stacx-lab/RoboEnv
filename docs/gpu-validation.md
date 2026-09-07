@@ -30,7 +30,7 @@ overwritten. Select the permitted GPU using `ROBOENV_GPU` as for any Roboenv tas
 .venv/bin/python tools/validate_simulators.py \
   --deployments deployments/local/map.json \
   --sdk-wheel build/wheels/roboenv-0.2.0-py3-none-any.whl \
-  --backends libero --cases libero-drawer-and-bowl \
+  --backends libero --cases libero/drawer-and-bowl \
   --modes reference --seeds 0 1 2 --run \
   --out .cache/validation-run
 ```

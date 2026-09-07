@@ -5,6 +5,22 @@ a reusable device catalog. Follow [DESIGN.md](../DESIGN.md); [RoboCasa](robocasa
 is the reference implementation. Existing primitive bridges are not the interface
 for new integrations.
 
+## Choose the scope
+
+| Change | Files and behavior to update |
+|---|---|
+| Same rig, new task/seed/layout | Private task configuration and instruction; reuse the catalog |
+| Concurrent tasks | Separate endpoints and harness workspaces or isolated networks |
+| Rename a device | Directory, profile name, binding key, and mount references |
+| Add or replace a camera | Enabled native sensor, binding selection, intrinsics, and rigid mount |
+| Change hardware or controller | Matching rig catalog, native binding, assets, and validation |
+| Add a simulator | Source/installation recipe, adapter, bindings, task discovery, deployment, and tests |
+
+A new task does not need a new adapter when the existing backend and rig already
+support it. Changing device boundaries can require frame-interface support, not
+just new directories: moving sensors need a declared live parent frame. See
+[RoboCasa's catalog and frames](robocasa.md#catalog-and-generation) for the concrete rig.
+
 ## 1. Define the boundary
 
 Identify the upstream tasks, robot models, controllers, sensors, frames, units,
@@ -57,13 +73,31 @@ requirements alongside the Python lock; see [setup](setup.md).
 Implement [EnvAdapter](../runtime/src/roboenv_runtime/core/adapter.py): identity,
 reset/close, task instruction, budget, score, and required owner observation/media
 support. Override defaults that depend on old primitive APIs. Register the adapter
-in `BUILTIN_ADAPTERS`; import heavy packages only when starting the backend.
+with `@register_adapter` and add its lazy module path to `BUILTIN_ADAPTERS`; import
+heavy packages only when starting the backend.
 
 Use [RoboCasa's adapter](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py)
 and [native binding](../runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py)
 as examples. Register a fixed binding ID in the
 [runtime registry](../runtime/src/roboenv_runtime/bindings/__init__.py). Configuration
 must not select arbitrary Python imports.
+
+Keep simulator-specific lifecycle and stepping in a backend wrapper, with a thin
+adapter connecting it to RoboEnv. RoboCasa separates these concerns as follows:
+
+| Reference implementation | Role |
+|---|---|
+| [adapter.py](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py) | Adapter identity, reset/close, instruction, native verdict, budget, owner observation, and realtime hooks |
+| [backend.py](../runtime/src/roboenv_runtime/adapters/robocasa/backend.py) | One native environment, controller setup, persistent goals, native intervals, and rendering |
+| [devices.py](../runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py) | Entity selection, command validation, measurements, and basic actions |
+| [world.py](../runtime/src/roboenv_runtime/runtime/world.py) | Shared execution lock, realtime scheduling, and terminal freeze |
+| [device-client.py](../src/roboenv/assets/device-client.py) | Portable transport and local kinematics for copied drivers |
+
+The backend's internal helpers are not an agent API. In particular, RoboCasa's
+owner observation includes object poses; never publish it as a device read or
+public task context. Bind to the initialized episode. Native reset can replace
+robot/controller/model objects, so rebuild bindings and invalidate old handles
+rather than retaining references across episodes.
 
 The [binding model](../src/roboenv/devices/model.py) defines `DeviceDefinition`,
 `Action`, `BoundDevice`, and `ExecutionContext`. A factory takes `(spec, root, context)`:
@@ -86,6 +120,20 @@ before returning. Both return `accepted: true`, never arrival. Keep other device
 goals active and document actual stop/hold behavior. Read/status/recording do not
 request steps. Keep the period inside the service, outside agent-facing profiles.
 
+Configure native controllers to implement the advertised action space. RoboCasa
+selects absolute `JOINT_POSITION` control for the arm and absolute lift goals;
+copying an upstream Cartesian policy action vector would not implement this contract.
+Retain the native physics, observables, and task hooks when adapting goal updates.
+Compose all active parts before one native interval; separately stepping each part
+would change time and task dynamics. A composite actuator is optional, but must
+specify its vector and reject overlapping ownership with its component actuators.
+
+For a realtime backend, expose `realtime_interval` and `realtime_tick` to the shared
+world scheduler. Do not start a physics thread per binding. Serialize ticks, device
+effects, reads, and finalization through the same world authority. In synchronous
+mode, route a write through the same native interval implementation. Count physical
+intervals, including idle realtime intervals, according to the declared budget.
+
 Put FK/IK in the manipulator driver. Export static geometry where needed; a serial
 chain can use Complex's `complex.kinematics`. The simulator supplies measured state
 and geometry, not a solver RPC. Local computation must not mutate live state.
@@ -98,7 +146,7 @@ catalog/robots/ROBOT/
   devices/NAME/profile.yaml
   devices/NAME/driver.py       # except world
 catalog/bindings/ROBOT.yaml
-catalog/tasks/TASK/task.yaml
+catalog/tasks/SIMULATOR/TASK/task.yaml
 ```
 
 The robot directory contains only `workspace.yaml` and `devices/`, ready to copy to
@@ -171,6 +219,14 @@ Use `catalog/bindings/ROBOT.yaml` for defaults. Task `device_bindings` is a comp
 replacement, not a patch. Publish exactly the selected profiles and drivers.
 Sensor configuration must also enable those sensors in the backend.
 
+Catalog task IDs use `SIMULATOR/TASK`, matching their directory below
+`catalog/tasks/`. `roboenv tasks list --simulator SIMULATOR` lists that backend's
+IDs; pass the same ID to launch or export. Keep native `backend_task` identifiers
+separate from these public names. Discovery must emit the same directory structure.
+RoboCasa task definitions explicitly include `backend_kwargs.realtime: true`;
+launch accepts `--realtime` or `--sync` as a per-run override. Other backends must
+implement the clock contract before accepting these overrides.
+
 Add lightweight discovery and default robot mapping in `src/roboenv/tasks/catalog.py`.
 Read task IDs, arguments, instructions, and provenance from pinned registries or
 configuration; record exclusions. Tasks use `action_abstraction: devices`. Start with
@@ -188,6 +244,9 @@ Add backend mappings, runtime wheels, source/asset slices, and image support to
 `tools/build_simulator_image.py` and deployment recipes. Use real image digests.
 Harbor must cover readiness, endpoint delivery, verifier access, and failure cleanup;
 validate exports with its installed loader. See [Harbor tasks](harbor-tasks.md).
+Rebuild runtime wheels/images after runtime changes; re-exporting tasks alone does
+not update the deployed service implementation. Preserve previous deployment
+identities and validation evidence.
 
 ## 6. Preserve the public service boundary
 

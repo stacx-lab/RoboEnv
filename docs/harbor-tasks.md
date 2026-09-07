@@ -66,6 +66,8 @@ provider 都支持多容器、GPU 和只读资产挂载。
       --wheel build/wheels/roboenv-0.2.0-py3-none-any.whl \
       --out generated/benchmark --seeds 0 --check-images
 
+任务 ID 使用 `simulator/task_name`，例如 `robocasa/pick-place-microwave`；
+样例存放于 `catalog/tasks/<simulator>/<task_name>/task.yaml`。
 默认从锁定上游发现任务，不需要旧 task 目录。可用 --ids 精确选取任务；
 也可传 --source catalog/tasks 使用小型样例，或指定自己维护的
 规范化 task.yaml 目录。--seeds 生成不同 seed 的独立 Harbor task。

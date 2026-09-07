@@ -159,7 +159,7 @@ def test_runner_classifies_real_success_separately_from_probe_connectivity(
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
-        deployments, wheel, out, backends=["libero"], cases=["libero-drawer-and-bowl"], modes=[mode]
+        deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"], modes=[mode]
     )
     calls = []
 
@@ -190,7 +190,7 @@ def test_missing_completion_or_modified_journal_cannot_certify_a_reference(tmp_p
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
-        deployments, wheel, out, backends=["libero"], cases=["libero-drawer-and-bowl"]
+        deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"]
     )
     record = receipt["cases"][0]
     trial = write_trial(out, record, reward=1, program_completed=False)
@@ -221,7 +221,7 @@ def test_unavailable_image_is_a_recorded_preflight_failure_not_a_trial(tmp_path,
     tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
-    tool.prepare(deployments, wheel, out, backends=["libero"], cases=["libero-drawer-and-bowl"])
+    tool.prepare(deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"])
 
     def fail(*args, **kwargs):
         raise FileNotFoundError("fixture Docker unavailable")
@@ -239,7 +239,7 @@ def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path,
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
-        deployments, wheel, out, backends=["libero"], cases=["libero-drawer-and-bowl"]
+        deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"]
     )
     program = out / "taskset" / receipt["cases"][0]["path"] / "solution/solution.py"
     program.write_text("# changed after preparation\n")
@@ -250,7 +250,7 @@ def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path,
 
 def test_case_selection_alone_narrows_probe_backends_without_guessing():
     tool = load_tool("validate_simulators")
-    cases = tool.select_cases(cases=["libero-drawer-and-bowl"], modes=["probe"])
+    cases = tool.select_cases(cases=["libero/drawer-and-bowl"], modes=["probe"])
     assert len(cases) == 1 and cases[0][1].backend == "libero"
 
 

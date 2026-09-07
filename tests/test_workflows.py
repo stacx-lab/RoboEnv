@@ -36,7 +36,7 @@ def test_nested_simulation_and_flat_task_resolve_identically():
 
 
 def test_task_id_resolution_and_missing_task():
-    resolved = resolve_task("libero-mug-into-microwave", project=ROOT)
+    resolved = resolve_task("libero/mug-into-microwave", project=ROOT)
     assert resolved.runtime_config()["adapter"] == "libero"
     assert resolved.task.backend_kwargs == {"suite_name": "libero_10", "task_id": 9}
     with pytest.raises(ValueError, match="tasks list"):
@@ -288,3 +288,80 @@ def test_launch_never_changes_catalog():
     with launch_toy(timeout=20):
         assert snapshot() == before
     assert snapshot() == before
+
+
+def test_grouped_catalog_ids_and_listing(capsys):
+    from roboenv.cli.main import main
+    from roboenv.tasks.catalog import load_catalog
+
+    catalog = load_catalog(ROOT / "catalog/tasks")
+    assert len(catalog) == 8
+    for identifier, (task, path) in catalog.items():
+        assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
+        assert identifier.split("/")[0] == task.backend
+        assert resolve_task(identifier, project=ROOT).task == task
+        if task.backend == "robocasa":
+            assert task.backend_kwargs["realtime"] is True
+    assert main(["tasks", "list", "--simulator", "robocasa", "--project", str(ROOT)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["ids"] == ["robocasa/arrange-vegetables", "robocasa/pick-place-microwave"]
+    with pytest.raises(ValueError, match="tasks list"):
+        resolve_task("robocasa-pick-place-microwave", project=ROOT)
+
+
+@pytest.mark.parametrize("value", ["robocasa/../escape", "robocasa/..", "libero/task", "robocasa/"])
+def test_task_rejects_invalid_namespaced_ids(value):
+    task = asdict(resolve_task("robocasa/pick-place-microwave", project=ROOT).task)
+    task["id"] = value
+    with pytest.raises(ValueError, match="task id"):
+        Task.from_dict(task)
+
+
+@pytest.mark.parametrize("realtime", [None, True, False])
+def test_clock_override_reaches_runtime_without_catalog_edits(realtime):
+    from roboenv_runtime.tasks.schema import TaskSpec
+
+    original = resolve_task("robocasa/pick-place-microwave", project=ROOT)
+    before = original.path.read_bytes()
+    resolved = resolve_task(original.path, project=ROOT, realtime=realtime)
+    expected = realtime if realtime is not None else True
+    assert resolved.task.backend_kwargs["realtime"] is expected
+    assert resolved.runtime_config()["adapter_kwargs"]["realtime"] is expected
+    assert TaskSpec.from_dict(asdict(resolved.task)).adapter_kwargs["realtime"] is expected
+    assert original.path.read_bytes() == before
+    assert original.task.backend_kwargs["realtime"] is True
+
+
+def test_clock_validation_precedes_launch_effects(monkeypatch):
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("unexpected process"))
+    with pytest.raises(ValueError, match="Clock selection is not supported"):
+        launch("libero/mug-into-microwave", project=ROOT, realtime=True)
+    with pytest.raises(ValueError, match="boolean"):
+        launch("robocasa/pick-place-microwave", project=ROOT, realtime="false")
+    task = asdict(resolve_task("robocasa/pick-place-microwave", project=ROOT).task)
+    task["backend_kwargs"]["realtime"] = "false"
+    with pytest.raises(ValueError, match="boolean"):
+        Task.from_dict(task)
+
+
+@pytest.mark.parametrize(
+    "flags, expected", [([], None), (["--realtime"], True), (["--sync"], False)]
+)
+def test_launch_cli_clock_selection(monkeypatch, flags, expected):
+    from roboenv.cli.main import main
+
+    class Selected(Exception):
+        pass
+
+    calls = []
+
+    def selected(task, **kwargs):
+        calls.append((task, kwargs["realtime"]))
+        raise Selected("clock reached launch")
+
+    monkeypatch.setattr("roboenv.environment.launch", selected)
+    assert main(["launch", "robocasa/pick-place-microwave", *flags]) == 1
+    assert calls == [("robocasa/pick-place-microwave", expected)]
+    with pytest.raises(SystemExit) as error:
+        main(["launch", "robocasa/pick-place-microwave", "--realtime", "--sync"])
+    assert error.value.code == 2

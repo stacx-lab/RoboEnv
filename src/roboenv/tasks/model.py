@@ -56,6 +56,8 @@ class Task:
         ):
             raise ValueError("backend_kwargs must be an environment configuration mapping")
         json_value(task.backend_kwargs)
+        if "realtime" in task.backend_kwargs and type(task.backend_kwargs["realtime"]) is not bool:
+            raise ValueError("realtime must be a boolean")
         if task.device_bindings is not None:
             from roboenv.devices.bindings.spec import BindingSpec
 
@@ -75,6 +77,11 @@ class Task:
             raise ValueError("budget_mode must be official or explicit practice")
         for name in ("id", "backend", "backend_task", "robot"):
             item = getattr(task, name)
+            if name == "id" and isinstance(item, str) and "/" in item:
+                parts = item.split("/")
+                if len(parts) != 2 or parts[0] != task.backend:
+                    raise ValueError("task id must use simulator/task_name with its backend")
+                item = parts[1]
             if (
                 not isinstance(item, str)
                 or not item

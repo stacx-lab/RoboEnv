@@ -1,4 +1,4 @@
-id: libero-mug-into-microwave
+id: libero/mug-into-microwave
 backend: libero
 backend_task: libero.10_9
 robot: libero-panda

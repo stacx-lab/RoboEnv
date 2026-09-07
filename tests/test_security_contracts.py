@@ -86,7 +86,7 @@ def test_yaml_alias_expansion_is_rejected_before_export():
 
 
 def test_task_and_profile_duplicate_yaml_keys_are_not_silently_accepted(tmp_path):
-    source = ROOT / "catalog/tasks/robocasa-arrange-vegetables/task.yaml"
+    source = ROOT / "catalog/tasks/robocasa/arrange-vegetables/task.yaml"
     task = tmp_path / "task.yaml"
     task.write_text(source.read_text() + "\nseed: 0\nseed: 1\n")
     with pytest.raises(ValueError, match="unique string"):
@@ -163,7 +163,7 @@ def test_deployment_rejects_overlapping_depots(tmp_path):
 
 def test_healthcheck_does_not_execute_an_unverified_interpreter_depot(tmp_path):
     path, _ = deployment(tmp_path)
-    task = Task.load(ROOT / "catalog/tasks/libero-drawer-and-bowl/task.yaml")
+    task = Task.load(ROOT / "catalog/tasks/libero/drawer-and-bowl/task.yaml")
     service = native_service(path, task, portable=True)
     assert service["healthcheck"]["test"] == [
         "CMD",
