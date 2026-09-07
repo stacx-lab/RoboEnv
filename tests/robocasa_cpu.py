@@ -25,12 +25,12 @@ def make_adapter(*, realtime=False):
                 camera.set("quat", " ".join(map(str, config["quat"])))
                 camera.attrib.update(config.get("camera_attribs", {}))
 
-    from robosuite.controllers import load_composite_controller_config
+    from roboenv_runtime.adapters.robocasa.backend import joint_controller_config
 
     native = RoboCasaEnv.__new__(RoboCasaEnv)
     native.env = CameraLift(
         robots="PandaOmron",
-        controller_configs=load_composite_controller_config(robot="PandaOmron"),
+        controller_configs=joint_controller_config("PandaOmron"),
         has_renderer=False,
         has_offscreen_renderer=False,
         use_camera_obs=False,
@@ -69,6 +69,9 @@ def make_adapter(*, realtime=False):
 
 
 def check(root, temporary):
+    import sys
+
+    sys.path.insert(0, str(root.parent / "complex/python"))
     import json
     from dataclasses import replace
     from types import SimpleNamespace
@@ -143,6 +146,12 @@ def check(root, temporary):
     def call(name, action, args=None):
         return service.call({"device": name, "action": action, "args": args or {}})["data"]
 
+    def local(name, action, args):
+        result = drivers[name]["handle"](action, args)
+        if not result["ok"]:
+            raise ValueError(result["error"])
+        return {key: value for key, value in result.items() if key != "ok"}
+
     try:
         export_devices(
             service.inventory()["devices"],
@@ -153,6 +162,22 @@ def check(root, temporary):
                 "generation": 0,
             },
         )
+        import runpy
+
+        drivers = {name: runpy.run_path(str(temporary / "devices" / name / "driver.py"))
+                   for name in ("arm", "torso")}
+        for name, driver in drivers.items():
+            driver["handle"].__globals__["remote"] = (
+                lambda action, args, name=name: call(name, action, args)
+            )
+            for action in ("fk", "ik"):
+                assert action not in service.describe(name)["actions"]
+                try:
+                    call(name, action, {})
+                except DeviceError:
+                    pass
+                else:
+                    raise AssertionError("Simulation exposes a local kinematics operation")
         assert adapter.tools() == {}
         assert service.describe("world")["actions"] == {}
         assert "mount" not in service.describe("body")["extrinsics"]
@@ -204,7 +229,7 @@ def check(root, temporary):
             assert set(state) >= {"positions", "velocities", "faults"}
             size = len(service.describe(name)["intrinsics"]["actions"])
             before = native._step_count
-            for target in ([0.0] * (size + 1), [2.0] * size, [float("nan")] * size):
+            for target in ([0.0] * (size + 1), [100.0] * size, [float("nan")] * size):
                 try:
                     call(name, "write", {"target": target})
                 except DeviceError:
@@ -212,7 +237,9 @@ def check(root, temporary):
                 else:
                     raise AssertionError("Invalid target accepted")
             assert native._step_count == before
-            call(name, "write", {"target": [0.1] * size})
+            target = (service.describe(name)["intrinsics"]["home_joints"]
+                      if name in ("arm", "torso") else [0.1] * size)
+            call(name, "write", {"target": target})
             assert native._step_count == before + 1
             assert call(name, "stop") == {"stopped": True}
             assert native._step_count == before + 1
@@ -242,19 +269,19 @@ def check(root, temporary):
                 state = call(name, "read")
                 live = native.sim.data._data
                 snapshot = (live.qpos.copy(), live.qvel.copy(), live.ctrl.copy(), live.time)
-                current = call(name, "fk", {"joints": state["positions"]})["pose"]
+                current = local(name, "fk", {"joints": state["positions"]})["pose"]
                 np.testing.assert_allclose(current, state["flange_pose"], atol=1e-8)
                 alternate = list(state["positions"])
                 alternate[0] += 0.015
-                target = call(name, "fk", {"joints": alternate})["pose"]
+                target = local(name, "fk", {"joints": alternate})["pose"]
                 assert not np.allclose(current[:3], target[:3])
-                solved = call(name, "ik", {"pose": target, "seed": state["positions"]})
-                actual = call(name, "fk", solved)["pose"]
+                solved = local(name, "ik", {"pose": target, "seed": state["positions"]})
+                actual = local(name, "fk", solved)["pose"]
                 np.testing.assert_allclose(actual[:3], target[:3], atol=1e-4)
                 unreachable = [100, 100, 100, 0, 0, 0, 1]
                 try:
-                    call(name, "ik", {"pose": unreachable})
-                except DeviceError:
+                    local(name, "ik", {"pose": unreachable})
+                except ValueError:
                     pass
                 else:
                     raise AssertionError("Unreachable pose accepted")
@@ -269,8 +296,8 @@ def check(root, temporary):
                                      ("ik", {"pose": current, "seed": invalid}),
                                      ("ik", {"pose": [0, 0, 0, 0, 0, 0, 0]})):
                     try:
-                        call(name, action, args)
-                    except DeviceError:
+                        local(name, action, args)
+                    except ValueError:
                         pass
                     else:
                         raise AssertionError("Invalid kinematics input accepted")
@@ -282,7 +309,7 @@ def check(root, temporary):
                     for side, sign in ((0, -1), (1, 1)):
                         bounded = np.asarray(facts["home_joints"]).copy()
                         bounded[index] = ranges[index, side]
-                        target = call(name, "fk", {"joints": bounded.tolist()})["pose"]
+                        target = local(name, "fk", {"joints": bounded.tolist()})["pose"]
                         measured = bounded.copy()
                         measured[index] += sign * 0.001
                         live.qpos[addresses] = measured
@@ -291,7 +318,7 @@ def check(root, temporary):
                         reading = call(name, "read")
                         np.testing.assert_array_equal(reading["positions"], measured)
                         assert np.isfinite(reading["flange_pose"]).all()
-                        solved = call(name, "ik", {"pose": target})["joints"]
+                        solved = local(name, "ik", {"pose": target})["joints"]
                         np.testing.assert_allclose(solved, bounded, atol=1e-10)
                         for actual, previous in zip(
                             (live.qpos, live.qvel, live.ctrl), saved[:3], strict=True
@@ -300,10 +327,34 @@ def check(root, temporary):
                         assert live.time == saved[3]
                 live.qpos[:] = saved_qpos
                 native.sim.forward()
-        # A later base command must not continue a previous gripper velocity.
+        # Repeated absolute writes advance time without restarting the controller.
+        from unittest.mock import patch
+
+        arm = native._robot.part_controllers["right"]
+        goal = np.array(service.describe("arm")["intrinsics"]["home_joints"])
+        goal[0] += 0.1
+        before = native.sim.data.time
+        with patch.object(arm, "set_goal", wraps=arm.set_goal) as set_goal:
+            for _ in range(60):
+                call("arm", "write", {"target": goal.tolist()})
+            assert set_goal.call_count == 1
+        assert abs(native.sim.data.time - before - 3) < 1e-9
+        state = call("arm", "read")
+        np.testing.assert_allclose(state["positions"], goal, atol=0.01)
+        assert max(abs(v) for v in state["velocities"]) < 0.01
+        assert state["sample_time_s"] == native.sim.data.time
+        replacement = goal.copy()
+        replacement[0] -= 0.2
+        call("arm", "write", {"target": replacement.tolist()})
+        call("arm", "write", {"target": goal.tolist()})
+        np.testing.assert_array_equal(arm.goal_qpos, goal)
+        # A later base command preserves the previous gripper command.
         call("gripper", "write", {"target": [1]})
+        fingers = native._robot.gripper["right"].current_action.copy()
         call("body", "write", {"target": [0, 0, 0]})
-        np.testing.assert_array_equal(native._robot.gripper["right"].current_action, [0, 0])
+        increment = np.array([-1, 1]) * native._robot.gripper["right"].speed
+        np.testing.assert_allclose(native._robot.gripper["right"].current_action,
+                                   np.clip(fingers + increment, -1, 1))
         for action in ("pick", "move", "invoke", "policy_run"):
             try:
                 call("arm", action)
@@ -337,11 +388,14 @@ def check(root, temporary):
         try:
             profile = composite.describe("controller")
             target = [0.0] * len(profile["intrinsics"]["actions"])
+            for part, name in (("right", "arm"), ("torso", "torso")):
+                start, end = profile["intrinsics"]["parts"][part]
+                target[start:end] = service.describe(name)["intrinsics"]["home_joints"]
             before = native._step_count
             result = composite.call(
                 {"device": "controller", "action": "write", "args": {"target": target}}
             )
-            assert result["data"]["completed"]
+            assert result["data"] == {"accepted": True}
             assert native._step_count == before + 1
         finally:
             composite.close()

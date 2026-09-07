@@ -6,8 +6,8 @@ Harbor installation belong in their respective projects.
 
 ## Before proposing a change
 
-Read [the architecture boundary](README.md), [device bindings](docs/adding-devices.md)
-and [simulator integration](docs/adding-simulators.md). Open a design issue before
+Read [the architecture boundary](README.md) and the
+[simulator integration guide](docs/simulator-integration.md). Open a design issue before
 changing a public protocol, adding an engine dependency to the SDK, or introducing
 a new execution authority. Small fixes can go directly to a pull request.
 

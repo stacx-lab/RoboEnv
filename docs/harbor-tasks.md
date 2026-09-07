@@ -125,7 +125,7 @@ GPU 选择使用 ROBOENV_GPU。路径、凭证和模型端点只能进入本地�
 
 ## 6. 新设备设计下的配置与观测边界
 
-新后端遵循 [DESIGN.md](../DESIGN.md) 和 [Simulator 接入](adding-simulators.md)。
+新后端遵循 [DESIGN.md](../DESIGN.md) 和 [Simulator 接入](simulator-integration.md)。
 静态 `catalog/robots/ROBOT/` 只有 `workspace.yaml` 与 `devices/`；它可以直接
 复制到 `.complex/robots/ROBOT/`。`catalog/bindings/ROBOT.yaml`、seed、场景
 参数和 verifier 数据属于 owner 侧，不进入 Complex robot 配置。

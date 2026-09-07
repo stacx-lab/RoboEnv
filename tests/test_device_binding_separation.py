@@ -307,7 +307,7 @@ def test_task_export_freezes_explicit_bindings_and_only_selected_client_devices(
     public = base / "definition/robot"
     assert not (public / "bindings.yaml").exists()
     assert not (public / "devices/controller").exists()
-    assert "Client()" in (public / "devices/puck/driver.py").read_text()
+    assert "from roboenv" not in (public / "devices/puck/driver.py").read_text()
     assert yaml.safe_load((public / "devices/puck/profile.yaml").read_text())["name"] == "puck"
 
 

@@ -7,7 +7,7 @@ import uuid
 import numpy as np
 
 from roboenv.devices.model import Action, BoundDevice
-from roboenv_runtime.adapters.robocasa.kinematics import Kinematics, vector
+from roboenv_runtime.adapters.robocasa.geometry import chain, pose, vector
 from roboenv_runtime.adapters.robocasa.depth import DEPTH_SCALE, write_depth
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
@@ -23,12 +23,12 @@ TYPES = {
 }
 
 
-def array(size, *, bounded=False):
+def array(size):
     return {
         "type": "array",
         "minItems": size,
         "maxItems": size,
-        "items": {"type": "number", **({"minimum": -1, "maximum": 1} if bounded else {})},
+        "items": {"type": "number"},
     }
 
 
@@ -39,6 +39,28 @@ def arguments(properties, required):
         "required": required,
         "additionalProperties": False,
     }
+
+
+def part_actions(robot, sim, part):
+    controller = robot.part_controllers[part]
+    if part in {"right", "torso"}:
+        model = sim.model._model
+        return [
+            {"joint": sim.model.joint_id2name(int(j)),
+             "units": "m" if model.jnt_type[j] == 2 else "rad",
+             **({"bounds": {"min": float(model.jnt_range[j, 0]),
+                            "max": float(model.jnt_range[j, 1])}} if model.jnt_limited[j] else {})}
+            for j in controller.joint_index
+        ]
+    components = {"base": ["forward", "left", "yaw_rate"], "right_gripper": ["close"]}[part]
+    return [{"component": name, "units": "normalized", "bounds": {"min": -1, "max": 1}}
+            for name in components]
+
+
+def command_vector(target, actions):
+    return vector(target, len(actions),
+                  lower=[a.get("bounds", {}).get("min", -np.inf) for a in actions],
+                  upper=[a.get("bounds", {}).get("max", np.inf) for a in actions])
 
 
 def bind(spec, root, context):
@@ -76,15 +98,13 @@ def bind(spec, root, context):
                     "load": ["loaded"],
                     "unload": ["unloaded"],
                     "status": ["loaded"],
-                    "write": ["completed"],
+                    "write": ["accepted"],
                     "stop": ["stopped"],
-                    "fk": ["pose"],
-                    "ik": ["joints"],
                     "read": (
                         ["file", "width", "height", "channels"]
                         + (["depth_file", "depth_scale"] if definition.type == "rgbd" else [])
                         if entity == "camera"
-                        else ["positions", "velocities", "faults"]
+                        else ["positions", "velocities", "faults", "sample_time_s"]
                     ),
                 }[name],
             },
@@ -99,17 +119,11 @@ def bind(spec, root, context):
         part = PARTS[entity]
         controller = robot.part_controllers[part]
         joints = np.asarray(controller.joint_index, dtype=int)
-        # Control vectors can differ from measured joint vectors (OSC and grippers).
+        # A gripper command has one value but two measured finger joints.
         split = robot.composite_controller._action_split_indexes[part]
         size = split[1] - split[0]
-        frequency = float(world.env.control_freq)
-        components = {
-            "arm": ["dx", "dy", "dz", "rx", "ry", "rz"],
-            "base": ["forward", "left", "yaw_rate"],
-            "torso": ["lift_delta"],
-            "gripper": ["close"],
-        }[entity]
-        if size != len(components):
+        command_actions = part_actions(robot, sim, part)
+        if size != len(command_actions):
             raise ValueError("Unexpected native controller action space")
         intrinsics.update(
             source="introspected",
@@ -132,19 +146,9 @@ def bind(spec, root, context):
                 }
                 for j in joints
             ],
-            actions=[
-                {"component": components[i], "units": "normalized", "bounds": {"min": -1, "max": 1}}
-                for i in range(size)
-            ],
-            control_interval_s=1 / frequency,
-            clock_mode="realtime" if getattr(world, "realtime", False) else "stepped",
-            command_expiry=(
-                "until replaced, stopped, or submitted"
-                if getattr(world, "realtime", False)
-                else "one control interval; other parts receive zero deltas/velocities"
-            ),
+            actions=command_actions,
         )
-        # Preserve native benchmark controller modes and scaling.
+        # Diagnostic metadata; command units and bounds are explicit above.
         intrinsics["controller"] = {
             "name": type(controller).__name__,
             "input_type": getattr(controller, "input_type", None),
@@ -182,22 +186,6 @@ def bind(spec, root, context):
             "controller deltas and actuator control ranges are not such a cap.",
         }
         if entity in {"arm", "torso"}:
-            intrinsics["kinematics"] = {
-                "source": "MuJoCo compiled model",
-                "fk": "mj_kinematics on scratch data",
-                "ik": "damped least squares using mj_jacBody; joint limits enforced",
-                "frame": "device base",
-                "pose": "[x,y,z,qx,qy,qz,qw]; metres; flange in device base",
-                "joint_units": "rad" if entity == "arm" else "m",
-                "implicit_seed": "current measured joints projected into limits on scratch data",
-            }
-            units = ["m"] * 3 + ["rad"] * 3 if entity == "arm" else ["m"]
-            for i, action in enumerate(intrinsics["actions"]):
-                action["meaning"] = (
-                    f"Native delta target in {getattr(controller, 'input_ref_frame', 'joint')} "
-                    f"frame; [-1,1] scales to [{controller.output_min[i]:g},"
-                    f"{controller.output_max[i]:g}] {units[i]} per interval; not a velocity cap"
-                )
             intrinsics["joint_limit_semantics"] = {
                 "source": "MuJoCo compiled model jnt_limited/jnt_range",
                 "units": "rad" if entity == "arm" else "m",
@@ -210,17 +198,10 @@ def bind(spec, root, context):
                 "are bounded. These checks do not guarantee collision-free or reachable motion.",
                 "read": "Reports actual joints and flange pose even outside nominal limits",
             }
-            if entity == "arm":
-                intrinsics["joint_limit_semantics"]["controller"] = (
-                    "Native OSC accepts 6 Cartesian deltas, not 7 joint targets. Its nullspace "
-                    "term attracts joints to the initial posture; it has no explicit joint-range "
-                    "avoidance or guaranteed recovery from limits, singularities or contacts."
-                )
-                intrinsics["joint_limit_semantics"]["recovery"] = (
-                    "Read measured joints and compare with joints[].limits before further motion. "
-                    "stop resets the servo goal without moving home. IK is read-only and does "
-                    "not execute recovery; home_joints cannot be passed to this OSC write action."
-                )
+            intrinsics["joint_limit_semantics"]["controller"] = (
+                "Absolute joint targets are validated against joint limits before acceptance. "
+                "stop holds measured joints; target acceptance does not imply arrival."
+            )
         elif entity == "base":
             intrinsics["velocity_limits"]["actuator_target_ranges"] = [
                 {"joint": a["joint"], "range": a["control_range"],
@@ -236,9 +217,9 @@ def bind(spec, root, context):
         definition = replace(
             definition,
             control_mode={
-                "arm": "cartesian_delta",
+                "arm": "joint_position",
                 "base": "normalized_velocity",
-                "torso": "joint_delta",
+                "torso": "joint_position",
                 "gripper": "gripper_velocity",
             }[entity],
         )
@@ -250,68 +231,48 @@ def bind(spec, root, context):
             body = arm_base
         else:
             base, body = 0, sim.model.body_name2id(robot.robot_model.base.root_body)
-        kin = (
-            Kinematics(model, data, joints, body, base)
-            if entity in {"arm", "torso", "base"}
-            else None
-        )
+        if entity in {"arm", "torso"}:
+            intrinsics["kinematics"] = chain(model, joints, body, base)
 
         def read():
             result = {
                 "positions": data.qpos[model.jnt_qposadr[joints]].tolist(),
                 "velocities": data.qvel[model.jnt_dofadr[joints]].tolist(),
                 "faults": [],
+                "sample_time_s": float(data.time),
             }
-            if kin:
+            if entity in {"arm", "torso", "base"}:
                 key = "pose" if entity == "base" else "flange_pose"
-                result[key] = kin.measured_pose()
+                result[key] = pose(model, data, body, base)
             return result
 
         def write(target):
-            command = vector(target, size, lower=-1, upper=1)
+            command = command_vector(target, command_actions)
             world.step({part: command})
-            return {"completed": not getattr(world, "realtime", False), "accepted": True}
+            return {"accepted": True}
 
         def stop():
-            if getattr(world, "realtime", False):
-                world.stop_part(part)
-                return {"stopped": True}
-            # The world is stepped, so between writes it is already paused. Reset
-            # the servo's goal to measured state, without stepping or teleporting.
-            if entity == "gripper":
-                robot.gripper["right"].current_action[:] = 0
-                controller.set_goal(np.zeros(len(joints)))
-            else:
-                controller.reset_goal()
+            world.stop_part(part)
             return {"stopped": True}
 
         register("read", read)
         register(
             "write",
             write,
-            arguments({"target": array(size, bounded=True)}, ["target"]),
+            arguments({"target": array(size)}, ["target"]),
             mutation=True,
         )
         register("stop", stop, mutation=True)
-        if entity in {"arm", "torso"}:
-            register("fk", kin.fk, arguments({"joints": array(len(joints))}, ["joints"]))
-            register(
-                "ik", kin.ik, arguments({"pose": array(7), "seed": array(len(joints))}, ["pose"])
-            )
     elif entity == "robot":
-        size = robot.action_dim
+        size = sum(end - start for start, end in robot.composite_controller._action_split_indexes.values())
         joints = np.unique(np.concatenate([c.joint_index for c in robot.part_controllers.values()]))
         intrinsics.update(
-            actions=[
-                {"component": str(i), "units": "normalized", "bounds": {"min": -1, "max": 1}}
-                for i in range(size)
-            ],
+            actions=[a for part in robot.composite_controller._action_split_indexes
+                     for a in part_actions(robot, sim, part)],
             parts={
                 name: list(span)
                 for name, span in robot.composite_controller._action_split_indexes.items()
             },
-            base_mode_index=size - 1,
-            control_interval_s=1 / float(world.env.control_freq),
         )
         definition = replace(definition, control_mode="native_composite")
 
@@ -320,29 +281,23 @@ def bind(spec, root, context):
                 "positions": data.qpos[model.jnt_qposadr[joints]].tolist(),
                 "velocities": data.qvel[model.jnt_dofadr[joints]].tolist(),
                 "faults": [],
+                "sample_time_s": float(data.time),
             }
 
         def write(target):
-            world.step_vector(vector(target, size, lower=-1, upper=1))
-            return {"completed": not getattr(world, "realtime", False), "accepted": True}
+            world.step_vector(command_vector(target, intrinsics["actions"]))
+            return {"accepted": True}
 
         def stop():
-            for part, controller in robot.part_controllers.items():
-                if getattr(world, "realtime", False):
-                    world.stop_part(part)
-                    continue
-                if part == "right_gripper":
-                    robot.gripper["right"].current_action[:] = 0
-                    controller.set_goal(np.zeros(controller.joint_dim))
-                else:
-                    controller.reset_goal()
+            for part in robot.part_controllers:
+                world.stop_part(part)
             return {"stopped": True}
 
         register("read", read)
         register(
             "write",
             write,
-            arguments({"target": array(size, bounded=True)}, ["target"]),
+            arguments({"target": array(size)}, ["target"]),
             mutation=True,
         )
         register("stop", stop, mutation=True)
