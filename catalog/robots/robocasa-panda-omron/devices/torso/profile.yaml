@@ -11,18 +11,14 @@ intrinsics:
       min: 0.0
       max: 0.34
   actions:
-  - component: lift_delta
-    units: normalized
+  - joint: mobilebase0_joint_torso_height
+    units: m
     bounds:
-      min: -1
-      max: 1
-    meaning: Native delta target in joint frame; [-1,1] scales to [-0.05,0.05] m per
-      interval; not a velocity cap
-  control_interval_s: 0.05
-  command_expiry: until replaced, stopped, or submitted
+      min: 0.0
+      max: 0.34
   controller:
     name: JointPositionController
-    input_type: delta
+    input_type: absolute
     input_ref_frame: null
     output_min:
     - -0.05
@@ -49,12 +45,49 @@ intrinsics:
       deltas and actuator control ranges are not such a cap.
   kinematics:
     source: MuJoCo compiled model
-    fk: mj_kinematics on scratch data
-    ik: damped least squares using mj_jacBody; joint limits enforced
-    frame: device base
-    pose: '[x,y,z,qx,qy,qz,qw]; metres; flange in device base'
-    joint_units: m
-    implicit_seed: current measured joints projected into limits on scratch data
+    chain:
+    - origin:
+      - -0.05
+      - 0.0
+      - 0.5
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+    - origin:
+      - 0.05
+      - 0.0
+      - 0.2
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 0
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
   joint_limit_semantics:
     source: MuJoCo compiled model jnt_limited/jnt_range
     units: m
@@ -74,7 +107,8 @@ intrinsics:
     fk_ik: Explicit FK joints and IK seeds must be within limits; IK results are bounded.
       These checks do not guarantee collision-free or reachable motion.
     read: Reports actual joints and flange pose even outside nominal limits
-  clock_mode: realtime
+    controller: Absolute joint targets are validated against joint limits before acceptance.
+      stop holds measured joints; target acceptance does not imply arrival.
 extrinsics:
   source: introspected
   mount:
@@ -96,8 +130,7 @@ access:
   source: user
   kind: url
   url: http://127.0.0.1:8123
-  control_mode: joint_delta
-  frequency_hz: 20.0
+  control_mode: joint_position
   driver:
     entry: driver.py
     interpreter: python3

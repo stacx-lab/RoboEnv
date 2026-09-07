@@ -52,8 +52,12 @@ and connect to `run.endpoint`. Use
 RoboCasa implements the device-first API: `env.task`, `env.devices()`, and
 `env.device(name)`. Drivers expose only their type's basic operations. The world advances
 continuously while the agent thinks. Writes update persistent controller goals;
-reads and IK/FK do not request extra steps. Set `backend_kwargs.realtime: false`
-in the task YAML for synchronous mode, where only writes advance physics.
+reads do not request extra steps. Exported arm/torso drivers solve IK/FK locally
+using Complex utilities and static profile geometry; they do not require RoboEnv
+in the agent environment. Set `backend_kwargs.realtime: false`
+in the task YAML for synchronous mode, where each write advances one control period, retaining all active goals.
+Arm and torso targets are absolute joint positions in radians/metres; gripper
+commands keep their native signed format. Acceptance never implies arrival.
 Neither mode imposes a simulation horizon.
 Task-solving controllers belong in the agent harness. See [RoboCasa](docs/robocasa.md)
 for action spaces, task-specific device selection, and validation coverage.
@@ -103,9 +107,8 @@ reuse shared implementations through an explicit binding index.
 contains pinned submodules and recorded patches. Generated output and local
 environments stay outside Git.
 
-See [simulator integration](docs/adding-simulators.md),
-[device integration](docs/adding-devices.md), and the
-[device service contract](docs/device-service.md) for developer interfaces.
+See [simulator integration](docs/simulator-integration.md) for adapter, service,
+and device catalog authoring, and [RoboCasa](docs/robocasa.md) for the reference rig.
 [Installation evidence](docs/installation-reference.md) and
 [GPU validation](docs/gpu-validation.md) describe tested coverage.
 

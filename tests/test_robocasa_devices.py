@@ -112,6 +112,8 @@ def native_interpreter():
 
 
 def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
+    if not (ROOT.parent / "complex/python/complex/kinematics.py").is_file():
+        pytest.skip("Driver-local IK/FK integration requires the sibling Complex utility")
     interpreter = native_interpreter()
     environment = {
         **os.environ,
@@ -239,6 +241,10 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
     for path in tmp_path.rglob("*"):
         if path.is_file():
             assert path.read_bytes() == (robot / path.relative_to(tmp_path)).read_bytes(), str(path)
+    for name in ("arm", "torso", "body", "gripper"):
+        actuator = yaml.safe_load((robot / "devices" / name / "profile.yaml").read_text())
+        assert "control_interval_s" not in actuator["intrinsics"]
+        assert "frequency_hz" not in actuator["access"]
     camera = yaml.safe_load((robot / "devices/camera_left/profile.yaml").read_text())
     assert camera["extrinsics"]["mount"]["parent"] == "torso"
     assert camera["extrinsics"]["mount"]["parent_frame"] == "flange"
@@ -380,7 +386,7 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         assert {p["name"] for p in second.devices()} == {"world", "body", "camera_left"}
         with pytest.raises(KeyError):
             second.device("arm")
-        first.device("arm").write([0.1, 0, 0, 0, 0, 0])
+        first.device("arm").write(first.device("arm").read()["positions"])
         assert owners[0].request("observe")["budget"]["used"] == 1
         assert owners[1].request("observe")["budget"]["used"] == 0
         image = first.device("camera_left").read()

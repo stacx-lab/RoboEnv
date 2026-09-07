@@ -47,68 +47,61 @@ intrinsics:
       min: -2.8973
       max: 2.8973
   actions:
-  - component: dx
-    units: normalized
+  - joint: robot0_joint1
+    units: rad
     bounds:
-      min: -1
-      max: 1
-    meaning: Native delta target in base frame; [-1,1] scales to [-0.05,0.05] m per
-      interval; not a velocity cap
-  - component: dy
-    units: normalized
+      min: -2.8973
+      max: 2.8973
+  - joint: robot0_joint2
+    units: rad
     bounds:
-      min: -1
-      max: 1
-    meaning: Native delta target in base frame; [-1,1] scales to [-0.05,0.05] m per
-      interval; not a velocity cap
-  - component: dz
-    units: normalized
+      min: -1.7628
+      max: 1.7628
+  - joint: robot0_joint3
+    units: rad
     bounds:
-      min: -1
-      max: 1
-    meaning: Native delta target in base frame; [-1,1] scales to [-0.05,0.05] m per
-      interval; not a velocity cap
-  - component: rx
-    units: normalized
+      min: -2.8973
+      max: 2.8973
+  - joint: robot0_joint4
+    units: rad
     bounds:
-      min: -1
-      max: 1
-    meaning: Native delta target in base frame; [-1,1] scales to [-0.5,0.5] rad per
-      interval; not a velocity cap
-  - component: ry
-    units: normalized
+      min: -3.0718
+      max: -0.0698
+  - joint: robot0_joint5
+    units: rad
     bounds:
-      min: -1
-      max: 1
-    meaning: Native delta target in base frame; [-1,1] scales to [-0.5,0.5] rad per
-      interval; not a velocity cap
-  - component: rz
-    units: normalized
+      min: -2.8973
+      max: 2.8973
+  - joint: robot0_joint6
+    units: rad
     bounds:
-      min: -1
-      max: 1
-    meaning: Native delta target in base frame; [-1,1] scales to [-0.5,0.5] rad per
-      interval; not a velocity cap
-  control_interval_s: 0.05
-  command_expiry: until replaced, stopped, or submitted
+      min: -0.0175
+      max: 3.7525
+  - joint: robot0_joint7
+    units: rad
+    bounds:
+      min: -2.8973
+      max: 2.8973
   controller:
-    name: OperationalSpaceController
-    input_type: delta
-    input_ref_frame: base
+    name: JointPositionController
+    input_type: absolute
+    input_ref_frame: null
     output_min:
     - -0.05
     - -0.05
     - -0.05
-    - -0.5
-    - -0.5
-    - -0.5
+    - -0.05
+    - -0.05
+    - -0.05
+    - -0.05
     output_max:
     - 0.05
     - 0.05
     - 0.05
-    - 0.5
-    - 0.5
-    - 0.5
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
   interface: roboenv/manipulator/1
   home_joints:
   - 0.0
@@ -196,12 +189,141 @@ intrinsics:
       deltas and actuator control ranges are not such a cap.
   kinematics:
     source: MuJoCo compiled model
-    fk: mj_kinematics on scratch data
-    ik: damped least squares using mj_jacBody; joint limits enforced
-    frame: device base
-    pose: '[x,y,z,qx,qy,qz,qw]; metres; flange in device base'
-    joint_units: rad
-    implicit_seed: current measured joints projected into limits on scratch data
+    chain:
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.333
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 0
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - -0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 1
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - -0.316
+      - 0.0
+      - 0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 2
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0825
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 3
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - -0.0825
+      - 0.384
+      - 0.0
+      - -0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 4
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 5
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.088
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 6
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.1065
+      - 0.0
+      - 0.0
+      - -0.382910983543
+      - 0.923785244893
   joint_limit_semantics:
     source: MuJoCo compiled model jnt_limited/jnt_range
     units: rad
@@ -269,13 +391,8 @@ intrinsics:
     fk_ik: Explicit FK joints and IK seeds must be within limits; IK results are bounded.
       These checks do not guarantee collision-free or reachable motion.
     read: Reports actual joints and flange pose even outside nominal limits
-    controller: Native OSC accepts 6 Cartesian deltas, not 7 joint targets. Its nullspace
-      term attracts joints to the initial posture; it has no explicit joint-range
-      avoidance or guaranteed recovery from limits, singularities or contacts.
-    recovery: Read measured joints and compare with joints[].limits before further
-      motion. stop resets the servo goal without moving home. IK is read-only and
-      does not execute recovery; home_joints cannot be passed to this OSC write action.
-  clock_mode: realtime
+    controller: Absolute joint targets are validated against joint limits before acceptance.
+      stop holds measured joints; target acceptance does not imply arrival.
 extrinsics:
   source: introspected
   mount:
@@ -298,8 +415,7 @@ access:
   source: user
   kind: url
   url: http://127.0.0.1:8123
-  control_mode: cartesian_delta
-  frequency_hz: 20.0
+  control_mode: joint_position
   driver:
     entry: driver.py
     interpreter: python3

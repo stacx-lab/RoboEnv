@@ -21,9 +21,8 @@ from robocasa.utils.camera_utils import get_robot_cam_configs
 from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.export import export_devices
-from roboenv_runtime.adapters.robocasa.backend import DEFAULT_CAMERAS
+from roboenv_runtime.adapters.robocasa.backend import DEFAULT_CAMERAS, joint_controller_config
 from roboenv_runtime.bindings import default_registry
-from robosuite.controllers import load_composite_controller_config
 from robosuite.models.arenas import EmptyArena
 from robosuite.models.tasks import ManipulationTask
 from robosuite.robots import ROBOT_CLASS_MAPPING
@@ -36,7 +35,7 @@ ROBOT = ROOT / "catalog/robots/robocasa-panda-omron"
 def descriptors():
     robot = ROBOT_CLASS_MAPPING["PandaOmron"](
         "PandaOmron",
-        composite_controller_config=load_composite_controller_config(robot="PandaOmron"),
+        composite_controller_config=joint_controller_config("PandaOmron"),
         initialization_noise=None,
         control_freq=20,
     )
@@ -147,13 +146,15 @@ def generate(out, provenance=None):
         "third_party/robosuite/robosuite/models/assets/bases/omron_mobile_base.xml",
         "third_party/robosuite/robosuite/models/assets/grippers/panda_gripper.xml",
         "third_party/robosuite/robosuite/controllers/config/robots/default_pandaomron.json",
-        "third_party/robosuite/robosuite/controllers/parts/arm/osc.py",
+        "third_party/robosuite/robosuite/controllers/config/default/parts/joint_position.json",
         "third_party/robosuite/robosuite/controllers/parts/generic/joint_pos.py",
         "third_party/robosuite/robosuite/controllers/parts/mobile_base/joint_vel.py",
         "third_party/robosuite/robosuite/models/grippers/panda_gripper.py",
         "third_party/robosuite/robosuite/utils/camera_utils.py",
         "runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py",
-        "runtime/src/roboenv_runtime/adapters/robocasa/kinematics.py",
+        "runtime/src/roboenv_runtime/adapters/robocasa/geometry.py",
+        "src/roboenv/assets/device-client.py",
+        "src/roboenv/devices/export.py",
         "runtime/src/roboenv_runtime/adapters/robocasa/depth.py",
         "runtime/src/roboenv_runtime/adapters/robocasa/backend.py",
     ]

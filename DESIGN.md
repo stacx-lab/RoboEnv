@@ -165,12 +165,16 @@ Unsupported actions fail explicitly. Do not pad devices with unrelated methods.
   in its own base frame, in metres and quaternion xyzw.
 - `write` accepts a bounded target in the declared device action space. Profiles
   define component order, units, limits, control mode, scaling, and command duration.
-  Normalized controller deltas must not be presented as metric position targets.
+  Manipulators accept absolute joint positions in chain order (rad/m); newer targets
+  replace older ones, and repeated targets do not restart interpolation.
 - `stop` implements the declared servo stop/hold behavior. In RoboCasa's synchronous
   stepped service, an in-flight interval finishes before stop; stop resets the goal
   without another step. This is not a physical emergency-stop guarantee.
 - `fk(joints)` and `ik(pose, seed=...)` convert joint and flange-pose representations
-  using scratch state. They must not alter live positions, velocities, controls, or time.
+  locally in the manipulator driver using static profile geometry and Complex
+  utilities. RoboCasa does not expose simulator IK/FK RPCs. An omitted seed requires
+  only a joint-state read; solving never alters live state. Exported drivers use
+  standalone transport and do not require the RoboEnv SDK in the agent environment.
 - Lifecycle operations affect the device binding, not episode ownership.
 
 A camera read must work before the first motion and return a client-accessible image
@@ -190,7 +194,7 @@ The standard RoboCasa devices are:
 |---|---|
 | `body` | Omron planar mobile base |
 | `torso` | Vertical lift; live flange carries the arm and external cameras |
-| `arm` | Seven-joint Panda with native Cartesian delta control |
+| `arm` | Seven-joint Panda with absolute joint-position control |
 | `gripper` | Panda parallel gripper |
 | `camera_left`, `camera_right` | Two third-person RGB views, mounted on the lift |
 | `camera_wrist` | RGB view mounted on the arm flange |
@@ -198,11 +202,13 @@ The standard RoboCasa devices are:
 
 ## One world, one execution authority
 
-Bindings validate inputs before effects and account for native control intervals
-against the world's original benchmark horizon. Reads, status, discovery, recording,
-and kinematics do not consume action frames. Agent thinking time does not step a
-paused world. Other actuators receive defined neutral/hold commands; a previous
-velocity command must not continue accidentally.
+Bindings validate inputs before effects. RoboCasa writes return `accepted: true`,
+never an arrival claim. In realtime mode, background physics pursues persistent
+goals; in synchronous mode, each write runs one control period then pauses. Other
+parts retain their active goals. Read/status/kinematics do not request extra steps.
+RoboCasa imposes no horizon in either mode; action frames count physical intervals.
+Other backends retain their declared benchmark budgets. The service owns clocks;
+controller tools do not branch on realtime versus synchronous execution.
 
 Where a backend needs a joint action vector, compose it before one native step.
 Do not turn one command into separately stepped actuator writes. If simultaneous
@@ -219,8 +225,8 @@ reset/restore support, where present, must invalidate old bindings and handles.
 
 Copy `catalog/robots/<robot-id>/` to `.complex/robots/<robot-id>/`, select the robot
 in Complex's project configuration, and set `ROBOENV_ENDPOINT` before starting the
-harness. The SDK must be available to the Python interpreter named in the profiles;
-the simulator's heavy dependencies stay in its separate interpreter.
+harness. Copied drivers use standard-library transport; local IK/FK requires
+Complex's Python library and PyYAML. They do not import RoboEnv or simulator packages.
 
 Static drivers forward basic operations and adapt result/error shapes. They do not
 start the simulator, contain policies, or generate profiles. Complex discovers the
@@ -241,8 +247,7 @@ not establish that the simulator boots or the agent can solve it.
 
 ## Adding a simulator and claiming support
 
-Follow [simulator integration](docs/adding-simulators.md), then
-[device/config authoring](docs/adding-devices.md). Add the native adapter and binding,
+Follow [simulator integration](docs/simulator-integration.md). Add the native adapter and binding,
 pinned source/installation recipe, reusable robot configuration, lightweight task
 discovery, packaging/deployment support, and observation-boundary tests. A new backend
 must not add public environment methods or copy an old primitive API wholesale.
@@ -254,6 +259,6 @@ routing where applicable, concurrency, and privileged-data rejection. Preserve o
 evidence and record new results honestly; no GPU/model run is implicit in adding docs
 or passing CPU tests.
 
-See [RoboCasa configuration research](docs/robocasa-config.md),
+See [RoboCasa and its catalog](docs/robocasa.md),
 [local Complex recording](docs/complex-local.md), and
 [Harbor task generation](docs/harbor-tasks.md) for concrete workflows.

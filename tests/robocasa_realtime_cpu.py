@@ -48,16 +48,18 @@ def check(root, temporary):
             assert adapter.budget().max is None
             assert not adapter.budget().exhausted
             before = np.array(call("arm", "read")["positions"])
-            result = call("arm", "write", target=[0, 0, 0.5, 0, 0, 0])
-            assert result == {"completed": False, "accepted": True}
+            target = before.copy()
+            target[0] += 0.1
+            result = call("arm", "write", target=target.tolist())
+            assert result == {"accepted": True}
             arm = native._robot.part_controllers["right"]
-            goal = arm.goal_pos.copy()
+            goal = arm.goal_qpos.copy()
             start = native._step_count
             # An unrelated device write must preserve the arm's target.
             call("body", "write", target=[0.1, 0, 0])
         wait_frames(worker, start + 6)
         with worker.world.lock:
-            np.testing.assert_allclose(arm.goal_pos, goal, atol=1e-12)
+            np.testing.assert_allclose(arm.goal_qpos, goal, atol=1e-12)
             after = np.array(call("arm", "read")["positions"])
             assert np.linalg.norm(after - before) > 1e-3
             call("body", "stop")
@@ -76,7 +78,7 @@ def check(root, temporary):
             # Invalid command has no side effect on a previously accepted goal.
             from roboenv_runtime.runtime.worker import WorkerRPCError
             try:
-                call("arm", "write", target=[2] * 6)
+                call("arm", "write", target=[100] * 7)
             except WorkerRPCError:
                 pass
             else:
@@ -106,7 +108,7 @@ def check_synchronous(root, temporary):
 
         assert worker.world._thread is None
         profile = worker.dispatch("devices.describe", {"device": "arm"})
-        assert profile["intrinsics"]["clock_mode"] == "stepped"
+        assert "control_interval_s" not in profile["intrinsics"]
         initial = native.sim.data.qpos.copy()
         time.sleep(0.15)
         call("arm", "read")
@@ -114,15 +116,19 @@ def check_synchronous(root, temporary):
         call("arm", "stop")
         np.testing.assert_array_equal(native.sim.data.qpos, initial)
         assert native._step_count == 0
+        goal = list(profile["intrinsics"]["home_joints"])
+        goal[0] += 0.1
         for frame, (device, target) in enumerate([
-            ("arm", [0, 0, 0.5, 0, 0, 0]),
+            ("arm", goal),
             ("gripper", [1]),
             ("body", [0.1, 0, 0]),
             ("torso", [0.1]),
         ], start=1):
             result = call(device, "write", target=target)
-            assert result == {"accepted": True, "completed": True}
+            assert result == {"accepted": True}
             assert native._step_count == frame
+            np.testing.assert_allclose(native._robot.part_controllers["right"].goal_qpos, goal)
+            assert abs(native.sim.data.time - frame * 0.05) < 1e-10
             position = native.sim.data.qpos.copy()
             sim_time = native.sim.data.time
             time.sleep(0.075)

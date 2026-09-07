@@ -35,8 +35,6 @@ intrinsics:
     bounds:
       min: -1
       max: 1
-  control_interval_s: 0.05
-  command_expiry: until replaced, stopped, or submitted
   controller:
     name: MobileBaseJointVelocityController
     input_type: null
@@ -102,7 +100,6 @@ intrinsics:
       - -1.5
       - 1.5
       units: rad/s
-  clock_mode: realtime
 extrinsics:
   source: default
 meta:
@@ -113,7 +110,6 @@ access:
   kind: url
   url: http://127.0.0.1:8123
   control_mode: normalized_velocity
-  frequency_hz: 20.0
   driver:
     entry: driver.py
     interpreter: python3

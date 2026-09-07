@@ -21,6 +21,11 @@ def export_devices(profiles, directory, connection):
         if descriptor["type"] == "world":
             profile.pop("extrinsics", None)
         if descriptor["type"] != "world":
+            actions = [key for key, value in descriptor["actions"].items() if value["supported"]]
+            if descriptor["type"] == "manipulator" and "chain" in descriptor["intrinsics"].get(
+                "kinematics", {}
+            ):
+                actions += [action for action in ("fk", "ik") if action not in actions]
             profile["access"] = {
                 "source": "user",
                 "kind": "url",
@@ -30,18 +35,11 @@ def export_devices(profiles, directory, connection):
                     if descriptor["control_mode"] is not None
                     else {}
                 ),
-                **(
-                    {"frequency_hz": 1 / descriptor["intrinsics"]["control_interval_s"]}
-                    if "control_interval_s" in descriptor["intrinsics"]
-                    else {}
-                ),
                 "driver": {
                     "entry": "driver.py",
                     "interpreter": "python3",
                     "persistent": False,
-                    "actions": [
-                        key for key, value in descriptor["actions"].items() if value["supported"]
-                    ],
+                    "actions": actions,
                 },
             }
             (destination / "driver.py").write_bytes(

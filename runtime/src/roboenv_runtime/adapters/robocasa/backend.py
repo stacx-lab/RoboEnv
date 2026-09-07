@@ -27,6 +27,23 @@ def _xyzw(q):
     return np.asarray(q)[[1, 2, 3, 0]]
 
 
+def joint_controller_config(robot):
+    """Use physical absolute joint goals for every manipulator part."""
+    from robosuite.controllers import load_composite_controller_config, load_part_controller_config
+
+    config = load_composite_controller_config(robot=robot)
+    parts = config["body_parts"]
+    for arm in (name for name in ("right", "left") if name in parts):
+        gripper = parts[arm].get("gripper")
+        parts[arm] = {**load_part_controller_config(default_controller="JOINT_POSITION"),
+                      "input_type": "absolute"}
+        if gripper is not None:
+            parts[arm]["gripper"] = gripper
+    if "torso" in parts:
+        parts["torso"]["input_type"] = "absolute"
+    return config
+
+
 class RoboCasaEnv:
     def __init__(
         self,
@@ -46,7 +63,6 @@ class RoboCasaEnv:
         _ensure_offscreen_rendering()
         import robocasa  # noqa: F401  (importing it registers the kitchen environments)
         import robosuite
-        from robosuite.controllers import load_composite_controller_config
 
         if type(realtime) is not bool:
             raise ValueError("realtime must be a boolean")
@@ -62,7 +78,7 @@ class RoboCasaEnv:
         self._step_count = 0
         self._frames: list[np.ndarray] = []
         self._capture = False
-        controller_config = load_composite_controller_config(robot=robot)
+        controller_config = joint_controller_config(robot)
         env_kwargs: dict[str, Any] = {
             "robots": robot,
             "controller_configs": controller_config,
@@ -312,40 +328,27 @@ class RoboCasaEnv:
         self._step_count = 0
         self._stream_commands = {}
         self._frames.clear()
-        if getattr(self, "realtime", False):
-            for part in self._robot.part_controllers:
-                self.stop_part(part)
+        for part in self._robot.part_controllers:
+            self.stop_part(part)
         return self._obs
 
     def step(self, commands):
-        if getattr(self, "realtime", False):
-            for part, command in commands.items():
-                controller = self._robot.part_controllers[part]
-                if part in {"base", "right_gripper"}:
-                    self._stream_commands[part] = np.array(command, dtype=float, copy=True)
-                else:
-                    controller.set_goal(np.array(command, dtype=float, copy=True))
-            return
-        self.step_vector(self._robot.create_action_vector(commands))
+        """Replace selected goals; synchronous writes then execute one interval."""
+        for part, command in commands.items():
+            controller = self._robot.part_controllers[part]
+            value = np.array(command, dtype=float, copy=True)
+            if part in {"base", "right_gripper"}:
+                self._stream_commands[part] = value
+                continue
+            if not np.array_equal(value, controller.goal_qpos):
+                controller.set_goal(value)
+        if not self.realtime:
+            self.tick()
 
     def step_vector(self, action):
-        if getattr(self, "realtime", False):
-            # The native composite command changes every part and the arm's
-            # reference mode once; subsequent ticks retain those targets.
-            gripper = self._robot.gripper["right"]
-            previous_gripper = gripper.current_action.copy()
-            self._robot.composite_controller.set_goal(np.array(action, copy=True))
-            # Gripper integration belongs to ticks, including composite writes.
-            gripper.current_action = previous_gripper
-            for part in ("base", "right_gripper"):
-                start, end = self._robot.composite_controller._action_split_indexes[part]
-                self._stream_commands[part] = np.array(action[start:end], copy=True)
-            return
-        # PandaGripper accumulates normalized commands internally. Start every
-        # bounded interval from neutral, including intervals for other devices.
-        self._robot.gripper["right"].current_action[:] = 0
-        self._obs, _, _, _ = self.env.step(action)
-        self._step_count += 1
+        # Absolute joint goals need no Cartesian base/arm reference-mode switch.
+        self.step({part: action[start:end]
+                   for part, (start, end) in self._robot.composite_controller._action_split_indexes.items()})
 
     def stop_part(self, part):
         controller = self._robot.part_controllers[part]
@@ -364,7 +367,7 @@ class RoboCasaEnv:
             controller.reset_goal()
 
     def tick(self):
-        """Run one native interval without reapplying position deltas.
+        """Run one native interval while retaining position targets.
 
         Robosuite's normal step retains all physics, observables and task hooks.
         Only its policy goal update is replaced during this locked call: arm and
@@ -384,6 +387,7 @@ class RoboCasaEnv:
         composite.set_goal = update_streams
         try:
             self._obs, _, _, _ = self.env.step(np.zeros(self._robot.action_dim))
+            self.sim.forward()  # Publish transforms consistent with the integrated joints.
             self._step_count += 1
         finally:
             if previous is None:

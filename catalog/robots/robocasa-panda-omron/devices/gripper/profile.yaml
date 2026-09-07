@@ -25,8 +25,6 @@ intrinsics:
       max: 1
     meaning: 'sign only: positive closes, negative opens, zero holds; native gripper
       normalized increment 0.2 per interval'
-  control_interval_s: 0.05
-  command_expiry: until replaced, stopped, or submitted
   controller:
     name: SimpleGripController
     input_type: null
@@ -65,7 +63,6 @@ intrinsics:
     measured_joint_velocity_cap: null
     notes: Native model/controller has no hard measured joint velocity cap; controller
       deltas and actuator control ranges are not such a cap.
-  clock_mode: realtime
 extrinsics:
   source: introspected
   mount:
@@ -88,7 +85,6 @@ access:
   kind: url
   url: http://127.0.0.1:8123
   control_mode: gripper_velocity
-  frequency_hz: 20.0
   driver:
     entry: driver.py
     interpreter: python3

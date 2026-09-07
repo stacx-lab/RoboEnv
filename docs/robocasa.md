@@ -1,195 +1,239 @@
-# RoboCasa devices
+# RoboCasa
 
-RoboCasa exposes one initialized task through an HTTP endpoint. Complex is an
-agent harness using that service; Harbor owns trial scheduling and lifecycle.
-Different trials use independent worlds, budgets, journals, and ports.
+RoboEnv runs one RoboCasa task per service. All devices share that world's clock,
+state, and verdict. The agent receives task instructions, device facts, and sensor
+readings; perception, planning, and policy execution belong to its harness.
 
-## Start and connect
+## Run a task
 
-After `roboenv prepare robocasa`, start a catalog task:
+After [preparing RoboCasa](setup.md), launch a catalog task:
 
 ```sh
+roboenv prepare robocasa
 roboenv launch robocasa-pick-place-microwave --port 8123
 ```
 
-Use another port for a concurrent task,
-`--port 0` for automatic assignment, or `--detach` for owner-managed background
-execution. `roboenv stop ENDPOINT` stops a locally owned run. `--host` defaults
-to `127.0.0.1`; an isolated container service can bind `0.0.0.0`.
+Use separate ports for concurrent worlds, `--port 0` for automatic assignment, or
+`--detach` for a background run. `roboenv stop ENDPOINT` stops a locally owned run.
+The default host is `127.0.0.1`; containers can bind `0.0.0.0`.
 
 ```python
 import roboenv
 
-env = roboenv.connect("http://127.0.0.1:8123")
-print(env.task.instruction)
-print(env.devices())
-arm = env.device("arm")
-print(arm.profile)
-state = arm.read()
-arm.write([0, 0, 0, 0, 0, 0])  # Set a hold target at the current pose.
-arm.stop()
-image = env.device("camera_left").read()
-print(image["file"])
+with roboenv.connect("http://127.0.0.1:8123") as env:
+    print(env.task.instruction)
+    arm = env.device("arm")
+    arm.write(arm.read()["positions"])
+    arm.stop()
+    image = env.device("camera_left").read()
+    print(image["file"])
 ```
 
-A Python owner uses `with roboenv.launch(task=TASK, port=8123) as run:` and connects
-to `run.endpoint`. Closing an attached client releases only its local resources.
-Device responses contain their data directly; execution receipts stay in the
-service journal. Transport uncertainty raises an exception carrying a request ID
-and never automatically resubmits motion.
+A Python owner can use `with roboenv.launch(task=TASK, port=8123) as run:` and
+connect to `run.endpoint`. Closing an attached client releases client resources,
+not the world. Device results contain data directly; execution receipts stay in
+the service journal. An uncertain motion result carries a request ID and is never
+automatically retried.
 
-## Device contracts
+## Devices and control
 
-The default Panda–Omron catalog contains these devices. Every driven device also
-provides `load`, `unload`, and `status`; those operations do not reset the world.
+The standard [Panda–Omron catalog](../catalog/robots/robocasa-panda-omron/workspace.yaml)
+has eight devices. Driven devices also implement `load`, `unload`, and `status`;
+these do not reset or close the world.
 
-| Device | Operations | Read result / write target |
+| Device | Type | Service read / write |
 |---|---|---|
-| `arm` | `read`, `write`, `stop`, `ik`, `fk` | Joint `positions`, `velocities`, `faults`, and `flange_pose`; write six normalized native OSC deltas |
-| `torso` | `read`, `write`, `stop`, `ik`, `fk` | Lift joint state and `flange_pose`; write one normalized native joint delta |
-| `body` | `read`, `write`, `stop` | Planar joint state and world `pose`; write normalized forward, left, yaw-rate commands |
-| `gripper` | `read`, `write`, `stop` | Finger joint state; write one signed native command, positive closes and negative opens |
-| `camera_left`, `camera_right`, `camera_wrist` | `read` | `file`, `depth_file`, `depth_scale`, `width`, `height`, `channels`; aligned upright RGB-D |
-| `world` | Profile only | Root frame and declared space bounds; no state or score shortcut |
+| `arm` | `manipulator` | Seven joint positions/velocities and flange pose; seven absolute joint targets in radians |
+| `torso` | `manipulator` | Lift state and flange pose; one absolute target in metres |
+| `body` | Mobile `body` | Planar joint state and world pose; normalized forward, left, yaw-rate commands |
+| `gripper` | `end_effector` | Finger joint state; one signed command in `[-1,1]`, positive closes |
+| `camera_left`, `camera_right`, `camera_wrist` | `rgbd` | Aligned RGB and metric depth files; no write |
+| `world` | `world` | Profile only; reference frame and open workspace bounds |
 
-All native write components lie in `[-1, 1]`; they are not metre/radian targets.
-Profiles record the actual controller scaling, component order, joint limits,
-and control interval. The world starts a background clock when the worker is
-ready, paced at the native control frequency (normally 20 Hz). Physics continues
-while the agent thinks or produces code: unsupported objects fall and existing
-controller targets remain active. Reads take consistent snapshots; they do not
-request extra simulation steps.
+Actuators implement `write` and `stop`. Arm/torso targets follow
+`intrinsics.joints` order and replace the active goal. Repeated targets continue
+motion without restarting interpolation. Their native joint-position controllers
+use torque control. Body and gripper commands persist until replaced or stopped;
+writing one device preserves all other goals.
 
-A write updates a device command and returns `accepted: true, completed: false`;
-this acknowledges acceptance, not arrival at the target. Arm and torso deltas
-are converted to a target once and the native servo keeps pursuing that target.
-Base velocity and signed gripper commands persist until replaced or stopped.
-Writing one device preserves other devices' goals. Arm writes still use native
-OSC deltas; absolute joint/EEF target APIs and a servo tool are separate work.
+A successful write returns `accepted: true`, never arrival. `stop` holds the
+arm/torso/gripper or requests zero base velocity. It neither teleports joints nor
+pauses realtime physics; an in-flight synchronous interval finishes before stop.
+Reads include faults and simulation acquisition `sample_time_s` and do not step.
 
-`stop` holds the arm/torso/gripper or commands zero base velocity. It does not
-pause world physics or teleport joints. It is not a physical emergency stop.
-Submit atomically freezes the terminal state. Both clock modes disable the
-original horizon and legacy `max_steps` limits. Realtime physics continues until
-submission or service shutdown (or a simulator failure). `action_frames`
-still counts every interval, including thinking time, with `max: null`. There is
-no horizon-based success rejection in this setting.
-
-Pacing is best effort, not a hard realtime guarantee: simulation cost and serialized
-camera/kinematics requests can make simulated time lag wall time. Physics steps
-are never skipped. Replaying only command values without their simulation-frame
-timing does not reproduce a realtime episode.
-
-Choose the clock when starting an episode, using `backend_kwargs` in its task YAML:
+Choose the clock in the task's `backend_kwargs` before launch:
 
 ```yaml
 backend_kwargs:
   task_name: PickPlaceCounterToMicrowave
-  realtime: false  # false = synchronous; true = realtime (default)
+  realtime: false  # true is the default
 ```
 
-Start that task with `roboenv launch /path/to/task.yaml` or
-`roboenv.launch(task="/path/to/task.yaml")`. Restart the service after changing the
-setting. The live actuator profile reports `intrinsics.clock_mode` as `realtime`
-or `stepped` (synchronous); exported Harbor instructions reflect the chosen mode.
+| Mode | Write and time behavior |
+|---|---|
+| Realtime | Return after accepting the goal; background physics continues while the agent thinks. |
+| Synchronous | Update the goal, advance the whole world by one native control interval, then return and pause. |
 
-In synchronous mode, the world is paused between writes. Each arm, torso, gripper,
-or base write runs one native control interval (normally 0.05 simulated seconds)
-and then returns `accepted: true, completed: true`. Completion means that interval
-finished, not that the arm reached its target. Other parts receive neutral native
-commands for that interval. Reads, camera captures, FK/IK and `stop` do not advance
-physics. There is no background clock and no horizon limit in this mode either.
+The service owns the control period, normally 0.05 simulated seconds. Profiles do
+not expose it to controller tools. Reads, recording, status, local IK/FK, and stop
+never request advancement. Complex's `servo_to` and `track` use the same loop in
+both modes; their wall-clock rate cap does not set simulation time.
 
+Both modes count `action_frames` with `max: null`; the original horizon and legacy
+`max_steps` do not terminate this configuration. Original task success rules remain.
+Submission atomically freezes the terminal state. Realtime pacing is best effort:
+slow simulation or camera requests can cause lag, but physics steps are not skipped.
+Replaying commands without their simulation-frame timing does not reproduce a run.
 
-`flange_pose` and FK/IK poses use metres and quaternion xyzw in the manipulator's
-base frame. FK accepts `joints`; IK accepts `pose` and optional `seed`. Both use
-scratch MuJoCo data without changing the live state. IK reports failure when its
-bounded numerical search cannot find a solution; it is not a motion planner.
-Joint limits are soft physical constraints: reads preserve measured overshoot,
-while explicit FK joints and IK seeds are validated against nominal ranges.
-Implicit IK seeds are projected into those ranges on scratch data only. See
-[joint limits and recovery](robocasa-config.md#arm-joint-limits-and-recovery).
-The gripper mounting pose is its grip-site/TCP offset from the flange. Camera
-intrinsics and static mounts are resolved from the model. The mobile chassis
-(`body`, type `body`, mobility `mobile`) is an independent frame root: its
-profile omits `extrinsics.mount` entirely. Torso, arm and cameras remain connected
-through their actual mounts without a required path to `world`. `body.read()`
-still provides its current simulator world pose; this does not create a mount edge.
+## Catalog and generation
 
-Camera files are downloaded to a client-local directory and remain available
-until that client is explicitly closed. The thin one-shot driver leaves its
-returned image file available to the caller. Artifacts are scoped to the episode;
-an old client cannot download an image from a replacement run on the same port.
+Standard kitchen tasks reuse the same hardware configuration. Scene layout and
+initial placement do not change its static profiles. Different robots, controllers,
+resolutions, or camera arrangements require a matching catalog configuration.
 
-The three standard camera profiles have type `rgbd`. A read renders RGB and depth
-together without stepping physics. Color is PNG; `depth_file` is a 16-bit binary
-PGM (P5, big-endian, maxval 65535), aligned to color. Multiply its raw pixels by
-`depth_scale` (0.001 m/unit) to obtain optical-axis depth in metres. Zero means
-invalid; far-plane/background pixels and values outside the representable
-0.001–65.535 m range are invalidated rather than clipped. This scale is the
-RoboEnv output encoding, not the native nonlinear depth-buffer scale.
+```text
+catalog/robots/robocasa-panda-omron/
+  workspace.yaml
+  devices/<name>/profile.yaml
+  devices/<name>/driver.py       # except world
+catalog/bindings/robocasa-panda-omron.yaml
+catalog/tasks/<task>/task.yaml
+```
 
-## Shared RoboCasa devices
+The robot directory contains only `workspace.yaml` and `devices/`, ready to copy
+into `.complex/robots/`. Binding plans and task/session configuration stay outside
+that copy. Launch reads the catalog without rewriting it.
 
-Standard RoboCasa tasks reuse the checked-in Panda–Omron device configuration.
-Changing a task or layout does not rewrite profiles. Scene state is not exposed
-to the agent; it must be perceived from the cameras. See [static configuration research](robocasa-config.md).
+Profiles derive from the pinned compiled MJCF, robot initialization, native
+controllers, and RoboCasa camera definitions. A real Panda URDF is not a substitute
+for the simulated model. Model-derived sections use `source: introspected`; home
+joints are initialization defaults, not a task's current pose. Exact source hashes
+are recorded in [the provenance receipt](robocasa-config.provenance.json).
 
-The general binding mechanism also supports custom task definitions:
+Regenerate explicitly with the prepared RoboCasa interpreter:
 
-A task's `device_bindings` is the complete device selection, not a patch over a
-fixed simulator inventory. Bindings can rename devices, choose existing profiles,
-and select a camera through `config.camera`. Camera names must also be enabled
-in `backend_kwargs.camera_names`. Different tasks may choose different lists.
-Only resolved task profiles and drivers are published to the agent.
+```sh
+/path/to/robocasa/python tools/generate_robocasa_config.py \
+  --provenance docs/robocasa-config.provenance.json
+```
 
-The service provides no `pick`, `place`, `move`, `invoke`, primitive catalog,
-scene RPC, policy runner, or score API to HTTP clients. Perception and control
-programs belong to Complex or another harness. Task context contains no object poses, fixture geometry, or layout metadata.
-Simulator ground truth remains private to the owner and verifier.
+The [generator](../tools/generate_robocasa_config.py) compiles the robot in an empty
+arena, installs robot-mounted cameras, and initializes controllers. It loads no
+kitchen task, renders nothing, and takes no physics steps. `--out DIRECTORY` writes
+a separate robot directory. Repeated generation is deterministic; rigid mounts
+are also checked after changing arm/lift configuration.
 
-## Harbor
+A custom task's `device_bindings` replaces the complete default selection. Logical
+names, profiles, and mounts must match the published device directories.
+`config.camera` selects an existing sensor, which must also be enabled through
+`backend_kwargs.camera_names`. A profile does not create a camera.
 
-Export uses the same task resolver as local launch. Each trial gets an isolated
-Compose service network and `ROBOENV_ENDPOINT=http://sim:8123`; internal ports may
-repeat across networks without publishing a conflicting host port. Readiness
-includes device binding and publication of live profiles and thin drivers under
-`/run/roboenv/robot/devices`. The Complex integration can copy these into its
-trial-local robot workspace.
+## Portable drivers and local kinematics
 
-The agent runs as `agent`; the verifier runs as `root` through Harbor's per-phase
-user configuration. The owner Unix socket is mode 0600 and owned by the service
-user (root in the generated deployment). Agent containers drop capabilities and
-prevent privilege escalation. HTTP permits only device access/discovery and
-administrative health/request-status reads; it rejects owner and primitive RPCs.
-The verifier retains access to the owner socket and read-only execution evidence.
-Each service start creates a fresh episode identity, including container restarts.
-Harbor stops the environment during trial cleanup, even if the agent fails.
+Catalog drivers use standard-library HTTP/Unix transport and **do not import
+RoboEnv**. Set `ROBOENV_ENDPOINT` for the current service; the catalog carries no
+session connection file. New one-shot drivers discover the selected episode;
+runners can pin session/generation explicitly. Established SDK clients retain
+their original episode identity.
 
-## Validation
+Arm/torso drivers additionally implement `fk(joints)` and `ik(pose, seed?)` using
+`complex.kinematics` and `intrinsics.kinematics.chain`. Complex supplies its Python
+library on the driver's PYTHONPATH; parsing profiles requires PyYAML. The simulator
+service exposes no FK/IK RPC and has no solver dependency on Complex.
 
-`bash tools/check.sh` runs CPU, format, privacy, and packaging checks. When a
-prepared RoboCasa interpreter is available, the CPU suite additionally exercises
-real Panda–Omron controllers in robosuite's Lift scene: joint reads, one-interval
-writes, stop, FK/IK, invalid commands, and unchanged live state during kinematics.
-Separate realtime and synchronous CPU workers check paused state between writes,
-one interval per synchronous write, advancement beyond the old horizon,
-free fall without requests in realtime mode, continued arm motion,
-goal preservation across device writes, device stop, and a frozen submission.
-Clock tests check unbounded advancement, finite budgets for other settings, failure,
-and thread cleanup.
-Two real CPU instances also exercise HTTP task/device isolation and image retrieval.
-When the sibling Complex checkout is installed, its actual schema and required
-driver interfaces validate exported profiles. Set `ROBOENV_ROBOCASA_TEST_PYTHON`
-to select the isolated simulator interpreter explicitly.
-Camera transport tests use synthetic pixels. These checks do not certify a
-RoboCasa kitchen boot, rendered image calibration, task success, or GPU replay.
+The chain stores fixed link origins, joint axes, anchors, and reference positions
+in profile joint order. FK returns the flange in the device base frame: metres and
+unit quaternion xyzw. Explicitly seeded IK and FK work offline. Without a seed, IK
+reads current joints once and projects only that local seed into limits. The damped
+least-squares solver may fail to converge; it does not validate a motion path.
 
-For a populated Complex workspace, TUI recording, and MP4 playback, follow
-[the local test plan](complex-local.md).
+```sh
+python3 driver.py fk '{"joints": [0, 0, 0, -2, 0, 2, 0.7]}'
+python3 driver.py write '{"target": [0, 0, 0, -2, 0, 2, 0.7]}'
+```
 
-The body owns the planar mobile base. The torso remains a separate one-joint
-`manipulator` so Complex can resolve its live base-to-flange transform. The arm
-and external cameras mount on that flange; the wrist camera mounts on the arm
-flange. Merging the lift into a `body` would require named moving frames in
-Complex's body interface and frame graph.
+### Joint limits and recovery
+
+Panda's nominal limits are in radians; the lift spans 0–0.34 m, with model home 0.2 m.
+
+| Joint | Minimum | Maximum |
+|---|---:|---:|
+| 1 | -2.8973 | 2.8973 |
+| 2 | -1.7628 | 1.7628 |
+| 3 | -2.8973 | 2.8973 |
+| 4 | -3.0718 | -0.0698 |
+| 5 | -2.8973 | 2.8973 |
+| 6 | -0.0175 | 3.7525 |
+| 7 | -2.8973 | 2.8973 |
+
+MuJoCo's soft constraints permit small measured overshoots. Profiles retain native
+constraint settings under `joint_limit_semantics`. Reads preserve actual joints
+and measured flange transforms; explicit write/FK targets and IK seeds remain
+range-checked. Stop holds the measured configuration, not home. Neither accepted
+commands nor successful IK prove arrival or recovery from contact.
+
+Panda motor control ranges are torque limits, not velocity limits. Arm/torso servo
+control provides no hard measured velocity cap. Base actuator ranges bound velocity
+targets, and gripper `speed` is a normalized increment. Workspace velocity caps are
+explicitly `null` (no additional cap), distinct from unresolved `???`. Open world
+AABB sides and calibration readiness do not imply collision-free or reachable space.
+
+## Frames and cameras
+
+The robot frame component is rooted at `body`; `world` is separate. The body profile
+omits `extrinsics.mount`. Its measured world pose does not implicitly create that
+edge, and an absent mount is not identity.
+
+The torso remains a one-joint manipulator because Complex represents its live
+base-to-flange transform. The arm and left/right cameras mount on `torso:flange`;
+the gripper and wrist camera mount on `arm:flange`. The gripper mount is its rigid
+flange-to-TCP offset. Merging the lift into the body would require named moving
+body frames in Complex.
+
+| Camera | Native sensor | Vertical FOV | Rigid parent |
+|---|---|---:|---|
+| Left | `robot0_agentview_left` | 60° | Torso flange |
+| Right | `robot0_agentview_right` | 60° | Torso flange |
+| Wrist | `robot0_eye_in_hand` | 75° | Arm flange |
+
+All three output 256×256 images with principal point `(128,128)` and no camera
+randomization. Mounts use OpenCV optical axes: +X right, +Y down, +Z forward,
+converted from MuJoCo's camera convention. Robot-mounted views are reusable across
+kitchens; a layout-specific viewer camera is not a static robot sensor.
+
+RGB and depth render together without stepping and are flipped upright. `file` is
+RGB PNG; `depth_file` is a 16-bit binary PGM (P5, big-endian, maxval 65535). Multiply
+raw depth by `depth_scale = 0.001` for optical-axis metres. Zero marks invalid,
+background, or unrepresentable depth; values are not clipped into fake surfaces.
+Conversion uses the live model's near/far planes, not fixed sensor-range calibration.
+This is quantized synthetic depth, with no assumed hardware noise model.
+
+HTTP downloads are episode-scoped and client-local. SDK files last until client
+cleanup; one-shot driver files remain readable after process exit. RGB-only custom
+profiles remain supported. Other benchmark observation policies need separate review.
+
+## Isolation, Harbor, and validation
+
+Task context is empty. Object poses, fixtures, layout/style, scene seeds, and verdicts
+stay private to the owner/verifier. The HTTP service exposes device operations and
+safe discovery/health/request status, with no scene API, task macros, or policy runner.
+Operation-status queries cannot retrieve cached owner results.
+
+Harbor uses the same task resolver and an isolated service network per trial, with
+`ROBOENV_ENDPOINT=http://sim:8123`. Readiness includes device binding and trial-local
+profile/driver publication under `/run/roboenv/robot`. The agent runs as `agent`;
+the verifier accesses the protected owner socket and evidence as `root`. Each restart
+creates a fresh episode identity. Harbor cleans up even when the agent fails.
+
+`bash tools/check.sh` covers CPU, privacy, format, and packaging checks. With a
+prepared RoboCasa interpreter, tests exercise real Panda–Omron controllers in a
+CPU Lift scene, both clocks, repeated goals, stop, invalid inputs, local FK/IK without
+state mutation, and rejected solver RPCs. They also check deterministic generation,
+Complex schema conformance, copied drivers without RoboEnv imports, HTTP episode
+isolation, camera routing, file lifetime, and unchanged catalogs after launch.
+Set `ROBOENV_ROBOCASA_TEST_PYTHON` to select the interpreter explicitly.
+
+Camera transport tests use synthetic pixels. Kitchen boot, rendered calibration,
+task success, and fresh-process replay require separate evidence. See
+[Complex local testing](complex-local.md), [Harbor tasks](harbor-tasks.md), and
+[simulator integration](simulator-integration.md) for those workflows.

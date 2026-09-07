@@ -159,7 +159,7 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
     client.device("controller").read()
 
 
-def test_thin_driver_needs_only_sdk_and_socket(device_service, tmp_path):
+def test_thin_driver_needs_only_stdlib_and_socket(device_service, tmp_path):
     client, _, _ = device_service
     driver = tmp_path / "controller/driver.py"
     driver.parent.mkdir()
@@ -167,7 +167,7 @@ def test_thin_driver_needs_only_sdk_and_socket(device_service, tmp_path):
         importlib.resources.files("roboenv").joinpath("assets/device-client.py").read_text()
     )
     result = subprocess.run(
-        [sys.executable, str(driver), "read", "{}"],
+        [sys.executable, "-S", str(driver), "read", "{}"],
         env={**os.environ, "ROBOENV_SOCKET": client.socket_path},
         capture_output=True,
         text=True,
@@ -268,7 +268,7 @@ def test_native_export_has_ready_server_and_thin_drivers(tmp_path):
     assert compose["services"]["sim"]["environment"]["ROBOENV_SERVER_ROBOT"] == "/opt/serve/robot"
     assert compose["services"]["sim"]["environment"]["ROBOENV_SOCKET"] == "/run/roboenv/sim.sock"
     driver = (environment / "definition/robot/devices/controller/driver.py").read_text()
-    assert "Client()" in driver and "roboenv_runtime" not in driver
+    assert "from roboenv" not in driver and "roboenv_runtime" not in driver
     assert (environment / "sim/robot/devices/controller/driver.py").is_file()
 
 
@@ -418,3 +418,37 @@ def test_malformed_device_requests_cannot_move_world(device_service, args):
     with pytest.raises((ValueError, RemoteError)):
         client.request("devices.call", args)
     assert client.request("observe")["budget"]["used"] == 0
+
+
+@pytest.mark.parametrize("failure", ["lost", "mismatched", "missing_data"])
+def test_portable_driver_never_retries_an_uncertain_write(tmp_path, failure):
+    device = tmp_path / "arm"
+    device.mkdir()
+    driver = device / "driver.py"
+    driver.write_bytes((ROOT / "src/roboenv/assets/device-client.py").read_bytes())
+    (device / "connection.json").write_text(json.dumps({
+        "endpoint": "http://unused", "session": "test", "generation": 0,
+    }))
+    handle = runpy.run_path(str(driver))["handle"]
+    requests = []
+
+    def exchange(endpoint, method, body):
+        request = json.loads(body)
+        requests.append(request)
+        if failure == "lost":
+            raise ConnectionResetError("response lost after acceptance")
+        response = {key: request[key] for key in
+                    ("protocol", "session", "generation", "request_id")}
+        response.update(ok=True, result={"data": {"accepted": True}})
+        if failure == "mismatched":
+            response["request_id"] = "another-request"
+        if failure == "missing_data":
+            response["result"] = {}
+        return json.dumps(response).encode() + b"\n"
+
+    handle.__globals__["exchange"] = exchange
+    result = handle("write", {"joints": [0.1]})
+    assert len(requests) == 1
+    assert result["ok"] is False
+    assert result["code"] == "outcome_unknown"
+    assert result["request_id"] == requests[0]["request_id"]

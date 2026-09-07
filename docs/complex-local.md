@@ -4,7 +4,7 @@ The checked-in `catalog/robots/robocasa-panda-omron` directory is already ready
 to copy into Complex. It contains a fixed robot manifest and eight devices:
 arm, body, torso, gripper, camera_left, camera_right, camera_wrist, and world. Configuration is independent
 of the task, seed, kitchen layout, service port, and episode identity. Launch
-never writes to the catalog. See [research and provenance](robocasa-config.md).
+never writes to the catalog. See [RoboCasa catalog design](robocasa.md#catalog-and-generation).
 
 Robot-mounted camera calibration, controller scaling, joint limits, and rigid
 mounts are pre-generated. Object positions and fixture geometry must be perceived
@@ -48,8 +48,9 @@ JSON
 ```
 
 Use a working Complex installation with its TUI dependencies already installed
-(see the sibling README). Keep the activated RoboEnv venv on PATH: exported
-profiles invoke `python3`, which needs the RoboEnv SDK, not simulator dependencies.
+(see the sibling README). Exported profiles invoke `python3`. Remote device access
+uses only its standard library; local IK/FK needs `complex.kinematics` and PyYAML.
+The agent environment does not need RoboEnv or simulator dependencies.
 Video export requires `ffmpeg`; the keyframe script requires Pillow.
 
 Confirm `devices/` exists and contains arm, body, torso, gripper, camera_left, camera_right,
