@@ -3,7 +3,6 @@
 import base64
 import csv
 import hashlib
-import importlib.util
 import io
 import json
 import shutil
@@ -12,13 +11,10 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from helpers import load_tool
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location(
-    "release_preflight", ROOT / "tools/release_preflight.py"
-)
-PREFLIGHT = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(PREFLIGHT)
+PREFLIGHT = load_tool("release_preflight")
 
 
 @pytest.fixture

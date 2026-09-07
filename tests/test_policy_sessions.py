@@ -1,15 +1,9 @@
 import json
-import sys
-from pathlib import Path
 
 import pytest
 from roboenv.control.policy import run_with_callback
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "runtime/src"))
-
-from roboenv_runtime.adapters.fakeshell import FakeShell  # noqa: E402
-from roboenv_runtime.runtime.worker import SimWorker  # noqa: E402
+from roboenv_runtime.adapters.fakeshell import FakeShell
+from roboenv_runtime.runtime.worker import SimWorker
 
 
 class PolicyWorld(FakeShell):

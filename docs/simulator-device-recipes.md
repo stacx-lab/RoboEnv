@@ -1,77 +1,69 @@
-# 新 Simulator、换 Devices：实际操作
+# 新 Simulator 与配置变更：操作路径
 
-详细 API 见 [Simulator](adding-simulators.md) 与 [Devices](adding-devices.md)。
-先分清要改的是世界、接口还是机器人。
+详细步骤见 [Simulator 接入](adding-simulators.md) 和 [设备配置](adding-devices.md)。
+先确定改动属于任务、硬件、逻辑接口还是部署，不要用 launch 重写 robot 配置。
 
-| 需求 | 修改位置 | 必须验证 |
+| 需求 | 应修改 | 不应修改 |
 |---|---|---|
-| 同 simulator 换 task | backend_kwargs 和任务语言 | registry 存在、初始化参数、原 benchmark 判定 |
-| 给已有实体换逻辑名字 | device_bindings 的键与 profile | entity 不变、客户端重新发现 |
-| 减少/增加已存在的设备接口 | 完整 device_bindings 映射 | factory 支持对应槽位、设备不会凭空创建 |
-| 换实际机器人 | simulator 初始化参数、robot catalog、binding | 机器人模型、控制器、动作维数和 benchmark 可比性 |
-| 接全新 simulator | source lock、adapter、binding、discoverer、镜像映射 | 从依赖获取到真实 Harbor replay 全链路 |
+| 相同 rig 换 task/seed/布局 | 私有 task 参数与指令 | 静态 profile/driver |
+| 同时运行多个任务 | 端口、endpoint、独立 harness 进程/网络 | 每份 robot 配置的连接文件 |
+| 修改逻辑设备名称 | profile 名称、目录、binding key、mount 引用 | 原生硬件实体 |
+| 增加/更换相机 | backend 启用的 sensor、binding config、静态 intrinsics/mount | 物体坐标或 layout snapshot |
+| 更换硬件/控制器 | 新 rig 配置、native binding、资产、参数与验证 | 用旧 rig 名称掩盖单位或运动学变化 |
+| 全新 simulator | 源码/安装 recipe、adapter、binding、任务发现、镜像与验证 | 新的公共 env 方法或 task 宏操作 |
 
-## 1. 只更换设备视图
+## 相同配置复用于多个任务
 
-CPU fixture 的 world 里已有 puck。把逻辑设备 controller 改名为 puck：
+标准 RoboCasa 任务都引用 `robot: robocasa-panda-omron`。其目录只有
+`workspace.yaml` 和八个设备目录，包含 body、torso、arm、gripper、左右/腕部
+RGB 相机及 world。没有 scene device，也不向 task context 放 ground truth。
 
-    device_bindings:
-      puck:
-        binding: fakeshell.puck/1
-        entity: puck
-        profile: devices/controller/profile.yaml
+两个终端分别运行：
 
-保存到输入 task.yaml 后，重新生成到一个新目录。agent 的
-roboenv devices 将显示 puck；原来的 controller 不再暴露。
-这没有创建第二个 puck，也没有改变物理世界。
+```sh
+roboenv launch robocasa-pick-place-microwave --port 8123
+```
 
-生产后端也遵循这个原则。例如 LIBERO 的 entity 槽位有 arm、gripper、
-camera、world。可以选择暴露子集，但新的设备类型或相机选择参数必须先有
-factory 实现，不能在 YAML 中填写任意 entity/config 就假定有效。
+```sh
+roboenv launch robocasa-arrange-vegetables --port 8124
+```
 
-## 2. RoboTwin 更换真实机器人
+给两个独立 Complex workspace 复制相同的 robot 目录，在各自进程中设置
+`ROBOENV_ENDPOINT`。服务变更不修改已复制配置。具体 TUI 操作见
+[本地录制计划](complex-local.md)。
 
-现有 adapter 接受 embodiment；Piper 和 ALOHA-AgileX 的任务配置分别是：
+## 重命名或选择设备
 
-    backend: robotwin
-    backend_kwargs:
-      task_name: handover_mic
-      embodiment: piper
-    robot: robotwin-dual-piper
+RoboCasa 的公开 `body` 仍绑定原生 entity `base`；逻辑名不是引擎对象名。
+调整名字时同步更新目录、profile.name、binding key 和所有 mount.parent 引用。
+多个相机都可以使用 entity `camera`，但各自 config.camera 指向不同原生 sensor。
+验证它们不是错误地返回同一个画面。
 
-    backend: robotwin
-    backend_kwargs:
-      task_name: handover_mic
-      embodiment: aloha_agilex
-    robot: robotwin-aloha-agilex
+通用 task 格式允许 `device_bindings` 完整替换默认映射。它不是逐项 overlay，
+也不会创建新的硬件。显式 subset/custom mapping 必须匹配实际提供给 Complex
+的配置目录；不要复制全套配置却让其中设备不存在。相同 rig 的普通任务应直接
+复用默认 `catalog/bindings/ROBOT.yaml`，避免维护重复映射。
 
-这只是 task.yaml 的相关字段，仍需 id、backend_task、instruction 等完整定义。
-上游发现器会分别生成 robotwin.* 和 robotwin-aloha.*，无需手工展开全部 task。
-机器人参数和 robot catalog 必须同时匹配；仅换 robot 字段会被 embodiment
-校验拒绝，或无法得到正确控制器。
+## 修改硬件、mount 或动作空间
 
-新机器人需要相应模型资产与 adapter 支持；跨机器人动作预算、任务可达性和
-成功标准可能不同，必须分别记录回放结果，不能沿用旧机器人的证书。
-RoboDojo 的 YAM catalog/绑定存在，不代表资产和所有任务已完成回归。
+先确认 simulator 是否支持目标硬件，再写新的可复用配置。不要仅修改 robot ID
+就宣称完成换装。相同方法名不意味着相同单位、控制频率或动作维数。
 
-## 3. 给新 simulator 暴露现有设备类型
+静态 camera extrinsics 必须相对其真实安装 frame。RoboCasa 左右相机随 lift，
+腕部相机随 arm flange；body 世界位姿和 torso 高度是动态状态。不能通过合并
+设备把动态变换写成常量。Complex frame graph 不支持的设备结构需要先设计
+相应 frame 接口，再宣布兼容。
 
-1. 先让 adapter 独立完成 reset/observe/control/score/close。
-2. 在 factory 检查真实后端与实体，转换成已有公开设备语义。
-3. 复用 profile 中确实相同的事实，重新声明安装外参和可用动作。
-4. 用测试证明相同输入语义、不同后端执行均正确，不能只比 JSON 字段名。
-5. 加入 discoverer 和镜像映射，生成 task，再通过真实 Harbor/回放验收。
+预生成稳定事实，保存来源到 `docs/`，确认同一 rig 跨姿态和 task 不需重写。
+渲染尺寸、相机型号或 controller 变化后更新配置和验证证据。Agent 用摄像头
+估计场景，不从 profile、task context、错误日志或 owner 状态读取物体真值。
 
-若后端只能做 symbolic primitives，就如实声明 symbolic-primitives。
-不能把它包装成 joint-space motion 后与连续控制结果混合报告。
+## 验证与发布范围
 
-## 4. 生成与回归
+配置变化运行 schema/再生成/复制 driver 检查；binding 变化增加真实 CPU 世界的
+控制、预算、只读、异常、并行与观测隔离测试，再运行 `bash tools/check.sh`。
+修改运行时代码后重建 runtime wheel/镜像；只重导出 task 不会更新镜像里的实现。
 
-    roboenv tasks generate --source MY_CATALOG \
-      --backends robotwin --deployments deployments/local/map.json \
-      --wheel build/wheels/roboenv-0.2.0-py3-none-any.whl \
-      --out generated/device-variant --check-images
-
-重建 runtime image 才会带上修改后的 factory；仅重新生成 task 不会更新
-镜像中的 Python 实现。修改 profile/plan 只需重新生成 task。
-不要覆盖已用来做实验的旧 task、镜像 digest 或证据。
+另行在明确范围内验证 GPU boot、设备、TUI 录制、任务成功和 fresh-process replay。
+不同机器人不能复用旧任务成功证据，录制 MP4 也不是 replay 证书。
+不覆盖历史 task、镜像 digest 或证据；生成/执行见 [Harbor tasks](harbor-tasks.md)。

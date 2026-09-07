@@ -45,7 +45,7 @@ Initialize only selected upstreams; do not recursively fetch every submodule.
     python tools/generate_tasks.py --help
 
 Bootstrap the CLI with `bash tools/bootstrap.sh`, activate `.venv`, then use
-`roboenv prepare SIMULATOR` and `roboenv start TASK_ID`.
+`roboenv prepare SIMULATOR` and `roboenv launch TASK_ID`.
 Preparation uses a managed default environment or an explicit --prefix;
 `roboenv doctor SIMULATOR` only audits. Registered interpreters may be reused; existing environments
 are never overwritten. Clean-install verification is for developers, not users.

@@ -1,0 +1,465 @@
+"""Task-specific devices and the small endpoint client. No GPU or model runs."""
+
+import json
+import os
+import subprocess
+from dataclasses import FrozenInstanceError
+from pathlib import Path
+
+import pytest
+import yaml
+from roboenv.client import Client, RemoteError
+from roboenv.devices.bindings.spec import BindingPlan
+from roboenv.devices.client import Environment
+from roboenv.devices.export import export_devices
+from roboenv.tasks.resolve import resolve_task
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_task_selects_and_renames_its_own_devices(tmp_path):
+    task = yaml.safe_load(
+        (ROOT / "catalog/tasks/robocasa-arrange-vegetables/task.yaml").read_text()
+    )
+    task["device_bindings"] = {
+        "overview": {
+            "binding": "robocasa.device/1",
+            "entity": "camera",
+            "profile": "devices/camera_left/profile.yaml",
+            "config": {"camera": "agentview"},
+        },
+        "world": {
+            "binding": "robocasa.device/1",
+            "entity": "world",
+            "profile": "devices/world/profile.yaml",
+        },
+    }
+    path = tmp_path / "task.yaml"
+    path.write_text(yaml.safe_dump(task))
+    resolved = resolve_task(path, catalog=ROOT / "catalog")
+    assert [s.name for s in resolved.bindings.devices] == ["overview", "world"]
+    assert resolved.bindings.devices[0].config == {"camera": "agentview"}
+    task["device_bindings"]["overview"]["profile"] = "../../missing.yaml"
+    path.write_text(yaml.safe_dump(task))
+    with pytest.raises((ValueError, FileNotFoundError)):
+        resolve_task(path, catalog=ROOT / "catalog")
+
+
+@pytest.mark.parametrize("device_service", ["http"], indirect=True)
+def test_endpoint_client_has_no_primitive_catalog_and_returns_data(device_service):
+    _, supervisor, _ = device_service
+    transport = Client(supervisor.http_endpoint)
+    env = Environment(transport)
+    for name in ("api", "call", "observe", "vla", "request", "describe"):
+        assert not hasattr(env, name)
+    with pytest.raises(FrozenInstanceError):
+        env.task.instruction = "changed"
+    profiles = env.devices()
+    profiles[0]["name"] = "changed"
+    assert env.devices()[0]["name"] == "controller"
+    with pytest.raises(KeyError):
+        env.device("missing")
+    controller = env.device("controller")
+    assert controller.read() == transport.device("controller").read()["data"]
+    for op in ("api", "call", "observe", "vla", "score.peek", "capture"):
+        with pytest.raises(RemoteError):
+            transport.request(op)
+    env.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        controller.read()
+    assert transport.request("health")["worker"]["alive"]
+
+
+def test_type_specific_handles_and_profile_only_world(tmp_path):
+    class Transport:
+        def describe(self):
+            return {"task": {"id": "test", "instruction": "Pick a bottle", "context": {"a": [1]}}}
+
+        def devices(self):
+            return {
+                "devices": [
+                    {"name": "camera", "type": "rgb", "actions": {"read": {"supported": True}}},
+                    {
+                        "name": "world",
+                        "type": "world",
+                        "intrinsics": {},
+                        "extrinsics": {},
+                        "actions": {},
+                    },
+                ]
+            }
+
+    env = Environment(Transport())
+    assert hasattr(env.device("camera"), "read")
+    assert not hasattr(env.device("camera"), "write")
+    assert not hasattr(env.device("camera"), "ik")
+    assert not hasattr(env.device("world"), "read")
+    with pytest.raises(TypeError):
+        env.task.context["a"] = []
+    export_devices([env.device("world").profile], tmp_path, {"endpoint": "http://sim:8123"})
+    assert (tmp_path / "world/profile.yaml").is_file()
+    assert not (tmp_path / "world/driver.py").exists()
+
+
+def native_interpreter():
+    registration = ROOT / ".cache/roboenv/installations/robocasa.json"
+    interpreter = os.environ.get("ROBOENV_ROBOCASA_TEST_PYTHON")
+    if interpreter is None and registration.is_file():
+        interpreter = json.loads(registration.read_text())["python"]
+    if not interpreter or not Path(interpreter).is_file():
+        pytest.skip("Requires prepared RoboCasa interpreter; never install simulator deps in SDK")
+    return interpreter
+
+
+def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
+    interpreter = native_interpreter()
+    environment = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join([str(ROOT / "src"), str(ROOT / "runtime/src")]),
+    }
+    result = subprocess.run(
+        [interpreter, str(ROOT / "tests/robocasa_cpu.py"), str(ROOT), str(tmp_path)],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads(result.stdout.splitlines()[-1])
+    assert report["passed"] and not report["gpu_replay"]
+    # Check actual Complex schema/interface compatibility when the sibling harness
+    # is present. RoboEnv itself retains no runtime dependency on Complex.
+    import shutil
+
+    complex_root = ROOT.parent / "complex"
+    if not (complex_root / "node_modules/zod").exists():
+        isolated = ROOT / ".cache/complex-schema"
+        if (isolated / "node_modules/zod").exists() and (complex_root / "src").is_dir():
+            # Reuse dependencies only; always test the sibling's CURRENT sources,
+            # including its uncommitted contract updates.
+            current = tmp_path / "complex-current"
+            shutil.copytree(complex_root / "src", current / "src")
+            shutil.copyfile(complex_root / "package.json", current / "package.json")
+            (current / "node_modules").symlink_to(
+                isolated / "node_modules", target_is_directory=True
+            )
+            complex_root = current
+    if shutil.which("bun") and (complex_root / "node_modules/zod").exists():
+        profiles = [
+            yaml.safe_load(path.read_text())
+            for path in (tmp_path / "devices").glob("*/profile.yaml")
+        ]
+        profiles += [
+            yaml.safe_load(path.read_text())
+            for path in (ROOT / "catalog/robots/robocasa-panda-omron/devices").glob(
+                "*/profile.yaml"
+            )
+        ]
+        payload = tmp_path / "profiles.json"
+        payload.write_text(json.dumps(profiles))
+        code = (
+            "const {Device, RobotManifest} = await import('./src/calibration/schema.ts'); "
+            "RobotManifest.parse(JSON.parse(await Bun.file(process.argv[2]).text())); "
+            "const {missingActions} = await import('./src/device/interface.ts'); "
+            "for (const value of JSON.parse(await Bun.file(process.argv[1]).text())) { "
+            "const device = Device.parse(value); "
+            "if (device.type === 'manipulator' && "
+            "(!Array.isArray(device.intrinsics.home_joints) || "
+            "device.intrinsics.home_joints.length !== device.intrinsics.dof)) "
+            "throw new Error('Missing home joints: ' + device.name); "
+            "if (missingActions(device, device.access?.driver?.actions ?? []).length) "
+            "throw new Error('Missing interface actions: ' + device.name); } "
+            "const {calibrationPlan} = await import('./src/calibration/dag.ts'); "
+            "const plan = await calibrationPlan(process.argv[3]); "
+            "for (const item of plan.items) { "
+            "if (item.device && item.status !== 'done') "
+            "throw new Error(item.id + ': ' + item.detail); } "
+            "if (!plan.items.some(i => i.id === 'intrinsics:arm')) throw new Error('No devices'); "
+            "if (!plan.items.find(i => i.id === 'extrinsics:body')"
+            "?.detail.includes('no world mount')) "
+            "throw new Error('Mobile body must be an independent frame root'); "
+            "if (plan.items.find(i => i.id === 'task-ready')?.status !== 'done') "
+            "throw new Error('Explicit null caps must satisfy the safety policy');"
+        )
+        manifest = tmp_path / "workspace.json"
+        manifest.write_text(
+            json.dumps(
+                yaml.safe_load(
+                    (ROOT / "catalog/robots/robocasa-panda-omron/workspace.yaml").read_text()
+                )
+            )
+        )
+        workspace = tmp_path / "complex-workspace"
+        shutil.copytree(
+            ROOT / "catalog/robots/robocasa-panda-omron",
+            workspace / ".complex/robots/robocasa-panda-omron",
+        )
+        (workspace / ".complex/complex.json").write_text(
+            json.dumps({"robot": {"active": "robocasa-panda-omron"}})
+        )
+        checked = subprocess.run(
+            ["bun", "-e", code, str(payload), str(manifest), str(workspace)],
+            cwd=complex_root,
+            env={**os.environ, "COMPLEX_CONFIG_DIR": str(tmp_path / "complex-config")},
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        assert checked.returncode == 0, checked.stdout + checked.stderr
+
+
+def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
+    result = subprocess.run(
+        [
+            native_interpreter(),
+            str(ROOT / "tools/generate_robocasa_config.py"),
+            "--out",
+            str(tmp_path),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=45,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    robot = ROOT / "catalog/robots/robocasa-panda-omron"
+    assert {p.name for p in (robot / "devices").iterdir()} == {
+        "arm",
+        "body",
+        "torso",
+        "gripper",
+        "camera_left",
+        "camera_right",
+        "camera_wrist",
+        "world",
+    }
+    assert not list(robot.rglob("connection.json"))
+    assert {p.name for p in robot.iterdir()} == {"workspace.yaml", "devices"}
+    for path in tmp_path.rglob("*"):
+        if path.is_file():
+            assert path.read_bytes() == (robot / path.relative_to(tmp_path)).read_bytes(), str(path)
+    camera = yaml.safe_load((robot / "devices/camera_left/profile.yaml").read_text())
+    assert camera["extrinsics"]["mount"]["parent"] == "torso"
+    assert camera["extrinsics"]["mount"]["parent_frame"] == "flange"
+    for name in ("camera_left", "camera_right", "camera_wrist"):
+        profile = yaml.safe_load((robot / "devices" / name / "profile.yaml").read_text())
+        assert profile["type"] == "rgbd"
+        assert profile["intrinsics"]["depth"]["scale"] == 0.001
+        assert profile["intrinsics"]["depth"]["aligned"] is True
+    body = yaml.safe_load((robot / "devices/body/profile.yaml").read_text())
+    assert body["type"] == "body"
+    assert body["intrinsics"]["mobility"] == "mobile"
+    assert body["extrinsics"] == {"source": "default"}
+    torso = yaml.safe_load((robot / "devices/torso/profile.yaml").read_text())
+    assert torso["extrinsics"]["mount"]["parent"] == "body"
+    world = yaml.safe_load((robot / "devices/world/profile.yaml").read_text())
+    assert world["intrinsics"]["bounds"] == {
+        "min": [None, None, None], "max": [None, None, None]
+    }
+    assert world["intrinsics"]["source"] == "default"
+    assert "collision-free" in world["intrinsics"]["notes"]
+
+
+@pytest.mark.parametrize("device_service", ["http"], indirect=True)
+@pytest.mark.parametrize("extension", ["png", "pgm"])
+def test_images_download_to_client_files_and_are_episode_fenced(
+    device_service, tmp_path, extension
+):
+    import http.client
+    from urllib.parse import urlsplit
+
+    _, supervisor, _ = device_service
+    env = Environment(Client(supervisor.http_endpoint))
+    captures = supervisor.config.run_dir / "captures"
+    captures.mkdir()
+    remote = captures / ("a" * 32 + "." + extension)
+    remote.write_bytes(b"test-image")
+    local = Path(env._download(str(remote)))
+    assert local != remote and local.read_bytes() == b"test-image"
+    endpoint = urlsplit(supervisor.http_endpoint)
+    connection = http.client.HTTPConnection(endpoint.hostname, endpoint.port)
+    try:
+        connection.request("GET", "/artifacts/old-episode/0/" + remote.name)
+        assert connection.getresponse().status == 409
+    finally:
+        connection.close()
+    env.close()
+    assert not local.exists()
+    assert remote.is_file()
+
+
+def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
+    import shutil
+    import threading
+    import time
+    from contextlib import ExitStack
+
+    import roboenv
+    from roboenv_runtime.runtime.protocol import socket_address
+    from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
+
+    interpreter = native_interpreter()
+    monkeypatch.setenv(
+        "PYTHONPATH",
+        os.pathsep.join(str(ROOT / relative) for relative in ("src", "runtime/src", "tests")),
+    )
+    monkeypatch.delenv("ROBOENV_SOCKET_ROOT", raising=False)
+    monkeypatch.delenv("ROBOENV_SERVER_MANIFEST", raising=False)
+    tasks = tmp_path / "tasks"
+    tasks.mkdir()
+    monkeypatch.setenv("ROBOENV_TASKS", str(tasks))
+    environments, owners, supervisors = [], [], []
+    with ExitStack() as stack:
+        for index in range(2):
+            task_id = f"cpu-robocasa-{index}"
+            (tasks / f"{task_id}.yaml").write_text(
+                yaml.safe_dump({"id": task_id, "adapter": "robocasa", "text": "Lift the cube."})
+            )
+            robot = tmp_path / f"robot-{index}"
+            shutil.copytree(ROOT / "catalog/robots/robocasa-panda-omron", robot)
+            plan = BindingPlan.load(
+                ROOT / "catalog/robots/robocasa-panda-omron", backend="robocasa"
+            ).as_dict()
+            if index:
+                plan["devices"] = {
+                    name: value
+                    for name, value in plan["devices"].items()
+                    if name in {"world", "body", "camera_left"}
+                }
+            (robot / "bindings.yaml").write_text(yaml.safe_dump(plan))
+            monkeypatch.setenv("ROBOENV_SERVER_ROBOT", str(robot))
+            config = SupervisorConfig(
+                run_dir=tmp_path / f"run-{index}",
+                task=task_id,
+                seed=index,
+                budget_mode="official",
+                session=f"cpu-{index}",
+                http_port=0,
+                http_host="127.0.0.1" if index == 0 else "0.0.0.0",
+                python_executable=interpreter,
+                worker_module="robocasa_cpu",
+            )
+            supervisor = Supervisor(config)
+            stack.callback(supervisor.close)
+            supervisor.start_worker()
+            supervisor.open_server()
+            thread = threading.Thread(target=supervisor.serve_forever, daemon=True)
+            thread.start()
+            stack.callback(thread.join, 5)
+            stack.callback(supervisor._schedule_server_shutdown)
+            owner = Client(socket_address(config.public_socket), session=config.session)
+            owner.request("devices.list", timeout=30)
+            deadline = time.monotonic() + 5
+            while supervisor.http_endpoint is None:
+                assert time.monotonic() < deadline
+                time.sleep(0.01)
+            environments.append(roboenv.connect(supervisor.http_endpoint))
+            owners.append(owner)
+            supervisors.append(supervisor)
+        first, second = environments
+        assert supervisors[0].http_endpoint != supervisors[1].http_endpoint
+        assert first.task.id != second.task.id
+        assert first.task.instruction == "Lift the cube (CPU service fixture)."
+        assert dict(first.task.context) == {}
+        assert "scene" not in {p["name"] for p in first.devices()}
+        public = Client(supervisors[0].http_endpoint)
+        description = public.describe()
+        assert set(description) == {"task", "devices", "session", "generation"}
+        assert set(description["task"]) == {"id", "instruction", "context"}
+        for operation in ("observe", "scene", "score.peek", "api"):
+            public.allowed_ops = public.allowed_ops | {operation}
+            with pytest.raises(RemoteError, match="unsupported_op"):
+                public.request(operation)
+        # Even a known verifier request ID cannot expose its privileged result.
+        privileged = owners[0].request("observe", request_id="private-observation")
+        assert "cube" in privileged["objects"]
+        with pytest.raises(RemoteError, match="unsupported_op"):
+            public.operation("private-observation")
+        assert "seed" not in public.request("health")
+        assert {p["name"] for p in second.devices()} == {"world", "body", "camera_left"}
+        with pytest.raises(KeyError):
+            second.device("arm")
+        first.device("arm").write([0.1, 0, 0, 0, 0, 0])
+        assert owners[0].request("observe")["budget"]["used"] == 1
+        assert owners[1].request("observe")["budget"]["used"] == 0
+        image = first.device("camera_left").read()
+        assert Path(image["file"]).read_bytes().startswith(b"\x89PNG")
+        assert image["width"] == 12
+        budget_before = owners[0].request("observe")["budget"]["used"]
+        frames = []
+        depths = []
+        for name in ("camera_left", "camera_right", "camera_wrist"):
+            reading = first.device(name).read()
+            frames.append(Path(reading["file"]).read_bytes())
+            depth = Path(reading["depth_file"])
+            assert depth.parent == Path(reading["file"]).parent
+            assert depth.parent != supervisors[0].config.run_dir / "captures"
+            assert reading["depth_scale"] == 0.001
+            depths.append(depth.read_bytes())
+        assert all(d.startswith(b"P5\n12 8\n65535\n") for d in depths)
+        assert len(set(depths)) == 3
+        assert len(set(frames)) == 3
+        assert owners[0].request("observe")["budget"]["used"] == budget_before
+        with pytest.raises(KeyError):
+            second.device("camera_right")
+        import shutil
+        import sys
+
+        copied = tmp_path / "workspace/.complex/robots/robocasa-panda-omron"
+        shutil.copytree(ROOT / "catalog/robots/robocasa-panda-omron", copied)
+        before = {p.relative_to(copied): p.read_bytes() for p in copied.rglob("*") if p.is_file()}
+        for supervisor in supervisors:
+            driver = subprocess.run(
+                [sys.executable, str(copied / "devices/camera_left/driver.py"), "read", "{}"],
+                cwd=copied,
+                env={**os.environ, "ROBOENV_ENDPOINT": supervisor.http_endpoint},
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            assert driver.returncode == 0, driver.stderr
+            response = json.loads(driver.stdout)
+            assert response["ok"], response
+            local_image = Path(response["file"])
+            assert local_image.read_bytes().startswith(b"\x89PNG")
+            local_depth = Path(response["depth_file"])
+            assert local_depth.read_bytes().startswith(b"P5\n")
+            local_depth.unlink()
+            local_image.unlink()
+            local_image.parent.rmdir()
+        assert before == {
+            p.relative_to(copied): p.read_bytes() for p in copied.rglob("*") if p.is_file()
+        }
+        driver = subprocess.run(
+            [sys.executable, str(copied / "devices/arm/driver.py"), "read", "{}"],
+            cwd=copied,
+            env={**os.environ, "ROBOENV_ENDPOINT": supervisors[1].http_endpoint},
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        assert not json.loads(driver.stdout)["ok"]  # second test rig deliberately omits arm
+        driver = subprocess.run(
+            [sys.executable, str(copied / "devices/camera_left/driver.py"), "read", "{}"],
+            cwd=copied,
+            env={**os.environ, "ROBOENV_ENDPOINT": supervisors[0].http_endpoint},
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        assert driver.returncode == 0, driver.stderr
+        reply = json.loads(driver.stdout)
+        assert reply["ok"], reply
+        # The one-shot process must not delete the image as it exits.
+        driver_image = Path(reply["file"])
+        assert driver_image.read_bytes().startswith(b"\x89PNG")
+        driver_depth = Path(reply["depth_file"])
+        assert driver_depth.read_bytes().startswith(b"P5\n")
+        driver_depth.unlink()
+        driver_image.unlink()
+        driver_image.parent.rmdir()
+        assert not hasattr(first.device("camera_left"), "write")
+        first.close()
+        second.close()
+        assert owners[0].request("health")["worker"]["alive"]

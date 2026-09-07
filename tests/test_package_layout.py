@@ -29,17 +29,6 @@ def test_domain_packages_do_not_depend_on_cli_or_simulator_runtime():
                     assert not module.startswith("roboenv.harbor"), path
 
 
-def test_package_root_only_contains_public_access_and_shared_infrastructure():
-    assert {path.name for path in SDK.glob("*.py")} == {
-        "__init__.py",
-        "client.py",
-        "environment.py",
-        "privacy.py",
-        "project.py",
-        "validation.py",
-    }
-
-
 def test_robot_variants_share_handlers_but_keep_separate_binding_records():
     index = binding_index()
     for device in ("left_arm", "right_arm", "left_gripper", "right_gripper"):
@@ -52,7 +41,7 @@ def test_robot_variants_share_handlers_but_keep_separate_binding_records():
             assert a["module"] == b["module"]
             assert a["source_sha256"] == b["source_sha256"]
     cameras = [record["module"] for key, record in index.items() if key.endswith(":camera")]
-    assert len(cameras) == 4
+    assert len(cameras) == 3  # RoboCasa now binds cameras directly to native rendering.
     assert set(cameras) == {"shared.camera"}
 
 

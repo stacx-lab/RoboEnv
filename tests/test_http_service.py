@@ -7,10 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlsplit
 
 import pytest
-import test_device_service as wire_tests
 from roboenv.client import Client, RemoteError, UncertainResult
-
-device_service = wire_tests.device_service
 
 
 @pytest.fixture
@@ -53,7 +50,9 @@ def test_transport_switch_does_not_repeat_a_motion(http_client):
     args = {"tool_name": "push", "kwargs": {"dx": 0.3}}
     first = http.device("controller").call("invoke", args, request_id="both-transports")
     assert unix.device("controller").call("invoke", args, request_id="both-transports") == first
-    assert http.request("observe")["budget"]["used"] == 50
+    assert unix.request("observe")["budget"]["used"] == 50
+    with pytest.raises(RemoteError, match="unsupported_op"):
+        http.request("observe")
     with pytest.raises(RemoteError, match="request_id_conflict"):
         unix.device("controller").call(
             "invoke", {"tool_name": "push", "kwargs": {"dx": 0.1}}, request_id="both-transports"
@@ -89,6 +88,22 @@ def test_http_rejects_wrong_path_and_owner_operations(http_client):
         owner.request("shutdown")
     assert unix.request("health")["worker"]["alive"]
     assert unix.request("observe")["budget"]["used"] == 0
+
+
+@pytest.mark.parametrize("device_service", ["http"], indirect=True)
+def test_public_metadata_never_reuses_privileged_owner_results(http_client):
+    http, owner, supervisor = http_client
+    owner.request("observe", request_id="private-state")
+    owner.request("operations.get", {"request_id": "private-state"}, request_id="owner-lookup")
+    with pytest.raises(RemoteError, match="unsupported_op"):
+        http.request("operations.get", {"request_id": "private-state"}, request_id="owner-lookup")
+    assert http.operation("owner-lookup")["state"] == "unknown"
+    private_health = owner.request("health", request_id="shared-health")
+    assert "seed" in private_health
+    public_health = http.request("health", request_id="shared-health")
+    assert "seed" not in public_health
+    assert set(public_health["worker"]) == {"state", "alive"}
+    assert supervisor.config.run_dir.stat().st_mode & 0o777 == 0o700
 
 
 @pytest.mark.parametrize("device_service", ["http"], indirect=True)

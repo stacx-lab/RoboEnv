@@ -1,8 +1,9 @@
 """Audit or strictly install a simulator into an explicitly new environment.
 
-Run from the repository's development environment. Installation never repairs an
+Run from the repository's development environment. The low-level installer never repairs an
 existing environment, suppresses dependency resolution, fetches assets, accepts
-licenses, or claims a GPU replay. Rejected installs preserve a private failure log.
+licenses, or claims a GPU replay. Preparation also acquires RoboCasa kitchen assets.
+Rejected installs preserve a private failure log.
 """
 
 import argparse
@@ -456,7 +457,7 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
 
 
 def prepare(backend, *, project=None, install_to=None, progress=None):
-    """Synchronize and install a simulator, or reuse its registered interpreter."""
+    """Prepare an interpreter and, for RoboCasa, its kitchen assets."""
     root = project_root(project)
     # Validate the backend before using it in a filesystem path or syncing sources.
     with stage(progress, "Checking simulator configuration and existing sources"):
@@ -470,7 +471,7 @@ def prepare(backend, *, project=None, install_to=None, progress=None):
                     progress(
                         "Reusing registered interpreter; no installation or revalidation performed."
                     )
-                return record["report"]
+                return _prepare_assets(backend, root, record["report"], progress)
         destination = root / ".venv-sim" / backend
     else:
         destination = Path(install_to)
@@ -480,7 +481,16 @@ def prepare(backend, *, project=None, install_to=None, progress=None):
 
     with stage(progress, "Synchronizing pinned simulator sources and patches"):
         sync(root, [backend])
-    return install(backend, destination, project=root, progress=progress)
+    report = install(backend, destination, project=root, progress=progress)
+    return _prepare_assets(backend, root, report, progress)
+
+
+def _prepare_assets(backend, root, report, progress):
+    if backend == "robocasa":
+        from roboenv.provisioning.robocasa_assets import prepare_assets
+
+        return {**report, **prepare_assets(root, progress=progress)}
+    return report
 
 
 def doctor(backend, *, project=None):

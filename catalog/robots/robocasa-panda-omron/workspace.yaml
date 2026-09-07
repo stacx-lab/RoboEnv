@@ -8,21 +8,23 @@ identity:
 sim:
   source: user
   simulator: robocasa
-  repo_path: ???
-  composition:
-  - base
-  - torso
-  - arm
-  - gripper
 devices:
   source: user
 safety:
   source: user
-  max_cartesian_velocity: ???
-  max_joint_velocity: ???
+  max_cartesian_velocity: null
+  max_joint_velocity: null
   keep_out_zones: []
-  notes: Only advertised capabilities are available. Unsupported stop and kinematics
-    never report success. Budgets and verification remain environment-owned.
+  notes: Use the supplied device drivers. Each write advances one native control interval.
+    Native Panda OSC and torque motors do not define a hard Cartesian or joint velocity
+    cap. The base velocity servo limits targets, not measured speed. These safety
+    fields explicitly impose no additional velocity cap; native dynamics and
+    controller limits still apply.
+    Do not infer velocity caps from OSC deltas divided by the control interval or
+    from real-hardware URDF limits that this simulator does not enforce.
+    Reads and recording do not advance physics. Infer scene geometry and object poses
+    from camera images; simulator ground truth is not an agent observation. Budgets
+    and verification remain environment-owned.
 meta:
   created_at: '2026-08-31T03:30:00Z'
   updated_at: '2026-08-31T03:30:00Z'

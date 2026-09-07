@@ -172,6 +172,9 @@ def validate_journal(raw, *, session, submit_id, verdict, api, practice=False):
                 "state",
                 "status",
                 "load",
+                "unload",
+                "ik",
+                "fk",
                 "catalog",
                 "api",
                 "ping",
@@ -220,6 +223,9 @@ def main():
     raw = None
     try:
         task = strict_json(Path(__file__).with_name("task.json").read_bytes())
+        if task.get("backend") == "robocasa":
+            identity = strict_json(Path("/run/roboenv/identity.json").read_bytes())
+            task["session"] = identity["session"]
         mode = task.get("budget_mode", "official")
         if (
             type(task.get("seed")) is not int

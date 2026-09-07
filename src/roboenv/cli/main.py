@@ -111,7 +111,7 @@ def main(argv=None):
             return execute(args)
         client = Client()
         if hasattr(args, "run"):
-            from roboenv.environment import connect
+            from roboenv.environment import _connect as connect
 
             client = connect(args.run, endpoint=args.endpoint)
         if args.command == "sources":

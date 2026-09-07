@@ -4,10 +4,8 @@ import importlib.resources
 import json
 import os
 import runpy
-import shutil
 import subprocess
 import sys
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -20,74 +18,13 @@ from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.contract import DEVICE_CONTRACT
 from roboenv.harbor.export import export_task
+from roboenv_runtime.adapters.fakeshell import FakeShell
+from roboenv_runtime.runtime.protocol import Request, Response
+from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
+from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError
+from service_fixtures import invoke
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "runtime/src"))
-
-from roboenv_runtime.adapters.fakeshell import FakeShell  # noqa: E402
-from roboenv_runtime.runtime.protocol import Request, Response, socket_address  # noqa: E402
-from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig  # noqa: E402
-from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError  # noqa: E402
-
-
-@pytest.fixture
-def device_service(tmp_path, monkeypatch, request):
-    robot = tmp_path / "robot"
-    shutil.copytree(ROOT / "tests/fixtures/native-toy/catalog/robots/toy-puck", robot)
-    # A test-only binding injects partial effects, delay, and read violations.
-    if getattr(request, "param", None) != "native":
-        (robot / "bindings.yaml").write_text(
-            yaml.safe_dump(
-                {
-                    "schema_version": "roboenv/bindings/1",
-                    "backend": "fakeshell",
-                    "devices": {"controller": {"binding": "test.device/1", "entity": "controller"}},
-                }
-            )
-        )
-    tasks = tmp_path / "tasks"
-    tasks.mkdir()
-    (tasks / "device-toy.yaml").write_text(
-        "id: device-toy\nadapter: fakeshell\ntext: Push the puck.\n"
-    )
-    monkeypatch.setenv("ROBOENV_SERVER_ROBOT", str(robot))
-    monkeypatch.delenv("ROBOENV_SERVER_MANIFEST", raising=False)
-    monkeypatch.delenv("ROBOENV_SOCKET_ROOT", raising=False)
-    monkeypatch.setenv("ROBOENV_TASKS", str(tasks))
-    monkeypatch.setenv(
-        "PYTHONPATH",
-        os.pathsep.join([str(ROOT / "runtime/src"), str(ROOT / "src"), str(ROOT / "tests")]),
-    )
-    config = SupervisorConfig(
-        run_dir=tmp_path / "run",
-        task="device-toy",
-        seed=0,
-        budget_mode="official",
-        session="harbor",
-        cache_entries=2,
-        terminate_grace_s=0.2,
-        worker_module="device_test_worker",
-        http_port=0 if getattr(request, "param", None) == "http" else None,
-    )
-    supervisor = Supervisor(config)
-    supervisor.start_worker()
-    supervisor.open_server()
-    thread = threading.Thread(target=supervisor.serve_forever, daemon=True)
-    thread.start()
-    client = Client(socket_address(config.public_socket))
-    try:
-        client.request("devices.list", timeout=10)
-        yield client, supervisor, robot
-    finally:
-        supervisor._schedule_server_shutdown()
-        thread.join(timeout=5)
-        supervisor.close()
-
-
-def invoke(client, *, request_id=None, **extra):
-    return client.device("controller").call(
-        "invoke", {"tool_name": "push", "kwargs": {"dx": 0.3}, **extra}, request_id=request_id
-    )
 
 
 def test_discover_control_and_observe_through_real_worker(device_service):
@@ -154,13 +91,13 @@ def test_status_and_duplicate_timeout_do_not_wait_for_or_poison_motion(device_se
     assert client.request("observe")["budget"]["used"] == 50
 
 
-@pytest.mark.parametrize("action", ["stop", "ik", "fk", "unload", "policy_run", "reset"])
-def test_unsupported_capabilities_never_succeed(device_service, action):
+def test_unsupported_capabilities_never_succeed(device_service):
     client, _, _ = device_service
-    with pytest.raises(RemoteError) as error:
-        client.device("controller").call(action)
-    assert error.value.code == "unsupported_action"
-    assert error.value.details["effects"] == "none"
+    for action in ("stop", "ik", "fk", "unload", "policy_run", "reset"):
+        with pytest.raises(RemoteError) as error:
+            client.device("controller").call(action)
+        assert error.value.code == "unsupported_action"
+        assert error.value.details["effects"] == "none"
     assert client.request("observe")["budget"]["used"] == 0
 
 
@@ -179,6 +116,8 @@ def test_read_cannot_dispatch_motion_and_identity_is_checked(device_service):
 
 def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, tmp_path):
     client, supervisor, _ = device_service
+    program = tmp_path / "solution.py"
+    program.write_text('push(0.3)\nassert get_object_pose(name="puck")[0][0] >= 0.3\n')
     env = {
         **os.environ,
         "ROBOENV_SOCKET": client.socket_path,
@@ -188,6 +127,7 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
     for arguments in (
         ["devices"],
         ["device", "controller", "invoke", '{"tool_name":"push","kwargs":{"dx":0.3}}'],
+        ["replay", str(program)],
     ):
         result = subprocess.run(
             [sys.executable, "-m", "roboenv.cli.main", *arguments],
@@ -251,8 +191,15 @@ def test_all_catalogs_load_without_contacting_simulators():
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
     for robot in sorted((ROOT / "catalog/robots").iterdir()):
-        raw = yaml.safe_load((robot / "bindings.yaml").read_text())
+        from roboenv.devices.bindings.spec import binding_path
+
+        raw = yaml.safe_load(binding_path(robot).read_text())
         plan = BindingPlan.load(robot, backend=raw["backend"])
+        if raw["backend"] == "robocasa":
+            # Offline definitions validate without a world; native bindings require
+            # real model/controller facts, covered by the RoboCasa conformance test.
+            assert all(spec.definition(robot) for spec in plan.devices)
+            continue
         context = BindingContext(raw["backend"], raw["embodiment"], object(), forbidden, {})
         service = default_registry().assemble(plan, robot, context)
         validator.validate(service.inventory())

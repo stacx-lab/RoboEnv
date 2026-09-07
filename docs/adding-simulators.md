@@ -1,102 +1,155 @@
-# 接入 Simulator
+# 接入新的 Simulator
 
-路径均以 Roboenv 仓库为根。设备侧接口见
-[接入 Devices](adding-devices.md)，实际换装步骤见
+新接入按 [DESIGN.md](../DESIGN.md) 的设备服务设计实现。RoboCasa 是参考实现；
+旧后端的 primitive API、ground-truth 观测和旧 driver 生成方式不是新接入规范。
+配置编写见 [接入 Devices](adding-devices.md)，改动范围见
 [组合与切换](simulator-device-recipes.md)。
 
-## 1. 职责边界
+## 1. 确定任务、硬件与观测边界
 
-| 层 | 负责 | 不负责 |
-|---|---|---|
-| Simulator adapter | 创建场景/机器人，观测、控制、预算、benchmark 原始判定 | Agent 安装、LLM |
-| WorldSession | 持有唯一后端实例、生命周期、共享执行锁 | 设备动作定义 |
-| Binding | 把设备接口接到这个世界的实体/控制器 | 创建第二份世界或重置 episode |
-| DeviceService | 发现、分发、统一结果/错误 | 了解具体物理引擎 |
-| ScoreAuthority + verifier | 环境评分与证据检查 | 采信 agent 的成功声明 |
+先查上游任务 registry、机器人模型、控制器配置、相机定义和成功判定。
+明确每个目标 embodiment 的设备、动作空间、单位、控制频率、frame 与预算。
+相同机器人和传感器配置应跨任务复用；场景布局、物体位置、seed 不是设备配置。
+不同硬件或相机 arrangement 使用不同 robot ID，不靠 launch 重写同一配置。
 
-现有 EnvAdapter 包含 benchmark 接口，不是纯物理引擎抽象。
-WorldSession 包装它；评分仍由环境权威调用，不属于 device。
+新后端默认 `sensors-only`：agent 获得任务指令、设备事实和传感器读数，
+自行感知、估计和规划。不得把物体坐标、fixture 几何、layout/style、scene seed
+放进 task context、world profile 或新增的 scene device。机器人本体状态和
+FK/IK 属于设备读数；读取任意 simulator state 不属于公开接口。
+特殊 benchmark 若明确要求特权观测，必须单独定义、标记和验证观测政策。
 
-## 2. 固定依赖
+| 组件 | 职责 |
+|---|---|
+| Adapter | 初始化/关闭世界，原生控制支持，原 benchmark 预算与判定 |
+| WorldSession / worker | 唯一世界、执行锁、生命周期、预算和证据 |
+| Native binding | 连接已有实体，实现基本设备操作，不创建第二个世界 |
+| DeviceService / supervisor | 校验、分发、身份、去重、HTTP/owner 边界 |
+| Complex / 其他 harness | perception、planning、反馈控制程序、模型调用 |
+| Harbor | trial 创建、资源调度、agent/verifier 启动与清理 |
 
-在 upstreams.lock.json 添加公开 URL、精确 commit、后端归属、依赖关系，
-必要时添加带 SHA256 的受管理补丁。源码放 third_party/ 的 Git submodule。
+## 2. 锁定源码与准备独立运行环境
 
-    roboenv sources sync --backends BACKEND
-    roboenv sources status --backends BACKEND
+在 `upstreams.lock.json` 登记公开来源、精确 revision、后端归属和依赖，
+源码以选定的 `third_party/` submodule 管理。修改上游前先执行：
 
-为重依赖准备独立解释器与资产。源码 pin、Python 包集合、GPU/渲染配置、
-资产身份和最终镜像 digest 是不同层，不能用其中一个替代全部可复现性。
-Roboenv 不自动接受资产再分发条款或下载所有模型。
+```sh
+roboenv sources check-updates --backends BACKEND
+roboenv sources sync --backends BACKEND
+roboenv sources status --backends BACKEND
+```
 
-## 3. 实现 adapter
+按照项目规则审核 upstream 更新、维护带校验和的补丁；不在 submodule 内提交，
+不依赖未记录的 checkout 修改。不要递归下载所有后端。
 
-接口：[core/adapter.py](../runtime/src/roboenv_runtime/core/adapter.py)。
-最小可运行例子：[FakeShell](../runtime/src/roboenv_runtime/adapters/fakeshell.py)。
+接入 `runtime/environments.json` 的安装 recipe、对应 lock/资产获取步骤和
+`src/roboenv/provisioning/` 的准备/诊断流程，使下面的操作可用：
 
-至少实现以下真实语义：
+```sh
+roboenv prepare BACKEND
+roboenv doctor BACKEND
+```
 
-- name、embodiment：稳定身份；与实际世界匹配。
-- reset(seed)、close()：确定性初始化及本实例资源释放。
-- observe()、situation()、facts()、goal()：符合任务观测权限的状态与事实。
-- budget()：benchmark 的真实有限预算，不沿用无界占位。
-- score()：原有 benchmark 判定，返回 ScoreReport，不放宽成功阈值。
-- capture()/frames()：有相机才提供；缺失能力要明确说明。
-- tools()：可选兼容 primitive 表。直接实体 binding 可以完全不依赖它。
+开发/Harbor 环境与 simulator 解释器隔离。源码 revision、Python lock、资产身份、
+渲染驱动要求和镜像 digest 都要明确，不能用一个版本号替代全部。不要把所有
+模拟器依赖安装进 SDK 环境。列任务、读配置、导入 SDK 均不得启动 GPU 或下载模型。
 
-AdapterBase 的默认观测会查询约定 primitive；不提供这些 primitive 时，
-必须自行实现 observe()。延迟导入 simulator 重依赖，不能在 SDK 导入时启动引擎。
-使用 register_adapter 注册，在 BUILTIN_ADAPTERS 添加模块映射。
+## 3. 实现最小 adapter 与 native binding
 
-## 4. 接上 devices
+参考 [RoboCasa adapter](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py)、
+[backend](../runtime/src/roboenv_runtime/adapters/robocasa/backend.py) 和
+[native devices](../runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py)。
+基类在 [core/adapter.py](../runtime/src/roboenv_runtime/core/adapter.py)。
 
-提供已有实体和控制/观测接口，让 binding factory 解析 entity。
-默认设备方案放 catalog/robots/ROBOT/bindings.yaml。
+Adapter 提供稳定的 `name`/`embodiment`、`reset(seed)`、`close()`、任务指令
+`goal()`、真实有限 `budget()`、原始 `score()`，以及所需的 owner 观测/证据支持。
+Override 基类依赖旧 primitive 的默认方法；新接入不需要新增 `tools()` 宏操作表。
+评分可以读取特权状态，但它与 agent 传感器读取必须分开。
 
-当前生产 catalog 使用五个后端专属 binding：
-libero.device/1、robocasa.device/1、robotwin.device/1、
-robodojo.device/1、behavior.device/1。
-它们在 runtime/bindings 中直接调用 worker 注入的、已计费的控制器函数，
-不再执行 catalog 里的 Python driver，也不连接回自己的 socket。
+Binding 直接调用当前世界的实体和原生 servo/controller。每次 write 的输入
+先验证，再经统一 execution 入口产生效果并计费。一个命令只推进一次声明的
+原生控制区间；未被控制的执行器使用明确的 neutral/hold/expiry 规则。
+read、status、发现、录制和 IK/FK 不推进时间。设备关闭不关闭世界。
 
-这是一层后端控制器适配，不是所有模拟器都已实现统一低级关节控制。
-fakeshell.puck/1 是不使用 primitive 表的
-直接实体示例。中立 DeviceService 不依赖以上任何具体绑定。
+在 adapter registry/`BUILTIN_ADAPTERS` 注册后端，并在
+[runtime binding registry](../runtime/src/roboenv_runtime/bindings/__init__.py)
+显式注册 binding ID。不要让配置指定任意 Python import，不要从 binding
+通过 socket 回调正持锁的本 worker，也不要新增第二套 driver/runtime。
 
-## 5. 接上任务发现与镜像
+## 4. 预生成可直接复制的机器人配置
 
-新增后端须同时完成：
+```text
+catalog/robots/ROBOT/
+  workspace.yaml
+  devices/NAME/profile.yaml
+  devices/NAME/driver.py      # world 除外
+catalog/bindings/ROBOT.yaml
+catalog/tasks/TASK/task.yaml
+```
 
-1. tools/build_simulator_image.py 中解释器、源码和资产切片映射。
-2. src/roboenv/tasks/catalog.py 中轻量 discoverer 和默认 robot。
-3. 从上游真实 registry/config 提取 id、初始化参数、任务语言及来源哈希。
-4. 每个生成定义能被 Task.load 验证，并通过真实 Harbor loader。
-5. 缺失场景、配置或资源的任务明确排除，并记录原因。
+robot 根目录只有 `workspace.yaml` 与 `devices/`，供直接复制到 Complex。
+Binding plan 是 RoboEnv 私有组装信息，不属于 Complex 配置。README、来源 receipt
+放在 `docs/`；生成器放在 `tools/`；测试用的额外 profile 放在 fixtures。
 
-不得通过导入一个会启动 GPU 的模块来列 task。不要推测任务数或编造场景。
-批量 task 不入库；生成方法见 [Harbor tasks](harbor-tasks.md)。
+用上游模型/控制器/相机定义预生成稳定参数，必要时只编译一个 CPU 机器人模型。
+保存来源哈希并测试重复生成一致。不要初始化随机任务再把其场景或世界位姿写进
+静态 profile。参考 [RoboCasa 生成器](../tools/generate_robocasa_config.py) 和
+[配置研究](robocasa-config.md)。完整 schema、driver、frame 规则见
+[接入 Devices](adding-devices.md)。
 
-## 6. 生命周期
+`roboenv launch` 只读取 catalog。运行时可以校验实际硬件参数、返回 live
+capability，但不能静默更新 catalog 或改变相同配置所声明的控制语义。
 
-    Harbor 启动 sim
-      → adapter 初始化 episode
-      → WorldSession 持有后端和锁
-      → binding 校验并解析现有实体
-      → DeviceService 注册完成
-      → 健康检查通过
-      → agent 开始
+## 5. 接入任务发现、launch 和 Harbor
 
-设备与兼容 primitive 共享世界、预算和锁。只读请求不能推进物理世界。
-Owner reset/restore 先关闭旧 binding，再改变世界并重新绑定；
-device.close() 不得关闭整个世界。
+在 `src/roboenv/tasks/catalog.py` 添加轻量 discoverer 与默认 robot 映射，并
+检查所有后端枚举、准备流程和镜像构建映射是否覆盖新后端。只从锁定上游的
+registry/config/AST 获取任务 ID、参数、语言和来源；无法解析的任务记录排除原因。
+任务使用 `action_abstraction: devices`，复用 robot ID，并保留原始 horizon 和判定。
 
-## 7. 验收与交付
+参考 [小型 RoboCasa task](../catalog/tasks/robocasa-pick-place-microwave/task.yaml)。
+在小样例通过后才批量发现/导出，生成集合不入库。
 
-    bash tools/check.sh
+```sh
+roboenv launch TASK_ID --port 8123
+```
 
-还必须增加后端专项测试：缺失资产失败、错误 embodiment/entity 被拒绝、
-控制和观测单位正确、预算计费不重复、失败不伪装为成功、reset/close 不泄漏。
-运行真实 Docker Harbor task，并用保存程序完成 fresh-process replay。
+本地与 Harbor 都走同一个 task resolver、世界和 device registry。每个任务一个
+endpoint，所有设备共享它；并行任务用不同端口，或隔离网络中的同一内部端口。
+Ready 必须意味着场景、binding 和设备都已就绪。连接失败不得悄悄新建世界。
 
-提交时分别说明源码可获取、格式通过、容器启动、任务完成和 replay 认证覆盖。
-CPU fixture 通过不能替代 GPU 证据；当前覆盖见 [质量审计](quality-audit.md)。
+为 `tools/build_simulator_image.py` 和部署映射补齐解释器、源码、资产切片和
+真实镜像 digest。Harbor 接入同时覆盖启动、健康检查、agent endpoint、verifier
+和失败清理。格式验收使用实际安装的 Harbor loader，详见
+[Harbor tasks](harbor-tasks.md)。不要把 agent/model 安装塞进 simulator adapter。
+
+## 6. 审核所有 agent 可达路径
+
+不能仅隐藏 Python 方法。检查 worker 的 public description 投影和 HTTP allowlist；
+目前 RoboCasa 的脱敏逻辑包含后端分支，新 adapter 不会自动继承全部 sensor-only
+行为。新接入必须实现同等边界并测试：
+
+- task description 只含允许的指令/上下文，不含私有 manifest、seed 或场景状态。
+- device list/profile/read 不返回对象列表、布局、fixture 参数、成功信号。
+- owner observe/score/reset 等不能经 HTTP 调用。
+- `operations.get` 不得返回 owner 结果，也不能复用缓存绕过限制。
+- health、错误详情、日志和 artifact 路径不能成为特权状态通道。
+- agent 不可读取 simulator 资产、私有任务文件、owner socket、journal 或快照。
+
+只读挂载仍然可以泄露内容。Harbor 的 agent 与 verifier 权限需分开，owner
+证据目录不可读；同 Unix 用户运行本地 TUI 只能做功能测试，不能声称文件隔离。
+
+## 7. 验收与证据
+
+```sh
+bash tools/check.sh
+```
+
+新增正向与负向测试：离线加载/再生成、真实接口与单位、错误参数先于效果失败、
+只读不 step、stop 语义、IK/FK 不污染 live state、命令去重、部分初始化清理、
+端口并行和 episode 隔离、catalog 在 launch 前后不变、特权观测拒绝。
+Complex schema 校验之外，还需用复制后的 driver 验证实际调用和图像文件生命周期。
+
+分别报告配置/CPU checks、真实 GPU boot、device checks、任务成功、fresh-process
+replay。TUI 录制可用不等于任务完成，录像也不等于逐帧 simulator replay。
+实际 GPU 或模型运行需明确范围，不能从文档/CPU 验收隐式启动。保留旧证据，
+不要用新版本标签覆盖旧结果。

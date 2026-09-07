@@ -86,6 +86,7 @@ class SupervisorConfig:
     terminate_grace_s: float = 10.0
     max_ndjson_bytes: int = MAX_NDJSON_BYTES
     http_port: int | None = None
+    http_host: str = "127.0.0.1"
 
     def __post_init__(self) -> None:
         if self.http_port is not None and (
@@ -94,6 +95,8 @@ class SupervisorConfig:
             raise ValueError("HTTP port must be an integer between 0 and 65535")
         self.run_dir = self.run_dir.resolve()
         self.run_dir.mkdir(parents=True, exist_ok=True)
+        # Journals and verifier snapshots contain privileged simulator state.
+        self.run_dir.chmod(0o700)
         # sockets must live below the run directory (or $ROBOENV_SOCKET_ROOT: Unix socket
         # paths are limited to 107 bytes, so deep run directories may need a short root)
         socket_root = Path(os.environ.get("ROBOENV_SOCKET_ROOT", str(self.run_dir))).resolve(
@@ -537,15 +540,19 @@ class Supervisor:
                 response = event.get("response")
         return previous, response
 
-    def operation(self, args):
+    def operation(self, args, *, public=False):
         if set(args) != {"request_id"} or not isinstance(args["request_id"], str):
             raise ProtocolError("invalid_args", "operations.get requires a request_id string")
         target = args["request_id"]
         with self._cache_lock:
             active = self._inflight.get(target)
         if active is not None:
+            if public and active.op not in {"devices.list", "devices.describe", "devices.call", "environment.describe"}:
+                raise ProtocolError("unsupported_op", "Owner operation is not public")
             return {"request_id": target, "state": "running", "op": active.op}
         request, response = self._history(target)
+        if public and request is not None and request.op not in {"devices.list", "devices.describe", "devices.call", "environment.describe"}:
+            raise ProtocolError("unsupported_op", "Owner operation is not public")
         if response is not None:
             code = (response.get("error") or {}).get("code")
             state = "succeeded" if response.get("ok") else "failed"
@@ -602,7 +609,7 @@ class Supervisor:
         return response
 
     def handle(
-        self, request: Request, *, received_monotonic: float | None = None
+        self, request: Request, *, received_monotonic: float | None = None, public=False
     ) -> dict[str, Any]:
         received = time.monotonic() if received_monotonic is None else received_monotonic
         request_deadline = received + request.deadline_s
@@ -618,6 +625,22 @@ class Supervisor:
                 "generation_mismatch",
                 f"supervisor generation is {self.config.generation}",
             ).as_dict()
+
+        # Public metadata queries must not reuse cached owner responses. In
+        # particular, operations.get must not unwrap a verifier observation.
+        if public and request.op in {"health", "operations.get"}:
+            try:
+                if request.op == "operations.get":
+                    result = self.operation(request.args, public=True)
+                else:
+                    health = self.health()
+                    result = {key: health[key] for key in (
+                        "supervisor", "endpoint", "protocol", "session", "generation", "device_service"
+                    )}
+                    result["worker"] = {key: health["worker"][key] for key in ("state", "alive")}
+                return Response.success(request, result).as_dict()
+            except ProtocolError as exc:
+                return Response.failure(request, exc.code, exc.message).as_dict()
 
         try:
             cached = self._cache_lookup(request)
@@ -683,12 +706,21 @@ class Supervisor:
                 response = response_obj.as_dict()
                 if request.op == "devices.list" and response_obj.ok:
                     result = response_obj.result
-                    self._device_registry_ready = (
+                    was_ready = self._device_registry_ready
+                    registry_ready = (
                         isinstance(result, dict)
                         and result.get("schema_version") == "roboenv/devices/1"
                         and isinstance(result.get("devices"), list)
                         and bool(result["devices"])
                     )
+                    if registry_ready and not was_ready and os.environ.get("ROBOENV_PUBLISH_DEVICES"):
+                        from roboenv.devices.export import export_devices
+
+                        export_devices(result["devices"], os.environ["ROBOENV_PUBLISH_DEVICES"], {
+                            "endpoint": os.environ["ROBOENV_ENDPOINT"],
+                            "session": self.config.session, "generation": self.config.generation,
+                        })
+                    self._device_registry_ready = registry_ready
             except TimeoutError as exc:
                 worker_was_alive = self._worker_alive()
                 self.terminate_worker(reason=str(exc), timed_out=True)
@@ -807,7 +839,7 @@ class Supervisor:
         if self.config.http_port is not None and self._http_server is None:
             from .http_service import bind_http
 
-            self._http_server = bind_http(self, self.config.http_port)
+            self._http_server = bind_http(self, self.config.http_port, self.config.http_host)
             self._http_thread = threading.Thread(
                 target=self._http_server.serve_forever, kwargs={"poll_interval": 0.1}, daemon=True
             )
@@ -844,7 +876,8 @@ class Supervisor:
     def http_endpoint(self):
         if self._http_server is None:
             return None
-        return f"http://127.0.0.1:{self._http_server.server_port}"
+        host = self.config.http_host if self.config.http_host != "0.0.0.0" else "127.0.0.1"
+        return f"http://{host}:{self._http_server.server_port}"
 
 
 def _session_default(task: str, seed: int) -> str:
@@ -866,7 +899,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--worker-arg", action="append", default=[])
     parser.add_argument("--worker-startup-timeout", type=float, default=900.0)
     parser.add_argument("--terminate-grace", type=float, default=10.0)
-    parser.add_argument("--port", type=int, help="Loopback HTTP port; 0 selects a free port")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, help="HTTP port; 0 selects a free port")
     return parser
 
 
@@ -892,6 +926,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         worker_startup_timeout_s=args.worker_startup_timeout,
         terminate_grace_s=args.terminate_grace,
         http_port=args.port,
+        http_host=args.host,
     )
     supervisor = Supervisor(config)
 

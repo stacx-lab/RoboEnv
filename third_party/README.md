@@ -47,6 +47,19 @@ and rerun source checks and tests before committing in RoboEnv. Do not force a
 checkout over local edits. Keep historical receipts tied to their original base;
 CPU and patch checks do not certify simulator replay on the new revision.
 
+RoboCasa tracks upstream `main` in `.gitmodules`, while the gitlink and source
+lock pin an exact upstream commit for reproducibility. The refresh from
+`a07e365` to `4f8a298` changes only three upstream test scripts (robosuite API,
+task names, and fixture-style coverage); its MIT license bytes are unchanged.
+The sole RoboCasa patch remains `robocasa-readonly-assets.patch`, unchanged:
+it redirects temporary object XML through RoboEnv's writable staging helper.
+Device profiles, RGB-D transport, kinematics and control bindings live in
+RoboEnv. No downstream commits are created in the RoboCasa submodule.
+Fresh CPU/source/packaging checks for this base are recorded in
+[the validation receipt](../docs/validation/robocasa-device-cpu-4f8a298.json).
+Historical simulator receipts remain unchanged; kitchen GPU boot, task success
+and fresh-process replay are not certified by this CPU check.
+
 A patched submodule normally appears dirty in `git status`, including untracked
 files added by a patch. This is expected when `sources status` reports
 `managed_tree_matches: true`: the patch in RoboEnv already records those changes.

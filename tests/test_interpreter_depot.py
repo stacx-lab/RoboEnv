@@ -1,23 +1,16 @@
 """No-GPU integrity and isolation regressions for executable dependency depots."""
 
 import ast
-import importlib.util
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from helpers import load_script
 from roboenv.harbor.deployment import native_service
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTAINER_PREFIX = "/opt/roboenv/runtime/dependencies"
-
-
-def load_script(relative):
-    spec = importlib.util.spec_from_file_location(Path(relative).stem, ROOT / relative)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def local_verifier(tmp_path, monkeypatch):

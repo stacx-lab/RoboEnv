@@ -1,24 +1,15 @@
 """GPU validation orchestration is tested without Docker, GPUs or model calls."""
 
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import yaml
+from helpers import load_tool
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def module():
-    spec = importlib.util.spec_from_file_location(
-        "validate_simulators", ROOT / "tools/validate_simulators.py"
-    )
-    result = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(result)
-    return result
 
 
 def inputs(tmp_path):
@@ -47,7 +38,7 @@ def inputs(tmp_path):
 
 
 def test_default_preparation_covers_eight_references_without_execution(tmp_path, monkeypatch):
-    tool = module()
+    tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     monkeypatch.setattr(
         tool.subprocess, "run", lambda *args, **kwargs: pytest.fail("must not execute")
@@ -65,7 +56,7 @@ def test_default_preparation_covers_eight_references_without_execution(tmp_path,
 
 
 def test_seven_probe_plans_use_explicit_behavior_scene_and_yam_config(tmp_path):
-    tool = module()
+    tool = load_tool("validate_simulators")
     source = tmp_path / "source/behavior-probe"
     source.mkdir(parents=True)
     task = {
@@ -164,7 +155,7 @@ def write_trial(out, record, *, reward, program_completed=True):
 def test_runner_classifies_real_success_separately_from_probe_connectivity(
     tmp_path, monkeypatch, mode, reward, expected
 ):
-    tool = module()
+    tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
@@ -195,7 +186,7 @@ def test_runner_classifies_real_success_separately_from_probe_connectivity(
 
 
 def test_missing_completion_or_modified_journal_cannot_certify_a_reference(tmp_path):
-    tool = module()
+    tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
@@ -227,7 +218,7 @@ def test_gpu_workflow_requires_trusted_manual_context_and_privacy_gate():
 
 
 def test_unavailable_image_is_a_recorded_preflight_failure_not_a_trial(tmp_path, monkeypatch):
-    tool = module()
+    tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     tool.prepare(deployments, wheel, out, backends=["libero"], cases=["libero-drawer-and-bowl"])
@@ -244,7 +235,7 @@ def test_unavailable_image_is_a_recorded_preflight_failure_not_a_trial(tmp_path,
 
 
 def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path, monkeypatch):
-    tool = module()
+    tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
@@ -258,13 +249,13 @@ def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path,
 
 
 def test_case_selection_alone_narrows_probe_backends_without_guessing():
-    tool = module()
+    tool = load_tool("validate_simulators")
     cases = tool.select_cases(cases=["libero-drawer-and-bowl"], modes=["probe"])
     assert len(cases) == 1 and cases[0][1].backend == "libero"
 
 
 def test_failed_advertised_device_read_has_a_failure_category_without_harbor_exception(tmp_path):
-    tool = module()
+    tool = load_tool("validate_simulators")
     record = {
         "id": "world-probe",
         "name": "roboenv/world-probe",

@@ -3,27 +3,21 @@
 import ast
 import json
 import shutil
-import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
-import test_device_service as wire_tests
 import yaml
 from roboenv.devices.bindings.registry import BindingContext, BindingRegistry
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.model import Action, BoundDevice, DeviceError
 from roboenv.harbor.export import export_task
-
-device_service = wire_tests.device_service
+from roboenv_runtime.adapters.fakeshell import FakeShell
+from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "runtime/src"))
-
-from roboenv_runtime.adapters.fakeshell import FakeShell  # noqa: E402
-from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError  # noqa: E402
 
 
 @pytest.fixture

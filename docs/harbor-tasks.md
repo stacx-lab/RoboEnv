@@ -6,7 +6,7 @@ tools/generate_tasks.py，也可用等价的 roboenv tasks generate。
 
 ## 1. 格式契约
 
-生成器使用 Harbor task schema 1.4，并逐个调用 Harbor 0.22.0 的真实
+生成器使用 Harbor task schema 1.4，并逐个调用本仓库安装的 Harbor 的真实
 Task.is_valid_dir 和 Task 加载器。不是仅检查几个同名文件。
 目录、可选 solution 和 verifier 奖励文件规则遵循
 [Harbor 官方 task 文档](https://www.harborframework.com/docs/tasks)。
@@ -122,3 +122,33 @@ GPU 选择使用 ROBOENV_GPU。路径、凭证和模型端点只能进入本地�
 
 生成结果始终标记 execution_verified=false。不能把发现的任务数量，
 或者批量生成成功的数量，写成实验成功数量。
+
+## 6. 新设备设计下的配置与观测边界
+
+新后端遵循 [DESIGN.md](../DESIGN.md) 和 [Simulator 接入](adding-simulators.md)。
+静态 `catalog/robots/ROBOT/` 只有 `workspace.yaml` 与 `devices/`；它可以直接
+复制到 `.complex/robots/ROBOT/`。`catalog/bindings/ROBOT.yaml`、seed、场景
+参数和 verifier 数据属于 owner 侧，不进入 Complex robot 配置。
+
+`launch` 不生成或修改 catalog。当前 RoboCasa Harbor 路径还会把 live descriptors
+和薄 driver 发布到 `/run/roboenv/robot`，作为 trial-local 输出；这不改变静态配置，
+也不应夹带场景状态。Complex 的机器人选择和 workspace 准备由 harness integration
+完成，RoboEnv 不会因为设置 `ROBOENV_ROBOT` 就自动注册 Complex workspace。
+
+Ready 后通过 `ROBOENV_ENDPOINT=http://sim:8123` 连接设备。不同 trial 网络可复用
+内部端口；同一网络/主机发布的端口必须区分。每个 trial 的世界、预算、identity
+和 evidence 独立，不能靠修改设备 profile 实现并行。
+
+RoboCasa 的观测政策是 `sensors-only`。Agent 只能获得任务指令、设备事实和
+传感器读数；不得获取 object poses、fixture 几何、layout/style 或 scene seed。
+Task context 和 `world` profile 也不是特权观测入口。HTTP 拒绝 owner 操作，
+`operations.get` 不得解包 owner/verifier 的结果。
+
+当前 RoboCasa deployment 中 sim/verifier 使用 owner 权限，agent 使用独立的
+非特权用户；owner socket 和 run evidence 受文件权限保护。检查 agent 的挂载、
+用户和 capabilities：只读挂载本身不阻止读取真值。不要把 simulator 资产、
+私有 task 或 verifier snapshots 暴露给 agent。
+
+新后端的公开 task projection 和隔离设置需要明确实现并测试，不能假定它会
+继承 RoboCasa 的分支处理。格式通过、观测边界通过、GPU boot、任务成功和
+重放各自报告，不把一个检查结果当作另一个的证据。

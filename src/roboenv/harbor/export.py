@@ -83,8 +83,9 @@ def export_task(
                 entry="driver.py", interpreter="python3", persistent=False, actions=actions
             )
             prefix = f"environment/definition/robot/devices/{spec.name}/"
-            out.add_yaml(prefix + "profile.yaml", profile)
-            out.add(prefix + "driver.py", assets.joinpath("device-client.py").read_bytes())
+            if task.backend != "robocasa":
+                out.add_yaml(prefix + "profile.yaml", profile)
+                out.add(prefix + "driver.py", assets.joinpath("device-client.py").read_bytes())
         out.add(
             "environment/definition/robot/lib/README.md",
             "Device implementations run on the server; clients use the public SDK.\n",
@@ -105,7 +106,9 @@ def export_task(
             "session": "harbor",
         },
         "capabilities": ["device-driver/1", "roboenv-public-primitives/1"],
-        "observation_access": "benchmark-ground-truth",
+        "observation_access": "sensors-only"
+        if task.backend == "robocasa"
+        else "benchmark-ground-truth",
         "action_abstraction": task.action_abstraction,
         "compatibility": {
             "backend_runtime": "roboenv-runtime",
@@ -117,9 +120,22 @@ def export_task(
     manifest["endpoint"]["generation"] = 0
     manifest["binding_contract"] = BINDING_CONTRACT
     manifest["binding_mode"] = "explicit"
+    if task.backend == "robocasa":
+        out.add("environment/sim/environment.json", json.dumps(manifest, indent=2) + "\n")
+        manifest = {
+            "task": {"id": task.id, "instruction": task.instruction, "context": {}},
+            "devices": names,
+            "device_contract": DEVICE_CONTRACT,
+        }
     out.add("environment/definition/environment.json", json.dumps(manifest, indent=2) + "\n")
     out.add("environment/sdk/" + wheel.name, wheel.read_bytes())
-    out.add("environment/Dockerfile", assets.joinpath("main.Dockerfile").read_text())
+    dockerfile = assets.joinpath("main.Dockerfile").read_text()
+    if task.backend == "robocasa":
+        dockerfile += (
+            "\nRUN useradd --create-home --uid 1000 agent "
+            "&& chown -R agent:agent /app\nUSER agent\n"
+        )
+    out.add("environment/Dockerfile", dockerfile)
     out.add("environment/.dockerignore", "logs/\n**/__pycache__/\n")
     out.add_yaml(
         f"environment/sim/tasks/{task.backend_task}.yaml",
@@ -149,6 +165,18 @@ def export_task(
         "volumes": ["roboenv-run:/run/roboenv:ro", "./definition:/env:ro"],
         "environment": public_env,
     }
+    if task.backend == "robocasa":
+        sim["user"] = "0:0"
+        public_env.update(ROBOENV_ENDPOINT="http://sim:8123", ROBOENV_ROBOT="/run/roboenv/robot")
+        sim["environment"].update(
+            ROBOENV_FRESH_SESSION="1",
+            ROBOENV_ENDPOINT="http://sim:8123",
+            ROBOENV_HTTP_HOST="0.0.0.0",
+            ROBOENV_HTTP_PORT="8123",
+            ROBOENV_PUBLISH_DEVICES="/run/roboenv/robot/devices",
+            ROBOENV_SERVER_MANIFEST="/opt/serve/environment.json",
+        )
+        main.update(cap_drop=["ALL"], security_opt=["no-new-privileges:true"])
     compose = {"services": {"main": main, "sim": sim}, "volumes": {"roboenv-run": {}}}
     out.add_yaml("environment/docker-compose.yaml", compose)
     smoke = json.loads(json.dumps(compose))
@@ -172,12 +200,14 @@ backend = "{task.backend}"
 backend_task = "{task.backend_task}"
 seed = {task.seed}
 environment_contract = "roboenv/environment/1"
-observation_access = "benchmark-ground-truth"
+observation_access = "{"sensors-only" if task.backend == "robocasa" else "benchmark-ground-truth"}"
 action_abstraction = "{task.action_abstraction}"
 [agent]
 timeout_sec = 3600.0
+{'user = "agent"' if task.backend == "robocasa" else ""}
 [verifier]
 timeout_sec = 600.0
+{'user = "root"' if task.backend == "robocasa" else ""}
 [environment]
 build_timeout_sec = 1800.0
 cpus = 4
@@ -223,6 +253,21 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
                 "Do not submit, shut down or access simulator internals. "
                 "Results are not benchmark eligible."
             ),
+        )
+    if task.backend == "robocasa":
+        instruction = (
+            task.instruction
+            + "\n\n"
+            + (
+                "The simulation service is already running. In Python, use "
+                "`env = roboenv.connect(os.environ['ROBOENV_ENDPOINT'])`, then inspect "
+                "`env.task`, `env.devices()`, and `env.device(name).profile`. "
+                "Read sensors and command devices through their declared basic interfaces. "
+                "Each write executes one control interval; reads and IK/FK do not step time. "
+                "Camera reads return client-accessible image files. Live profiles and thin drivers "
+                "are in /run/roboenv/robot/devices. Build perception and control tools "
+                "in /app. The verifier checks final state and budget after you finish.\n"
+            )
         )
     out.add("instruction.md", instruction)
     out.add("environment/workspace/AGENTS.md", "# Environment workspace\n\n" + instruction)
@@ -279,6 +324,7 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
         json.dumps(
             {
                 "task_id": task.backend_task,
+                "backend": task.backend,
                 "seed": task.seed,
                 "session": "harbor",
                 "budget_mode": task.budget_mode,

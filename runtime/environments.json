@@ -29,8 +29,10 @@
     },
     "robocasa": {
       "python": "3.11",
-      "lock": "runtime/locks/robocasa.txt",
+      "lock": "runtime/locks/robocasa-resolved.txt",
+      "historical_freeze": "runtime/locks/robocasa.txt",
       "editables": ["third_party/robocasa", "third_party/robosuite"],
+      "index_url": "https://pypi.org/simple",
       "extra_indexes": [],
       "known_blockers": [],
       "asset_instructions": "third_party/robocasa/README.md"

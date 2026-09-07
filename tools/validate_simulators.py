@@ -16,6 +16,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 import yaml
+from roboenv.devices.bindings.spec import binding_path
 from roboenv.harbor.deployment import load_deployment
 from roboenv.harbor.taskset import deployment_map, export_taskset, validate_harbor_task
 from roboenv.privacy import validate_public_text
@@ -157,9 +158,7 @@ def select_cases(
                 if backend == "behavior"
                 else task.action_abstraction,
             )
-            binding = yaml.safe_load(
-                (project / "catalog/robots" / robot / "bindings.yaml").read_text()
-            )
+            binding = yaml.safe_load(binding_path(project / "catalog/robots" / robot).read_text())
             plans.append(("probe", task, source_path, _probe_program(sorted(binding["devices"]))))
     if not plans:
         raise ValueError("no validation cases matched")
@@ -245,11 +244,11 @@ def prepare(
             "program_sha256": hashlib.sha256(program.encode()).hexdigest(),
             "backend_task": task.backend_task,
             "robot": task.robot,
-            "bindings_sha256": digest(project / "catalog/robots" / task.robot / "bindings.yaml"),
+            "bindings_sha256": digest(binding_path(project / "catalog/robots" / task.robot)),
             "expected_devices": sorted(
-                yaml.safe_load(
-                    (project / "catalog/robots" / task.robot / "bindings.yaml").read_text()
-                )["devices"]
+                yaml.safe_load(binding_path(project / "catalog/robots" / task.robot).read_text())[
+                    "devices"
+                ]
             ),
         }
     bundle = out / "taskset"

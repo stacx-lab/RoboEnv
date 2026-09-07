@@ -16,7 +16,6 @@ import tempfile
 import time
 import uuid
 from dataclasses import asdict
-from importlib.resources import files
 from pathlib import Path
 
 import yaml
@@ -74,7 +73,7 @@ def _record(run, project):
     return value
 
 
-def connect(
+def _connect(
     run=None, *, endpoint=None, socket_path=None, session=None, generation=None, project=None
 ):
     """Attach without acquiring ownership. Explicit endpoint, run, then workspace."""
@@ -110,7 +109,7 @@ def connect(
     if len(live) != 1:
         raise ValueError(
             f"Found {len(live)} ready environments; "
-            "start one with 'roboenv start TASK' or select --endpoint URL"
+            "start one with 'roboenv launch TASK' or select --endpoint URL"
         )
     return live[0]
 
@@ -139,14 +138,20 @@ def stop(run, *, project=None):
     return {"state": "stopped", "id": record["id"]}
 
 
+def connect(*args, **kwargs):
+    from roboenv.devices.client import Environment
+
+    return Environment(_connect(*args, **kwargs))
+
+
 def status(run=None, *, project=None):
     if str(run).startswith(("http://", "https://")):
-        return connect(run).request("health", timeout=2)
+        return _connect(run).request("health", timeout=2)
     if run is not None:
         record = _record(run, project)
         if record.get("state") in {"stopped", "failed"}:
             return {"state": record["state"], "id": record["id"]}
-    client = connect(run, project=project)
+    client = _connect(run, project=project)
     return client.request("health", timeout=2)
 
 
@@ -156,6 +161,10 @@ class RunningEnvironment:
     def __init__(self, process, record, path):
         self.process, self.record, self.path = process, record, path
         self.client = _client(record)
+
+    @property
+    def endpoint(self):
+        return self.record["endpoint"]
 
     def __enter__(self):
         return self
@@ -182,7 +191,16 @@ class RunningEnvironment:
         _save(self.path, self.record)
 
 
-def launch(task, *, project=None, catalog=None, interpreter=None, timeout=900, port=0):
+def launch(
+    task,
+    *,
+    project=None,
+    catalog=None,
+    interpreter=None,
+    timeout=900,
+    host="127.0.0.1",
+    port=0,
+):
     """Start a task in its isolated interpreter; return after device readiness.
 
     Backend assets must already be prepared. No installation or download occurs.
@@ -194,6 +212,9 @@ def launch(task, *, project=None, catalog=None, interpreter=None, timeout=900, p
         raise ValueError("timeout must be a positive finite number")
     if type(port) is not int or not 0 <= port <= 65535:
         raise ValueError("port must be an integer between 0 and 65535")
+    import ipaddress
+
+    ipaddress.IPv4Address(host)
     root = project_root(project)
     resolved = resolve_task(task, project=root, catalog=catalog)
     spec = resolved.task
@@ -233,7 +254,15 @@ def launch(task, *, project=None, catalog=None, interpreter=None, timeout=900, p
         yaml.safe_dump(resolved.runtime_config(), sort_keys=False)
     )
     manifest = directory / "environment.json"
-    _save(manifest, {"task": asdict(spec), "observation_access": "benchmark-ground-truth"})
+    _save(
+        manifest,
+        {
+            "task": asdict(spec),
+            "observation_access": "sensors-only"
+            if spec.backend == "robocasa"
+            else "benchmark-ground-truth",
+        },
+    )
     record = {
         "schema": "roboenv/local-run/1",
         "id": run_id,
@@ -286,6 +315,8 @@ def launch(task, *, project=None, catalog=None, interpreter=None, timeout=900, p
         str(timeout),
         "--port",
         str(port),
+        "--host",
+        host,
     ]
     try:
         with (directory / "supervisor.log").open("ab") as log:
@@ -313,36 +344,13 @@ def launch(task, *, project=None, catalog=None, interpreter=None, timeout=900, p
                 if health.get("worker", {}).get("state") == "ready":
                     inventory = running.devices()
                     record["endpoint"] = health["endpoint"]
-                    # Publish facts and drivers only after live capabilities are known.
-                    for descriptor in inventory["devices"]:
-                        name = descriptor["name"]
-                        binding = next(s for s in resolved.bindings.devices if s.name == name)
-                        profile = binding.resolved_profile(robot)
-                        for field in ("intrinsics", "extrinsics"):
-                            profile[field] = descriptor[field]
-                        profile.setdefault("access", {})["driver"] = {
-                            "entry": "driver.py",
-                            "interpreter": "python3",
-                            "persistent": False,
-                            "actions": [
-                                name
-                                for name, action in descriptor["actions"].items()
-                                if action["supported"]
-                            ],
-                        }
-                        device = directory / "devices" / name
-                        device.mkdir(parents=True)
-                        (device / "profile.yaml").write_text(yaml.safe_dump(profile))
-                        (device / "driver.py").write_bytes(
-                            files("roboenv").joinpath("assets/device-client.py").read_bytes()
-                        )
-                        _save(
-                            device / "connection.json",
-                            {
-                                key: record[key]
-                                for key in ("socket", "endpoint", "session", "generation")
-                            },
-                        )
+                    from roboenv.devices.export import export_devices
+
+                    export_devices(
+                        inventory["devices"],
+                        directory / "devices",
+                        {key: record[key] for key in ("endpoint", "session", "generation")},
+                    )
                     record["state"] = "ready"
                     _save(record_path, record)
                     running.client = _client(record)

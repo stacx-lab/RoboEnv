@@ -1,21 +1,13 @@
 """Core audit and private snapshot scope cannot silently broaden or skip failures."""
 
-import importlib.util
 import json
 import sys
 from pathlib import Path
 
 import pytest
+from helpers import load_tool
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def load_tool(name, monkeypatch):
-    monkeypatch.syspath_prepend(str(ROOT / "tools"))
-    spec = importlib.util.spec_from_file_location(name, ROOT / "tools" / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def packages():

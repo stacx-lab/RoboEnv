@@ -92,6 +92,18 @@ not its parent. Running the installed simulator outside that checkout requires
 `ROBOENV_ROOT` to identify the selected, pinned source root. Generated native
 images set their own container-local source root.
 
+## Resolved RoboCasa recipe
+
+RoboCasa uses `runtime/locks/robocasa-resolved.txt` on Python 3.11 and the explicit
+PyPI index. The original `robocasa.txt` remains a historical freeze: its
+`gym-notices==0.2.0` pin is unavailable. The resolved recipe changes that pin to
+`0.1.0`, preserves all other historical versions, and pins five previously
+implicit SDK/server dependencies. Resolution and an install dry-run cover the
+complete recipe, including both simulator source packages and the SDK/runtime.
+A fresh isolated installation of all 143 packages also passed dependency
+consistency and SDK/runtime import-origin checks. These checks did not boot a
+RoboCasa world or validate assets or GPU replay.
+
 ## Promoted LIBERO and RoboTwin recipes
 
 The defaults now use `runtime/locks/libero-resolved.txt` and
@@ -126,7 +138,7 @@ Current validation boundaries:
 | Backend | Setup preflight | Remaining installation evidence |
 |---|---|---|
 | LIBERO / LIBERO-PRO | Resolved recipe; clean installation checked | One fresh host seed-0 reference and device checks passed; new clean-environment container verification remains separate |
-| RoboCasa | Source and freeze syntax pass | Execute and verify a fresh full simulator installation, assets, and GPU episode |
+| RoboCasa | Corrected recipe; fresh installation and package checks passed | Simulator boot, assets, and GPU replay remain unverified |
 | RoboTwin | Resolved recipe; clean installation checked | One fresh host seed-0 reference and unchanged independent verifier passed; new clean-environment container verification remains separate |
 | RoboDojo | Source and freeze syntax pass | Execute and verify a fresh full simulator installation, assets, and GPU episode |
 | BEHAVIOR | Blocked | No clean-install dependency lock published yet; upstream license acceptance remains explicit |
@@ -147,8 +159,13 @@ they are not yet hash-locked binary wheel sets.
 
 ## Assets: explicit provenance and content verification
 
-Follow the asset instructions in the selected **pinned upstream**, review its
-license, and acquire assets independently. Roboenv setup does not accept dataset
+`roboenv prepare robocasa` automatically downloads the pinned upstream kitchen
+asset bundles and keeps local content receipts for reuse and repair. These local
+receipts do not establish redistribution approval or GPU readiness. The low-level
+installer still installs packages only.
+
+For other assets, follow the instructions in the selected **pinned upstream**,
+review its license, and acquire them independently. Roboenv setup does not accept dataset
 terms, download checkpoints or imply permission to redistribute an image.
 
 Record a data-only depot after acquisition, using the actual source/version and

@@ -65,7 +65,11 @@ class Task:
                 BindingSpec.parse(name, binding)
         if type(task.seed) is not int or task.seed < 0:
             raise ValueError("seed must be a nonnegative integer")
-        if task.action_abstraction not in {"cartesian-primitives", "symbolic-primitives"}:
+        if task.action_abstraction not in {
+            "devices",
+            "cartesian-primitives",
+            "symbolic-primitives",
+        }:
             raise ValueError("unknown control abstraction")
         if task.budget_mode not in {"official", "practice"}:
             raise ValueError("budget_mode must be official or explicit practice")

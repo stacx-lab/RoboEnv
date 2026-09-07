@@ -12,6 +12,13 @@ from roboenv.validation import json_value, yaml_load
 BINDING_CONTRACT = "roboenv/bindings/1"
 
 
+def binding_path(root):
+    """Server bundles carry a local plan; catalogs keep plans outside robot configs."""
+    root = Path(root)
+    local = root / "bindings.yaml"
+    return local if local.exists() else root.parent.parent / "bindings" / f"{root.name}.yaml"
+
+
 def _name(value, label):
     if (
         not isinstance(value, str)
@@ -128,7 +135,7 @@ class BindingPlan:
     @classmethod
     def load(cls, root, *, backend, devices=None):
         root = Path(root)
-        path = root / "bindings.yaml"
+        path = binding_path(root)
         if path.exists() or devices is not None:
             value = (
                 {"schema_version": BINDING_CONTRACT, "backend": backend, "devices": devices}

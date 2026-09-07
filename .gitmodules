@@ -10,6 +10,7 @@
 [submodule "robocasa"]
 	path = third_party/robocasa
 	url = https://github.com/robocasa/robocasa.git
+	branch = main
 [submodule "robosuite"]
 	path = third_party/robosuite
 	url = https://github.com/ARISE-Initiative/robosuite

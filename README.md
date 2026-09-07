@@ -12,20 +12,21 @@ From this checkout on Linux with uv installed:
 ```sh
 bash tools/bootstrap.sh
 source .venv/bin/activate
-roboenv prepare robotwin
+roboenv prepare robocasa
 ```
 
 Bootstrap installs the CLI into `.venv`. Then `prepare` synchronizes selected
 pinned sources, installs an isolated simulator environment, and reports checks.
-Replace `robotwin` with your simulator. No wheel-building, `--install`, or
-environment-path arguments are needed. Acquire required assets separately;
+Replace `robotwin` with your simulator. RoboCasa preparation also downloads its
+kitchen assets (about 10 GB). No wheel-building, `--install`, or
+environment-path arguments are needed. Other simulators require separate asset acquisition;
 see [setup](docs/setup.md) for prerequisites and diagnostics.
 
 ## Start and connect
 
 ```sh
-roboenv tasks list --simulator robotwin
-roboenv start TASK_ID --port 8123
+roboenv tasks list --simulator robocasa
+roboenv launch TASK_ID --port 8123
 ```
 
 In another terminal:
@@ -34,6 +35,7 @@ In another terminal:
 import roboenv
 
 env = roboenv.connect("http://127.0.0.1:8123")
+print(env.task.instruction)
 print(env.devices())
 print(env.device("arm").read())
 ```
@@ -41,20 +43,24 @@ print(env.device("arm").read())
 The CLI exposes the same devices: `roboenv device arm read '{}' --endpoint URL`.
 Omit `--port` to assign a free port automatically. Concurrent runs use different ports;
 `roboenv.connect()` also discovers a single ready local run. Use `--endpoint URL`
-when several environments are running. `start` owns the environment until Ctrl-C;
+when several environments are running. `launch` owns the environment until Ctrl-C;
 `--detach` leaves it running for `roboenv stop http://127.0.0.1:8123`.
-Python owners use `with roboenv.launch(task="TASK_ID") as env:`.
+Python owners use `with roboenv.launch(task="TASK_ID", port=8123) as run:`
+and connect to `run.endpoint`. Use
+`--host 0.0.0.0` when serving a task across an isolated container network.
 
-Inspect advertised capabilities before commanding. Current backends include
-Cartesian and symbolic interfaces; full calibration and general IK/FK are not
-available on every device.
+RoboCasa implements the device-first API: `env.task`, `env.devices()`, and
+`env.device(name)`. Drivers expose only their type's basic operations. A write
+executes one native control interval; reads and IK/FK do not advance the world.
+Task-solving controllers belong in the agent harness. See [RoboCasa](docs/robocasa.md)
+for action spaces, task-specific device selection, and validation coverage.
 
 ## Export a Harbor task
 
 With a [prepared native deployment](docs/harbor-tasks.md):
 
 ```sh
-roboenv export libero-mug-into-microwave --out generated/example
+roboenv export robocasa-pick-place-microwave --out generated/example
 ```
 
 Export resolves the same task configuration as local startup, builds the SDK
@@ -67,6 +73,12 @@ installation and model configuration belong to the Harbor integration.
 ```sh
 bash tools/check.sh
 ```
+
+Tests use shared fresh-worker fixtures for device, transport, and lifecycle
+checks. CLI replay and verifier coverage exercise the real worker rather than a
+second fake server. Historical recipe checks are consolidated in
+`tests/test_recipe_evidence.py`; test helpers live outside test modules so tests
+do not import one another. The default check still runs the complete CPU suite.
 
 The SDK is organized by responsibility:
 
@@ -97,3 +109,6 @@ See [simulator integration](docs/adding-simulators.md),
 This is pre-release software. CPU and format checks do not certify GPU replay
 or benchmark success. Packages and simulator images are not automatically
 published; see [release rules](docs/releasing.md).
+
+For a populated Complex workspace, TUI recording, and MP4 playback, follow
+[the local test plan](docs/complex-local.md).

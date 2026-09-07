@@ -1,14 +1,38 @@
 """Fail-closed installation and portable asset inventory contracts."""
 
-import importlib.util
 import json
 import shutil
 from pathlib import Path
 
 import pytest
+from helpers import load_tool
+from roboenv.provisioning import setup
 from roboenv.provisioning.assets import create, inventory, verify
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_robocasa_uses_resolved_lock_and_preserves_historical_pins():
+    from roboenv.provisioning.setup import _requirements
+
+    recipe = json.loads((ROOT / "runtime/environments.json").read_text())["backends"]["robocasa"]
+    assert recipe["lock"] == "runtime/locks/robocasa-resolved.txt"
+    assert recipe["historical_freeze"] == "runtime/locks/robocasa.txt"
+    assert recipe["index_url"] == "https://pypi.org/simple"
+    historical = _requirements(ROOT / recipe["historical_freeze"])
+    resolved = _requirements(ROOT / recipe["lock"])
+    assert str(historical["gym-notices"].specifier) == "==0.2.0"
+    assert str(resolved["gym-notices"].specifier) == "==0.1.0"
+    for name, requirement in historical.items():
+        if name != "gym-notices":
+            assert resolved[name].specifier == requirement.specifier
+    assert set(resolved) - set(historical) == {
+        "jsonschema",
+        "jsonschema-specifications",
+        "packaging",
+        "referencing",
+        "rpds-py",
+    }
 
 
 def test_prepare_default_install_and_reuse(tmp_path, monkeypatch):
@@ -50,24 +74,13 @@ def test_prepare_rejects_unknown_backend_without_effects(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
-def tool(name):
-    if name == "setup_simulator":
-        from roboenv.provisioning import setup
-
-        return setup
-    spec = importlib.util.spec_from_file_location(name, ROOT / "tools" / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def test_dependency_lock_rejects_duplicates_ranges_and_unpinned_git(tmp_path):
     lock = tmp_path / "bad.txt"
     lock.write_text(
         "package-one==1\npackage_one==2\nloose>=1\n"
         "unfixed @ git+https://github.com/example/source.git@main\n"
     )
-    result = tool("setup_simulator").audit_lock(lock)
+    result = setup.audit_lock(lock)
     assert not result["passed"]
     assert {item["reason"] for item in result["issues"]} == {
         "duplicate-package",
@@ -77,14 +90,13 @@ def test_dependency_lock_rejects_duplicates_ranges_and_unpinned_git(tmp_path):
 
 
 def test_all_published_freezes_have_unambiguous_pins():
-    auditor = tool("setup_simulator").audit_lock
+    auditor = setup.audit_lock
     for lock in (ROOT / "runtime/locks").glob("*.txt"):
         assert auditor(lock)["passed"], lock.name
 
 
 @pytest.mark.parametrize("backend", ["libero", "robotwin"])
 def test_promoted_locks_match_the_validated_candidate_requirements(backend):
-    setup = tool("setup_simulator")
     locks = ROOT / "runtime/locks"
     for promoted, candidate in (
         (f"{backend}-resolved.txt", f"{backend}.candidate.txt"),
@@ -126,7 +138,6 @@ def test_recorded_recipe_validation_is_not_a_certificate_for_this_invocation(
     monkeypatch,
 ):
     project, recipes = recipe_project
-    setup = tool("setup_simulator")
     # This test isolates certificate semantics, not Git/source installation.
     # Both readiness collaborators are explicit: verified Git status and the
     # declared checkout directories. Neither depends on local submodule state.
@@ -154,7 +165,7 @@ def test_recorded_recipe_validation_is_not_a_certificate_for_this_invocation(
 def test_missing_checkouts_fail_despite_recorded_recipe_validation(recipe_project, backend):
     project, _ = recipe_project
     # No status stub: exercise the actual source auditor on a metadata-only tree.
-    report, _ = tool("setup_simulator").audit(backend, project=project)
+    report, _ = setup.audit(backend, project=project)
     assert report["lock_audit"]["passed"]
     assert report["source_pins_audit"]["passed"]
     assert report["recorded_recipe_validation"]["host_fresh_process_gpu_replay"]
@@ -184,7 +195,7 @@ def test_source_override_cannot_rewrite_version_ranges_or_locked_identity(tmp_pa
     )
     pins = tmp_path / "pins.txt"
     pins.write_text(override + "\n")
-    result = tool("setup_simulator").audit_source_pins(lock, pins)
+    result = setup.audit_source_pins(lock, pins)
     assert result["passed"] is False
 
 
@@ -193,13 +204,12 @@ def test_source_override_accepts_only_the_exact_locked_git_pin(tmp_path):
     lock, pins = tmp_path / "lock.txt", tmp_path / "pins.txt"
     lock.write_text(line)
     pins.write_text(line)
-    result = tool("setup_simulator").audit_source_pins(lock, pins)
+    result = setup.audit_source_pins(lock, pins)
     assert result["passed"]
     assert result["pins"]["jaxls"]["revision"] == "a" * 40
 
 
 def installer_fixture(tmp_path, monkeypatch):
-    setup = tool("setup_simulator")
     project = tmp_path / "project"
     (project / "runtime").mkdir(parents=True)
     (project / "src/roboenv").mkdir(parents=True)
@@ -288,14 +298,12 @@ def test_installer_accepts_explicit_wheels_and_rejects_ambiguous_mixed_inputs(
 
 
 def test_recipe_paths_cannot_escape_the_selected_checkout(tmp_path):
-    setup = tool("setup_simulator")
     for path in ("../outside.txt", "/etc/config", "nested\\outside"):
         with pytest.raises(ValueError, match="relative"):
             setup._project_path(tmp_path, path)
 
 
 def test_installer_never_touches_existing_destination(tmp_path, monkeypatch):
-    setup = tool("setup_simulator")
     monkeypatch.setattr(setup, "audit", lambda *args: ({"install_preflight_passed": True}, {}))
     monkeypatch.setattr(setup.shutil, "which", lambda name: "uv")
     with pytest.raises(ValueError, match="existing environment"):
@@ -304,7 +312,7 @@ def test_installer_never_touches_existing_destination(tmp_path, monkeypatch):
 
 def test_contract_dependency_destination_is_never_overwritten(tmp_path):
     with pytest.raises(ValueError, match="new directory"):
-        tool("contract_dependencies").prepare_contract_dependencies("python", tmp_path)
+        load_tool("contract_dependencies").prepare_contract_dependencies("python", tmp_path)
 
 
 def test_asset_receipt_is_portable_and_detects_changes(tmp_path):

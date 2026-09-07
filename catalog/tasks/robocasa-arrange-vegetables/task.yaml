@@ -7,4 +7,6 @@ instruction: 'Arrange the vegetables: move each vegetable from the sink area ont
   is a device service; the agent works through file-defined devices and tools.'
 seed: 0
 budget_mode: official
-backend_kwargs: {"task_name":"ArrangeVegetables"}
+backend_kwargs:
+  task_name: ArrangeVegetables
+action_abstraction: devices

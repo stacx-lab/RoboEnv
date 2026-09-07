@@ -59,4 +59,4 @@ jobs:
         run: >-
           .venv-matrix/bin/python -m pytest -c pyproject.toml --confcutdir=.
           tests/test_device_service.py tests/test_device_binding_separation.py
-          tests/test_environment_roundtrip.py -q
+          tests/test_http_service.py -q
