@@ -19,7 +19,7 @@ intrinsics:
     meaning: Native delta target in joint frame; [-1,1] scales to [-0.05,0.05] m per
       interval; not a velocity cap
   control_interval_s: 0.05
-  command_expiry: one control interval; other parts receive zero deltas/velocities
+  command_expiry: until replaced, stopped, or submitted
   controller:
     name: JointPositionController
     input_type: delta
@@ -74,6 +74,7 @@ intrinsics:
     fk_ik: Explicit FK joints and IK seeds must be within limits; IK results are bounded.
       These checks do not guarantee collision-free or reachable motion.
     read: Reports actual joints and flange pose even outside nominal limits
+  clock_mode: realtime
 extrinsics:
   source: introspected
   mount:

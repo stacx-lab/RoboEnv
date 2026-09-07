@@ -18,6 +18,15 @@ class RoboCasaAdapter(AdapterBase):
 
         self._env = RoboCasaEnv(task_name, **kwargs)
 
+    @property
+    def realtime_interval(self):
+        if getattr(self._env, "realtime", False):
+            return 1 / self._env.env.control_freq
+        return None
+
+    def realtime_tick(self):
+        self._env.tick()
+
     def reset(self, seed):
         random.seed(seed)
         np.random.seed(seed)

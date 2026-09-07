@@ -7,7 +7,7 @@ from roboenv_runtime.adapters.robocasa.adapter import RoboCasaAdapter
 from roboenv_runtime.adapters.robocasa.backend import DEFAULT_CAMERAS, RoboCasaEnv
 
 
-def make_adapter():
+def make_adapter(*, realtime=False):
     from xml.etree import ElementTree as ET
 
     from robocasa.utils.camera_utils import get_robot_cam_configs
@@ -36,6 +36,7 @@ def make_adapter():
         use_camera_obs=False,
         ignore_done=True,
     )
+    native.realtime = realtime
     native._render = True
     native._camera_names = DEFAULT_CAMERAS
     native._camera_size = (8, 12)
@@ -366,6 +367,8 @@ if __name__ == "__main__":
         from roboenv_runtime.core.adapter import _REGISTRY
         from roboenv_runtime.runtime.worker import main
 
-        _REGISTRY["robocasa"] = lambda **kwargs: make_adapter()
+        _REGISTRY["robocasa"] = lambda **kwargs: make_adapter(
+            realtime=kwargs.get("realtime", False)
+        )
         raise SystemExit(main())
     check(Path(sys.argv[1]), Path(sys.argv[2]))

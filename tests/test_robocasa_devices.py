@@ -463,3 +463,29 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         first.close()
         second.close()
         assert owners[0].request("health")["worker"]["alive"]
+
+
+@pytest.mark.parametrize("clock_mode", ["realtime", "synchronous"])
+def test_native_clock_modes(tmp_path, clock_mode):
+    result = subprocess.run(
+        [native_interpreter(), str(ROOT / "tests/robocasa_realtime_cpu.py"),
+         str(ROOT), str(tmp_path), clock_mode],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(
+            [str(ROOT / "src"), str(ROOT / "runtime/src")])},
+        capture_output=True, text=True, timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout.splitlines()[-1])["passed"]
+
+
+@pytest.mark.parametrize("realtime", [True, False])
+def test_task_clock_setting_reaches_runtime_adapter(realtime):
+    from roboenv_runtime.tasks.schema import TaskSpec
+
+    task = yaml.safe_load(
+        (ROOT / "catalog/tasks/robocasa-pick-place-microwave/task.yaml").read_text()
+    )
+    task["backend_kwargs"]["realtime"] = realtime
+    spec = TaskSpec.from_dict(task)
+    assert spec.adapter_kwargs["realtime"] is realtime

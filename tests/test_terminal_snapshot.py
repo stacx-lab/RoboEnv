@@ -268,3 +268,30 @@ def test_motion_queued_during_final_capture_cannot_escape_submit_freeze(tmp_path
     finally:
         release.set()
         instance.close()
+
+
+def test_unbounded_budget_verification_keeps_other_success_requirements():
+    validate = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))["validate_score"]
+    result = {"reward": 1, "completed": True, "submitted": True,
+              "budget": {"used": 100_000, "max": None, "unit": "action_frames"}}
+    assert validate(result)
+    assert not validate({**result, "completed": False})
+    assert not validate({**result, "reward": 0})
+    assert not validate({**result, "budget": {**result["budget"], "official_cap": 1000}})
+    for maximum in (False, -1, 0, "unlimited"):
+        with pytest.raises(ValueError):
+            validate({**result, "budget": {**result["budget"], "max": maximum}})
+    with pytest.raises(ValueError):
+        validate({**result, "budget": {"used": 1, "unit": "action_frames"}})
+
+
+def test_offline_budget_normalization_accepts_explicit_unbounded_budget():
+    from roboenv_runtime.runtime.finalize import FinalizationError, _normalize_budget
+
+    assert _normalize_budget({"used": 100_000, "max": None}, source="submit") == {
+        "used": 100_000, "max": None, "remaining": None, "remaining_steps": None,
+    }
+    with pytest.raises(FinalizationError):
+        _normalize_budget({"used": 100_000}, source="submit")
+    with pytest.raises(FinalizationError):
+        _normalize_budget({"used": 100_000, "max": 1000}, source="submit")

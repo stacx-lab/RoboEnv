@@ -61,6 +61,7 @@ def descriptors():
         robot.reset(deterministic=True)
         sim.forward()
         native = SimpleNamespace(
+            realtime=True,
             _robot=robot,
             sim=sim,
             env=SimpleNamespace(control_freq=20),

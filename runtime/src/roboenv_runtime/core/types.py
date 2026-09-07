@@ -84,7 +84,7 @@ class Budget:
 
     Attributes:
         used: Amount consumed so far, in ``unit``.
-        max: The cap for this episode, in ``unit``.
+        max: The cap for this episode, in ``unit``, or None for no cap.
         unit: What is counted — ``"sim_steps"`` (physics steps),
             ``"action_frames"`` (benchmark policy steps) or ``"api_calls"``
             (platforms that keep no simulator counter).
@@ -93,19 +93,19 @@ class Budget:
     """
 
     used: int = 0
-    max: int = 1
+    max: int | None = 1
     unit: str = "sim_steps"
     official_cap: int | None = None
 
     @property
-    def remaining(self) -> int:
-        """Units left before the episode ends (never negative)."""
-        return max(0, self.max - self.used)
+    def remaining(self) -> int | None:
+        """Units left, or None for an unbounded episode."""
+        return None if self.max is None else max(0, self.max - self.used)
 
     @property
     def exhausted(self) -> bool:
         """True once ``used`` reaches ``max``."""
-        return self.used >= self.max
+        return self.max is not None and self.used >= self.max
 
     def as_dict(self) -> dict[str, Any]:
         """A JSON-serialisable view (``official_cap`` omitted when unset)."""
@@ -123,7 +123,7 @@ class Budget:
             return cls()
         return cls(
             used=int(value.get("used", 0) or 0),
-            max=int(value.get("max", 1) or 1),
+            max=None if "max" in value and value["max"] is None else int(value.get("max", 1) or 1),
             unit=str(value.get("unit", "sim_steps") or "sim_steps"),
             official_cap=(
                 int(value["official_cap"]) if value.get("official_cap") is not None else None

@@ -89,18 +89,23 @@ def validate_score(result, *, official=True):
     if not isinstance(result.get("completed"), bool) or result.get("submitted") is not True:
         raise ValueError("missing typed completion/submission verdict")
     budget = result.get("budget", {})
-    for name in ("used", "max"):
-        if type(budget.get(name)) is not int or budget[name] < 0:
-            raise ValueError(f"invalid budget.{name}")
-    if budget["max"] <= 0 or not isinstance(budget.get("unit"), str) or not budget["unit"]:
-        raise ValueError("budget needs a positive cap and a named unit")
-    cap = budget.get("official_cap", budget["max"])
-    if type(cap) is not int or cap <= 0:
+    if type(budget.get("used")) is not int or budget["used"] < 0:
+        raise ValueError("invalid budget.used")
+    if "max" not in budget:
+        raise ValueError("missing budget.max")
+    maximum = budget["max"]
+    if maximum is not None and (type(maximum) is not int or maximum <= 0):
+        raise ValueError("invalid budget.max")
+    if not isinstance(budget.get("unit"), str) or not budget["unit"]:
+        raise ValueError("budget needs a named unit")
+    cap = budget.get("official_cap", maximum)
+    if "official_cap" in budget and (type(cap) is not int or cap <= 0):
         raise ValueError("invalid official budget cap")
+    limits = [limit for limit in (maximum, cap if official else None) if limit is not None]
     return bool(
         result["completed"]
         and reward >= 1 - 1e-9
-        and budget["used"] < (min(budget["max"], cap) if official else budget["max"])
+        and all(budget["used"] < limit for limit in limits)
     )
 
 

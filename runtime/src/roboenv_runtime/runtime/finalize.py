@@ -99,18 +99,20 @@ def _positive_int(value: Any, *, field: str) -> int:
     return result
 
 
-def _normalize_budget(raw: Any, *, source: str) -> dict[str, int]:
+def _normalize_budget(raw: Any, *, source: str) -> dict[str, int | None]:
     if not isinstance(raw, Mapping):
         raise FinalizationError(f"{source} budget must be an object")
     used = _nonnegative_int(raw.get("used"), field=f"{source}.budget.used")
-    maximum = _positive_int(raw.get("max"), field=f"{source}.budget.max")
-    if used > maximum:
+    if "max" not in raw:
+        raise FinalizationError(f"{source}.budget.max is missing")
+    maximum = None if raw["max"] is None else _positive_int(raw["max"], field=f"{source}.budget.max")
+    if maximum is not None and used > maximum:
         raise FinalizationError(f"{source} budget exceeds its clamp: used={used}, max={maximum}")
-    expected_remaining = maximum - used
+    expected_remaining = None if maximum is None else maximum - used
     for name in ("remaining", "remaining_steps"):
         if name not in raw:
             continue
-        observed = _nonnegative_int(raw[name], field=f"{source}.budget.{name}")
+        observed = None if raw[name] is None else _nonnegative_int(raw[name], field=f"{source}.budget.{name}")
         if observed != expected_remaining:
             raise FinalizationError(
                 f"{source}.budget.{name}={observed} conflicts with max-used={expected_remaining}"
