@@ -26,7 +26,7 @@ print(env.devices())
 arm = env.device("arm")
 print(arm.profile)
 state = arm.read()
-arm.write([0, 0, 0, 0, 0, 0])  # One native control interval, not a trajectory.
+arm.write([0, 0, 0, 0, 0, 0])  # Set a hold target at the current pose.
 arm.stop()
 image = env.device("camera_left").read()
 print(image["file"])
@@ -54,15 +54,52 @@ provides `load`, `unload`, and `status`; those operations do not reset the world
 
 All native write components lie in `[-1, 1]`; they are not metre/radian targets.
 Profiles record the actual controller scaling, component order, joint limits,
-and control interval. Reads do not step the simulation. A write advances the
-whole world by one control interval; other parts receive neutral commands.
-Gripper command history is cleared between intervals so a base command cannot
-continue an earlier gripper velocity.
+and control interval. The world starts a background clock when the worker is
+ready, paced at the native control frequency (normally 20 Hz). Physics continues
+while the agent thinks or produces code: unsupported objects fall and existing
+controller targets remain active. Reads take consistent snapshots; they do not
+request extra simulation steps.
 
-`stop` resets the relevant native servo goal without advancing time or changing
-joint positions. The service is stepped and has no long-running motion or queued
-trajectory: an in-flight interval completes before stop is processed. This is a
-simulator stop, not a physical emergency-stop guarantee.
+A write updates a device command and returns `accepted: true, completed: false`;
+this acknowledges acceptance, not arrival at the target. Arm and torso deltas
+are converted to a target once and the native servo keeps pursuing that target.
+Base velocity and signed gripper commands persist until replaced or stopped.
+Writing one device preserves other devices' goals. Arm writes still use native
+OSC deltas; absolute joint/EEF target APIs and a servo tool are separate work.
+
+`stop` holds the arm/torso/gripper or commands zero base velocity. It does not
+pause world physics or teleport joints. It is not a physical emergency stop.
+Submit atomically freezes the terminal state. Both clock modes disable the
+original horizon and legacy `max_steps` limits. Realtime physics continues until
+submission or service shutdown (or a simulator failure). `action_frames`
+still counts every interval, including thinking time, with `max: null`. There is
+no horizon-based success rejection in this setting.
+
+Pacing is best effort, not a hard realtime guarantee: simulation cost and serialized
+camera/kinematics requests can make simulated time lag wall time. Physics steps
+are never skipped. Replaying only command values without their simulation-frame
+timing does not reproduce a realtime episode.
+
+Choose the clock when starting an episode, using `backend_kwargs` in its task YAML:
+
+```yaml
+backend_kwargs:
+  task_name: PickPlaceCounterToMicrowave
+  realtime: false  # false = synchronous; true = realtime (default)
+```
+
+Start that task with `roboenv launch /path/to/task.yaml` or
+`roboenv.launch(task="/path/to/task.yaml")`. Restart the service after changing the
+setting. The live actuator profile reports `intrinsics.clock_mode` as `realtime`
+or `stepped` (synchronous); exported Harbor instructions reflect the chosen mode.
+
+In synchronous mode, the world is paused between writes. Each arm, torso, gripper,
+or base write runs one native control interval (normally 0.05 simulated seconds)
+and then returns `accepted: true, completed: true`. Completion means that interval
+finished, not that the arm reached its target. Other parts receive neutral native
+commands for that interval. Reads, camera captures, FK/IK and `stop` do not advance
+physics. There is no background clock and no horizon limit in this mode either.
+
 
 `flange_pose` and FK/IK poses use metres and quaternion xyzw in the manipulator's
 base frame. FK accepts `joints`; IK accepts `pose` and optional `seed`. Both use
@@ -135,6 +172,12 @@ Harbor stops the environment during trial cleanup, even if the agent fails.
 prepared RoboCasa interpreter is available, the CPU suite additionally exercises
 real Panda–Omron controllers in robosuite's Lift scene: joint reads, one-interval
 writes, stop, FK/IK, invalid commands, and unchanged live state during kinematics.
+Separate realtime and synchronous CPU workers check paused state between writes,
+one interval per synchronous write, advancement beyond the old horizon,
+free fall without requests in realtime mode, continued arm motion,
+goal preservation across device writes, device stop, and a frozen submission.
+Clock tests check unbounded advancement, finite budgets for other settings, failure,
+and thread cleanup.
 Two real CPU instances also exercise HTTP task/device isolation and image retrieval.
 When the sibling Complex checkout is installed, its actual schema and required
 driver interfaces validate exported profiles. Set `ROBOENV_ROBOCASA_TEST_PYTHON`

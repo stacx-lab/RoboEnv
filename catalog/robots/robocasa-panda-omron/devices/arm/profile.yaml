@@ -90,7 +90,7 @@ intrinsics:
     meaning: Native delta target in base frame; [-1,1] scales to [-0.5,0.5] rad per
       interval; not a velocity cap
   control_interval_s: 0.05
-  command_expiry: one control interval; other parts receive zero deltas/velocities
+  command_expiry: until replaced, stopped, or submitted
   controller:
     name: OperationalSpaceController
     input_type: delta
@@ -275,6 +275,7 @@ intrinsics:
     recovery: Read measured joints and compare with joints[].limits before further
       motion. stop resets the servo goal without moving home. IK is read-only and
       does not execute recovery; home_joints cannot be passed to this OSC write action.
+  clock_mode: realtime
 extrinsics:
   source: introspected
   mount:

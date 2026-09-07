@@ -36,7 +36,7 @@ intrinsics:
       min: -1
       max: 1
   control_interval_s: 0.05
-  command_expiry: one control interval; other parts receive zero deltas/velocities
+  command_expiry: until replaced, stopped, or submitted
   controller:
     name: MobileBaseJointVelocityController
     input_type: null
@@ -102,6 +102,7 @@ intrinsics:
       - -1.5
       - 1.5
       units: rad/s
+  clock_mode: realtime
 extrinsics:
   source: default
 meta:

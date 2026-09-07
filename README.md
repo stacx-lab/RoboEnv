@@ -50,8 +50,11 @@ and connect to `run.endpoint`. Use
 `--host 0.0.0.0` when serving a task across an isolated container network.
 
 RoboCasa implements the device-first API: `env.task`, `env.devices()`, and
-`env.device(name)`. Drivers expose only their type's basic operations. A write
-executes one native control interval; reads and IK/FK do not advance the world.
+`env.device(name)`. Drivers expose only their type's basic operations. The world advances
+continuously while the agent thinks. Writes update persistent controller goals;
+reads and IK/FK do not request extra steps. Set `backend_kwargs.realtime: false`
+in the task YAML for synchronous mode, where only writes advance physics.
+Neither mode imposes a simulation horizon.
 Task-solving controllers belong in the agent harness. See [RoboCasa](docs/robocasa.md)
 for action spaces, task-specific device selection, and validation coverage.
 

@@ -60,6 +60,21 @@ Fresh CPU/source/packaging checks for this base are recorded in
 Historical simulator receipts remain unchanged; kitchen GPU boot, task success
 and fresh-process replay are not certified by this CPU check.
 
+The 2026-09-06 source review advances RoboDojo to `ee67a14` (optional
+articulation drive reset and evaluation/download tooling) and LIBERO-PRO to
+`47aaa80` (additional task variations, torch loading defaults and CLI entry
+points). Their managed patches and license bytes are unchanged. Isolated patch,
+syntax and notice checks are recorded in
+[the source review](../docs/validation/upstream-source-review-20260906.json);
+these new bases have no new simulator boot, device, success or replay certificate.
+Historical receipts retain their original revisions.
+
+LIBERO's robosuite fork remains at `a498b08`: latest upstream `cb173eb` removes
+`SingleArmEnv` and `load_controller_config`, which LIBERO and its runtime still
+require. Updating this source needs a compatibility migration, so
+`check-updates --backends libero` currently reports this one stale pin. All other
+source pins matched their upstream default-branch tips on 2026-09-06.
+
 A patched submodule normally appears dirty in `git status`, including untracked
 files added by a patch. This is expected when `sources status` reports
 `managed_tree_matches: true`: the patch in RoboEnv already records those changes.

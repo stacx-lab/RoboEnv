@@ -38,6 +38,7 @@ class RoboCasaEnv:
         seed: int | None = None,
         max_steps: int | None = None,
         enable_render: bool = True,
+        realtime: bool = True,
         camera_names: tuple[str, ...] = DEFAULT_CAMERAS,
         camera_size: tuple[int, int] = (256, 256),
         obj_instance_split: str | None = None,
@@ -47,6 +48,10 @@ class RoboCasaEnv:
         import robosuite
         from robosuite.controllers import load_composite_controller_config
 
+        if type(realtime) is not bool:
+            raise ValueError("realtime must be a boolean")
+        self.realtime = realtime
+        self._stream_commands = {}
         self.task_name = task_name
         self.robot = robot
         self.seed = seed
@@ -63,7 +68,7 @@ class RoboCasaEnv:
             "controller_configs": controller_config,
             "has_renderer": False,
             "has_offscreen_renderer": bool(enable_render),
-            "use_camera_obs": bool(enable_render),
+            "use_camera_obs": False,  # Camera devices render on demand, never on the physics thread.
             "camera_names": list(camera_names) if enable_render else None,
             "camera_heights": camera_size[0],
             "camera_widths": camera_size[1],
@@ -269,18 +274,11 @@ class RoboCasaEnv:
                 }
         return out
 
-    def get_step_budget(self) -> dict[str, int]:
-        """Environment steps used vs the task horizon (or ``max_steps``).
-
-        The horizon is ADVISORY here: RoboCasa is built with ``ignore_done=True`` and
-        nothing stops the physics at ``max`` (measured 2026-08-27: a probe ran to 15910
-        against a max of 1000).  ``roboenv replay`` records ``budget_exhausted`` in the
-        certificate and the door/drawer primitives report it too (they keep going: the
-        benchmark's own success predicate is what ``completed`` means, an over-budget
-        win is flagged on the board rather than counted).  Pace deliberately — a stroke
-        costs ~100-200 frames.
-        """
-        return {"used": self._step_count, "max": int(self._max_steps or self.horizon)}
+    def get_step_budget(self) -> dict[str, int | None]:
+        """Native control frames, including idle frames in realtime mode."""
+        # Both clock modes count frames without the benchmark's old horizon
+        # or legacy max_steps overrides.
+        return {"used": self._step_count, "max": None}
 
     def render(self, camera: str | None = None) -> np.ndarray | None:
         """An RGB frame from ``camera`` (default: the first configured camera)."""
@@ -312,15 +310,83 @@ class RoboCasaEnv:
             self.env.rng = np.random.default_rng(seed)
         self._obs = self.env.reset()
         self._step_count = 0
+        self._stream_commands = {}
         self._frames.clear()
+        if getattr(self, "realtime", False):
+            for part in self._robot.part_controllers:
+                self.stop_part(part)
         return self._obs
 
     def step(self, commands):
+        if getattr(self, "realtime", False):
+            for part, command in commands.items():
+                controller = self._robot.part_controllers[part]
+                if part in {"base", "right_gripper"}:
+                    self._stream_commands[part] = np.array(command, dtype=float, copy=True)
+                else:
+                    controller.set_goal(np.array(command, dtype=float, copy=True))
+            return
         self.step_vector(self._robot.create_action_vector(commands))
 
     def step_vector(self, action):
+        if getattr(self, "realtime", False):
+            # The native composite command changes every part and the arm's
+            # reference mode once; subsequent ticks retain those targets.
+            gripper = self._robot.gripper["right"]
+            previous_gripper = gripper.current_action.copy()
+            self._robot.composite_controller.set_goal(np.array(action, copy=True))
+            # Gripper integration belongs to ticks, including composite writes.
+            gripper.current_action = previous_gripper
+            for part in ("base", "right_gripper"):
+                start, end = self._robot.composite_controller._action_split_indexes[part]
+                self._stream_commands[part] = np.array(action[start:end], copy=True)
+            return
         # PandaGripper accumulates normalized commands internally. Start every
         # bounded interval from neutral, including intervals for other devices.
         self._robot.gripper["right"].current_action[:] = 0
         self._obs, _, _, _ = self.env.step(action)
         self._step_count += 1
+
+    def stop_part(self, part):
+        controller = self._robot.part_controllers[part]
+        if part == "base":
+            self._stream_commands[part] = np.zeros(controller.control_dim)
+            controller.set_goal(np.zeros(controller.control_dim))
+        elif part == "right_gripper":
+            self._stream_commands[part] = np.zeros(1)
+            # Hold the current finger positions as native normalized targets.
+            low, high = controller.actuator_min, controller.actuator_max
+            positions = self.sim.data.qpos[controller.qpos_index]
+            target = np.clip(2 * (positions - low) / (high - low) - 1, -1, 1)
+            self._robot.gripper["right"].current_action = target.copy()
+            controller.set_goal(target.copy())
+        else:
+            controller.reset_goal()
+
+    def tick(self):
+        """Run one native interval without reapplying position deltas.
+
+        Robosuite's normal step retains all physics, observables and task hooks.
+        Only its policy goal update is replaced during this locked call: arm and
+        torso goals persist, while velocity / gripper inputs run continuously.
+        """
+        composite = self._robot.composite_controller
+
+        def update_streams(_action):
+            for part, command in self._stream_commands.items():
+                value = command.copy()
+                if part == "right_gripper":
+                    value = self._robot.gripper["right"].format_action(value)
+                self._robot.part_controllers[part].set_goal(value)
+
+        # Restore even on native failure, and preserve instance/class lookup.
+        previous = composite.__dict__.get("set_goal")
+        composite.set_goal = update_streams
+        try:
+            self._obs, _, _, _ = self.env.step(np.zeros(self._robot.action_dim))
+            self._step_count += 1
+        finally:
+            if previous is None:
+                del composite.set_goal
+            else:
+                composite.set_goal = previous

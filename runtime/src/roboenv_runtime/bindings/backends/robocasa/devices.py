@@ -137,7 +137,12 @@ def bind(spec, root, context):
                 for i in range(size)
             ],
             control_interval_s=1 / frequency,
-            command_expiry="one control interval; other parts receive zero deltas/velocities",
+            clock_mode="realtime" if getattr(world, "realtime", False) else "stepped",
+            command_expiry=(
+                "until replaced, stopped, or submitted"
+                if getattr(world, "realtime", False)
+                else "one control interval; other parts receive zero deltas/velocities"
+            ),
         )
         # Preserve native benchmark controller modes and scaling.
         intrinsics["controller"] = {
@@ -265,10 +270,12 @@ def bind(spec, root, context):
         def write(target):
             command = vector(target, size, lower=-1, upper=1)
             world.step({part: command})
-            # No command remains active beyond the bounded control interval.
-            return {"completed": True}
+            return {"completed": not getattr(world, "realtime", False), "accepted": True}
 
         def stop():
+            if getattr(world, "realtime", False):
+                world.stop_part(part)
+                return {"stopped": True}
             # The world is stepped, so between writes it is already paused. Reset
             # the servo's goal to measured state, without stepping or teleporting.
             if entity == "gripper":
@@ -317,10 +324,13 @@ def bind(spec, root, context):
 
         def write(target):
             world.step_vector(vector(target, size, lower=-1, upper=1))
-            return {"completed": True}
+            return {"completed": not getattr(world, "realtime", False), "accepted": True}
 
         def stop():
             for part, controller in robot.part_controllers.items():
+                if getattr(world, "realtime", False):
+                    world.stop_part(part)
+                    continue
                 if part == "right_gripper":
                     robot.gripper["right"].current_action[:] = 0
                     controller.set_goal(np.zeros(controller.joint_dim))

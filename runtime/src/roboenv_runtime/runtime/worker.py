@@ -233,10 +233,11 @@ class SimWorker:
         self._device_root = device_root or os.environ.get("ROBOENV_SERVER_ROBOT")
         try:
             self._bind_devices()
+            self.state = "ready"
+            self.world.start()
         except BaseException:
             self.close()
             raise
-        self.state = "ready"
 
     def _bind_devices(self):
         if not self._device_root:
@@ -422,8 +423,9 @@ class SimWorker:
         with self.world.lock:
             if self._final_result is not None:
                 return copy.deepcopy(self._final_result)
-            if self.state == "failed":
+            if self.state == "failed" or self.world.failure is not None:
                 raise WorkerRPCError("world_failed", "owner recovery is required")
+            self.world.freeze()
             if self.scorer.submitted:
                 raise WorkerRPCError("submit_failed", "the final evaluation did not complete")
             try:
@@ -616,6 +618,8 @@ class SimWorker:
     def dispatch(self, op: str, args: Mapping[str, Any]) -> Any:
         """All public operations and native devices share the same world's lane."""
         with self.world.lock:
+            if self.world.failure is not None:
+                self.state = "failed"
             return self._dispatch(op, args)
 
     def _dispatch(self, op: str, args: Mapping[str, Any]) -> Any:
@@ -718,6 +722,7 @@ class SimWorker:
         if self._closed:
             return
         self._closed = True
+        self.world.stop_clock()
         if self._policy_session is not None:
             self._policy_session.close()
             self._policy_session = None

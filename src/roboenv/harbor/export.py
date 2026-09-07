@@ -255,6 +255,13 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
             ),
         )
     if task.backend == "robocasa":
+        clock_instruction = (
+            "Physics continues while you think. Writes update persistent commands; "
+            "stop stops a device, not the world. "
+            if task.backend_kwargs.get("realtime", True)
+            else "Physics pauses between actions. Each write advances one native control "
+            "interval and then pauses again; reads and stop do not advance time. "
+        )
         instruction = (
             task.instruction
             + "\n\n"
@@ -263,7 +270,9 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
                 "`env = roboenv.connect(os.environ['ROBOENV_ENDPOINT'])`, then inspect "
                 "`env.task`, `env.devices()`, and `env.device(name).profile`. "
                 "Read sensors and command devices through their declared basic interfaces. "
-                "Each write executes one control interval; reads and IK/FK do not step time. "
+                + clock_instruction
+                + "There is no simulation horizon. "
+                "Reads and IK/FK do not request extra steps. "
                 "Camera reads return client-accessible image files. Live profiles and thin drivers "
                 "are in /run/roboenv/robot/devices. Build perception and control tools "
                 "in /app. The verifier checks final state and budget after you finish.\n"

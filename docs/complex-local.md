@@ -97,14 +97,13 @@ python3 .complex/robots/robocasa-panda-omron/devices/arm/driver.py stop '{}'
 ```
 
 This is a normalized controller delta, not a position in metres. Check the live
-profile for scaling. A single interval can be visually subtle; compare arm state
-as well as camera frames. `stop` resets the servo goal without another physics
-step. Do not infer task success from a successful command.
+profile for scaling. The servo continues toward the target while the agent thinks; compare arm state
+as well as camera frames. `stop` holds the arm while world physics continues. Do not infer task success from a successful command.
 
 Direct shell driver calls bypass Complex's dispatch event log; the `:all`
 samplers still record resulting images/state. To verify complete command
 tracing, perform a second test through Complex's `device` tool: ask the agent to
-read arm state, issue one such bounded write, stop, and read again. That step
+read arm state, issue one such write, stop, and read again. That step
 requires your configured model and normal motion approval. Start a fresh
 simulation episode before attempting the full task.
 
@@ -143,7 +142,7 @@ provide visual playback. No new visualization server is required.
 |---|---|
 | Kitchen boot | Ready service, actual kitchen image, unchanged catalog |
 | Configuration | Complex sees the eight standard devices; driver status/read succeed |
-| Basic control | One write advances one native interval; reads and stop consume none |
+| Basic control | One write sets a persistent goal; physics continues without requests and after device stop |
 | Recording | Nonempty camera/state events, readable saved images, completed manifest |
 | Visualization | Keyframe sheet and playable MP4 show the captured kitchen |
 | Dispatch tracing | Complex-issued read/write/stop appear in device events |

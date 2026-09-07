@@ -15,14 +15,16 @@ safety:
   max_cartesian_velocity: null
   max_joint_velocity: null
   keep_out_zones: []
-  notes: Use the supplied device drivers. Each write advances one native control interval.
+  notes: Use the supplied device drivers. Check the live device clock_mode.
+    Realtime mode runs continuously with persistent commands; stepped mode advances
+    one control interval per write. Stop affects only its device.
     Native Panda OSC and torque motors do not define a hard Cartesian or joint velocity
     cap. The base velocity servo limits targets, not measured speed. These safety
     fields explicitly impose no additional velocity cap; native dynamics and
     controller limits still apply.
     Do not infer velocity caps from OSC deltas divided by the control interval or
     from real-hardware URDF limits that this simulator does not enforce.
-    Reads and recording do not advance physics. Infer scene geometry and object poses
+    Reads and recording do not request extra physics steps. Simulation frames are counted without a horizon limit. Infer scene geometry and object poses
     from camera images; simulator ground truth is not an agent observation. Budgets
     and verification remain environment-owned.
 meta:
