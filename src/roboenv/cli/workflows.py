@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-COMMANDS = {"prepare", "doctor", "start", "status", "stop", "export"}
+COMMANDS = {"prepare", "doctor", "launch", "status", "stop", "export"}
 
 
 def add_commands(commands):
@@ -14,7 +14,7 @@ def add_commands(commands):
             help={
                 "prepare": "Install or reuse one isolated simulator environment",
                 "doctor": "Explain simulator readiness and next steps",
-                "start": "Start a task and wait for its devices",
+                "launch": "Start a task and wait for its devices",
                 "status": "Inspect a running environment",
                 "stop": "Stop a locally owned environment",
                 "export": "Export one task to Harbor",
@@ -28,10 +28,11 @@ def add_commands(commands):
             parser.add_argument(
                 "--prefix", type=Path, help="New environment (default: .venv-sim/SIMULATOR)"
             )
-        if name in {"start", "export"}:
+        if name in {"launch", "export"}:
             parser.add_argument("task", help="Catalog task ID or task.yaml path")
             parser.add_argument("--catalog", type=Path)
-        if name == "start":
+        if name == "launch":
+            parser.add_argument("--host", default="127.0.0.1")
             parser.add_argument("--interpreter", type=Path)
             parser.add_argument("--timeout", type=float, default=900)
             parser.add_argument("--detach", action="store_true")
@@ -59,7 +60,10 @@ def emit(value, *, machine=False):
             print(f"  {blocker}")
         for step in value["next_steps"]:
             print(f"Next: {step}")
-        print(f"Assets: {value['asset_instructions']}")
+        if value.get("downloaded_assets_verified"):
+            print("Kitchen assets: downloaded and content-verified; simulator boot unverified")
+        else:
+            print(f"Assets: {value['asset_instructions']}")
     elif value.get("schema") == "roboenv/local-run/1":
         print(
             f"Ready: {value['task']}\nEndpoint: {value['endpoint']}\nDevices: {value['devices']}",
@@ -73,16 +77,24 @@ def execute(args):
     if args.command in {"prepare", "doctor"}:
         from roboenv.provisioning.setup import doctor, prepare
 
+        prepared = {}
         if args.command == "prepare":
 
             def progress(message):
                 print(f"[prepare] {message}", file=sys.stderr, flush=True)
 
-            prepare(args.simulator, project=args.project, install_to=args.prefix, progress=progress)
+            prepared = (
+                prepare(
+                    args.simulator, project=args.project, install_to=args.prefix, progress=progress
+                )
+                or {}
+            )
         result = doctor(args.simulator, project=args.project)
+        if "downloaded_assets_verified" in prepared:
+            result["downloaded_assets_verified"] = prepared["downloaded_assets_verified"]
         emit(result, machine=args.json)
         return 0 if result["install_preflight_passed"] else 1
-    if args.command == "start":
+    if args.command == "launch":
         from roboenv.environment import launch
 
         environment = launch(
@@ -92,6 +104,7 @@ def execute(args):
             interpreter=args.interpreter,
             timeout=args.timeout,
             port=args.port,
+            host=args.host,
         )
         emit(environment.record, machine=args.json)
         if args.detach:

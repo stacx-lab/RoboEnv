@@ -200,6 +200,7 @@ class SimWorker:
         if privileged and budget_mode == "official":
             raise ValueError("privileged workers are practice-only")
         self.adapter = adapter
+        adapter.run_dir = Path(run_dir).resolve()
         self.world = WorldSession(adapter)
         self.task_id = str(task_id)
         self.seed = int(seed)
@@ -623,6 +624,10 @@ class SimWorker:
             "reset", "reset_same_task", "shutdown",
         }:
             raise WorkerRPCError("world_failed", "World lifecycle failed; owner recovery is required")
+        if self.adapter.name == "robocasa" and op in {
+            "call", "skill", "exec", "vla", "reset", "reset_same_task", "checkpoint", "restore",
+        }:
+            raise WorkerRPCError("unsupported_op", "RoboCasa accepts basic device operations; start a new service for a new episode")
         if op not in WORKER_OPS:
             raise WorkerRPCError(
                 "unsupported_op",
@@ -649,7 +654,17 @@ class SimWorker:
                         raise DeviceError("invalid_args", "Discovery takes no arguments")
                     if op == "devices.list":
                         return self.devices.inventory()
-                    return {**self.devices.environment(), "session": self.session,
+                    description = self.devices.environment()
+                    task = description.get("task", {})
+                    if self.adapter.name == "robocasa":
+                        description = {
+                            "task": {"id": task.get("id", self.task_id),
+                                     "instruction": self.adapter.goal() or task.get("instruction", ""),
+                                     "context": {}},
+                            "devices": description["devices"],
+                        }
+                        return {**description, "session": self.session, "generation": self.generation}
+                    return {**description, "session": self.session,
                             "generation": self.generation, "task_id": self.task_id,
                             "seed": self.seed, "budget_mode": self.budget_mode}
                 if op == "devices.describe":

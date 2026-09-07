@@ -77,6 +77,11 @@ def load_deployment(path, backend):
         "ROBOENV_SOCKET",
         "ROBOENV_RUN_DIR",
         "ROBOENV_SOCKET_ROOT",
+        "ROBOENV_ENDPOINT",
+        "ROBOENV_HTTP_HOST",
+        "ROBOENV_HTTP_PORT",
+        "ROBOENV_PUBLISH_DEVICES",
+        "ROBOENV_FRESH_SESSION",
     }
     extra = spec.get("environment", {})
     if (

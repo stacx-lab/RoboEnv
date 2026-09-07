@@ -1,0 +1,44 @@
+{
+  "schema": "roboenv/source-validation/1",
+  "backend": "robocasa",
+  "sources": {
+    "robocasa": "4f8a2980def75a55dff96b990745b83540425f09",
+    "robosuite": "5ce6643f3092639d08f7b0f90ed1c6a84f50552c"
+  },
+  "patches": [
+    {
+      "path": "third_party/patches/robocasa-readonly-assets.patch",
+      "sha256": "1ca1dee4eff91bf951d11f7d0759be643cf9f68dce3faa16e241e001290518cb"
+    }
+  ],
+  "input_sha256": {
+    "runtime/src/roboenv_runtime/adapters/robocasa/backend.py": "0718d109ef3a33a7d9732e2662304137e9980f51210013964d9285b59851dbb6",
+    "runtime/src/roboenv_runtime/adapters/robocasa/depth.py": "0b900e21c5c3e8a69d08302a944b440b69332dd50139998a24bc44e84ce35b88",
+    "runtime/src/roboenv_runtime/adapters/robocasa/kinematics.py": "46d18a42481d426c97d36fdb2b23f39f8258dbe8e46a066a2b4f693f0374bc29",
+    "runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py": "e61b32f8e8b87bd2cf0471309a76892424d28860fbcb90658d1db034ed5c1bf7",
+    "catalog/bindings/robocasa-panda-omron.yaml": "f42517f45952a66a8038b5f9f2aa7b420fd938b16ea7715e5a26c17f2c3f6658"
+  },
+  "checks": {
+    "upstream_default_branch_tips_match": true,
+    "managed_tree_matches": true,
+    "patch_applies_to_clean_upstream": true,
+    "command": "bash tools/check.sh",
+    "exit_code": 0,
+    "pytest": {
+      "passed": 312,
+      "skipped": 9
+    },
+    "privacy_audit": true,
+    "wheel_build_and_isolated_imports": true
+  },
+  "coverage": {
+    "robot_cpu_boot": true,
+    "device_checks": "Native Panda/Omron CPU fixture; joint limits, FK/IK, three synthetic RGB-D HTTP routes; current sibling Complex schema and calibration DAG",
+    "catalog_regeneration": true,
+    "kitchen_boot": false,
+    "gpu_rgbd_rendering": false,
+    "benchmark_task_success": false,
+    "fresh_process_task_replay": false
+  },
+  "notes": "Fresh CPU validation on the listed upstream base. Historical simulator receipts are preserved and do not certify this revision."
+}

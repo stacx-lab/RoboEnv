@@ -7,4 +7,6 @@ instruction: 'Drive a mobile Panda in a RoboCasa kitchen: pick the object off th
   service; the agent works through file-defined devices and tools.'
 seed: 0
 budget_mode: official
-backend_kwargs: {"task_name":"PickPlaceCounterToMicrowave"}
+backend_kwargs:
+  task_name: PickPlaceCounterToMicrowave
+action_abstraction: devices

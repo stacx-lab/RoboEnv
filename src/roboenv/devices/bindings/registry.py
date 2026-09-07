@@ -1,6 +1,6 @@
 """Explicit binding factories. Configuration never supplies an import path."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from roboenv.devices.service import DeviceService
@@ -13,6 +13,7 @@ class BindingContext:
     native: Any
     public_dispatch: Any = None
     public_tools: Any = None
+    devices: Any = None
 
 
 class BindingRegistry:
@@ -32,6 +33,7 @@ class BindingRegistry:
         for spec in plan.devices:
             if spec.binding not in self._factories:
                 raise ValueError(f"unknown registered binding: {spec.binding}")
+        context = replace(context, devices={spec.entity: spec.name for spec in plan.devices})
         devices = []
         try:
             for spec in plan.devices:

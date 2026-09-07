@@ -1,0 +1,54 @@
+name: camera_right
+type: rgbd
+intrinsics:
+  source: introspected
+  value:
+    width: 256
+    height: 256
+    fx: 221.702503368816
+    fy: 221.702503368816
+    cx: 128.0
+    cy: 128.0
+    distortion: []
+    fovy_degrees: 60.0
+  interface: roboenv/rgbd/1
+  camera_name: robot0_agentview_right
+  depth:
+    scale: 0.001
+    aligned: true
+    format: PGM P5, unsigned 16-bit big-endian; 0 invalid
+    units: optical-axis metres = raw * scale
+    encoding: Native depth buffer converted using live near/far clipping planes, then
+      rounded to millimetres. Background, nonfinite and depths outside [0.001,65.535]
+      metres are encoded as 0.
+extrinsics:
+  source: introspected
+  mount:
+    parent: torso
+    pose:
+      translation:
+      - -0.5
+      - -0.35
+      - 1.05
+      rotation:
+      - 0.67750911205
+      - -0.55623852878
+      - 0.299352522621
+      - -0.376786636428
+    parent_frame: flange
+meta:
+  created_at: '2026-09-06T00:00:00Z'
+  updated_at: '2026-09-06T00:00:00Z'
+access:
+  source: user
+  kind: url
+  url: http://127.0.0.1:8123
+  driver:
+    entry: driver.py
+    interpreter: python3
+    persistent: false
+    actions:
+    - load
+    - unload
+    - status
+    - read

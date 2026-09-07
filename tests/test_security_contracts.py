@@ -350,3 +350,9 @@ def test_verifier_missing_task_overwrites_stale_success(tmp_path, monkeypatch):
     assert json.loads((out / "reward.json").read_text()) == {"reward": 0.0}
     assert (out / "reward.txt").read_text().strip() == "0.0"
     assert json.loads((out / "submit.json").read_text())["valid"] is False
+
+
+@pytest.mark.parametrize("operation", ["submit", "reset", "restore", "shutdown", "exec"])
+def test_public_client_refuses_trial_control_operations(operation):
+    with pytest.raises(ValueError, match="not an agent operation"):
+        Client("/unused").request(operation)

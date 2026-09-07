@@ -36,13 +36,23 @@ roboenv prepare robotwin --prefix .venv-sim/robotwin-fresh
 `prepare` defaults to `.venv-sim/robotwin`, checks dependencies and import origins, and
 records the interpreter for launch. Repeating it reuses a registered interpreter
 if its executable still exists; it does not upgrade or certify that environment
-again. `doctor` provides read-only diagnostics. Existing environments are never
+again. For RoboCasa, each preparation also verifies downloaded kitchen assets
+and downloads missing or damaged bundles, including with a reused interpreter.
+`doctor` provides read-only diagnostics. Existing environments are never
 overwritten. Failed installations
 retain their environment and private logs. Use `--prefix NEW_DIRECTORY`
 for a fresh installation or recovery after failure.
 
-Assets are acquired separately using the pinned upstream's instructions. Setup
-does not accept licenses or download model checkpoints. `doctor` reports recipe
+For RoboCasa, `roboenv prepare robocasa` downloads the kitchen textures, fixtures,
+and objects listed by the pinned upstream (about 10 GB) automatically. Progress
+is reported on stderr; completed bundles have local content receipts and are
+reused after verification. If a download fails, rerun the same command; the
+interpreter and completed bundles are preserved. This also works for interpreters
+prepared before automatic asset downloads were added. Asset verification does
+not certify simulator boot or GPU replay.
+
+Other simulators require separate asset acquisition using the pinned upstream's
+instructions. Setup does not accept licenses or download model checkpoints. `doctor` reports recipe
 and source blockers and whether an interpreter has been registered; it does not
 certify GPU, asset, or task readiness. Add `--json` for automation.
 
@@ -53,7 +63,7 @@ and historical evidence, see [installation reference](installation-reference.md)
 
 ```sh
 roboenv tasks list --simulator robotwin
-roboenv start TASK_ID
+roboenv launch TASK_ID
 ```
 
 Choose a task ID from the list. With `.venv` activated, you can use `roboenv`

@@ -5,13 +5,17 @@ import os
 import socket
 import sys
 import uuid
+from pathlib import Path
 
 
 def main():
     """Return zero only for a live, ready worker behind the supervisor."""
+    identity = Path("/run/roboenv/identity.json")
+    session = (json.loads(identity.read_text())["session"] if identity.is_file()
+               else os.environ.get("ROBOENV_SESSION", "harbor"))
     request = {
         "protocol": "roboenv/1",
-        "session": os.environ.get("ROBOENV_SESSION", "harbor"),
+        "session": session,
         "generation": 0,
         "request_id": "healthcheck-" + uuid.uuid4().hex,
         "deadline_s": 5,

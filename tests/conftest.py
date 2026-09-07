@@ -8,6 +8,8 @@ PROJECT = Path(__file__).resolve().parents[1]
 for path in (PROJECT / "src", PROJECT / "runtime/src"):
     sys.path.insert(0, str(path))
 
+pytest_plugins = ["service_fixtures"]
+
 
 def pytest_configure(config):
     if config.option.basetemp is None:

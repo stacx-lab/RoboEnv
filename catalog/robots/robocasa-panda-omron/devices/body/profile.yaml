@@ -1,0 +1,126 @@
+name: body
+type: body
+intrinsics:
+  source: introspected
+  mobility: mobile
+  drive: omni
+  turn_in_place: true
+  dof: 3
+  joints:
+  - name: mobilebase0_joint_mobile_forward
+    type: prismatic
+    source: introspected
+    unbounded: true
+  - name: mobilebase0_joint_mobile_side
+    type: prismatic
+    source: introspected
+    unbounded: true
+  - name: mobilebase0_joint_mobile_yaw
+    type: revolute
+    source: introspected
+    unbounded: true
+  actions:
+  - component: forward
+    units: normalized
+    bounds:
+      min: -1
+      max: 1
+  - component: left
+    units: normalized
+    bounds:
+      min: -1
+      max: 1
+  - component: yaw_rate
+    units: normalized
+    bounds:
+      min: -1
+      max: 1
+  control_interval_s: 0.05
+  command_expiry: one control interval; other parts receive zero deltas/velocities
+  controller:
+    name: MobileBaseJointVelocityController
+    input_type: null
+    input_ref_frame: null
+    output_min:
+    - -1.0
+    - -1.0
+    - -1.0
+    output_max:
+    - 1.0
+    - 1.0
+    - 1.0
+  interface: roboenv/body/1
+  actuators:
+  - name: mobilebase0_actuator_mobile_forward
+    joint: mobilebase0_joint_mobile_forward
+    control_limited: true
+    control_range:
+    - -1.0
+    - 1.0
+    force_limited: true
+    force_range:
+    - -600.0
+    - 600.0
+  - name: mobilebase0_actuator_mobile_side
+    joint: mobilebase0_joint_mobile_side
+    control_limited: true
+    control_range:
+    - -1.0
+    - 1.0
+    force_limited: true
+    force_range:
+    - -600.0
+    - 600.0
+  - name: mobilebase0_actuator_mobile_yaw
+    joint: mobilebase0_joint_mobile_yaw
+    control_limited: true
+    control_range:
+    - -1.5
+    - 1.5
+    force_limited: true
+    force_range:
+    - -600.0
+    - 600.0
+  velocity_limits:
+    source: introspected
+    measured_joint_velocity_cap: null
+    notes: Native model/controller has no hard measured joint velocity cap; controller
+      deltas and actuator control ranges are not such a cap.
+    actuator_target_ranges:
+    - joint: mobilebase0_joint_mobile_forward
+      range:
+      - -1.0
+      - 1.0
+      units: m/s
+    - joint: mobilebase0_joint_mobile_side
+      range:
+      - -1.0
+      - 1.0
+      units: m/s
+    - joint: mobilebase0_joint_mobile_yaw
+      range:
+      - -1.5
+      - 1.5
+      units: rad/s
+extrinsics:
+  source: default
+meta:
+  created_at: '2026-09-06T00:00:00Z'
+  updated_at: '2026-09-06T00:00:00Z'
+access:
+  source: user
+  kind: url
+  url: http://127.0.0.1:8123
+  control_mode: normalized_velocity
+  frequency_hz: 20.0
+  driver:
+    entry: driver.py
+    interpreter: python3
+    persistent: false
+    actions:
+    - load
+    - unload
+    - status
+    - read
+    - write
+    - stop

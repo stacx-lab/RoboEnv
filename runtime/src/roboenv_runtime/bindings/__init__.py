@@ -9,6 +9,9 @@ def default_registry():
 
     registry = BindingRegistry()
     registry.register("fakeshell.puck/1", bind_puck)
-    for backend in ("libero", "robocasa", "robotwin", "robodojo", "behavior"):
+    from .backends.robocasa.devices import bind
+
+    registry.register("robocasa.device/1", bind)
+    for backend in ("libero", "robotwin", "robodojo", "behavior"):
         registry.register(f"{backend}.device/1", bind_simulator_device)
     return registry

@@ -1,26 +1,21 @@
 name: world
 type: world
-loaded: true
-access:
-  source: user
-  kind: sim
-  device: /run/roboenv/sim.sock
-  driver:
-    entry: driver.py
-    interpreter: python3
-    actions:
-    - api
-    - catalog
-    - load
-    - read
-    - state
-    - status
-    - unload
-    timeout_s: 900
 intrinsics:
-  source: user
-  bounds: ???
-  notes: one RoboCasa kitchen; poses the service reports are base-frame metres
+  source: default
+  bounds:
+    min:
+    - null
+    - null
+    - null
+    max:
+    - null
+    - null
+    - null
+  surfaces: []
+  interface: roboenv/world/1
+  notes: No additional global workspace AABB is imposed by this catalog. Open bounds
+    do not imply collision-free or reachable space. Native joint limits and collisions
+    still apply; perceive scene geometry through cameras.
 meta:
-  created_at: '2026-08-31T03:30:00Z'
-  updated_at: '2026-08-31T03:30:00Z'
+  created_at: '2026-09-06T00:00:00Z'
+  updated_at: '2026-09-06T00:00:00Z'

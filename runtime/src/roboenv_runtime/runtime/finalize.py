@@ -253,7 +253,7 @@ def _action_evidence(action: Mapping[str, Any], result: Any) -> dict[str, Any]:
 def _is_read_only_call(request: Request) -> bool:
     if request.op == "devices.call":
         return request.args.get("action") in {
-            "read", "state", "status", "load", "catalog", "api", "ping"
+            "read", "state", "status", "load", "unload", "ik", "fk", "catalog", "api", "ping"
         }
     name = request.args.get("name", request.args.get("fn"))
     if not isinstance(name, str):

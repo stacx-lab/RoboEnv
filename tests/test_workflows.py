@@ -49,15 +49,15 @@ def test_launch_connect_driver_and_budget(monkeypatch):
         client = roboenv.connect(env.record["id"], project=ROOT)
         endpoint_client = roboenv.connect(env.record["endpoint"])
         endpoint_client.devices()
-        assert endpoint_client.session == env.record["id"]
+        assert endpoint_client.task.id == "native-toy-push"
         assert env.record["endpoint"].count("/") == 2
-        assert client.describe()["task"]["id"] == "native-toy-push"
+        assert client.task.id == "native-toy-push"
         assert env.devices()["devices"][0]["name"] == "controller"
         before = client.device("controller").read()
-        assert before["budget"]["used"] == 0
-        result = client.device("controller").write([0.3], request_id="move-once")
-        assert result["budget"]["used"] > 0
-        assert client.device("controller").write([0.3], request_id="move-once") == result
+        assert before["result"]["budget"]["used"] == 0
+        result = client.device("controller").write([0.3])
+        assert result["position"][0] == pytest.approx(0.3)
+        assert env.device("controller").read()["budget"]["used"] > 0
         device = Path(env.record["devices"]) / "controller"
         profile = yaml.safe_load((device / "profile.yaml").read_text())
         assert "stop" not in profile["access"]["driver"]["actions"]
@@ -80,7 +80,8 @@ def test_multiple_runs_require_selection(monkeypatch):
     with launch_toy(timeout=20) as first, launch_toy(timeout=20) as second:
         with pytest.raises(ValueError, match="select --endpoint"):
             connect(project=ROOT)
-        assert connect(first.record["id"], project=ROOT).session != second.client.session
+        assert first.client.session != second.client.session
+        assert connect(first.endpoint).task.id == "native-toy-push"
         assert first.record["endpoint"] != second.record["endpoint"]
         first.device("controller").write([0.3])
         assert second.device("controller").read()["budget"]["used"] == 0
@@ -124,7 +125,7 @@ def test_reused_port_accepts_a_fresh_connection():
         with pytest.raises(RemoteError):
             old_client.device("controller").write([0.3])
         assert second.device("controller").read()["budget"]["used"] == 0
-        assert connect(old_endpoint).device("controller").write([0.3])["budget"]["used"] > 0
+        assert connect(old_endpoint).device("controller").write([0.3])["position"][0] > 0
 
 
 def test_startup_failure_preserves_logs(tmp_path):
@@ -141,7 +142,7 @@ def test_cli_detach_status_and_stop():
     started = subprocess.run(
         [
             *command,
-            "start",
+            "launch",
             str(FIXTURE / "task.yaml"),
             "--catalog",
             str(FIXTURE / "catalog"),
@@ -264,3 +265,26 @@ def test_simple_export_uses_the_shared_resolver(tmp_path):
         == resolve_task(FIXTURE / "task.yaml", catalog=FIXTURE / "catalog").runtime_config()
     )
     assert not (out / "solution").exists()
+
+
+def test_cli_rejects_removed_start_command(capsys):
+    from roboenv.cli.main import main
+
+    with pytest.raises(SystemExit) as error:
+        main(["start", "example-task"])
+    assert error.value.code == 2
+    assert "invalid choice: 'start'" in capsys.readouterr().err
+
+
+def test_launch_never_changes_catalog():
+    def snapshot():
+        return {
+            str(p.relative_to(FIXTURE / "catalog")): p.read_bytes()
+            for p in (FIXTURE / "catalog").rglob("*")
+            if p.is_file()
+        }
+
+    before = snapshot()
+    with launch_toy(timeout=20):
+        assert snapshot() == before
+    assert snapshot() == before

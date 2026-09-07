@@ -4,15 +4,20 @@ World ownership, serialization, journaling and request deduplication stay in the
 supervisor. Owner lifecycle commands remain on its local Unix socket.
 """
 
+import re
+from pathlib import Path
+
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from roboenv.client import PUBLIC_OPS
+from roboenv.devices.contract import SERVICE_OPS
+
+PUBLIC_OPS = SERVICE_OPS | {"health"}
 from roboenv.validation import json_loads
 
 from .protocol import ProtocolError, Request, encode_ndjson
 
 
-def bind_http(supervisor, port):
+def bind_http(supervisor, port, host="127.0.0.1"):
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
@@ -22,7 +27,7 @@ def bind_http(supervisor, port):
             pass
 
         def valid_endpoint(self):
-            if self.path != "/":
+            if self.path != "/" and not (self.command == "GET" and re.fullmatch(r"/artifacts/[A-Za-z0-9_.-]+/[0-9]+/[a-f0-9]{32}\.(?:png|pgm)", self.path)):
                 self.send_error(404, "Unknown endpoint")
                 return False
             if self.headers.get("Origin") is not None:
@@ -30,13 +35,29 @@ def bind_http(supervisor, port):
                 return False
             # Numeric loopback Host prevents DNS rebinding of this local service.
             expected_host = f"127.0.0.1:{self.server.server_port}"
-            if self.headers.get("Host") != expected_host:
+            if host == "127.0.0.1" and self.headers.get("Host") != expected_host:
                 self.send_error(403, "Use the advertised loopback endpoint")
                 return False
             return True
 
         def do_GET(self):
             if not self.valid_endpoint():
+                return
+            if self.path.startswith("/artifacts/"):
+                _, _, session, generation, name = self.path.split("/")
+                if session != supervisor.config.session or int(generation) != supervisor.config.generation:
+                    self.send_error(409, "Episode changed")
+                    return
+                file = Path(supervisor.config.run_dir) / "captures" / name
+                if file.is_symlink() or not file.is_file():
+                    self.send_error(404, "Unknown artifact")
+                    return
+                data = file.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png" if file.suffix == ".png" else "image/x-portable-graymap")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
                 return
             data = encode_ndjson(
                 {
@@ -77,7 +98,7 @@ def bind_http(supervisor, port):
                     raise ValueError("Incomplete request")
                 raw = json_loads(payload)
                 request = Request.from_mapping(raw, allowed_ops=PUBLIC_OPS)
-                response = supervisor.handle(request)
+                response = supervisor.handle(request, public=True)
             except (ValueError, ProtocolError) as exc:
                 error = (
                     exc
@@ -102,4 +123,4 @@ def bind_http(supervisor, port):
             except (BrokenPipeError, ConnectionResetError):
                 pass
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    return ThreadingHTTPServer((host, port), Handler)

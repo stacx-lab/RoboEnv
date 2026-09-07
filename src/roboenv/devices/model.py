@@ -74,6 +74,7 @@ class Action:
     handler: Callable[[dict, ExecutionContext], Any] | None = None
     input_schema: dict = field(default_factory=lambda: {"type": "object"})
     reason: str | None = None
+    output_schema: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if self.handler is not None and not callable(self.handler):
@@ -105,7 +106,9 @@ class BoundDevice:
     ):
         self.definition = copy.deepcopy(definition)
         self.actions = dict(actions)
-        if not self.actions or not all(isinstance(a, Action) for a in self.actions.values()):
+        if (not self.actions and definition.type != "world") or not all(
+            isinstance(a, Action) for a in self.actions.values()
+        ):
             raise ValueError("device needs an explicit action table")
         if not all(isinstance(name, str) and name for name in self.actions):
             raise ValueError("action names must be nonempty strings")
@@ -127,6 +130,11 @@ class BoundDevice:
                     "supported": action.handler is not None,
                     "read_only": name in READ_ACTIONS,
                     "input_schema": copy.deepcopy(action.input_schema),
+                    **(
+                        {"output_schema": copy.deepcopy(action.output_schema)}
+                        if action.output_schema
+                        else {}
+                    ),
                     **({"reason": action.reason} if action.handler is None else {}),
                 }
                 for name, action in self.actions.items()

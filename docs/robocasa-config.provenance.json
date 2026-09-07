@@ -1,0 +1,34 @@
+{
+  "generator": "tools/generate_robocasa_config.py",
+  "method": "CPU model assembly; zero physics steps; no task",
+  "robot": "PandaOmron",
+  "cameras": [
+    "robot0_agentview_left",
+    "robot0_agentview_right",
+    "robot0_eye_in_hand"
+  ],
+  "camera_size": [
+    256,
+    256
+  ],
+  "control_frequency_hz": 20,
+  "randomize_cameras": false,
+  "sources": {
+    "third_party/robocasa/robocasa/utils/camera_utils.py": "e0f839e85548d962caa6cab70a7eb9a56a8d1eab7f3cc071a20edff51d013669",
+    "third_party/robocasa/robocasa/environments/kitchen/kitchen.py": "35b1395ce65d51b993296aff1881fd5371542aec4c4e8ffc38c3f775327b5c56",
+    "third_party/robosuite/robosuite/models/robots/compositional.py": "109eb998a1219864ac1209cac5850ab531f508eb63337025803337078a7d02f1",
+    "third_party/robosuite/robosuite/models/assets/robots/panda/robot.xml": "67f62e98681d2ae0d5c50352105492b0041bcc9b9502e83fed02823195338c90",
+    "third_party/robosuite/robosuite/models/assets/bases/omron_mobile_base.xml": "703d342e1959e20da635a0983055fe876f1b47951923b279d40a86943a386288",
+    "third_party/robosuite/robosuite/models/assets/grippers/panda_gripper.xml": "066fd7ae45afb11e1844869360e587646e9768210ba5389aa3cd35292cde29c1",
+    "third_party/robosuite/robosuite/controllers/config/robots/default_pandaomron.json": "4f91b12b904e8907005393e45dbb5576af470f7f3d16da017de3826fa22e8dcb",
+    "third_party/robosuite/robosuite/controllers/parts/arm/osc.py": "e406c0620b039156e4643fae68983a6ca19234632897b8a87bd6062b98869796",
+    "third_party/robosuite/robosuite/controllers/parts/generic/joint_pos.py": "744ee0d0a793a0bb3acb1822a20c8960b25689001fddb1f343a1ea7d4f2788aa",
+    "third_party/robosuite/robosuite/controllers/parts/mobile_base/joint_vel.py": "cc64ca5683bb023cec731d0fa7a61bdfd1db2e97d3423f576d5bbba9f3e6e660",
+    "third_party/robosuite/robosuite/models/grippers/panda_gripper.py": "df0449a9b003e9a019fad4ef59b435ae2b9accd2705026da041165dd99faab8d",
+    "third_party/robosuite/robosuite/utils/camera_utils.py": "320d1fccc23ea09334d747093c12ec014fdad072b71308026cf1dfe48db98afb",
+    "runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py": "e61b32f8e8b87bd2cf0471309a76892424d28860fbcb90658d1db034ed5c1bf7",
+    "runtime/src/roboenv_runtime/adapters/robocasa/kinematics.py": "46d18a42481d426c97d36fdb2b23f39f8258dbe8e46a066a2b4f693f0374bc29",
+    "runtime/src/roboenv_runtime/adapters/robocasa/depth.py": "0b900e21c5c3e8a69d08302a944b440b69332dd50139998a24bc44e84ce35b88",
+    "runtime/src/roboenv_runtime/adapters/robocasa/backend.py": "0718d109ef3a33a7d9732e2662304137e9980f51210013964d9285b59851dbb6"
+  }
+}

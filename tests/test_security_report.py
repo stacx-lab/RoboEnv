@@ -1,17 +1,13 @@
 """Scanner summaries fail closed and never copy source snippets into artifacts."""
 
-import importlib.util
 import json
 from pathlib import Path
 
 import pytest
+from helpers import load_tool
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location(
-    "check_security_report", ROOT / "tools/check_security_report.py"
-)
-SCANNER = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(SCANNER)
+SCANNER = load_tool("check_security_report")
 
 
 def clean_reports():

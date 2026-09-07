@@ -65,7 +65,7 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None):
         backend_kwargs=kwargs,
         robot=robot or ROBOTS[backend],
         instruction=instruction,
-        action_abstraction="symbolic-primitives"
+        action_abstraction="devices" if backend == "robocasa" else "symbolic-primitives"
         if backend == "behavior"
         else "cartesian-primitives",
     )

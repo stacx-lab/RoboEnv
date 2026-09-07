@@ -50,3 +50,10 @@ def test_quiet_api_stage_propagates_failure():
     with pytest.raises(ValueError):
         with stage(None, "Checking"):
             raise ValueError("failed")
+
+
+def test_cli_prepare_reports_asset_verification(monkeypatch, capsys):
+    monkeypatch.setattr(setup, "prepare", lambda *a, **kw: {"downloaded_assets_verified": True})
+    monkeypatch.setattr(setup, "doctor", lambda *a, **kw: {"install_preflight_passed": True})
+    assert main(["prepare", "robocasa", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["downloaded_assets_verified"] is True

@@ -1,10 +1,12 @@
 """Thin device-driver/1 client. Environment implementation stays on the server."""
 
 import json
+import os
 import sys
 from pathlib import Path
 
 from roboenv.client import Client, RemoteError, UncertainResult
+from roboenv.devices.client import Environment
 
 
 def handle(action, args):
@@ -17,10 +19,16 @@ def handle(action, args):
                 session=config["session"],
                 generation=config["generation"],
             )
-        else:
+        elif os.environ.get("ROBOENV_SOCKET") and not os.environ.get("ROBOENV_ENDPOINT"):
             client = Client()
-        reply = client.device(Path(__file__).parent.name).call(action, args)
-        data = reply["data"]
+        else:
+            client = Client(
+                endpoint=os.environ.get("ROBOENV_ENDPOINT", "http://127.0.0.1:8123"),
+                session=os.environ.get("ROBOENV_SESSION"),
+                generation=int(os.environ.get("ROBOENV_GENERATION", "0")),
+            )
+        env = Environment(client)
+        data = getattr(env.device(Path(__file__).parent.name), action)(**args)
         return {**(data if isinstance(data, dict) else {"result": data}), "ok": True}
     except RemoteError as exc:
         return {"ok": False, "error": str(exc), "code": exc.code, "request_id": exc.request_id}

@@ -17,6 +17,7 @@ class DeviceService:
         self._devices = {}
         self._descriptors = {}
         self._validators = {}
+        self._output_validators = {}
         for device in devices:
             descriptor = copy.deepcopy(device.describe())
             name = descriptor["name"]
@@ -28,6 +29,9 @@ class DeviceService:
                 if spec.get("read_only") is not (action in READ_ACTIONS):
                     raise ValueError("read-only action semantics must match devices/1")
                 self._validators[name, action] = action_validator(spec.get("input_schema", {}))
+                self._output_validators[name, action] = action_validator(
+                    spec.get("output_schema", {})
+                )
             self._devices[name], self._descriptors[name] = device, descriptor
         if not self._devices:
             raise ValueError("device server needs a nonempty registry")
@@ -100,6 +104,7 @@ class DeviceService:
             started = time.time_ns()
             try:
                 data = self._devices[name].execute(action, copy.deepcopy(args["args"]), context)
+                self._output_validators[name, action](data)
                 if any(entry.get("ok") is not True for entry in context.calls):
                     raise DeviceError("device_failed", "Binding suppressed an underlying failure")
                 if isinstance(data, dict) and data.get("ok") is False:

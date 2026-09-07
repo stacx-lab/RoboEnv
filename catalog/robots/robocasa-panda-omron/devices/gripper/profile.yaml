@@ -1,44 +1,101 @@
 name: gripper
 type: end_effector
-loaded: true
+intrinsics:
+  source: introspected
+  tool_type: parallel gripper
+  dof: 2
+  joints:
+  - name: gripper0_right_finger_joint1
+    type: prismatic
+    source: introspected
+    limits:
+      min: 0.0
+      max: 0.04
+  - name: gripper0_right_finger_joint2
+    type: prismatic
+    source: introspected
+    limits:
+      min: -0.04
+      max: 0.0
+  actions:
+  - component: close
+    units: normalized
+    bounds:
+      min: -1
+      max: 1
+    meaning: 'sign only: positive closes, negative opens, zero holds; native gripper
+      normalized increment 0.2 per interval'
+  control_interval_s: 0.05
+  command_expiry: one control interval; other parts receive zero deltas/velocities
+  controller:
+    name: SimpleGripController
+    input_type: null
+    input_ref_frame: null
+    output_min:
+    - -1.0
+    - -1.0
+    output_max:
+    - 1.0
+    - 1.0
+    normalized_increment: 0.2
+  interface: roboenv/end_effector/1
+  actuators:
+  - name: gripper0_right_gripper_finger_joint1
+    joint: gripper0_right_finger_joint1
+    control_limited: true
+    control_range:
+    - 0.0
+    - 0.04
+    force_limited: true
+    force_range:
+    - -20.0
+    - 20.0
+  - name: gripper0_right_gripper_finger_joint2
+    joint: gripper0_right_finger_joint2
+    control_limited: true
+    control_range:
+    - -0.04
+    - 0.0
+    force_limited: true
+    force_range:
+    - -20.0
+    - 20.0
+  velocity_limits:
+    source: introspected
+    measured_joint_velocity_cap: null
+    notes: Native model/controller has no hard measured joint velocity cap; controller
+      deltas and actuator control ranges are not such a cap.
+extrinsics:
+  source: introspected
+  mount:
+    parent: arm
+    pose:
+      translation:
+      - 0.0
+      - 0.0
+      - 0.097
+      rotation:
+      - 0.0
+      - 0.0
+      - -0.707106781187
+      - 0.707106781187
+meta:
+  created_at: '2026-09-06T00:00:00Z'
+  updated_at: '2026-09-06T00:00:00Z'
 access:
   source: user
-  kind: sim
-  device: /run/roboenv/sim.sock
-  control_mode: position_goal
+  kind: url
+  url: http://127.0.0.1:8123
+  control_mode: gripper_velocity
+  frequency_hz: 20.0
   driver:
     entry: driver.py
     interpreter: python3
+    persistent: false
     actions:
-    - catalog
     - load
-    - move
-    - read
-    - state
-    - status
-    - stop
     - unload
+    - status
+    - read
     - write
-    timeout_s: 300
-intrinsics:
-  source: user
-  tool_type: parallel gripper
-  aperture_m:
-    min: 0.0
-    max: 0.08
-  actions:
-  - component: grip
-    units: normalized
-    bounds:
-      min: 0.0
-      max: 1.0
-    meaning: 0 closed, 1 open
-extrinsics:
-  source: user
-  mount:
-    parent: arm
-    pose: ???
-  needs_calibration: TCP offset (the mount pose IS the TCP; calibrate-tcp-offset)
-meta:
-  created_at: '2026-08-31T03:30:00Z'
-  updated_at: '2026-08-31T03:30:00Z'
+    - stop
