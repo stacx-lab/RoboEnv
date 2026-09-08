@@ -130,6 +130,10 @@ def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     report = json.loads(result.stdout.splitlines()[-1])
     assert report["passed"] and not report["gpu_replay"]
+    check_complex_profiles(tmp_path, list((tmp_path / "devices").glob("*/profile.yaml")))
+
+
+def check_complex_profiles(tmp_path, paths):
     # Check actual Complex schema/interface compatibility when the sibling harness
     # is present. RoboEnv itself retains no runtime dependency on Complex.
     import shutil
@@ -147,65 +151,64 @@ def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
                 isolated / "node_modules", target_is_directory=True
             )
             complex_root = current
-    if shutil.which("bun") and (complex_root / "node_modules/zod").exists():
-        profiles = [
-            yaml.safe_load(path.read_text())
-            for path in (tmp_path / "devices").glob("*/profile.yaml")
-        ]
-        profiles += [
-            yaml.safe_load(path.read_text())
-            for path in (ROOT / "catalog/robots/robocasa-panda-omron/devices").glob(
-                "*/profile.yaml"
-            )
-        ]
-        payload = tmp_path / "profiles.json"
-        payload.write_text(json.dumps(profiles))
-        code = (
-            "const {Device, RobotManifest} = await import('./src/calibration/schema.ts'); "
-            "RobotManifest.parse(JSON.parse(await Bun.file(process.argv[2]).text())); "
-            "const {missingActions} = await import('./src/device/interface.ts'); "
-            "for (const value of JSON.parse(await Bun.file(process.argv[1]).text())) { "
-            "const device = Device.parse(value); "
-            "if (device.type === 'manipulator' && "
-            "(!Array.isArray(device.intrinsics.home_joints) || "
-            "device.intrinsics.home_joints.length !== device.intrinsics.dof)) "
-            "throw new Error('Missing home joints: ' + device.name); "
-            "if (missingActions(device, device.access?.driver?.actions ?? []).length) "
-            "throw new Error('Missing interface actions: ' + device.name); } "
-            "const {calibrationPlan} = await import('./src/calibration/dag.ts'); "
-            "const plan = await calibrationPlan(process.argv[3]); "
-            "for (const item of plan.items) { "
-            "if (item.device && item.status !== 'done') "
-            "throw new Error(item.id + ': ' + item.detail); } "
-            "if (!plan.items.some(i => i.id === 'intrinsics:arm')) throw new Error('No devices'); "
-            "if (!plan.items.find(i => i.id === 'extrinsics:body')"
-            "?.detail.includes('no world mount')) "
-            "throw new Error('Mobile body must be an independent frame root'); "
-            "if (plan.items.find(i => i.id === 'task-ready')?.status !== 'done') "
-            "throw new Error('Explicit null caps must satisfy the safety policy');"
-        )
-        manifest = tmp_path / "workspace.json"
-        manifest.write_text(
-            json.dumps(
-                yaml.safe_load(
-                    (ROOT / "catalog/robots/robocasa-panda-omron/workspace.yaml").read_text()
-                )
+    if not shutil.which("bun") or not (complex_root / "node_modules/zod").exists():
+        pytest.skip("Requires Bun and Complex schema dependencies")
+    payload = tmp_path / "profiles.json"
+    payload.write_text(json.dumps([yaml.safe_load(path.read_text()) for path in paths]))
+    code = (
+        "const {Device, RobotManifest} = await import('./src/calibration/schema.ts'); "
+        "RobotManifest.parse(JSON.parse(await Bun.file(process.argv[2]).text())); "
+        "const {missingActions} = await import('./src/device/interface.ts'); "
+        "for (const value of JSON.parse(await Bun.file(process.argv[1]).text())) { "
+        "const device = Device.parse(value); "
+        "if (device.type === 'manipulator' && "
+        "(!device.intrinsics.home || "
+        "Object.keys(device.intrinsics.home).length !== "
+        "device.intrinsics.kinematics.model.joints.length)) "
+        "throw new Error('Missing home joints: ' + device.name); "
+        "if (missingActions(device, device.access?.driver?.actions ?? []).length) "
+        "throw new Error('Missing interface actions: ' + device.name); } "
+        "const {calibrationPlan} = await import('./src/calibration/dag.ts'); "
+        "const plan = await calibrationPlan(process.argv[3]); "
+        "for (const item of plan.items) { "
+        "if (item.device && item.status !== 'done') "
+        "throw new Error(item.id + ': ' + item.detail); } "
+        "if (!plan.items.some(i => i.id === 'intrinsics:arm')) throw new Error('No devices'); "
+        "if (!plan.items.find(i => i.id === 'extrinsics:base')"
+        "?.detail.includes('runtime pose in world')) "
+        "throw new Error('Mobile base must use its declared live world pose'); "
+        "if (plan.items.find(i => i.id === 'task-ready')?.status !== 'done') "
+        "throw new Error('Explicit null caps must satisfy the safety policy');"
+    )
+    manifest = tmp_path / "workspace.json"
+    manifest.write_text(
+        json.dumps(
+            yaml.safe_load(
+                (ROOT / "catalog/robots/robocasa-panda-omron/workspace.yaml").read_text()
             )
         )
-        workspace = tmp_path / "complex-workspace"
-        shutil.copytree(
-            ROOT / "catalog/robots/robocasa-panda-omron",
-            workspace / ".complex",
-        )
-        checked = subprocess.run(
-            ["bun", "-e", code, str(payload), str(manifest), str(workspace)],
-            cwd=complex_root,
-            env={**os.environ, "COMPLEX_CONFIG_DIR": str(tmp_path / "complex-config")},
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
-        assert checked.returncode == 0, checked.stdout + checked.stderr
+    )
+    workspace = tmp_path / "complex-workspace"
+    shutil.copytree(
+        ROOT / "catalog/robots/robocasa-panda-omron",
+        workspace / ".complex",
+    )
+    checked = subprocess.run(
+        ["bun", "-e", code, str(payload), str(manifest), str(workspace)],
+        cwd=complex_root,
+        env={**os.environ, "COMPLEX_CONFIG_DIR": str(tmp_path / "complex-config")},
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert checked.returncode == 0, checked.stdout + checked.stderr
+
+
+def test_static_catalog_conforms_to_complex(tmp_path):
+    check_complex_profiles(
+        tmp_path,
+        sorted((ROOT / "catalog/robots/robocasa-panda-omron/devices").glob("*/profile.yaml")),
+    )
 
 
 def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
@@ -225,7 +228,7 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
     robot = ROOT / "catalog/robots/robocasa-panda-omron"
     assert {p.name for p in (robot / "devices").iterdir()} == {
         "arm",
-        "body",
+        "base",
         "torso",
         "gripper",
         "camera_left",
@@ -235,10 +238,12 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
     }
     assert not list(robot.rglob("connection.json"))
     assert {p.name for p in robot.iterdir()} == {"workspace.yaml", "devices"}
-    for path in tmp_path.rglob("*"):
-        if path.is_file():
-            assert path.read_bytes() == (robot / path.relative_to(tmp_path)).read_bytes(), str(path)
-    for name in ("arm", "torso", "body", "gripper"):
+    generated = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*")
+                 if p.is_file()}
+    expected = {p.relative_to(robot): p.read_bytes() for p in robot.rglob("*")
+                if p.is_file() and "__pycache__" not in p.parts}
+    assert generated == expected
+    for name in ("arm", "torso", "base", "gripper"):
         actuator = yaml.safe_load((robot / "devices" / name / "profile.yaml").read_text())
         assert "control_interval_s" not in actuator["intrinsics"]
         assert "frequency_hz" not in actuator["access"]
@@ -248,20 +253,24 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
     for name in ("camera_left", "camera_right", "camera_wrist"):
         profile = yaml.safe_load((robot / "devices" / name / "profile.yaml").read_text())
         assert profile["type"] == "rgbd"
-        assert profile["intrinsics"]["depth"]["scale"] == 0.001
-        assert profile["intrinsics"]["depth"]["aligned"] is True
-    body = yaml.safe_load((robot / "devices/body/profile.yaml").read_text())
-    assert body["type"] == "body"
+        assert profile["intrinsics"]["depth"]["scale_m_per_unit"] == 0.001
+        assert profile["intrinsics"]["depth"]["registration"] == "color"
+    body = yaml.safe_load((robot / "devices/base/profile.yaml").read_text())
+    assert body["type"] == "base"
     assert body["intrinsics"]["mobility"] == "mobile"
-    assert body["extrinsics"] == {"source": "default"}
-    torso = yaml.safe_load((robot / "devices/torso/profile.yaml").read_text())
-    assert torso["extrinsics"]["mount"]["parent"] == "body"
-    world = yaml.safe_load((robot / "devices/world/profile.yaml").read_text())
-    assert world["intrinsics"]["bounds"] == {
-        "min": [None, None, None], "max": [None, None, None]
+    assert body["extrinsics"] == {"source": "introspected"}
+    assert body["intrinsics"]["control"]["execution"] == {
+        "mode": "realtime", "command_timeout_s": None,
     }
-    assert world["intrinsics"]["source"] == "default"
-    assert "collision-free" in world["intrinsics"]["notes"]
+    assert body["intrinsics"]["feedback"]["pose_frame"] == "world"
+    torso = yaml.safe_load((robot / "devices/torso/profile.yaml").read_text())
+    assert torso["extrinsics"]["mount"]["parent"] == "base"
+    world = yaml.safe_load((robot / "devices/world/profile.yaml").read_text())
+    assert world["intrinsics"] == {
+        "source": "default", "bounds": None, "surfaces": [],
+        "method": "unknown", "calibrated_at": None,
+    }
+    assert "access" not in world and "extrinsics" not in world
 
 
 @pytest.mark.parametrize("device_service", ["http"], indirect=True)
@@ -328,7 +337,7 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
                 plan["devices"] = {
                     name: value
                     for name, value in plan["devices"].items()
-                    if name in {"world", "body", "camera_left"}
+                    if name in {"world", "base", "camera_left"}
                 }
             (robot / "bindings.yaml").write_text(yaml.safe_dump(plan))
             monkeypatch.setenv("ROBOENV_SERVER_ROBOT", str(robot))
@@ -380,7 +389,7 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         with pytest.raises(RemoteError, match="unsupported_op"):
             public.operation("private-observation")
         assert "seed" not in public.request("health")
-        assert {p["name"] for p in second.devices()} == {"world", "body", "camera_left"}
+        assert {p["name"] for p in second.devices()} == {"world", "base", "camera_left"}
         with pytest.raises(KeyError):
             second.device("arm")
         first.device("arm").write(first.device("arm").read()["positions"])
@@ -398,7 +407,8 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
             depth = Path(reading["depth_file"])
             assert depth.parent == Path(reading["file"]).parent
             assert depth.parent != supervisors[0].config.run_dir / "captures"
-            assert reading["depth_scale"] == 0.001
+            assert reading["sample_time_s"] == reading["depth_sample_time_s"]
+            assert (reading["depth_width"], reading["depth_height"]) == (12, 8)
             depths.append(depth.read_bytes())
         assert all(d.startswith(b"P5\n12 8\n65535\n") for d in depths)
         assert len(set(depths)) == 3
@@ -411,6 +421,14 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
 
         copied = tmp_path / "workspace/.complex/robots/robocasa-panda-omron"
         shutil.copytree(ROOT / "catalog/robots/robocasa-panda-omron", copied)
+        # This task renders at 12x8; install its live calibration before reading.
+        # Keep endpoint selection through deployment environment variables.
+        export_devices(
+            [p for p in first.devices() if p["type"] in {"rgb", "rgbd"}],
+            copied / "devices", {"endpoint": supervisors[0].http_endpoint},
+        )
+        for connection in copied.rglob("connection.json"):
+            connection.unlink()
         before = {p.relative_to(copied): p.read_bytes() for p in copied.rglob("*") if p.is_file()}
         for supervisor in supervisors:
             driver = subprocess.run(

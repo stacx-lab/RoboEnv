@@ -33,7 +33,7 @@ def verify(wheels, *, harbor=True, offline=False, out=None):
         for key, value in os.environ.items()
         if key not in {"PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
     }
-    environment.update(PYTHONNOUSERSITE="1", UV_CACHE_DIR=str(project / ".cache" / "uv"))
+    environment["PYTHONNOUSERSITE"] = "1"
     logfile = scratch / "last-run.private.log"
     result = {
         "schema": "roboenv/clean-install/1",

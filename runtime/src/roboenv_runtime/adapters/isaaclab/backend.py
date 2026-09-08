@@ -125,13 +125,15 @@ class IsaacLabEnv:
         if entity == "imu":
             return {
                 **result,
-                "angular_velocity": data.ang_vel_b.torch[0].cpu().tolist(),
-                "linear_acceleration": data.lin_acc_b.torch[0].cpu().tolist(),
+                "angular_velocity": dict(zip(("x", "y", "z"), data.ang_vel_b.torch[0].cpu().tolist())),
+                "linear_acceleration": dict(zip(("x", "y", "z"), data.lin_acc_b.torch[0].cpu().tolist())),
+                "orientation": None,
+                "magnetic_field": None,
             }
         index = self.foot_ids[FEET.index(entity)]
         q = self.robot.data.body_link_pose_w.torch[0, index, 3:].cpu().numpy()
         force = data.net_forces_w.torch[0, 0].cpu().numpy()
-        return {**result, "force": (rotation(q).T @ force).tolist()}
+        return {**result, "force": dict(zip(("x", "y", "z"), (rotation(q).T @ force).tolist())), "torque": None}
 
     def read_camera(self, directory):
         if self.image_step == self.steps:

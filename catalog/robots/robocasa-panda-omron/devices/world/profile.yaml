@@ -2,20 +2,10 @@ name: world
 type: world
 intrinsics:
   source: default
-  bounds:
-    min:
-    - null
-    - null
-    - null
-    max:
-    - null
-    - null
-    - null
+  bounds: null
   surfaces: []
-  interface: roboenv/world/1
-  notes: No additional global workspace AABB is imposed by this catalog. Open bounds
-    do not imply collision-free or reachable space. Native joint limits and collisions
-    still apply; perceive scene geometry through cameras.
+  method: unknown
+  calibrated_at: null
 meta:
   created_at: '2026-09-06T00:00:00Z'
-  updated_at: '2026-09-06T00:00:00Z'
+  updated_at: '2026-09-08T00:00:00Z'

@@ -73,15 +73,15 @@ these do not reset or close the world.
 |---|---|---|
 | `arm` | `manipulator` | Seven joint positions/velocities and flange pose; seven absolute joint targets in radians |
 | `torso` | `manipulator` | Lift state and flange pose; one absolute target in metres |
-| `body` | Mobile `body` | Planar joint state and world pose; normalized forward, left, yaw-rate commands |
+| `base` | Mobile `base` | World pose and measured chassis-origin twist; normalized body-frame `vx`, `vy`, `wz` commands |
 | `gripper` | `end_effector` | Finger joint state; one signed command in `[-1,1]`, positive closes |
 | `camera_left`, `camera_right`, `camera_wrist` | `rgbd` | Aligned RGB and metric depth files; no write |
 | `world` | `world` | Profile only; reference frame and open workspace bounds |
 
 Actuators implement `write` and `stop`. Arm/torso targets follow
-`intrinsics.joints` order and replace the active goal. Repeated targets continue
+`intrinsics.kinematics.model.joints` order and replace the active goal. Repeated targets continue
 motion without restarting interpolation. Their native joint-position controllers
-use torque control. Body and gripper commands persist until replaced or stopped;
+use torque control. Base and gripper commands persist until replaced or stopped;
 writing one device preserves all other goals.
 
 The backend selects absolute `JOINT_POSITION` arm control and absolute torso
@@ -93,7 +93,8 @@ base/gripper inputs are refreshed, then restores the hook even on failure.
 A successful write returns `accepted: true`, never arrival. `stop` holds the
 arm/torso/gripper or requests zero base velocity. It neither teleports joints nor
 pauses realtime physics; an in-flight synchronous interval finishes before stop.
-Reads include faults and simulation acquisition `sample_time_s` and do not step.
+Actuator reads include faults and simulation acquisition `sample_time_s`. Camera
+acquisition timestamps use Unix seconds, as required by Complex. Reads do not step.
 
 Choose the clock at launch; these mutually exclusive flags override the task YAML
 for this run without changing the catalog:
@@ -122,8 +123,11 @@ backend_kwargs:
 | Realtime | Return after accepting the goal; background physics continues while the agent thinks. |
 | Synchronous | Update the goal, advance the whole world by one native control interval, then return and pause. |
 
-The service owns the control period, normally 0.05 simulated seconds. Profiles do
-not expose it to controller tools. Reads, recording, status, local IK/FK, and stop
+The service owns the control period, normally 0.05 simulated seconds. Manipulator
+profiles carry no execution clock. The base declares `control.execution`: realtime
+with `command_timeout_s: null` (retain commands until replaced/stopped), or stepped
+with `interval_s: 0.05` in a live synchronous export. The static catalog describes
+the default realtime mode. Reads, recording, status, local IK/FK, and stop
 never request advancement. Complex's `servo_to` and `track` use the same loop in
 both modes; their wall-clock rate cap does not set simulation time.
 
@@ -144,12 +148,13 @@ catalog/robots/robocasa-panda-omron/
   workspace.yaml
   devices/<name>/profile.yaml
   devices/<name>/driver.py       # except world
+  devices/<name>/_roboenv.py      # shared portable transport, except world
 catalog/bindings/robocasa-panda-omron.yaml
 catalog/tasks/<simulator>/<task-name>/task.yaml
 ```
 
 The robot directory contains only `workspace.yaml` and `devices/`, ready to copy
-into `.complex/robots/`. Binding plans and task/session configuration stay outside
+as the workspace’s `.complex/` directory. Binding plans and task/session configuration stay outside
 that copy. Launch reads the catalog without rewriting it.
 
 Profiles derive from the pinned compiled MJCF, robot initialization, native
@@ -173,25 +178,34 @@ are also checked after changing arm/lift configuration.
 
 A custom task's `device_bindings` replaces the complete default selection. Logical
 names, profiles, and mounts must match the published device directories.
-The standard map binds logical `body` to native entity `base`; logical and native
-names need not match. Renaming requires changing the directory, profile name,
-binding key, and dependent mount references together. The binding also supports a
-custom composite `robot` actuator with a native action vector; it cannot be selected
-alongside its component actuators and is not part of the standard eight-device rig.
+The standard map binds logical `base` to native entity `base`; custom logical names
+are supported. Renaming updates the profile, connection target, stop scope, and
+dependent mounts. The public whole-robot composite device has been removed; native
+controller composition remains internal to the world.
 
 `config.camera` selects an existing sensor, which must also be enabled through
 `backend_kwargs.camera_names`. A profile does not create a camera.
 
+Profiles target Complex commit `5beca17` and its strict per-type schemas. Access
+uses typed `access.connection` and explicit driver actions. Manipulators store home
+positions by joint name, optional speed capability (`null` here), feedback channels,
+and stop scope. Gripper command and measured finger dimensions are independent;
+unsupported sensors and aperture conversion are not invented. World has no access
+or extrinsics. Required unknown facts use `???`; optional unavailable values use
+`null` according to each schema. Old body/profile formats have no compatibility path.
+
 ## Portable drivers and local kinematics
 
-Catalog drivers use standard-library HTTP/Unix transport and **do not import
-RoboEnv**. Set `ROBOENV_ENDPOINT` for the current service; the catalog carries no
+Catalog drivers share the adjacent `_roboenv.py` HTTP/Unix transport and **do not
+import RoboEnv**. Copy the complete device directory, including this support file. Set `ROBOENV_ENDPOINT` for the current service; the catalog carries no
 session connection file. New one-shot drivers discover the selected episode;
 runners can pin session/generation explicitly. Established SDK clients retain
 their original episode identity.
 
 Arm/torso drivers additionally implement `fk(joints)` and `ik(pose, seed?)` using
-`complex.kinematics` and `intrinsics.kinematics.chain`. Complex supplies its Python
+`complex.manipulator` and `intrinsics.kinematics.model`, a serial chain with an
+explicit numerical IK configuration. Base and gripper adapters also use Complex’s
+typed command/feedback validators. Complex supplies its Python
 library on the driver's PYTHONPATH; parsing profiles requires PyYAML. The simulator
 service exposes no FK/IK RPC and has no solver dependency on Complex.
 
@@ -220,8 +234,7 @@ Panda's nominal limits are in radians; the lift spans 0–0.34 m, with model hom
 | 6 | -0.0175 | 3.7525 |
 | 7 | -2.8973 | 2.8973 |
 
-MuJoCo's soft constraints permit small measured overshoots. Profiles retain native
-constraint settings under `joint_limit_semantics`. Reads preserve actual joints
+MuJoCo's soft constraints permit small measured overshoots. Reads preserve actual joints
 and measured flange transforms; explicit write/FK targets and IK seeds remain
 range-checked. Stop holds the measured configuration, not home. Neither accepted
 commands nor successful IK prove arrival or recovery from contact.
@@ -234,15 +247,16 @@ AABB sides and calibration readiness do not imply collision-free or reachable sp
 
 ## Frames and cameras
 
-The robot frame component is rooted at `body`; `world` is separate. The body profile
-omits `extrinsics.mount`. Its measured world pose does not implicitly create that
-edge, and an absent mount is not identity.
+The mobile `base` omits a static `extrinsics.mount` and declares
+`intrinsics.feedback.pose_frame: world`. Its live pose supplies the world-to-base
+edge. Measured base velocities are at the chassis origin in body coordinates, in
+m/s and rad/s; they are not normalized commands or raw generalized joint velocity.
 
 The torso remains a one-joint manipulator because Complex represents its live
 base-to-flange transform. The arm and left/right cameras mount on `torso:flange`;
 the gripper and wrist camera mount on `arm:flange`. The gripper mount is its rigid
-flange-to-TCP offset. Merging the lift into the body would require named moving
-body frames in Complex.
+flange-to-TCP offset. The torso base mounts rigidly on `base`; arm and torso each
+supply a measured base-to-flange transform.
 
 | Camera | Native sensor | Vertical FOV | Rigid parent |
 |---|---|---:|---|
@@ -257,10 +271,16 @@ kitchens; a layout-specific viewer camera is not a static robot sensor.
 
 RGB and depth render together without stepping and are flipped upright. `file` is
 RGB PNG; `depth_file` is a 16-bit binary PGM (P5, big-endian, maxval 65535). Multiply
-raw depth by `depth_scale = 0.001` for optical-axis metres. Zero marks invalid,
+raw depth by `intrinsics.depth.scale_m_per_unit` (0.001) for optical-axis metres. Zero marks invalid,
 background, or unrepresentable depth; values are not clipped into fake surfaces.
 Conversion uses the live model's near/far planes, not fixed sensor-range calibration.
-This is quantized synthetic depth, with no assumed hardware noise model.
+This is quantized synthetic depth, with no assumed hardware noise model. Color and
+depth reads carry matching acquisition Unix timestamps in `sample_time_s` and
+`depth_sample_time_s`, plus explicit dimensions. They timestamp the paired render
+while the world state is locked; transport receipt time is separate. Scale and encoding live in the profile. Color facts
+use `intrinsics.color` with pinhole projection, distortion, and derived FOV; depth
+uses `intrinsics.depth` with color registration and optical-Z quantity. The camera
+table lists nominal native FOV; exported FOV follows Complex’s pixel-edge convention.
 
 HTTP downloads are episode-scoped and client-local. SDK files last until client
 cleanup; one-shot driver files remain readable after process exit. RGB-only custom

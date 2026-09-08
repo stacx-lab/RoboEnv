@@ -91,7 +91,7 @@ adapter connecting it to RoboEnv. RoboCasa separates these concerns as follows:
 | [backend.py](../runtime/src/roboenv_runtime/adapters/robocasa/backend.py) | One native environment, controller setup, persistent goals, native intervals, and rendering |
 | [devices.py](../runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py) | Entity selection, command validation, measurements, and basic actions |
 | [world.py](../runtime/src/roboenv_runtime/runtime/world.py) | Shared execution lock, realtime scheduling, and terminal freeze |
-| [device-client.py](../src/roboenv/assets/device-client.py) | Portable transport and local kinematics for copied drivers |
+| Typed client assets and [_roboenv.py](../src/roboenv/assets/_roboenv.py) | Per-type validation/local utilities and shared portable transport |
 
 The backend's internal helpers are not an agent API. In particular, RoboCasa's
 owner observation includes object poses; never publish it as a device read or
@@ -118,15 +118,16 @@ A newer goal replaces the old one; repeated goals do not restart interpolation.
 Realtime writes return on acceptance; synchronous writes advance one native interval
 before returning. Both return `accepted: true`, never arrival. Keep other devices'
 goals active and document actual stop/hold behavior. Read/status/recording do not
-request steps. Keep the period inside the service, outside agent-facing profiles.
+request steps. Manipulator profiles contain no execution clock; a mobile base
+declares realtime command expiry or its stepped interval in `control.execution`.
 
 Configure native controllers to implement the advertised action space. RoboCasa
 selects absolute `JOINT_POSITION` control for the arm and absolute lift goals;
 copying an upstream Cartesian policy action vector would not implement this contract.
 Retain the native physics, observables, and task hooks when adapting goal updates.
 Compose all active parts before one native interval; separately stepping each part
-would change time and task dynamics. A composite actuator is optional, but must
-specify its vector and reject overlapping ownership with its component actuators.
+would change time and task dynamics. RoboCasa exposes only typed component devices; its native composite controller is
+an internal implementation detail. Do not expose a whole-robot action-vector shortcut.
 
 For a realtime backend, expose `realtime_interval` and `realtime_tick` to the shared
 world scheduler. Do not start a physics thread per binding. Serialize ticks, device
@@ -144,7 +145,8 @@ and geometry, not a solver RPC. Local computation must not mutate live state.
 catalog/robots/ROBOT/
   workspace.yaml
   devices/NAME/profile.yaml
-  devices/NAME/driver.py       # except world
+  devices/NAME/driver.py       # except world and fixed base
+  devices/NAME/_roboenv.py     # transport support for RoboCasa typed drivers
 catalog/bindings/ROBOT.yaml
 catalog/tasks/SIMULATOR/TASK/task.yaml
 ```
@@ -156,15 +158,31 @@ and source receipts in `docs/`. Launch consumes the catalog without modifying it
 | Profile field | Content |
 |---|---|
 | `name`, `type` | Logical directory name and Complex device type |
-| `intrinsics` | Joint order/limits, controller semantics, static kinematics, or sensor calibration |
-| `extrinsics.mount` | Rigid child-in-parent pose and optional parent frame |
-| `access` | Connection, control mode, driver entry/interpreter, and actions |
+| `intrinsics` | Type-specific kinematic model, control, feedback, stop scope, or sensor calibration |
+| `extrinsics.mount` | Explicit parent and parent frame, `translation_m`, and unit `rotation_xyzw` |
+| `access` | Typed `connection`, driver entry/interpreter, and declared actions |
 | `meta` | Required creation/update metadata |
 
 Use the actual Complex schemas and required-action definitions to validate exports.
-Camera pinhole parameters belong in `intrinsics.value`. Missing facts use `???`;
-explicit null safety caps impose no additional limit. Never infer physical velocity
-caps from torque ranges or policy frequency.
+Complex’s type templates live in `builtin/device/templates/<type>/`; schemas and
+required actions live in `src/calibration/` and `src/device/interface.ts`. Validate
+against these actual definitions in development, without adding Complex to the
+simulator worker’s dependencies. RoboCasa targets commit `5beca17`.
+
+- Manipulators own `kinematics.model` (including joint order/limits), `kinematics.ik`,
+  named `home`, `control.speed`, `feedback`, and `stop` behavior/affected devices.
+- Mobile `base` profiles declare command axes, frame, units, bounds, execution mode,
+  and measured feedback frames/clock. Fixed bases are driverless static mounts.
+- End effectors declare tool/control type, independent measured channels, stop scope,
+  and any known aperture conversion. Signed gripper commands remain native commands.
+- Cameras use `intrinsics.color` for projection/distortion/FOV and `intrinsics.depth`
+  for encoding, dimensions, registration, scale, invalid values, and depth quantity.
+- World is profile-only with optional bounds/surfaces; it has no access or extrinsics.
+
+Required missing facts use `???`; optional unavailable facts use schema-defined
+`null`. Explicit null safety caps impose no additional limit. Never infer physical
+velocity caps from torque ranges or policy frequency. Remove obsolete fields rather
+than adding compatibility translations.
 
 Extract stable facts from pinned robot/controller/camera sources, using a standalone
 CPU model if necessary. Home joints come from initialization defaults. Do not export
@@ -175,24 +193,27 @@ temporary directory, record source hashes, and test deterministic output. The
 Mount poses use metres and quaternion xyzw. Cameras use OpenCV optical axes
 (+X right, +Y down, +Z forward); convert native conventions explicitly. A manipulator
 provides a live base-to-flange edge. Mount moving sensors on that flange instead of
-baking the current joint position into a rigid transform. Mobile roots need no
-world mount; an absent edge is not identity.
+baking the current joint position into a rigid transform. Mobile bases have no static
+world mount. `feedback.pose_frame` declares the reference for their live pose edge;
+an undeclared edge is not identity.
 
 Provide working drivers in the catalog, with JSON arguments and one JSON result on
 stdout. Diagnostics go to stderr. Success returns `ok: true` plus data; failure
 returns `ok: false` and an error. See the
-[portable driver template](../src/roboenv/assets/device-client.py).
+[manipulator adapter](../src/roboenv/assets/manipulator-client.py) and shared
+[transport](../src/roboenv/assets/_roboenv.py). Copy the transport support file beside
+each typed driver so individual device directories remain portable.
 
 | Device | Required driver actions |
 |---|---|
 | Sensor | `read`, `load`, `unload`, `status` |
 | Actuator | Sensor actions plus `write`, `stop` |
 | Manipulator | Actuator actions plus local `ik`, `fk` |
-| World | No driver |
+| World / fixed base | No driver |
 
 Drivers run in the agent environment, which may have no RoboEnv or simulator
-packages. The template uses standard-library transport; local kinematics needs
-Complex and PyYAML. Test the copied files in that environment. Camera `file` and
+packages. Transport uses the standard library; typed validation and local
+kinematics use Complex’s Python helpers and PyYAML. Test the copied files in that environment. Camera `file` and
 `depth_file` paths must remain readable after a one-shot driver exits.
 
 Use `ROBOENV_ENDPOINT` to select a deployment without rewriting profiles. Catalogs
@@ -209,10 +230,10 @@ schema_version: roboenv/bindings/1
 backend: robocasa
 embodiment: panda_omron
 devices:
-  body:
+  base:
     binding: robocasa.device/1
     entity: base
-    profile: devices/body/profile.yaml
+    profile: devices/base/profile.yaml
 ```
 
 Use `catalog/bindings/ROBOT.yaml` for defaults. Task `device_bindings` is a complete
@@ -287,10 +308,12 @@ Unix user test functionality, not filesystem isolation.
 
 Run `bash tools/check.sh` after adding positive and negative tests for:
 
-- Schema conformance, deterministic regeneration, copied drivers, and unchanged catalogs.
+- Static and live schema conformance, required actions/calibration readiness, complete
+  deterministic regeneration, copied drivers with support files, and unchanged catalogs.
 - Native units, rejected inputs before effects, persistent goals, stop, and clock behavior.
 - Local FK/IK without simulator imports or state mutation, including joint-limit overshoot.
-- Sensor routing, read without stepping, aligned depth, and files surviving driver exit.
+- Sensor routing, acquisition timestamps, read without stepping, aligned depth and its
+  declared encoding/scale, and files surviving driver exit.
 - Retry uncertainty, duplicate requests, parallel episodes, and replacement-episode rejection.
 - Public/owner separation, cached-result restrictions, and cleanup after partial startup.
 

@@ -243,8 +243,15 @@ def installer_fixture(tmp_path, monkeypatch):
     return setup, project, calls
 
 
-def test_installer_resolves_sources_once_without_installing_source_only_capx(tmp_path, monkeypatch):
+@pytest.mark.parametrize("cache", [None, "shared-package-cache"])
+def test_installer_resolves_sources_once_without_installing_source_only_capx(
+    tmp_path, monkeypatch, cache
+):
     setup, project, calls = installer_fixture(tmp_path, monkeypatch)
+    if cache is None:
+        monkeypatch.delenv("UV_CACHE_DIR", raising=False)
+    else:
+        monkeypatch.setenv("UV_CACHE_DIR", cache)
     monkeypatch.setenv("PYTHONPATH", "unselected-checkout")
     monkeypatch.setenv("UV_NO_DEPS", "1")
     monkeypatch.setenv("PIP_NO_DEPS", "1")
@@ -267,6 +274,7 @@ def test_installer_resolves_sources_once_without_installing_source_only_capx(tmp
     for _, kwargs in calls:
         assert not {"PYTHONPATH", "UV_NO_DEPS", "PIP_NO_DEPS"} & kwargs["env"].keys()
         assert kwargs["env"]["ROBOENV_ROOT"] == str(project)
+        assert kwargs["env"].get("UV_CACHE_DIR") == cache
     assert calls[-1][1]["env"]["CUDA_VISIBLE_DEVICES"] == ""
     assert result["clean_install_verified"]
     assert not result["gpu_replay_verified"]

@@ -2,15 +2,15 @@
 
 The checked-in `catalog/robots/robocasa-panda-omron` directory is already ready
 to copy into Complex. It contains a fixed robot manifest and eight devices:
-arm, body, torso, gripper, camera_left, camera_right, camera_wrist, and world. Configuration is independent
+arm, base, torso, gripper, camera_left, camera_right, camera_wrist, and world. Configuration is independent
 of the task, seed, kitchen layout, service port, and episode identity. Launch
 never writes to the catalog. See [RoboCasa catalog design](robocasa.md#catalog-and-generation).
 
 Robot-mounted camera calibration, controller scaling, joint limits, and rigid
 mounts are pre-generated. Object positions and fixture geometry must be perceived
 from camera images; no simulator scene ground truth is sent to the agent.
-The mobile `body` is the robot's frame root, with no declared world mount.
-`body.read()` also provides its simulator world pose, without adding a profile edge.
+The mobile `base` has no static world mount. Its declared `feedback.pose_frame: world`
+and measured pose supply the live world-to-base edge.
 
 ## 1. Launch the service (terminal A, RoboEnv checkout)
 
@@ -38,35 +38,34 @@ source .venv/bin/activate
 roboenv_repo="$PWD"
 complex_repo="$(realpath ../complex)"
 trial_workspace="$(mktemp -d "$roboenv_repo/.cache/complex-local.XXXXXX")"
-mkdir -p "$trial_workspace/.complex/robots"
-cp -R catalog/robots/robocasa-panda-omron "$trial_workspace/.complex/robots/"
+cp -R catalog/robots/robocasa-panda-omron "$trial_workspace/.complex"
 cd "$trial_workspace"
 export ROBOENV_ENDPOINT=http://127.0.0.1:8123
-cat > .complex/complex.json <<'JSON'
-{"robot":{"active":"robocasa-panda-omron"}}
-JSON
 ```
 
 Use a working Complex installation with its TUI dependencies already installed
 (see the sibling README). Exported profiles invoke `python3`. Remote device access
-uses only its standard library; local IK/FK needs `complex.kinematics` and PyYAML.
+uses standard-library transport in the adjacent `_roboenv.py`; profile loading needs
+PyYAML and typed actuator operations need Complex’s Python helpers. Complex supplies
+its Python library to drivers; for direct shell calls, set
+`PYTHONPATH="$complex_repo/python${PYTHONPATH:+:$PYTHONPATH}"`.
 The agent environment does not need RoboEnv or simulator dependencies.
 Video export requires `ffmpeg`; the keyframe script requires Pillow.
 
-Confirm `devices/` exists and contains arm, body, torso, gripper, camera_left, camera_right,
-camera_wrist, and world for this example. It should not contain the optional composite robot.
+Confirm `devices/` exists and contains arm, base, torso, gripper, camera_left, camera_right,
+camera_wrist, and world for this example. There is no public composite robot device.
 The task instruction is available through `roboenv.connect(ROBOENV_ENDPOINT).task`.
 Check the driver without starting a model request:
 
 ```sh
-python3 .complex/robots/robocasa-panda-omron/devices/arm/driver.py status '{}'
-python3 .complex/robots/robocasa-panda-omron/devices/camera_left/driver.py read '{}'
+python3 .complex/devices/arm/driver.py status '{}'
+python3 .complex/devices/camera_left/driver.py read '{}'
 ```
 
 Expect `ok: true`; camera output must include an existing local RGB PNG `file`
-and aligned 16-bit PGM `depth_file`, with `depth_scale: 0.001` (metres per unit).
-Open that image to confirm that it depicts the initialized kitchen. Neither
-operation should consume simulation action frames.
+and aligned 16-bit PGM `depth_file`, with acquisition Unix timestamps. The profile declares
+`intrinsics.depth.scale_m_per_unit: 0.001`.
+Open that image to confirm that it depicts the initialized kitchen. Neither operation requests extra physics steps; realtime physics continues independently.
 
 ## 3. TUI recording smoke test
 
@@ -79,27 +78,30 @@ Run these built-in slash commands in the TUI:
 ```text
 /ping all
 /record snap camera_left camera_right camera_wrist initial kitchen
-/record stream camera_left=2:all camera_right=2:all camera_wrist=2:all arm=5:all body=2:all local device smoke test
+/record stream camera_left=2:all camera_right=2:all camera_wrist=2:all arm=5:all base=2:all local device smoke test
 /record status
 ```
 
 `:all` is deliberate: it records while the user pauses, including during this
 manual smoke test. The thin drivers do not implement native video streaming;
 Complex uses its supported stills sampler. Requested Hz is a target; inspect
-effective rates and skipped samples. Reads do not advance physics, so a kitchen
-with no writes will remain still even while wall-clock recording continues.
+effective rates and skipped samples. Reads do not request physics steps. Realtime simulation continues during recording;
+synchronous mode advances only on writes.
 
 With the recording running, use a separate terminal with the same activated
-venv and copied workspace. Exercise only one small arm interval:
+venv and copied workspace. Read the current joint configuration and send it as an absolute hold target:
 
 ```sh
-python3 .complex/robots/robocasa-panda-omron/devices/arm/driver.py write '{"target":[0,0,0.01,0,0,0]}'
-python3 .complex/robots/robocasa-panda-omron/devices/arm/driver.py stop '{}'
+target=$(python3 .complex/devices/arm/driver.py read '{}' | python3 -c \
+  'import json,sys; r=json.load(sys.stdin); assert r["ok"], r; print(json.dumps({"target":r["positions"]}))')
+python3 .complex/devices/arm/driver.py write "$target"
+python3 .complex/devices/arm/driver.py stop '{}'
 ```
 
-This is a normalized controller delta, not a position in metres. Check the live
-profile for scaling. The servo continues toward the target while the agent thinks; compare arm state
-as well as camera frames. `stop` holds the arm while world physics continues. Do not infer task success from a successful command.
+The target contains seven absolute joint positions in radians, in the profile’s
+model joint order. Small measured soft-limit overshoots can make a write fail;
+consult the joint-limit recovery notes before commanding another target. `stop`
+holds the arm while world physics continues. Acceptance does not prove arrival.
 
 Direct shell driver calls bypass Complex's dispatch event log; the `:all`
 samplers still record resulting images/state. To verify complete command
@@ -125,7 +127,7 @@ unloaded devices; checked-in profiles default to loaded in Complex.
 After leaving the TUI, in terminal B:
 
 ```sh
-recording_dir="$trial_workspace/.complex/robots/robocasa-panda-omron/recordings/RECORDING_ID"
+recording_dir="$trial_workspace/.complex/recordings/RECORDING_ID"
 python3 "$complex_repo/builtin/skill/reflect/scripts/keyframes.py" "$recording_dir" --device camera_left
 python3 "$complex_repo/builtin/skill/reflect/scripts/video.py" "$recording_dir" --device camera_left
 ```

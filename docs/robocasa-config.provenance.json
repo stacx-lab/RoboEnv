@@ -26,11 +26,20 @@
     "third_party/robosuite/robosuite/controllers/parts/mobile_base/joint_vel.py": "cc64ca5683bb023cec731d0fa7a61bdfd1db2e97d3423f576d5bbba9f3e6e660",
     "third_party/robosuite/robosuite/models/grippers/panda_gripper.py": "df0449a9b003e9a019fad4ef59b435ae2b9accd2705026da041165dd99faab8d",
     "third_party/robosuite/robosuite/utils/camera_utils.py": "320d1fccc23ea09334d747093c12ec014fdad072b71308026cf1dfe48db98afb",
-    "runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py": "a72583d705cc68180f2837d0546f8fd05254a9a5da375a76934ca92326bbe917",
+    "runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py": "b8670d1b1c45a9995ae5a2440a4495a4de93c10f5ad8d9a10354beace15f1f2e",
     "runtime/src/roboenv_runtime/adapters/robocasa/geometry.py": "77bed04c0a30450a1d80dbb928a4c501cb062b93f1273594bbca8cfe0a64c79e",
-    "src/roboenv/assets/device-client.py": "c48c4cd1941c9c7985a077e764d3df4953e28d02934303581797a911be1d8104",
-    "src/roboenv/devices/export.py": "520b6733493d1537c7e39b337afdd0db52b4d2163189553a080a5562b5489d1d",
-    "runtime/src/roboenv_runtime/adapters/robocasa/depth.py": "0b900e21c5c3e8a69d08302a944b440b69332dd50139998a24bc44e84ce35b88",
-    "runtime/src/roboenv_runtime/adapters/robocasa/backend.py": "3722b15e845a8f3058d3b8c9c0cc98a278670e575f85500cdb364c715a8d5dcb"
+    "runtime/src/roboenv_runtime/adapters/robocasa/base.py": "a42938e9b12a0c55893df5413c45e1db0445f53bd8d0069321668b46673087b5",
+    "src/roboenv/assets/_roboenv.py": "2a28d23a255519b6f949e010a03b473e0ee1b82333731be30837f11e22dfbf23",
+    "src/roboenv/assets/manipulator-client.py": "2154e0dd31a31548fcab0cdda721b612dcc8107e1066527c28b76b76fd643ca0",
+    "runtime/src/roboenv_runtime/bindings/backends/robocasa/manipulator.py": "17a971ac6ea53a4201bceafd3e8d05fc82dc53264786ada31bbf8d9d1e652a1c",
+    "src/roboenv/assets/camera-client.py": "5261d6d26a6da84c5e962ae865c27a3839c25c0f2dec3106046c6e621b53401e",
+    "src/roboenv/assets/gripper-client.py": "2793e242d13b17c2c0e256f57b051c50f4bdff1a1f5ca73dde6c302e6d69816b",
+    "src/roboenv/assets/base-client.py": "f2aefd7cfc72691384612bd90190fefde2a5407307d20f6f9b708ef204d4eed0",
+    "runtime/src/roboenv_runtime/bindings/backends/robocasa/base.py": "60a691231d2a5d6ff7ac791625e7217c283afbd7f7414ccab0e112e8ed08f5f6",
+    "runtime/src/roboenv_runtime/bindings/backends/robocasa/gripper.py": "f75c1c8cfce8e956bed230af46a959d2f8175d75768b6cbfa2e6b1dec35764e6",
+    "runtime/src/roboenv_runtime/bindings/backends/robocasa/camera.py": "507a1183d7dd108e8fcad1fdccbeff95098298bcc53d30dcf1bd4b651bd85211",
+    "src/roboenv/devices/export.py": "d175233f83c52f5331a66d159bd251652756d66d1accb66a8aa3d6e82c4e5863",
+    "runtime/src/roboenv_runtime/adapters/robocasa/depth.py": "36eef83ed109adc9c315a8ec79cf670639a23975494ef57ae2d6f149b16cd1eb",
+    "runtime/src/roboenv_runtime/adapters/robocasa/backend.py": "1018ff6a957a147acc86a9dd0ec2dccdf19046b36ce8d0022368f3bbeeebef19"
   }
 }

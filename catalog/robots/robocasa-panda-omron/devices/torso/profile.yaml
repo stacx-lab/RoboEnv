@@ -2,135 +2,116 @@ name: torso
 type: manipulator
 intrinsics:
   source: introspected
-  dof: 1
-  joints:
-  - name: mobilebase0_joint_torso_height
-    type: prismatic
-    source: introspected
-    limits:
-      min: 0.0
-      max: 0.34
-  actions:
-  - joint: mobilebase0_joint_torso_height
-    units: m
-    bounds:
-      min: 0.0
-      max: 0.34
-  controller:
-    name: JointPositionController
-    input_type: absolute
-    input_ref_frame: null
-    output_min:
-    - -0.05
-    output_max:
-    - 0.05
-  interface: roboenv/manipulator/1
-  home_joints:
-  - 0.2
-  actuators:
-  - name: mobilebase0_actuator_torso_height
-    joint: mobilebase0_joint_torso_height
-    control_limited: true
-    control_range:
-    - -100000.0
-    - 100000.0
-    force_limited: false
-    force_range:
-    - 0.0
-    - 0.0
-  velocity_limits:
-    source: introspected
-    measured_joint_velocity_cap: null
-    notes: Native model/controller has no hard measured joint velocity cap; controller
-      deltas and actuator control ranges are not such a cap.
+  method: introspection
+  calibrated_at: null
   kinematics:
-    source: MuJoCo compiled model
-    chain:
-    - origin:
-      - -0.05
-      - 0.0
-      - 0.5
-      - 0.0
-      - 0.0
-      - 0.0
-      - 1.0
-    - origin:
-      - 0.05
-      - 0.0
-      - 0.2
-      - 0.0
-      - 0.0
-      - 0.0
-      - 1.0
-      joint: 0
-      axis:
-      - 0.0
-      - 0.0
-      - 1.0
-      anchor:
-      - 0.0
-      - 0.0
-      - 0.0
-      reference: 0.0
-    - origin:
-      - 0.0
-      - 0.0
-      - 0.0
-      - 0.0
-      - 0.0
-      - 0.0
-      - 1.0
-    - origin:
-      - 0.0
-      - 0.0
-      - 0.0
-      - 0.0
-      - 0.0
-      - 0.0
-      - 1.0
-  joint_limit_semantics:
-    source: MuJoCo compiled model jnt_limited/jnt_range
-    units: m
-    joint_order: intrinsics.joints; same order as read.positions and fk/ik joints
-    enforcement: MuJoCo soft joint-limit constraints; measured positions may overshoot
-    activation_margin:
-    - 0.0
-    solver_reference:
-    - - 0.02
-      - 1.0
-    solver_impedance:
-    - - 0.9
-      - 0.95
-      - 0.001
-      - 0.5
-      - 2.0
-    fk_ik: Explicit FK joints and IK seeds must be within limits; IK results are bounded.
-      These checks do not guarantee collision-free or reachable motion.
-    read: Reports actual joints and flange pose even outside nominal limits
-    controller: Absolute joint targets are validated against joint limits before acceptance.
-      stop holds measured joints; target acceptance does not imply arrival.
+    model:
+      format: serial_chain
+      joints:
+      - name: mobilebase0_joint_torso_height
+        type: prismatic
+        limits:
+          min: 0.0
+          max: 0.34
+        max_velocity: null
+        max_effort: null
+      chain:
+      - origin:
+        - -0.05
+        - 0.0
+        - 0.5
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+      - origin:
+        - 0.05
+        - 0.0
+        - 0.2
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 0
+        axis:
+        - 0.0
+        - 0.0
+        - 1.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+      - origin:
+        - 0.0
+        - 0.0
+        - 0.0
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+      - origin:
+        - 0.0
+        - 0.0
+        - 0.0
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+    ik:
+      backend: numerical
+      method: damped_least_squares
+      position_tolerance_m: 0.0001
+      rotation_tolerance_rad: 0.001
+      max_iterations: 200
+      damping: 0.01
+  home:
+    mobilebase0_joint_torso_height: 0.2
+  control:
+    speed: null
+  feedback:
+    velocities: true
+    efforts: false
+    pose_source: driver
+    flange_to_reported:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
+  stop:
+    behavior: hold
+    affected_devices:
+    - torso
 extrinsics:
   source: introspected
+  method: introspection
+  calibrated_at: null
   mount:
-    parent: body
-    pose:
-      translation:
-      - 0
-      - 0
-      - 0
-      rotation:
-      - 0
-      - 0
-      - 0
-      - 1
+    parent: base
+    parent_frame: base
+    translation_m:
+    - 0
+    - 0
+    - 0
+    rotation_xyzw:
+    - 0
+    - 0
+    - 0
+    - 1
 meta:
   created_at: '2026-09-06T00:00:00Z'
-  updated_at: '2026-09-06T00:00:00Z'
+  updated_at: '2026-09-08T00:00:00Z'
 access:
   source: user
-  kind: url
-  url: http://127.0.0.1:8123
-  control_mode: joint_position
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: torso
   driver:
     entry: driver.py
     interpreter: python3

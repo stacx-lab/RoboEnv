@@ -14,7 +14,6 @@ import sys
 from pathlib import Path
 
 import yaml
-from pxr import Usd, UsdGeom, UsdPhysics
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "runtime/src"))
@@ -40,6 +39,8 @@ CONVENTION = (
 
 def extract(project):
     import re
+
+    from pxr import Usd, UsdGeom, UsdPhysics
 
     root = verify_assets(project)
     stage = Usd.Stage.Open(str(root / "go2.usd"))
@@ -140,26 +141,41 @@ def generate(out, model):
     profiles["imu"] = {
         "type": "imu",
         "intrinsics": {
-            "source": "introspected",
-            "notes": (
-                "Native synthetic IMU: sensor-frame angular_velocity in rad/s and "
-                "linear_acceleration in m/s^2; proper acceleration includes +g at rest. No "
-                "world position or linear velocity."
-            ),
+            "source": "introspected", "method": "introspection", "calibrated_at": None,
+            "measurement": {
+                "angular_velocity": {"axes": ["x", "y", "z"], "range": None,
+                                     "resolution": None, "bias": {"x": 0, "y": 0, "z": 0}},
+                "linear_acceleration": {"quantity": "specific_force", "axes": ["x", "y", "z"],
+                                        "range": None, "resolution": None,
+                                        "bias": {"x": 0, "y": 0, "z": 0}},
+                "orientation": None, "magnetic_field": None,
+            },
+            "sample_rate_hz": None,
         },
-        "extrinsics": mount(model["imu_position"]),
+        "extrinsics": {
+            "source": "introspected", "method": "introspection", "calibrated_at": None,
+            "mount": {"parent": "body", "parent_frame": "body",
+                      "translation_m": model["imu_position"], "rotation_xyzw": [0, 0, 0, 1]},
+        },
     }
     for foot in FEET:
         profiles[f"contact_{foot.lower()}"] = {
-            "type": "other",
+            "type": "force_torque",
             "intrinsics": {
-                "source": "introspected",
-                "notes": (
-                    "Native synthetic contact sensor; force is the net contact force in newtons "
-                    "expressed in the foot frame. No torque measurement."
-                ),
+                "source": "introspected", "method": "introspection", "calibrated_at": None,
+                "measurement": {
+                    "quantity": "contact_normal", "target": {"device": "body", "frame": foot},
+                    "force": {"axes": ["x", "y", "z"], "range": None, "resolution": None,
+                              "bias": {"x": 0, "y": 0, "z": 0}},
+                    "torque": None,
+                },
+                "sample_rate_hz": None,
             },
-            "extrinsics": mount(frame=foot),
+            "extrinsics": {
+                "source": "introspected", "method": "introspection", "calibrated_at": None,
+                "mount": {"parent": "body", "parent_frame": foot,
+                          "translation_m": [0, 0, 0], "rotation_xyzw": [0, 0, 0, 1]},
+            },
         }
     profiles["world"] = {
         "type": "world",
@@ -187,11 +203,22 @@ def generate(out, model):
                 },
                 **({"control_mode": "joint_position"} if name == "body" else {}),
             }
+        if profile["type"] in {"force_torque", "imu"}:
+            profile["access"] = {
+                "source": "user", "method": "unknown", "calibrated_at": None,
+                "connection": {"kind": "url", "url": "http://127.0.0.1:8123", "device": name},
+                "driver": profile["access"]["driver"],
+            }
         directory = robot / "devices" / name
         directory.mkdir(parents=True, exist_ok=True)
         (directory / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
         if name != "world":
-            (directory / "driver.py").write_bytes(driver)
+            (directory / "driver.py").write_bytes(
+                (ROOT / "src/roboenv/assets" / (
+                    "imu-client.py" if name == "imu" else "force-torque-client.py"
+                )).read_bytes()
+                if profile["type"] in {"force_torque", "imu"} else driver
+            )
         bindings[name] = {
             "binding": "isaaclab.device/1",
             "entity": name,

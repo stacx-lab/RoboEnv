@@ -17,7 +17,7 @@ roboenv prepare robocasa
 
 Bootstrap installs the CLI into `.venv`. Then `prepare` synchronizes selected
 pinned sources, installs an isolated simulator environment, and reports checks.
-Replace `robotwin` with your simulator. RoboCasa preparation also downloads its
+Replace `robocasa` with your simulator. RoboCasa preparation also downloads its
 kitchen assets (about 10 GB). No wheel-building, `--install`, or
 environment-path arguments are needed. Other simulators require separate asset acquisition;
 see [setup](docs/setup.md) for prerequisites and diagnostics.
@@ -53,7 +53,8 @@ Launch streams simulator stdout/stderr to the terminal's stderr and retains the
 run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready.
 Python callers can enable streaming with `log_stream=sys.stderr`.
 
-RoboCasa implements the device-first API: `env.task`, `env.devices()`, and
+RoboCasa’s typed catalog contains arm, torso, base, gripper, three RGB-D cameras,
+and world, using Complex’s current device schemas. It implements the device-first API: `env.task`, `env.devices()`, and
 `env.device(name)`. Drivers expose only their type's basic operations. The world advances
 continuously while the agent thinks. Writes update persistent controller goals;
 reads do not request extra steps. Exported arm/torso drivers solve IK/FK locally
@@ -66,8 +67,9 @@ Neither mode imposes a simulation horizon.
 Task-solving controllers belong in the agent harness. See [RoboCasa](docs/robocasa.md)
 for action spaces, task-specific device selection, and validation coverage.
 
-Isaac Lab also provides `isaaclab/go2-posture`: native Go2 joint control with
-RGB-D, IMU, and foot contacts, using synchronous stepping. See
+Isaac Lab is experimental and is not officially supported by RoboEnv. Its
+`isaaclab/go2-posture` prototype provides native Go2 joint control with RGB-D,
+IMU, and foot contacts, using synchronous stepping. See
 [Isaac Lab setup and devices](docs/isaaclab.md); [G1 follow-up](plan.md) is deferred.
 
 ## Export a Harbor task

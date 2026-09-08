@@ -56,13 +56,13 @@ def check(root, temporary):
             goal = arm.goal_qpos.copy()
             start = native._step_count
             # An unrelated device write must preserve the arm's target.
-            call("body", "write", target=[0.1, 0, 0])
+            call("base", "write", target=[0.1, 0, 0])
         wait_frames(worker, start + 6)
         with worker.world.lock:
             np.testing.assert_allclose(arm.goal_qpos, goal, atol=1e-12)
             after = np.array(call("arm", "read")["positions"])
             assert np.linalg.norm(after - before) > 1e-3
-            call("body", "stop")
+            call("base", "stop")
             call("arm", "stop")
             call("gripper", "write", target=[1])
             start = native._step_count
@@ -116,12 +116,12 @@ def check_synchronous(root, temporary):
         call("arm", "stop")
         np.testing.assert_array_equal(native.sim.data.qpos, initial)
         assert native._step_count == 0
-        goal = list(profile["intrinsics"]["home_joints"])
+        goal = list(profile["intrinsics"]["home"].values())
         goal[0] += 0.1
         for frame, (device, target) in enumerate([
             ("arm", goal),
             ("gripper", [1]),
-            ("body", [0.1, 0, 0]),
+            ("base", [0.1, 0, 0]),
             ("torso", [0.1]),
         ], start=1):
             result = call(device, "write", target=target)

@@ -13,7 +13,7 @@ TYPES = {
     "camera_front": "rgbd",
     "imu": "imu",
     "world": "world",
-    **{foot: "other" for foot in FEET},
+    **{foot: "force_torque" for foot in FEET},
 }
 
 
@@ -33,6 +33,30 @@ def bind(spec, root, context):
             raise ValueError("Sensor mount must name the selected body device")
         if entity in FEET and mount.get("parent_frame") != entity:
             raise ValueError("Contact sensor mount must name its foot frame")
+    if entity in FEET:
+        measurement = definition.intrinsics.get("measurement", {})
+        if (measurement.get("quantity") != "contact_normal"
+                or measurement.get("target") != {"device": context.devices.get("body"), "frame": entity}
+                or measurement.get("torque", "missing") is not None
+                or not isinstance(measurement.get("force"), dict)
+                or measurement["force"].get("axes") != ["x", "y", "z"]):
+            raise ValueError("Contact measurement must declare normal force on its selected foot, without torque")
+        mount = definition.extrinsics["mount"]
+        if mount.get("translation_m") != [0, 0, 0] or mount.get("rotation_xyzw") != [0, 0, 0, 1]:
+            raise ValueError("Contact measurement frame must coincide with the foot frame")
+    if entity == "imu":
+        measurement = definition.intrinsics.get("measurement", {})
+        vectors = [measurement.get(key) for key in ("angular_velocity", "linear_acceleration")]
+        if (any(not isinstance(v, dict) or v.get("axes") != ["x", "y", "z"] for v in vectors)
+                or measurement["linear_acceleration"].get("quantity") != "specific_force"
+                or measurement.get("orientation", "missing") is not None
+                or measurement.get("magnetic_field", "missing") is not None):
+            raise ValueError("IMU must declare three-axis angular velocity and specific force only")
+        mount = definition.extrinsics["mount"]
+        if (mount.get("parent_frame") != context.devices.get("body")
+                or mount.get("translation_m") != world.model["imu_position"]
+                or mount.get("rotation_xyzw") != [0, 0, 0, 1]):
+            raise ValueError("IMU mount must match the native measurement point and frame")
     actions = {}
 
     def register(name, fn, required, schema=EMPTY, *, mutation=False):
@@ -99,7 +123,7 @@ def bind(spec, root, context):
             lambda: world.read_sensor(entity),
             [
                 "sample_time_s",
-                *(["angular_velocity", "linear_acceleration"] if entity == "imu" else ["force"]),
+                *(["angular_velocity", "linear_acceleration", "orientation", "magnetic_field"] if entity == "imu" else ["force", "torque"]),
             ],
         )
     return BoundDevice(
