@@ -195,10 +195,7 @@ def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
         workspace = tmp_path / "complex-workspace"
         shutil.copytree(
             ROOT / "catalog/robots/robocasa-panda-omron",
-            workspace / ".complex/robots/robocasa-panda-omron",
-        )
-        (workspace / ".complex/complex.json").write_text(
-            json.dumps({"robot": {"active": "robocasa-panda-omron"}})
+            workspace / ".complex",
         )
         checked = subprocess.run(
             ["bun", "-e", code, str(payload), str(manifest), str(workspace)],

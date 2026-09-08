@@ -16,8 +16,9 @@ from roboenv.provisioning.sources import load_lock, status
 from roboenv.tasks.artifacts import Bundle
 from roboenv.tasks.model import Task
 
-BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior")
+BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab")
 ROBOTS = {
+    "isaaclab": "isaaclab-go2",
     "libero": "libero-panda",
     "robocasa": "robocasa-panda-omron",
     "robotwin": "robotwin-dual-piper",
@@ -66,7 +67,9 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None):
         backend_kwargs={**({"realtime": True} if backend == "robocasa" else {}), **kwargs},
         robot=robot or ROBOTS[backend],
         instruction=instruction,
-        action_abstraction="devices" if backend == "robocasa" else "symbolic-primitives"
+        action_abstraction="devices"
+        if backend in {"robocasa", "isaaclab"}
+        else "symbolic-primitives"
         if backend == "behavior"
         else "cartesian-primitives",
     )
@@ -219,7 +222,13 @@ def _behavior(root, issues):
         )
 
 
+def _isaaclab(root, issues):
+    source = root / "catalog/tasks/isaaclab/go2-posture/task.yaml"
+    yield Task.load(source), source
+
+
 DISCOVERERS = {
+    "isaaclab": _isaaclab,
     "libero": _libero,
     "robocasa": _robocasa,
     "robotwin": _robotwin,
@@ -247,7 +256,10 @@ def discover(project, destination, backends=BACKENDS):
             if task.id in existing:
                 old, _ = existing[task.id]
                 task = _task(
-                    backend, task.backend_task, task.backend_kwargs, old.instruction,
+                    backend,
+                    task.backend_task,
+                    task.backend_kwargs,
+                    old.instruction,
                     robot=task.robot,
                 )
             bundle.add_yaml(f"tasks/{task.id}/task.yaml", asdict(task))

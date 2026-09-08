@@ -24,7 +24,7 @@ roboenv = "roboenv.cli.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-roboenv = ["assets/*.py", "assets/*.sh", "assets/*.Dockerfile", "specs/*.json"]
+roboenv = ["assets/*.json", "assets/*.py", "assets/*.sh", "assets/*.Dockerfile", "specs/*.json"]
 
 [tool.ruff]
 line-length = 100

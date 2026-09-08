@@ -259,6 +259,7 @@ BUILTIN_ADAPTERS: dict[str, str] = {
     "robotwin": "roboenv_runtime.adapters.robotwin",
     "libero": "roboenv_runtime.adapters.libero",
     "robocasa": "roboenv_runtime.adapters.robocasa",
+    "isaaclab": "roboenv_runtime.adapters.isaaclab",
     "behavior": "roboenv_runtime.adapters.behavior",
 }
 """Adapter name -> module that registers it (imported on first use)."""
@@ -311,7 +312,7 @@ def make_adapter(name: str, **kwargs: Any) -> EnvAdapter:
     try:  # pretrained policies as tools (roboenv_runtime.vla) — optional, never fatal
         from roboenv_runtime.vla.attach import attach_vla_tool
 
-        if name != "robocasa":
+        if name not in {"robocasa", "isaaclab"}:
             attach_vla_tool(adapter, name)
     except Exception as exc:
         logging.getLogger(__name__).debug("vla tool not attached to %s: %s", name, exc)

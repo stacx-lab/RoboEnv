@@ -83,7 +83,7 @@ def export_task(
                 entry="driver.py", interpreter="python3", persistent=False, actions=actions
             )
             prefix = f"environment/definition/robot/devices/{spec.name}/"
-            if task.backend != "robocasa":
+            if task.backend not in {"robocasa", "isaaclab"}:
                 out.add_yaml(prefix + "profile.yaml", profile)
                 out.add(prefix + "driver.py", assets.joinpath("device-client.py").read_bytes())
         out.add(
@@ -107,7 +107,7 @@ def export_task(
         },
         "capabilities": ["device-driver/1", "roboenv-public-primitives/1"],
         "observation_access": "sensors-only"
-        if task.backend == "robocasa"
+        if task.backend in {"robocasa", "isaaclab"}
         else "benchmark-ground-truth",
         "action_abstraction": task.action_abstraction,
         "compatibility": {
@@ -120,7 +120,7 @@ def export_task(
     manifest["endpoint"]["generation"] = 0
     manifest["binding_contract"] = BINDING_CONTRACT
     manifest["binding_mode"] = "explicit"
-    if task.backend == "robocasa":
+    if task.backend in {"robocasa", "isaaclab"}:
         out.add("environment/sim/environment.json", json.dumps(manifest, indent=2) + "\n")
         manifest = {
             "task": {"id": task.id, "instruction": task.instruction, "context": {}},
@@ -130,7 +130,7 @@ def export_task(
     out.add("environment/definition/environment.json", json.dumps(manifest, indent=2) + "\n")
     out.add("environment/sdk/" + wheel.name, wheel.read_bytes())
     dockerfile = assets.joinpath("main.Dockerfile").read_text()
-    if task.backend == "robocasa":
+    if task.backend in {"robocasa", "isaaclab"}:
         dockerfile += (
             "\nRUN useradd --create-home --uid 1000 agent "
             "&& chown -R agent:agent /app\nUSER agent\n"
@@ -165,7 +165,7 @@ def export_task(
         "volumes": ["roboenv-run:/run/roboenv:ro", "./definition:/env:ro"],
         "environment": public_env,
     }
-    if task.backend == "robocasa":
+    if task.backend in {"robocasa", "isaaclab"}:
         sim["user"] = "0:0"
         public_env.update(ROBOENV_ENDPOINT="http://sim:8123", ROBOENV_ROBOT="/run/roboenv/robot")
         sim["environment"].update(
@@ -188,6 +188,9 @@ def export_task(
     if include_reference and task_path.with_name("solution.py").is_file():
         smoke["services"]["main"]["volumes"].append("../solution:/solution:ro")
     out.add_yaml("environment/smoke-compose.yaml", smoke)
+    observation_access = (
+        "sensors-only" if task.backend in {"robocasa", "isaaclab"} else "benchmark-ground-truth"
+    )
     out.add(
         "task.toml",
         f'''schema_version = "1.4"
@@ -200,14 +203,14 @@ backend = "{task.backend}"
 backend_task = "{task.backend_task}"
 seed = {task.seed}
 environment_contract = "roboenv/environment/1"
-observation_access = "{"sensors-only" if task.backend == "robocasa" else "benchmark-ground-truth"}"
+observation_access = "{observation_access}"
 action_abstraction = "{task.action_abstraction}"
 [agent]
 timeout_sec = 3600.0
-{'user = "agent"' if task.backend == "robocasa" else ""}
+{'user = "agent"' if task.backend in {"robocasa", "isaaclab"} else ""}
 [verifier]
 timeout_sec = 600.0
-{'user = "root"' if task.backend == "robocasa" else ""}
+{'user = "root"' if task.backend in {"robocasa", "isaaclab"} else ""}
 [environment]
 build_timeout_sec = 1800.0
 cpus = 4
@@ -254,11 +257,11 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
                 "Results are not benchmark eligible."
             ),
         )
-    if task.backend == "robocasa":
+    if task.backend in {"robocasa", "isaaclab"}:
         clock_instruction = (
             "Physics continues while you think. Writes update persistent commands; "
             "stop stops a device, not the world. "
-            if task.backend_kwargs.get("realtime", True)
+            if task.backend_kwargs.get("realtime", task.backend == "robocasa")
             else "Physics pauses between actions. Each write advances one native control "
             "interval and then pauses again; reads and stop do not advance time. "
         )
@@ -271,8 +274,12 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
                 "`env.task`, `env.devices()`, and `env.device(name).profile`. "
                 "Read sensors and command devices through their declared basic interfaces. "
                 + clock_instruction
-                + "There is no simulation horizon. "
-                "Reads and IK/FK do not request extra steps. "
+                + (
+                    "There is no simulation horizon. "
+                    if task.backend == "robocasa"
+                    else "The budget is 500 control intervals. "
+                )
+                + "Reads and IK/FK do not request extra steps. "
                 "Camera reads return client-accessible image files. Live profiles and thin drivers "
                 "are in /run/roboenv/robot/devices. Build perception and control tools "
                 "in /app. The verifier checks final state and budget after you finish.\n"

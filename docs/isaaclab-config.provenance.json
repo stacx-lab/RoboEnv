@@ -1,0 +1,15 @@
+{
+  "upstream": "99f1423e5d4a26216c0eedeb2aa78099a8c3a7d1",
+  "source_sha256": "a2e14426d635a082cbca8033b1e91cc68637e832dc3d453bc7d3c287a1eb2835",
+  "generator_sha256": "d69dadf839d27831304776a50bb6b8d56166049cb260c6cd0a23c10adfd2d7f6",
+  "rig_sha256": "c5e7a15146bc5866a8ef3902874e1180d1f345d90df63a0e74f8f9d3fe293515",
+  "assets": {
+    "url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Robots/Unitree/Go2",
+    "files": {
+      "go2.usd": "ba171c972b987d8c8fb7157ccad2ba9c0c1fed105755d2d8af46bef96cc11c6d",
+      "Props/instanceable_meshes.usd": "2902646d0f4c13c9ecae3ac9046e32c7d18902eef9679de9829f642a15c93fb5"
+    }
+  },
+  "method": "CPU USD joint limits and rigid IMU mount; literal upstream initialization; explicit synthetic camera mount",
+  "gpu_validated": false
+}
