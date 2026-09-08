@@ -50,7 +50,10 @@ def remote(action, args):
     }
     endpoint = config.get("endpoint")
     if not endpoint and not config.get("socket"):
-        endpoint = "http://127.0.0.1:8123"
+        import yaml
+
+        profile = yaml.safe_load(Path(__file__).with_name("profile.yaml").read_text())
+        endpoint = profile["access"]["url"]
     identity = {"protocol": "roboenv/1", "session": config.get("session") or "harbor",
                 "generation": config.get("generation", 0)}
     if endpoint and not config.get("session"):

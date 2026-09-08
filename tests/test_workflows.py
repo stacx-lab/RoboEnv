@@ -136,6 +136,22 @@ def test_startup_failure_preserves_logs(tmp_path):
         launch_toy(interpreter=interpreter, timeout=5)
 
 
+def test_worker_exit_fails_launch_without_waiting_for_deadline(monkeypatch):
+    from roboenv.client import Client
+
+    request = Client.request
+
+    def worker_exited(self, op, *args, **kwargs):
+        result = request(self, op, *args, **kwargs)
+        if op == "health":
+            result["worker"]["state"] = "exited"
+        return result
+
+    monkeypatch.setattr(Client, "request", worker_exited)
+    with pytest.raises(RuntimeError, match="Simulator worker failed during startup"):
+        launch_toy(timeout=5)
+
+
 def test_cli_detach_status_and_stop():
     command = [sys.executable, "-m", "roboenv.cli.main"]
     env = {k: v for k, v in os.environ.items() if k != "ROBOENV_SOCKET"}
@@ -159,6 +175,8 @@ def test_cli_detach_status_and_stop():
         timeout=30,
     )
     assert started.returncode == 0, started.stdout + started.stderr
+    assert "Simulator logs:" in started.stderr
+    assert "worker ready:" in started.stderr
     record = json.loads(started.stdout)
     try:
         result = subprocess.run(
@@ -295,7 +313,7 @@ def test_grouped_catalog_ids_and_listing(capsys):
     from roboenv.tasks.catalog import load_catalog
 
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 8
+    assert len(catalog) == 9
     for identifier, (task, path) in catalog.items():
         assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
         assert identifier.split("/")[0] == task.backend

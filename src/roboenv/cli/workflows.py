@@ -116,9 +116,11 @@ def execute(args):
             port=args.port,
             host=args.host,
             realtime=args.realtime,
+            log_stream=sys.stderr,
         )
         emit(environment.record, machine=args.json)
         if args.detach:
+            environment.stop_logs()
             return 0
         try:
             return environment.process.wait()

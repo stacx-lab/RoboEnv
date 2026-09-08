@@ -16,7 +16,7 @@ from roboenv_runtime.bindings.simulators import binding_index
 from roboenv_runtime.runtime.worker import SimWorker
 
 ROOT = Path(__file__).resolve().parents[1]
-ROBOTS = sorted(p for p in (ROOT / "catalog/robots").iterdir() if p.name != "robocasa-panda-omron")
+ROBOTS = sorted(p for p in (ROOT / "catalog/robots").iterdir() if (p / "bindings.yaml").is_file())
 
 
 @pytest.mark.parametrize("robot", ROBOTS, ids=lambda p: p.name)

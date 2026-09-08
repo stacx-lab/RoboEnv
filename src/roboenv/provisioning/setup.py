@@ -370,6 +370,8 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
     ]
     if recipe.get("index_url"):
         indexes = ["--index-url", recipe["index_url"], *indexes]
+    if recipe.get("index_strategy"):
+        indexes += ["--index-strategy", recipe["index_strategy"]]
     overrides = ["--override", str(source_pins)] if source_pins else []
     local = [
         argument
@@ -486,6 +488,10 @@ def prepare(backend, *, project=None, install_to=None, progress=None):
 
 
 def _prepare_assets(backend, root, report, progress):
+    if backend == "isaaclab":
+        from roboenv.provisioning.isaaclab_assets import prepare_assets
+
+        return {**report, **prepare_assets(root, progress=progress)}
     if backend == "robocasa":
         from roboenv.provisioning.robocasa_assets import prepare_assets
 
@@ -511,7 +517,7 @@ def doctor(backend, *, project=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "backend", choices=("libero", "robocasa", "robotwin", "robodojo", "behavior")
+        "backend", choices=("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab")
     )
     parser.add_argument(
         "--install", action="store_true", help="May download many GB; assets excluded"

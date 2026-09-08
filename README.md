@@ -49,6 +49,10 @@ Python owners use `with roboenv.launch(task="TASK_ID", port=8123) as run:`
 and connect to `run.endpoint`. Use
 `--host 0.0.0.0` when serving a task across an isolated container network.
 
+Launch streams simulator stdout/stderr to the terminal's stderr and retains the
+run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready.
+Python callers can enable streaming with `log_stream=sys.stderr`.
+
 RoboCasa implements the device-first API: `env.task`, `env.devices()`, and
 `env.device(name)`. Drivers expose only their type's basic operations. The world advances
 continuously while the agent thinks. Writes update persistent controller goals;
@@ -61,6 +65,10 @@ commands keep their native signed format. Acceptance never implies arrival.
 Neither mode imposes a simulation horizon.
 Task-solving controllers belong in the agent harness. See [RoboCasa](docs/robocasa.md)
 for action spaces, task-specific device selection, and validation coverage.
+
+Isaac Lab also provides `isaaclab/go2-posture`: native Go2 joint control with
+RGB-D, IMU, and foot contacts, using synchronous stepping. See
+[Isaac Lab setup and devices](docs/isaaclab.md); [G1 follow-up](plan.md) is deferred.
 
 ## Export a Harbor task
 

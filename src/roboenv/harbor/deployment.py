@@ -140,7 +140,9 @@ def native_service(path, task, *, portable=False):
             "interval": "5s",
             "timeout": "10s",
             "retries": 120,
-            "start_period": "900s" if task.backend in {"behavior", "robodojo"} else "120s",
+            "start_period": "900s"
+            if task.backend in {"behavior", "robodojo", "isaaclab"}
+            else "120s",
         },
         "shm_size": "4gb",
         "deploy": {

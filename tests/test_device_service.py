@@ -177,6 +177,37 @@ def test_thin_driver_needs_only_stdlib_and_socket(device_service, tmp_path):
     assert json.loads(result.stdout)["ok"] is True
 
 
+@pytest.mark.parametrize("override", [None, "environment", "connection"])
+def test_portable_driver_uses_profile_url_with_explicit_overrides(tmp_path, monkeypatch, override):
+    driver = tmp_path / "driver.py"
+    driver.write_bytes((ROOT / "src/roboenv/assets/device-client.py").read_bytes())
+    (tmp_path / "profile.yaml").write_text("access:\n  url: http://profile:8124\n")
+    for key in ("ROBOENV_ENDPOINT", "ROBOENV_SOCKET", "ROBOENV_SESSION", "ROBOENV_GENERATION"):
+        monkeypatch.delenv(key, raising=False)
+    expected = "http://profile:8124"
+    if override:
+        monkeypatch.setenv("ROBOENV_ENDPOINT", "http://environment:8125")
+        expected = "http://environment:8125"
+    if override == "connection":
+        expected = "http://connection:8126"
+        (tmp_path / "connection.json").write_text(json.dumps({"endpoint": expected}))
+    remote = runpy.run_path(str(driver))["remote"]
+
+    def exchange(endpoint, method, path="/", body=None):
+        assert endpoint == expected
+        if method == "GET":
+            return json.dumps({"protocol": "roboenv/1", "session": "test", "generation": 0})
+        request = json.loads(body)
+        response = {
+            key: request[key] for key in ("protocol", "session", "generation", "request_id")
+        }
+        response.update(ok=True, result={"data": {"loaded": True}})
+        return (json.dumps(response) + "\n").encode()
+
+    remote.__globals__["exchange"] = exchange
+    assert remote("status", {}) == {"loaded": True}
+
+
 def test_all_catalogs_load_without_contacting_simulators():
     from roboenv_runtime.bindings import default_registry
 
@@ -195,9 +226,9 @@ def test_all_catalogs_load_without_contacting_simulators():
 
         raw = yaml.safe_load(binding_path(robot).read_text())
         plan = BindingPlan.load(robot, backend=raw["backend"])
-        if raw["backend"] == "robocasa":
+        if raw["backend"] in {"robocasa", "isaaclab"}:
             # Offline definitions validate without a world; native bindings require
-            # real model/controller facts, covered by the RoboCasa conformance test.
+            # real model/controller facts, covered by backend conformance tests.
             assert all(spec.definition(robot) for spec in plan.devices)
             continue
         context = BindingContext(raw["backend"], raw["embodiment"], object(), forbidden, {})

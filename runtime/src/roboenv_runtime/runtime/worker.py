@@ -628,10 +628,10 @@ class SimWorker:
             "reset", "reset_same_task", "shutdown",
         }:
             raise WorkerRPCError("world_failed", "World lifecycle failed; owner recovery is required")
-        if self.adapter.name == "robocasa" and op in {
+        if self.adapter.name in {"robocasa", "isaaclab"} and op in {
             "call", "skill", "exec", "vla", "reset", "reset_same_task", "checkpoint", "restore",
         }:
-            raise WorkerRPCError("unsupported_op", "RoboCasa accepts basic device operations; start a new service for a new episode")
+            raise WorkerRPCError("unsupported_op", "This backend accepts basic device operations; start a new service for a new episode")
         if op not in WORKER_OPS:
             raise WorkerRPCError(
                 "unsupported_op",
@@ -660,7 +660,7 @@ class SimWorker:
                         return self.devices.inventory()
                     description = self.devices.environment()
                     task = description.get("task", {})
-                    if self.adapter.name == "robocasa":
+                    if self.adapter.name in {"robocasa", "isaaclab"}:
                         description = {
                             "task": {"id": task.get("id", self.task_id),
                                      "instruction": self.adapter.goal() or task.get("instruction", ""),
@@ -975,6 +975,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             signal.signal(signal.SIGTERM, old_term)
             signal.signal(signal.SIGINT, old_int)
         return 0
+    except BaseException:
+        # Simulator cleanup may terminate the process before Python prints the exception.
+        log.exception("Simulator worker failed")
+        raise
     finally:
         if server is not None:
             server.server_close()

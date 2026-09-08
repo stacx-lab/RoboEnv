@@ -103,6 +103,15 @@
           "sha256": "7cdbfab482b23a4d925d59ff169ab0bc5f8c97ceb0db79f9fd5bf46ef8aa1556"
         }
       ]
+    },
+    "isaaclab_native": {
+      "revision": "99f1423e5d4a26216c0eedeb2aa78099a8c3a7d1",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "df351ebfa8af317bf5a9ad83df63a8b68e4f5c04b71f30767cdb27aa434eac62"
+        }
+      ]
     }
   }
 }

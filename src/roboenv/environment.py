@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from dataclasses import asdict
@@ -161,6 +162,42 @@ class RunningEnvironment:
     def __init__(self, process, record, path):
         self.process, self.record, self.path = process, record, path
         self.client = _client(record)
+        self._log_stop = threading.Event()
+        self._log_thread = None
+
+    def stream_logs(self, output):
+        from contextlib import ExitStack
+
+        paths = [self.path.parent / "supervisor.log", self.path.parent / "evidence/logs/worker.log"]
+
+        def follow():
+            with ExitStack() as stack:
+                files = {}
+                while True:
+                    finished = self._log_stop.wait(0.1) or self.process.poll() is not None
+                    for path in paths:
+                        if path not in files and path.exists():
+                            files[path] = stack.enter_context(path.open(errors="replace"))
+                        if path in files:
+                            text = files[path].read()
+                            if text:
+                                output.write(text)
+                                output.flush()
+                    if finished:
+                        break
+
+        print(
+            f"Simulator logs: {self.path.parent / 'evidence/logs/worker.log'}",
+            file=output,
+            flush=True,
+        )
+        self._log_thread = threading.Thread(target=follow, daemon=True)
+        self._log_thread.start()
+
+    def stop_logs(self):
+        self._log_stop.set()
+        if self._log_thread is not None:
+            self._log_thread.join()
 
     @property
     def endpoint(self):
@@ -189,6 +226,7 @@ class RunningEnvironment:
                 ) from exc
         self.record["state"] = "stopped"
         _save(self.path, self.record)
+        self.stop_logs()
 
 
 def launch(
@@ -201,10 +239,12 @@ def launch(
     host="127.0.0.1",
     port=0,
     realtime=None,
+    log_stream=None,
 ):
     """Start a task in its isolated interpreter; return after device readiness.
 
-    realtime=None preserves the task clock; True/False override it for RoboCasa.
+    realtime=None preserves the task clock. RoboCasa accepts either override;
+    Isaac Lab accepts False only.
     Backend assets must already be prepared. No installation or download occurs.
     All run definitions and logs are retained under the selected project's cache.
     """
@@ -261,7 +301,7 @@ def launch(
         {
             "task": asdict(spec),
             "observation_access": "sensors-only"
-            if spec.backend == "robocasa"
+            if spec.backend in {"robocasa", "isaaclab"}
             else "benchmark-ground-truth",
         },
     )
@@ -293,6 +333,7 @@ def launch(
         ROBOENV_GENERATION="0",
         PYTHONNOUSERSITE="1",
         PYTHONDONTWRITEBYTECODE="1",
+        PYTHONUNBUFFERED="1",
         MUJOCO_GL="egl",
     )
     command = [
@@ -336,6 +377,8 @@ def launch(
         _save(record_path, record)
         raise
     running = RunningEnvironment(process, record, record_path)
+    if log_stream is not None:
+        running.stream_logs(log_stream)
     try:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -357,7 +400,9 @@ def launch(
                     _save(record_path, record)
                     running.client = _client(record)
                     return running
-                if health.get("worker", {}).get("state") in {"failed", "terminated", "timed_out"}:
+                if health.get("worker", {}).get("state") in {
+                    "failed", "exited", "terminated", "timed_out", "identity_mismatch"
+                }:
                     raise RuntimeError("Simulator worker failed during startup")
             time.sleep(0.05)
         raise TimeoutError("Simulator did not become ready before the startup deadline")

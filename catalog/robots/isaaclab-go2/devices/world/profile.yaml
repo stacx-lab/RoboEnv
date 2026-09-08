@@ -1,0 +1,17 @@
+type: world
+intrinsics:
+  source: default
+  bounds:
+    min:
+    - null
+    - null
+    - null
+    max:
+    - null
+    - null
+    - null
+  surfaces: []
+name: world
+meta:
+  created_at: '2026-09-07T00:00:00Z'
+  updated_at: '2026-09-07T00:00:00Z'

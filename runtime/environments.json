@@ -80,6 +80,27 @@
       "extra_indexes": ["https://pypi.nvidia.com", "https://download.pytorch.org/whl/cu128"],
       "known_blockers": ["No clean-install dependency lock is published yet. The prepared interpreter is not a reproducible install recipe."],
       "asset_instructions": "third_party/BEHAVIOR-1K/README.md"
+    },
+    "isaaclab": {
+      "python": "3.12",
+      "lock": "runtime/locks/isaaclab-resolved.txt",
+      "editables": [
+        "third_party/IsaacLab/source/isaaclab",
+        "third_party/IsaacLab/source/isaaclab_assets",
+        "third_party/IsaacLab/source/isaaclab_physx",
+        "third_party/IsaacLab/source/isaaclab_ov"
+      ],
+      "index_url": "https://pypi.org/simple",
+      "extra_indexes": [
+        "https://pypi.nvidia.com",
+        "https://download.pytorch.org/whl/cu128"
+      ],
+      "known_blockers": [],
+      "import_probes": [
+        "roboenv_runtime.adapters.isaaclab"
+      ],
+      "asset_instructions": "docs/isaaclab.md",
+      "index_strategy": "unsafe-best-match"
     }
   }
 }

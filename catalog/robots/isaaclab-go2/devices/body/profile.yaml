@@ -1,0 +1,167 @@
+type: body
+intrinsics:
+  source: introspected
+  mobility: mobile
+  drive: legged
+  joints:
+  - name: FL_hip_joint
+    type: revolute
+    limits:
+      min: -1.0471998814625516
+      max: 1.0471998814625516
+  - name: FL_thigh_joint
+    type: revolute
+    limits:
+      min: -1.5707999220623683
+      max: 3.4906997829855553
+  - name: FL_calf_joint
+    type: revolute
+    limits:
+      min: -2.722700050989595
+      max: -0.8377599051700413
+  - name: FR_hip_joint
+    type: revolute
+    limits:
+      min: -1.0471998814625516
+      max: 1.0471998814625516
+  - name: FR_thigh_joint
+    type: revolute
+    limits:
+      min: -1.5707999220623683
+      max: 3.4906997829855553
+  - name: FR_calf_joint
+    type: revolute
+    limits:
+      min: -2.722700050989595
+      max: -0.8377599051700413
+  - name: RL_hip_joint
+    type: revolute
+    limits:
+      min: -1.0471998814625516
+      max: 1.0471998814625516
+  - name: RL_thigh_joint
+    type: revolute
+    limits:
+      min: -0.5235999407312758
+      max: 4.537899731027134
+  - name: RL_calf_joint
+    type: revolute
+    limits:
+      min: -2.722700050989595
+      max: -0.8377599051700413
+  - name: RR_hip_joint
+    type: revolute
+    limits:
+      min: -1.0471998814625516
+      max: 1.0471998814625516
+  - name: RR_thigh_joint
+    type: revolute
+    limits:
+      min: -0.5235999407312758
+      max: 4.537899731027134
+  - name: RR_calf_joint
+    type: revolute
+    limits:
+      min: -2.722700050989595
+      max: -0.8377599051700413
+  home_joints:
+  - 0.1
+  - 0.8
+  - -1.5
+  - -0.1
+  - 0.8
+  - -1.5
+  - 0.1
+  - 1.0
+  - -1.5
+  - -0.1
+  - 1.0
+  - -1.5
+  actions:
+  - joint: FL_hip_joint
+    units: rad
+    bounds:
+      min: -1.0471998814625516
+      max: 1.0471998814625516
+  - joint: FL_thigh_joint
+    units: rad
+    bounds:
+      min: -1.5707999220623683
+      max: 3.4906997829855553
+  - joint: FL_calf_joint
+    units: rad
+    bounds:
+      min: -2.722700050989595
+      max: -0.8377599051700413
+  - joint: FR_hip_joint
+    units: rad
+    bounds:
+      min: -1.0471998814625516
+      max: 1.0471998814625516
+  - joint: FR_thigh_joint
+    units: rad
+    bounds:
+      min: -1.5707999220623683
+      max: 3.4906997829855553
+  - joint: FR_calf_joint
+    units: rad
+    bounds:
+      min: -2.722700050989595
+      max: -0.8377599051700413
+  - joint: RL_hip_joint
+    units: rad
+    bounds:
+      min: -1.0471998814625516
+      max: 1.0471998814625516
+  - joint: RL_thigh_joint
+    units: rad
+    bounds:
+      min: -0.5235999407312758
+      max: 4.537899731027134
+  - joint: RL_calf_joint
+    units: rad
+    bounds:
+      min: -2.722700050989595
+      max: -0.8377599051700413
+  - joint: RR_hip_joint
+    units: rad
+    bounds:
+      min: -1.0471998814625516
+      max: 1.0471998814625516
+  - joint: RR_thigh_joint
+    units: rad
+    bounds:
+      min: -0.5235999407312758
+      max: 4.537899731027134
+  - joint: RR_calf_joint
+    units: rad
+    bounds:
+      min: -2.722700050989595
+      max: -0.8377599051700413
+extrinsics:
+  source: introspected
+  frames:
+  - FL_foot
+  - FR_foot
+  - RL_foot
+  - RR_foot
+name: body
+meta:
+  created_at: '2026-09-07T00:00:00Z'
+  updated_at: '2026-09-07T00:00:00Z'
+access:
+  source: user
+  kind: url
+  url: http://127.0.0.1:8123
+  driver:
+    entry: driver.py
+    interpreter: python3
+    persistent: false
+    actions:
+    - read
+    - load
+    - unload
+    - status
+    - write
+    - stop
+  control_mode: joint_position
