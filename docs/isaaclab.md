@@ -1,4 +1,10 @@
-# Isaac Lab: Unitree Go2
+# Isaac Lab: Unitree Go2 (experimental)
+
+Isaac Lab is not officially supported by RoboEnv. This integration is an
+experimental prototype; the setup and device descriptions below do not establish
+simulator validation or benchmark support. The Go2 catalog still uses the legacy
+`body` device type, which the current Complex schema rejects; full catalog
+compatibility is not validated by the passing sensor and binding tests.
 
 RoboEnv exposes one free-base Go2 as a device service. Complex commands absolute
 joint positions through native DC motor control. This is a posture demonstration,

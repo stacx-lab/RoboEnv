@@ -337,7 +337,6 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
     environment = {
         **os.environ,
         "PYTHONNOUSERSITE": "1",
-        "UV_CACHE_DIR": str(project / ".cache/uv"),
     }
     for name in (
         "PYTHONPATH",

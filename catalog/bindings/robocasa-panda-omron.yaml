@@ -6,10 +6,10 @@ devices:
     binding: robocasa.device/1
     entity: arm
     profile: devices/arm/profile.yaml
-  body:
+  base:
     binding: robocasa.device/1
     entity: base
-    profile: devices/body/profile.yaml
+    profile: devices/base/profile.yaml
   camera_left:
     binding: robocasa.device/1
     entity: camera

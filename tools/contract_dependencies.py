@@ -30,7 +30,7 @@ def prepare_contract_dependencies(interpreter, destination):
         for key, value in os.environ.items()
         if key not in {"PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"}
     }
-    environment.update(PYTHONNOUSERSITE="1", UV_CACHE_DIR=str(ROOT / ".cache/uv"))
+    environment["PYTHONNOUSERSITE"] = "1"
     command = [
         "uv",
         "pip",

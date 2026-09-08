@@ -24,12 +24,14 @@ def test_exported_driver_fk_and_seeded_ik_are_offline(name):
 from pathlib import Path
 import yaml
 path = Path(sys.argv[1])
+sys.path.insert(0, str(path.parent))
 profile = yaml.safe_load(path.with_name('profile.yaml').read_text())
 handle = runpy.run_path(str(path))['handle']
 def no_network(*args, **kwargs):
     raise AssertionError('Kinematics contacted the simulator')
 handle.__globals__['remote'] = no_network
-home = profile['intrinsics']['home_joints']
+joints = profile['intrinsics']['kinematics']['model']['joints']
+home = [profile['intrinsics']['home'][j['name']] for j in joints]
 result = handle('fk', {'joints': home})
 assert result['ok'], result
 solved = handle('ik', {'pose': result['pose'], 'seed': home})
@@ -46,10 +48,12 @@ print(json.dumps(result))
 
 
 @pytest.mark.parametrize("name", ["arm", "torso"])
-def test_implicit_seed_reads_once_and_projects_only_the_local_copy(name):
+def test_implicit_seed_reads_once_and_projects_only_the_local_copy(name, monkeypatch):
+    monkeypatch.syspath_prepend(str(ROBOT / name))
     profile = yaml.safe_load((ROBOT / name / "profile.yaml").read_text())
-    solver = Kinematics(profile["intrinsics"])
-    reading = list(profile["intrinsics"]["home_joints"])
+    kinematics = profile["intrinsics"]["kinematics"]
+    solver = Kinematics(kinematics["model"], kinematics["ik"])
+    reading = [profile["intrinsics"]["home"][j["name"]] for j in solver.joints]
     reading[0] = solver.upper[0] + 0.001
     target = solver.fk(solver.project(reading))["pose"]
     handle = runpy.run_path(str(ROBOT / name / "driver.py"))["handle"]
@@ -72,12 +76,13 @@ def test_implicit_seed_reads_once_and_projects_only_the_local_copy(name):
 def test_joint_anchor_and_reference_are_applied_before_flange_offset():
     solver = Kinematics({
         "joints": [{"type": "revolute", "limits": {"min": -3, "max": 3}}],
-        "kinematics": {"chain": [
+        "chain": [
             {"origin": [1, 0, 0, 0, 0, 0, 1], "joint": 0, "axis": [0, 0, 1],
              "anchor": [0.1, 0, 0], "reference": 0.2},
             {"origin": [0.3, 0, 0, 0, 0, 0, 1]},
-        ]},
-    })
+        ],
+    }, dict(max_iterations=200, damping=0.01,
+            position_tolerance_m=1e-4, rotation_tolerance_rad=1e-3))
     target = solver.fk([0.2 + math.pi/2])["pose"]
     assert target[:3] == pytest.approx([1.1, 0.2, 0], abs=1e-12)
     result = solver.ik(target, seed=[0.2])
@@ -89,3 +94,25 @@ def test_joint_anchor_and_reference_are_applied_before_flange_offset():
         solver.ik([0]*7, seed=[0.2])
     with pytest.raises(ValueError, match="No IK solution"):
         solver.ik([100, 100, 100, 0, 0, 0, 1], seed=[0.2])
+
+
+@pytest.mark.parametrize("name", ["arm", "torso"])
+def test_manipulator_rejects_bad_commands_and_unacknowledged_stop(name, monkeypatch):
+    monkeypatch.syspath_prepend(str(ROBOT / name))
+    handle = runpy.run_path(str(ROBOT / name / "driver.py"))["handle"]
+    calls = []
+
+    def remote(action, args):
+        calls.append((action, args))
+        return {"stopped": True}
+
+    handle.__globals__["remote"] = remote
+    for action, args in (
+        ("read", {"extra": True}), ("stop", {"extra": True}),
+        ("write", {"target": [True]}), ("write", {"target": [float("nan")]}),
+        ("write", {"target": [], "speedFraction": 0.5}),
+    ):
+        assert not handle(action, args)["ok"]
+    assert calls == []
+    assert not handle("stop", {})["ok"]
+    assert calls == [("stop", {})]

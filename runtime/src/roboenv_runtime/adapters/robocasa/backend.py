@@ -345,11 +345,6 @@ class RoboCasaEnv:
         if not self.realtime:
             self.tick()
 
-    def step_vector(self, action):
-        # Absolute joint goals need no Cartesian base/arm reference-mode switch.
-        self.step({part: action[start:end]
-                   for part, (start, end) in self._robot.composite_controller._action_split_indexes.items()})
-
     def stop_part(self, part):
         controller = self._robot.part_controllers[part]
         if part == "base":
@@ -378,6 +373,10 @@ class RoboCasaEnv:
         def update_streams(_action):
             for part, command in self._stream_commands.items():
                 value = command.copy()
+                if part == "base":
+                    from .base import native_command
+
+                    value = native_command(self._robot.part_controllers[part], value)
                 if part == "right_gripper":
                     value = self._robot.gripper["right"].format_action(value)
                 self._robot.part_controllers[part].set_goal(value)

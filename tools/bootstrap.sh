@@ -15,7 +15,7 @@ if [[ -e "$environment_dir" && ! -f "$environment_dir/pyvenv.cfg" ]]; then
   echo 'Refusing an existing target that is not a Python virtual environment.' >&2
   exit 1
 fi
-export UV_CACHE_DIR="$project/.cache/uv"
+# Honor UV_CACHE_DIR, otherwise use uv's shared default cache.
 export PYTHONNOUSERSITE=1
 if [[ ! -f "$environment_dir/pyvenv.cfg" ]]; then
   uv venv --python 3.12 "$environment_dir"

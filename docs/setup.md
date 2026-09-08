@@ -137,3 +137,32 @@ configuration. Image and asset preparation are described in
 For development verification run `bash tools/check.sh`. CPU checks, container
 boot, device conformance, benchmark success, and fresh-process replay are
 separate results.
+
+
+## Local cache and disk usage
+
+`.cache/` contains several kinds of local data:
+
+- `pytest/`: temporary test fixtures and copied workspaces. Pytest removes passing
+  test directories and retains failed-test artifacts from up to three runs.
+  An explicit `--basetemp` overrides pytest’s automatic retention.
+- `roboenv/runs/`: simulation logs, recordings, and evidence. Keep these until you
+  have reviewed or archived the runs; they are not automatically deleted.
+- `roboenv/installations/` and `roboenv/assets/`: interpreter registration and
+  asset verification receipts. Keep them with the installed simulator assets.
+- Simulator asset folders, setup logs, schema dependencies, and build diagnostics.
+
+Install commands honor `UV_CACHE_DIR` and otherwise use uv’s shared default cache,
+so each RoboEnv checkout does not retain its own large set of package downloads.
+Older checkouts may still contain `.cache/uv`. To prune its disposable downloaded
+wheel entries while retaining expensive source builds:
+
+```sh
+du -h --max-depth=1 .cache
+uv cache prune --ci --cache-dir .cache/uv
+```
+
+Pruning uses uv’s cache locking and leaves installed environments in place. Packages
+removed from the cache may need downloading again for a future installation. Do
+not delete all of `.cache/`: run evidence, asset files, and registrations also live
+there. Actual simulator interpreters are separate under `.venv-sim/` by default.

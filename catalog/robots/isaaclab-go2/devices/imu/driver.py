@@ -1,4 +1,4 @@
-"""Portable device driver: stdlib transport and Complex's local kinematics."""
+"""Read-only IMU transport. Profile bias is applied by Complex dispatch."""
 
 import http.client
 import json
@@ -41,6 +41,9 @@ def exchange(endpoint, method, path="/", body=None, destination=None):
 
 
 def remote(action, args):
+    import yaml
+
+    profile = yaml.safe_load(Path(__file__).with_name("profile.yaml").read_text())
     connection = Path(__file__).with_name("connection.json")
     config = json.loads(connection.read_text()) if connection.is_file() else {
         "endpoint": os.environ.get("ROBOENV_ENDPOINT"),
@@ -53,7 +56,7 @@ def remote(action, args):
         import yaml
 
         profile = yaml.safe_load(Path(__file__).with_name("profile.yaml").read_text())
-        endpoint = profile["access"]["url"]
+        endpoint = profile["access"]["connection"]["url"]
     identity = {"protocol": "roboenv/1", "session": config.get("session") or "harbor",
                 "generation": config.get("generation", 0)}
     if endpoint and not config.get("session"):
@@ -65,7 +68,7 @@ def remote(action, args):
         identity = {key: found[key] for key in identity}
     request_id = f"driver-{uuid.uuid4().hex}"
     request = {**identity, "request_id": request_id, "deadline_s": 600,
-               "op": "devices.call", "args": {"device": Path(__file__).parent.name,
+               "op": "devices.call", "args": {"device": profile["access"]["connection"]["device"],
                                                "action": action, "args": args}}
     payload = json.dumps(request, allow_nan=False).encode() + b"\n"
     if len(payload) > MAX_BYTES:
@@ -110,15 +113,8 @@ def remote(action, args):
 
 def handle(action, args):
     try:
-        if action in {"fk", "ik"}:
-            import yaml
-            from complex.kinematics import Kinematics
-
-            profile = yaml.safe_load(Path(__file__).with_name("profile.yaml").read_text())
-            solver = Kinematics(profile["intrinsics"])
-            if action == "ik" and args.get("seed") is None:
-                args = {**args, "seed": solver.project(remote("read", {})["positions"])}
-            return {"ok": True, **getattr(solver, action)(**args)}
+        if action not in {"read", "load", "unload", "status"} or args:
+            raise ValueError("imu accepts read/load/unload/status with no arguments")
         data = remote(action, args)
         return {**(data if isinstance(data, dict) else {"result": data}), "ok": True}
     except WireError as exc:

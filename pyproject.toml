@@ -38,3 +38,5 @@ known-third-party = ["roboenv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+tmp_path_retention_count = 3
+tmp_path_retention_policy = "failed"

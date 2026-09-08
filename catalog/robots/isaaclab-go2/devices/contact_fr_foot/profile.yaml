@@ -1,34 +1,54 @@
-type: other
+type: force_torque
 intrinsics:
   source: introspected
-  notes: Native synthetic contact sensor; force is the net contact force in newtons
-    expressed in the foot frame. No torque measurement.
+  method: introspection
+  calibrated_at: null
+  measurement:
+    quantity: contact_normal
+    target:
+      device: body
+      frame: FR_foot
+    force:
+      axes:
+      - x
+      - y
+      - z
+      range: null
+      resolution: null
+      bias:
+        x: 0
+        y: 0
+        z: 0
+    torque: null
+  sample_rate_hz: null
 extrinsics:
   source: introspected
+  method: introspection
+  calibrated_at: null
   mount:
     parent: body
     parent_frame: FR_foot
-    pose:
-      translation:
-      - 0
-      - 0
-      - 0
-      rotation:
-      - 0
-      - 0
-      - 0
-      - 1
-    convention: "child-in-parent: pose of this device's frame expressed in the parent\
-      \ frame (p_parent = R\xB7p_child + t); quaternion [x,y,z,w]; camera frames are\
-      \ OpenCV optical (+X right, +Y down, +Z forward)"
+    translation_m:
+    - 0
+    - 0
+    - 0
+    rotation_xyzw:
+    - 0
+    - 0
+    - 0
+    - 1
 name: contact_fr_foot
 meta:
   created_at: '2026-09-07T00:00:00Z'
   updated_at: '2026-09-07T00:00:00Z'
 access:
   source: user
-  kind: url
-  url: http://127.0.0.1:8123
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: contact_fr_foot
   driver:
     entry: driver.py
     interpreter: python3

@@ -83,12 +83,15 @@ def descriptors():
         )
         for before, after in zip(values, other.inventory()["devices"], strict=True):
             assert before["intrinsics"] == after["intrinsics"]
-            # Allow floating-point round-off in rigid mount composition.
-            mount = before["extrinsics"].get("mount", {}).get("pose")
-            second = after["extrinsics"].get("mount", {}).get("pose")
-            if isinstance(mount, dict):
-                for key in ("translation", "rotation"):
-                    assert np.allclose(mount[key], second[key], atol=1e-10)
+            mount = before["extrinsics"].get("mount")
+            other_mount = after["extrinsics"].get("mount")
+            if mount is None:
+                assert before["extrinsics"] == after["extrinsics"]
+                continue
+            assert mount["parent"] == other_mount["parent"]
+            assert mount["parent_frame"] == other_mount["parent_frame"]
+            for key in ("translation_m", "rotation_xyzw"):
+                np.testing.assert_allclose(mount[key], other_mount[key], atol=1e-10)
         return values
     finally:
         sim.free()
@@ -110,32 +113,26 @@ def generate(out, provenance=None):
         export_devices(descriptors(), temporary, {"endpoint": "http://127.0.0.1:8123"})
         for path in sorted(Path(temporary).glob("*/profile.yaml")):
             profile = canonical(yaml.safe_load(path.read_text()))
-            if path.parent.name == "body":
-                # The standard mobile rig is rooted at body, independently of
-                # world. Omit mount entirely, rather than requesting calibration.
-                profile["extrinsics"] = {"source": "default"}
             if path.parent.name == "world":
                 # This catalog imposes no additional global workspace AABB.
                 # It does not claim the kitchen is empty or collision-free.
                 profile["intrinsics"].update(
                     source="default",
-                    bounds={"min": [None, None, None], "max": [None, None, None]},
-                    notes="No additional global workspace AABB is imposed by this catalog. "
-                    "Open bounds do not imply collision-free or reachable space. Native "
-                    "joint limits and collisions still apply; perceive scene geometry "
-                    "through cameras.",
+                    bounds=None,
+                    method="unknown",
+                    calibrated_at=None,
                 )
             profile["meta"] = {
                 "created_at": "2026-09-06T00:00:00Z",
-                "updated_at": "2026-09-06T00:00:00Z",
+                "updated_at": "2026-09-08T00:00:00Z",
             }
             destination = out / "devices" / path.parent.name
             destination.mkdir(parents=True, exist_ok=True)
             (destination / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
-            driver = path.with_name("driver.py")
-            if driver.exists():
-                (destination / "driver.py").write_bytes(driver.read_bytes())
+            for support in path.parent.glob("*.py"):
+                (destination / support.name).write_bytes(support.read_bytes())
             # There is deliberately no task or session connection file.
+    (out / "workspace.yaml").write_bytes((ROBOT / "workspace.yaml").read_bytes())
     if provenance is None:
         return
     sources = [
@@ -153,7 +150,16 @@ def generate(out, provenance=None):
         "third_party/robosuite/robosuite/utils/camera_utils.py",
         "runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py",
         "runtime/src/roboenv_runtime/adapters/robocasa/geometry.py",
-        "src/roboenv/assets/device-client.py",
+        "runtime/src/roboenv_runtime/adapters/robocasa/base.py",
+        "src/roboenv/assets/_roboenv.py",
+        "src/roboenv/assets/manipulator-client.py",
+        "runtime/src/roboenv_runtime/bindings/backends/robocasa/manipulator.py",
+        "src/roboenv/assets/camera-client.py",
+        "src/roboenv/assets/gripper-client.py",
+        "src/roboenv/assets/base-client.py",
+        "runtime/src/roboenv_runtime/bindings/backends/robocasa/base.py",
+        "runtime/src/roboenv_runtime/bindings/backends/robocasa/gripper.py",
+        "runtime/src/roboenv_runtime/bindings/backends/robocasa/camera.py",
         "src/roboenv/devices/export.py",
         "runtime/src/roboenv_runtime/adapters/robocasa/depth.py",
         "runtime/src/roboenv_runtime/adapters/robocasa/backend.py",
