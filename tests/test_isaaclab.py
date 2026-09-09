@@ -235,7 +235,7 @@ assert 'isaaclab' not in sys.modules and 'torch' not in sys.modules
     )
 
 
-def test_go2_catalog_and_complex_schema(tmp_path):
+def test_go2_catalog_and_kinex_schema(tmp_path):
     task = resolve_task("isaaclab/go2-posture", project=ROOT)
     body = yaml.safe_load((task.robot / "devices/body/profile.yaml").read_text())
     assert [j["name"] for j in body["intrinsics"]["joints"]] == list(JOINTS)
@@ -256,9 +256,9 @@ def test_go2_catalog_and_complex_schema(tmp_path):
         access = profile["access"]
         assert access["connection"]["url"] == "http://127.0.0.1:8123"
         assert access["driver"]["persistent"] is False
-    complex_root = ROOT.parent / "complex"
-    if not shutil.which("bun") or not (complex_root / "node_modules/zod").exists():
-        pytest.skip("Complex schema check requires sibling Complex and Bun")
+    kinex_root = ROOT.parent / "kinex"
+    if not shutil.which("bun") or not (kinex_root / "node_modules/zod").exists():
+        pytest.skip("Kinex schema check requires sibling Kinex and Bun")
     script = """
 import { Device, RobotManifest } from './src/calibration/schema.ts';
 import { missingActions } from './src/device/interface.ts';
@@ -269,7 +269,7 @@ for await (const file of new Bun.Glob('devices/*/profile.yaml').scan(root)) {
   if (missingActions(p, p.access?.driver?.actions ?? []).length) throw Error(p.name);
 }
 """
-    subprocess.run(["bun", "-e", script, str(task.robot)], cwd=complex_root, check=True)
+    subprocess.run(["bun", "-e", script, str(task.robot)], cwd=kinex_root, check=True)
 
 
 def test_go2_regeneration(tmp_path):

@@ -1,4 +1,4 @@
-"""Export live device facts and thin Complex drivers, without a harness dependency."""
+"""Export live device facts and thin Kinex drivers, without a harness dependency."""
 
 import json
 from datetime import datetime, timezone

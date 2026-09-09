@@ -12,9 +12,9 @@ BODY = ROOT / "catalog/robots/isaaclab-go2/devices/body"
 
 @pytest.fixture
 def legged(monkeypatch):
-    library = ROOT.parent / "complex/python"
-    if not (library / "complex/legged.py").is_file():
-        pytest.skip("Requires Complex's Python legged contract")
+    library = ROOT.parent / "kinex/python"
+    if not (library / "kinex/legged.py").is_file():
+        pytest.skip("Requires Kinex's Python legged contract")
     monkeypatch.syspath_prepend(str(library))
     monkeypatch.syspath_prepend(str(BODY))
     spec = importlib.util.spec_from_file_location("catalog_legged", BODY / "driver.py")

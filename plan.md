@@ -15,7 +15,7 @@ asset preparation, and named device frames. Keep robot differences in rig config
 - Reuse RGB-D, IMU, and per-foot contact bindings. Mount arms/camera on a declared
   moving torso frame and expose only robot-relative named link transforms.
 
-## Complex changes
+## Kinex changes
 
 - Go2 now uses the joint-controlled `legged` type, including driver actions,
   calibration readiness and dynamic frames. Do not revive the legacy `body` type.
@@ -34,7 +34,7 @@ within 500 synchronous control intervals. Keep scoring private.
 
 Validate exact joint ownership/order, fixed-body actuation, native flange vs local
 FK, reachable IK and nonconvergence, moving sensor mounts, persistent targets,
-and copied drivers in Complex. Report CPU checks, RTX boot, device behavior,
+and copied drivers in Kinex. Report CPU checks, RTX boot, device behavior,
 task completion, and fresh-process replay separately.
 
 ## Deferred

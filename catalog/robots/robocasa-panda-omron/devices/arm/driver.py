@@ -1,4 +1,4 @@
-"""Portable device driver: stdlib transport and Complex's local kinematics."""
+"""Portable device driver: stdlib transport and Kinex's local kinematics."""
 
 import sys
 
@@ -13,7 +13,7 @@ remote = transport.remote
 
 def handle(action, args):
     try:
-        from complex.manipulator import Manipulator
+        from kinex.manipulator import Manipulator
 
         profile = settings()
         if action in {"read", "stop", "load", "unload", "status"} and args:

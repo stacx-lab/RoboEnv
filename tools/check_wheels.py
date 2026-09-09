@@ -34,7 +34,7 @@ code = (
     "[importlib.import_module('roboenv_runtime.bindings.backends.' + item['module']) "
     "for item in binding_index().values()];"
     "assert '.whl/' in roboenv.__file__;"
-    "assert not {'torch','mujoco','harbor','roborl','complex'} & sys.modules.keys()"
+    "assert not {'torch','mujoco','harbor','roborl','kinex'} & sys.modules.keys()"
 )
 subprocess.run([sys.executable, "-I", "-c", code], check=True)
 print("Wheel contents and lightweight isolated imports passed.")

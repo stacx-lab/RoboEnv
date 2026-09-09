@@ -1,4 +1,4 @@
-"""Metric depth transport matching the existing Complex RGB-D driver contract."""
+"""Metric depth transport matching the existing Kinex RGB-D driver contract."""
 
 from pathlib import Path
 

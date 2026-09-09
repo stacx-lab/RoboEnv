@@ -136,7 +136,7 @@ mode, route a write through the same native interval implementation. Count physi
 intervals, including idle realtime intervals, according to the declared budget.
 
 Put FK/IK in the manipulator driver. Export static geometry where needed; a serial
-chain can use Complex's `complex.kinematics`. The simulator supplies measured state
+chain can use Kinex's `kinex.kinematics`. The simulator supplies measured state
 and geometry, not a solver RPC. Local computation must not mutate live state.
 
 ## 4. Build a static, portable catalog
@@ -157,16 +157,16 @@ and source receipts in `docs/`. Launch consumes the catalog without modifying it
 
 | Profile field | Content |
 |---|---|
-| `name`, `type` | Logical directory name and Complex device type |
+| `name`, `type` | Logical directory name and Kinex device type |
 | `intrinsics` | Type-specific kinematic model, control, feedback, stop scope, or sensor calibration |
 | `extrinsics.mount` | Explicit parent and parent frame, `translation_m`, and unit `rotation_xyzw` |
 | `access` | Typed `connection`, driver entry/interpreter, and declared actions |
 | `meta` | Required creation/update metadata |
 
-Use the actual Complex schemas and required-action definitions to validate exports.
-Complex’s type templates live in `builtin/device/templates/<type>/`; schemas and
+Use the actual Kinex schemas and required-action definitions to validate exports.
+Kinex’s type templates live in `builtin/device/templates/<type>/`; schemas and
 required actions live in `src/calibration/` and `src/device/interface.ts`. Validate
-against these actual definitions in development, without adding Complex to the
+against these actual definitions in development, without adding Kinex to the
 simulator worker’s dependencies. RoboCasa targets commit `5beca17`.
 
 - Manipulators own `kinematics.model` (including joint order/limits), `kinematics.ik`,
@@ -213,7 +213,7 @@ each typed driver so individual device directories remain portable.
 
 Drivers run in the agent environment, which may have no RoboEnv or simulator
 packages. Transport uses the standard library; typed validation and local
-kinematics use Complex’s Python helpers and PyYAML. Test the copied files in that environment. Camera `file` and
+kinematics use Kinex’s Python helpers and PyYAML. Test the copied files in that environment. Camera `file` and
 `depth_file` paths must remain readable after a one-shot driver exits.
 
 Use `ROBOENV_ENDPOINT` to select a deployment without rewriting profiles. Catalogs
@@ -320,4 +320,4 @@ Run `bash tools/check.sh` after adding positive and negative tests for:
 Report CPU/config checks, GPU boot, device checks, task success, and fresh-process
 replay separately. A recording or successful Harbor load proves none of the latter.
 GPU/model runs require explicit scope; preserve prior evidence. Use
-[Complex local testing](complex-local.md) for copied workspaces and recording.
+[Kinex local testing](kinex-local.md) for copied workspaces and recording.

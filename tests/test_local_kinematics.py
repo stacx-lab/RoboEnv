@@ -13,9 +13,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 ROBOT = ROOT / "catalog/robots/robocasa-panda-omron/devices"
-COMPLEX_PYTHON = ROOT.parent / "complex/python"
-sys.path.insert(0, str(COMPLEX_PYTHON))
-Kinematics = pytest.importorskip("complex.kinematics").Kinematics
+KINEX_PYTHON = ROOT.parent / "kinex/python"
+sys.path.insert(0, str(KINEX_PYTHON))
+Kinematics = pytest.importorskip("kinex.kinematics").Kinematics
 
 
 @pytest.mark.parametrize("name", ["arm", "torso"])
@@ -42,7 +42,7 @@ print(json.dumps(result))
 '''
     result = subprocess.run([sys.executable, "-c", script, str(ROBOT / name / "driver.py")],
                             capture_output=True, text=True, timeout=10,
-                            env={**os.environ, "PYTHONPATH": str(COMPLEX_PYTHON)})
+                            env={**os.environ, "PYTHONPATH": str(KINEX_PYTHON)})
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(result.stdout)["ok"]
 

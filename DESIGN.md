@@ -13,7 +13,7 @@ See [RoboCasa devices](docs/robocasa.md) for implemented semantics and validatio
 | Component | Responsibility |
 |---|---|
 | RoboEnv | World initialization, native device control, time, budgets, authoritative verdicts, evidence |
-| Complex or another harness | Agent execution, permissions, perception, planning, controller programs, model calls |
+| Kinex or another harness | Agent execution, permissions, perception, planning, controller programs, model calls |
 | Harbor | Trial creation, resource/port allocation, harness startup, verifier execution, cleanup |
 
 An arm exposes read/write/stop and kinematics, not `pick_object` or `open_door`.
@@ -67,7 +67,7 @@ remain unknown; an identity transform is not a substitute for missing calibratio
 Different embodiments or sensor arrangements need different configurations. Standard
 RoboCasa tasks share one Panda–Omron configuration. The generic task format also
 supports an explicit device subset or custom binding map; that map replaces the
-whole default list. A copied Complex workspace must match the selected configuration.
+whole default list. A copied Kinex workspace must match the selected configuration.
 A new task with the same hardware should simply reuse the existing robot ID.
 
 ## Launch, attachment, and concurrency
@@ -154,9 +154,9 @@ mount alone does not make privileged data safe to expose.
 | Mobile `body`, `end_effector` | Above, plus `write`, `stop` |
 | `manipulator` | Above, plus `ik`, `fk` |
 | `world` | No driver; profile only |
-| Passive/specialized types | Their actual Complex type contract |
+| Passive/specialized types | Their actual Kinex type contract |
 
-Use Complex's schema and required-action definitions. A manipulator without working
+Use Kinex's schema and required-action definitions. A manipulator without working
 kinematics is not conformant merely because its driver lists `ik` and `fk`.
 Unsupported actions fail explicitly. Do not pad devices with unrelated methods.
 
@@ -171,20 +171,20 @@ Unsupported actions fail explicitly. Do not pad devices with unrelated methods.
   stepped service, an in-flight interval finishes before stop; stop resets the goal
   without another step. This is not a physical emergency-stop guarantee.
 - `fk(joints)` and `ik(pose, seed=...)` convert joint and flange-pose representations
-  locally in the manipulator driver using static profile geometry and Complex
+  locally in the manipulator driver using static profile geometry and Kinex
   utilities. RoboCasa does not expose simulator IK/FK RPCs. An omitted seed requires
   only a joint-state read; solving never alters live state. Exported drivers use
   standalone transport and do not require the RoboEnv SDK in the agent environment.
 - Lifecycle operations affect the device binding, not episode ownership.
 
 A camera read must work before the first motion and return a client-accessible image
-file plus metadata. The file must survive a one-shot driver process so Complex can
+file plus metadata. The file must survive a one-shot driver process so Kinex can
 record it. Explicit SDK client cleanup may remove its downloaded artifacts. RGBD
 requires registered metric depth and calibration, not an unrelated second image.
 
 Device boundaries must support correct frame composition. Static profiles contain
 rigid transforms; moving transforms come from declared robot-state measurements.
-Complex currently treats a manipulator as base plus live flange, and a body as one
+Kinex currently treats a manipulator as base plus live flange, and a body as one
 frame. Therefore RoboCasa keeps its lift as `torso`, a one-joint manipulator, rather
 than merging it into `body` without support for the additional moving frame.
 
@@ -221,24 +221,24 @@ uncertain command with a new request ID; query the allowed original operation st
 Device close never shuts down the world. A new episode has a new identity; backend
 reset/restore support, where present, must invalidate old bindings and handles.
 
-## Complex and Harbor integration
+## Kinex and Harbor integration
 
-Copy `catalog/robots/<robot-id>/` to `.complex/robots/<robot-id>/`, select the robot
-in Complex's project configuration, and set `ROBOENV_ENDPOINT` before starting the
+Copy `catalog/robots/<robot-id>/` to `.kinex/robots/<robot-id>/`, select the robot
+in Kinex's project configuration, and set `ROBOENV_ENDPOINT` before starting the
 harness. Copied drivers use standard-library transport; local IK/FK requires
-Complex's Python library and PyYAML. They do not import RoboEnv or simulator packages.
+Kinex's Python library and PyYAML. They do not import RoboEnv or simulator packages.
 
 Static drivers forward basic operations and adapt result/error shapes. They do not
-start the simulator, contain policies, or generate profiles. Complex discovers the
+start the simulator, contain policies, or generate profiles. Kinex discovers the
 files, supplies tools and permissions, and records sensor outputs. RoboEnv supports
-other harnesses through the same SDK without depending on Complex at runtime.
+other harnesses through the same SDK without depending on Kinex at runtime.
 
 Harbor exports the private task/runtime definition and verifier separately from
 agent-visible configuration. It starts a service, waits for device readiness,
 provides the endpoint to the harness, runs the verifier, and cleans up the world.
 The current RoboCasa Harbor exporter also stages live device descriptors and thin
 drivers under `/run/roboenv/robot`; this is trial-local output, never a catalog write.
-Complex workspace setup remains the harness integration's responsibility.
+Kinex workspace setup remains the harness integration's responsibility.
 
 RoboEnv's verifier uses original success rules, budgets, and owner evidence.
 Agent claims and recording outcome labels do not establish benchmark success.
@@ -254,11 +254,11 @@ must not add public environment methods or copy an old primitive API wholesale.
 
 Verification separates source/config validity, CPU device conformance, actual GPU
 boot, device checks, task success, and fresh-process replay. Test static regeneration,
-unchanged catalogs across launch, Complex schema/driver compatibility, three-camera
+unchanged catalogs across launch, Kinex schema/driver compatibility, three-camera
 routing where applicable, concurrency, and privileged-data rejection. Preserve old
 evidence and record new results honestly; no GPU/model run is implicit in adding docs
 or passing CPU tests.
 
 See [RoboCasa and its catalog](docs/robocasa.md),
-[local Complex recording](docs/complex-local.md), and
+[local Kinex recording](docs/kinex-local.md), and
 [Harbor task generation](docs/harbor-tasks.md) for concrete workflows.

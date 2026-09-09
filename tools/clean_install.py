@@ -92,7 +92,7 @@ def verify(wheels, *, harbor=True, offline=False, out=None):
                 "root = pathlib.Path(sys.prefix).resolve(); "
                 "assert pathlib.Path(roboenv.__file__).resolve().is_relative_to(root); "
                 "assert pathlib.Path(worker.__file__).resolve().is_relative_to(root); "
-                "assert not {'torch', 'mujoco', 'roborl', 'complex'} & sys.modules.keys(); "
+                "assert not {'torch', 'mujoco', 'roborl', 'kinex'} & sys.modules.keys(); "
                 "assert any(item.replace(' ', '').startswith('roboenv[server]==') "
                 "for item in m.requires('roboenv-runtime')); "
                 "assert m.version('roboenv') == m.version('roboenv-runtime')"

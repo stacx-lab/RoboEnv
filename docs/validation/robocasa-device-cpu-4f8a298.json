@@ -33,7 +33,7 @@
   },
   "coverage": {
     "robot_cpu_boot": true,
-    "device_checks": "Native Panda/Omron CPU fixture; joint limits, FK/IK, three synthetic RGB-D HTTP routes; current sibling Complex schema and calibration DAG",
+    "device_checks": "Native Panda/Omron CPU fixture; joint limits, FK/IK, three synthetic RGB-D HTTP routes; current sibling Kinex schema and calibration DAG",
     "catalog_regeneration": true,
     "kitchen_boot": false,
     "gpu_rgbd_rendering": false,

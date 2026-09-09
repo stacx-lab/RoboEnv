@@ -1,4 +1,4 @@
-"""Legged adapter: fenced RoboEnv transport and Complex profile validation."""
+"""Legged adapter: fenced RoboEnv transport and Kinex profile validation."""
 
 import sys
 
@@ -15,7 +15,7 @@ def handle(action, args):
     if action not in {"read", "write", "stop", "load", "unload", "status"}:
         return {"ok": False, "error": f"Unsupported legged action: {action}"}
     try:
-        from complex.legged import command, reading
+        from kinex.legged import command, reading
 
         profile = settings()
         if action != "write" and args:
