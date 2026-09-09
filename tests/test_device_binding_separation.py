@@ -270,12 +270,17 @@ def test_native_read_context_refuses_effectful_backend_operation(robot):
     assert not moved
 
 
-def test_task_export_freezes_explicit_bindings_and_only_selected_client_devices(robot, tmp_path):
+@pytest.mark.parametrize("reference", ["toy-puck", "fakeshell/toy-puck"])
+def test_task_export_freezes_explicit_bindings_and_only_selected_client_devices(
+    robot, tmp_path, reference,
+):
     catalog = tmp_path / "catalog"
-    shutil.copytree(robot, catalog / "robots/toy-puck")
+    target = catalog / "robots" / reference
+    shutil.copytree(robot, target)
     # Native bindings do not need a Python driver in the hardware definition.
-    (catalog / "robots/toy-puck/devices/controller/driver.py").unlink()
+    (target / "devices/controller/driver.py").unlink()
     value = yaml.safe_load((ROOT / "tests/fixtures/native-toy/task.yaml").read_text())
+    value["robot"] = reference
     value["device_bindings"] = {
         "puck": {
             "binding": "fakeshell.puck/1",

@@ -2,8 +2,9 @@
 
 The tool is the same for every simulator — ``vla_run(n_actions, instruction=None,
 policy=<default>)`` running :func:`roboenv_runtime.vla.runner.run_policy` — so it is built
-here, from the policy spec, and attached by :func:`roboenv_runtime.core.adapter.make_adapter`
-to any adapter whose simulator has a registered hooks factory.  Adapters stay
+here, from the policy spec. :func:`roboenv_runtime.core.adapter.make_adapter`
+attaches it only for enabled adapters; native LIBERO comparisons opt in through
+:func:`build_vla_tool` under exclusive evaluation-harness ownership. Adapters stay
 untouched: they only provide the hooks (observation, one control step, budget)
 in a module of their own.  The tool's docstring, the part the model reads,
 comes from the spec's ``tool_doc`` so it describes *that* policy's strengths.
@@ -129,12 +130,8 @@ def attach_vla_tool(adapter: Any, simulator: str) -> Any:
     adapter that already exports its own ``vla_run`` (RoboDojo) keeps it.  Returns the
     adapter.
 
-    Nothing here touches the adapter's state.  It used to ask ``adapter.tools()``
-    whether a ``vla_run`` was already there, which built the tool cache *before the
-    first* ``reset`` — and cap-x rebuilds LIBERO's env on reset, so every cached LIBERO
-    tool then closed over a stale environment: eight certified solutions replayed to
-    0.0 (round-4 integration, 2026-08-28).  The check now happens inside the wrapper,
-    where ``setdefault`` costs nothing and reads the tools the adapter really has.
+    Read tools inside the wrapper so reset cannot leave cached tools pointing
+    at a retired environment.
     """
     if simulator not in HOOKS:
         return adapter

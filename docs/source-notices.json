@@ -112,6 +112,15 @@
           "sha256": "df351ebfa8af317bf5a9ad83df63a8b68e4f5c04b71f30767cdb27aa434eac62"
         }
       ]
+    },
+    "libero": {
+      "revision": "8f1084e3132a39270c3a13ebe37270a43ece2a01",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "e2885fd30a08381b799c4a33385522b23d637b4051b8f9a7f9f2519944b68ff6"
+        }
+      ]
     }
   }
 }

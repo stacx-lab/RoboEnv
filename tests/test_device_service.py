@@ -221,12 +221,13 @@ def test_all_catalogs_load_without_contacting_simulators():
     )
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
-    for robot in sorted((ROOT / "catalog/robots").iterdir()):
+    for workspace in sorted((ROOT / "catalog/robots").rglob("workspace.yaml")):
         from roboenv.devices.bindings.spec import binding_path
 
+        robot = workspace.parent
         raw = yaml.safe_load(binding_path(robot).read_text())
         plan = BindingPlan.load(robot, backend=raw["backend"])
-        if raw["backend"] in {"robocasa", "isaaclab"}:
+        if raw["backend"] in {"robocasa", "isaaclab", "libero"}:
             # Offline definitions validate without a world; native bindings require
             # real model/controller facts, covered by backend conformance tests.
             assert all(spec.definition(robot) for spec in plan.devices)
@@ -240,15 +241,15 @@ def test_all_catalogs_load_without_contacting_simulators():
 
 
 def test_server_reads_cannot_bypass_submission_or_return_fake_poses(tmp_path):
-    # The production LIBERO driver uses pure tcp(), which must be advertised read-only.
+
     class World(FakeShell):
-        name, embodiment = "libero", "panda"  # CPU stub of the legacy public LIBERO surface
+        name, embodiment = "robodojo", "arx_x5"
 
         def tools(self):
             return {
                 **super().tools(),
-                "get_hand_pose": lambda: [0, 0, 0, 1, 0, 0, 0],
-                "tcp": lambda: [0, 0, 0],
+                "get_gripper_pose": lambda: [0, 0, 0, 1, 0, 0, 0],
+                "get_gripper_state": lambda: 0,
                 "get_step_budget": lambda: self.budget().as_dict(),
                 "goto_pose": lambda *args: None,
             }
@@ -258,7 +259,7 @@ def test_server_reads_cannot_bypass_submission_or_return_fake_poses(tmp_path):
         task_id="test",
         seed=0,
         run_dir=tmp_path,
-        device_root=ROOT / "catalog/robots/libero-panda",
+        device_root=ROOT / "catalog/robots/robodojo-arx-x5",
     )
     try:
         result = worker.dispatch("devices.call", {"device": "arm", "action": "read", "args": {}})
@@ -393,7 +394,7 @@ def test_camera_artifact_uses_shared_path_and_rejects_traversal(tmp_path):
     import numpy as np
 
     class CameraWorld(FakeShell):
-        name, embodiment = "libero", "panda"  # CPU camera stub, not a GPU replay
+        name, embodiment = "robodojo", "arx_x5"
 
         def capture(self):
             return np.zeros((8, 8, 3), dtype=np.uint8)
@@ -403,7 +404,7 @@ def test_camera_artifact_uses_shared_path_and_rejects_traversal(tmp_path):
         task_id="test",
         seed=0,
         run_dir=tmp_path,
-        device_root=ROOT / "catalog/robots/libero-panda",
+        device_root=ROOT / "catalog/robots/robodojo-arx-x5",
     )
     try:
         result = worker.dispatch(

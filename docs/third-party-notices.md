@@ -11,6 +11,7 @@ It neither grants a license to Roboenv nor transfers upstream copyrights.
 | Locked source | Notices inspected within that checkout |
 |---|---|
 | capx | LICENSE (MIT text) |
+| libero | LICENSE (MIT text) |
 | libero_pro | LICENSE (MIT text) |
 | libero_robosuite | LICENSE (MIT text) |
 | robocasa | LICENSE (MIT text) |

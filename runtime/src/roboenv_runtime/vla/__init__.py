@@ -6,10 +6,14 @@
 * :mod:`roboenv_runtime.vla.runner` — the shared ``vla_run`` loop and its before/after report
 
 Adapters add a ``vla_run`` tool by implementing :class:`roboenv_runtime.vla.runner.VlaHooks`
-(see ``roboenv_runtime/adapters/libero/vla.py``); the worker's ``vla`` operation and
+(see ``roboenv_runtime/adapters/robotwin/vla.py``); the worker's ``vla`` operation and
 ``finalize``'s action accounting work unchanged.  The client (``roboenv_runtime.vla.client``)
 needs ``msgpack`` and ``websockets`` and is imported where it is used, so this
 package imports cleanly in every simulator interpreter.
+
+LIBERO also provides explicit native hooks for synchronous, bounded comparisons.
+They are not automatically attached to its typed-device adapter; an evaluation
+harness must opt in and own inference. RoboCasa's historical hook is not migrated.
 """
 
 from roboenv_runtime.vla.runner import VlaHooks, run_policy

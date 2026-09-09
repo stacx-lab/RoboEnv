@@ -76,7 +76,7 @@ def test_every_source_and_patch_is_pinned_and_public():
                 hashlib.sha256((root / patch["path"]).read_bytes()).hexdigest() == patch["sha256"]
             )
     assert set(selected_sources(lock, ["robocasa"])) == {"robocasa", "robosuite"}
-    assert set(selected_sources(lock, ["libero"])) == {"capx", "libero_pro", "libero_robosuite"}
+    assert set(selected_sources(lock, ["libero"])) == {"libero"}
     assert "libero_pro" not in selected_sources(lock, ["robotwin"])
     with pytest.raises(ValueError, match="unknown"):
         selected_sources(lock, ["not-a-backend"])

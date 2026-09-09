@@ -4,7 +4,7 @@ import hashlib
 import json
 
 import pytest
-from helpers import ROOT, load_tool
+from helpers import ROOT
 from roboenv.provisioning.setup import _requirements
 
 
@@ -62,17 +62,3 @@ def test_libero_evidence_preserves_history_and_does_not_claim_broad_replay():
     assert replay["reference_replay_passed"]
     assert replay["verdict"]["reward"] == 1.0
     assert replay["verdict"]["budget"] == replay["post_submit_budget"]
-
-
-def test_candidate_probe_is_isolated_and_never_forwards_credentials(tmp_path, monkeypatch):
-    for name in ("EXAMPLE_API_KEY", "HF_TOKEN", "PYTHONPATH"):
-        monkeypatch.setenv(name, "not-forwarded")
-    monkeypatch.setenv("ROBOENV_DETERMINISTIC_IK", "0")
-    result = load_tool("replay_libero_candidate").environment(ROOT, tmp_path, "device-probe", 3)
-    assert not {"EXAMPLE_API_KEY", "HF_TOKEN", "PYTHONPATH"} & result.keys()
-    assert result["ROBOENV_DETERMINISTIC_IK"] == "1"
-    assert result["MUJOCO_EGL_DEVICE_ID"] == result["CUDA_VISIBLE_DEVICES"] == "3"
-    for name in ("LIBERO_CONFIG_PATH", "ROBOT_DESCRIPTIONS_CACHE"):
-        from pathlib import Path
-
-        assert Path(result[name]).is_relative_to(tmp_path)

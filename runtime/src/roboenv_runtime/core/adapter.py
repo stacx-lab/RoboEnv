@@ -312,7 +312,7 @@ def make_adapter(name: str, **kwargs: Any) -> EnvAdapter:
     try:  # pretrained policies as tools (roboenv_runtime.vla) — optional, never fatal
         from roboenv_runtime.vla.attach import attach_vla_tool
 
-        if name not in {"robocasa", "isaaclab"}:
+        if name not in {"robocasa", "isaaclab", "libero"}:
             attach_vla_tool(adapter, name)
     except Exception as exc:
         logging.getLogger(__name__).debug("vla tool not attached to %s: %s", name, exc)

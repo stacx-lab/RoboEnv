@@ -1,6 +1,0 @@
-# Default libero native-runtime Git source identities.
-# Promoted from libero.candidate-source-pins.txt; historical input and validation evidence are retained.
-# Use normal dependency resolution; source-only checkouts are declared by the environment recipe.
-
-jaxls @ git+https://github.com/brentyi/jaxls.git@6fe7cf9d56223736b2c0272d080ec7346203c648
-

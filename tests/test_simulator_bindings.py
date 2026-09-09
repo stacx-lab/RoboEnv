@@ -44,15 +44,15 @@ def test_every_catalog_slot_has_a_registered_non_catalog_implementation(robot):
         service.close()
 
 
-def libero_service(controllers):
-    robot = ROOT / "catalog/robots/libero-panda"
-    plan = BindingPlan.load(robot, backend="libero")
-    context = BindingContext("libero", "panda", object(), public_tools=controllers)
+def robodojo_service(controllers):
+    robot = ROOT / "catalog/robots/robodojo-arx-x5"
+    plan = BindingPlan.load(robot, backend="robodojo")
+    context = BindingContext("robodojo", "arx_x5", object(), public_tools=controllers)
     return default_registry().assemble(plan, robot, context)
 
 
 def test_missing_controller_is_reported_before_execution():
-    service = libero_service({})
+    service = robodojo_service({})
     try:
         assert service.describe("arm")["actions"]["write"]["supported"] is False
         with pytest.raises(DeviceError, match="unavailable"):
@@ -63,10 +63,10 @@ def test_missing_controller_is_reported_before_execution():
 
 def test_cartesian_write_converts_xyzw_and_preserves_counted_controller_calls():
     calls = []
-    service = libero_service(
+    service = robodojo_service(
         {
             "goto_pose": lambda xyz, quat: calls.append((xyz, quat)),
-            "tcp": lambda: [0.2, 0.1, 0.3],
+            "get_gripper_pose": lambda: [0.2, 0.1, 0.3],
         }
     )
     try:
@@ -74,7 +74,9 @@ def test_cartesian_write_converts_xyzw_and_preserves_counted_controller_calls():
             {"device": "arm", "action": "write", "args": {"target": [0.2, 0.1, 0.3, 0, 0, 0, 1]}}
         )
         assert calls == [([0.2, 0.1, 0.3], [1, 0, 0, 0])]
-        assert [entry["args"]["name"] for entry in result["calls"]] == ["goto_pose", "tcp"]
+        assert [entry["args"]["name"] for entry in result["calls"]] == [
+            "goto_pose", "get_gripper_pose",
+        ]
         assert all(entry["op"] == "binding.controller" for entry in result["calls"])
         with pytest.raises(DeviceError):
             service.call({"device": "arm", "action": "write", "args": {"target": [0, 0]}})
@@ -92,12 +94,13 @@ def test_controllers_cannot_execute_during_binding_construction():
 
 
 def test_device_and_primitive_calls_share_worker_accounting(tmp_path):
+
     class ArmWorld(FakeShell):
-        name = "libero"
-        embodiment = "panda"
+        name = "robodojo"
+        embodiment = "arx_x5"
 
         def tools(self):
-            return {"goto_pose": self.goto_pose, "tcp": lambda: list(self.pos)}
+            return {"goto_pose": self.goto_pose, "get_gripper_pose": lambda: list(self.pos)}
 
         def goto_pose(self, xyz, quat=None):
             return self.push(dx=xyz[0] - self.pos[0])
@@ -107,7 +110,7 @@ def test_device_and_primitive_calls_share_worker_accounting(tmp_path):
         task_id="test",
         seed=0,
         run_dir=tmp_path,
-        device_root=ROOT / "catalog/robots/libero-panda",
+        device_root=ROOT / "catalog/robots/robodojo-arx-x5",
     )
     try:
         worker.dispatch(

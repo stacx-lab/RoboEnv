@@ -1,8 +1,13 @@
 id: libero/mug-into-microwave
 backend: libero
 backend_task: libero.10_9
-robot: libero-panda
-instruction: Put the yellow and white mug into the microwave and close it
+robot: libero/libero-panda-kitchen
+instruction: put the yellow and white mug in the microwave and close it
+backend_kwargs:
+  realtime: true
+  suite_name: libero_10
+  task_id: 9
+  init_state_index: 0
 seed: 0
-budget_mode: official
-backend_kwargs: {"suite_name":"libero_10","task_id":9}
+budget_mode: practice
+action_abstraction: devices

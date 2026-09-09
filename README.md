@@ -53,6 +53,42 @@ Launch streams simulator stdout/stderr to the terminal's stderr and retains the
 run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready.
 Python callers can enable streaming with `log_stream=sys.stderr`.
 
+Official LIBERO uses the same typed device path with complete scene-specific Panda
+catalogs in `catalog/robots/libero/libero-panda-{tabletop,floor,kitchen,living-room,study}/`.
+Each task selects its robot by a relative catalog path, such as
+`robot: libero/libero-panda-kitchen`; each scene directory contains its full device
+profiles and native mounting geometry.
+Run `roboenv prepare libero` and `roboenv launch libero/bowl-onto-plate`.
+Its absolute joint control is explicitly a practice protocol, not the published OSC
+benchmark action space. `tools/accept_libero.py --out OUTPUT` runs native device,
+transport, Kinex recording and fresh-process replay gates without model calls;
+task-solving acceptance uses Kinex's `examples/simulator-acceptance/libero.json`.
+
+The checked-in LIBERO tasks are `bowl-onto-plate` (grasp/place),
+`close-top-drawer` (close drawer), `bowl-into-bottom-drawer` (place the bowl,
+then close), and `mug-into-microwave` (place the mug, then close).
+The latter two are multi-stage LIBERO-Long stress cases, selected for
+combined object and articulated-fixture manipulation, not an official per-task
+difficulty ranking. Discovery covers all 130 native tasks and selects each scene's
+robot catalog from the task's BDDL problem type. Each catalog includes portable
+copies of the shared device drivers.
+The additional `drawer-and-bowl` example maps to `libero_90` task 8: open the
+top drawer and put the bowl inside. It uses the kitchen Panda catalog.
+
+For an explicit VLA comparison, `roboenv_runtime.adapters.libero.vla.LiberoPolicyHooks` adapts
+the same native world to OpenPI observations and OSC pose actions. An evaluation
+harness can call `build_vla_tool(adapter, "libero")` from
+`roboenv_runtime.vla.attach` after resetting a `LiberoAdapter` with
+`realtime=False`, finite `max_steps`, and both cameras enabled. The call owns
+the world exclusively until it returns; it restores joint control even when
+inference fails. Policy transitions and actions are recorded for the same
+owner replay tool. This opt-in path preserves local initialization and latched
+success semantics; it is not an official LIBERO baseline. The default Kinex
+workspace exposes only devices. Install the runtime's `vla` extra in the
+simulator interpreter for policy-server communication. Policy weights and their
+interpreter are separate prerequisites; native bridge checks do not certify
+model performance.
+
 RoboCasa’s typed catalog contains arm, torso, base, gripper, three RGB-D cameras,
 and world, using Kinex’s current device schemas. It implements the device-first API: `env.task`, `env.devices()`, and
 `env.device(name)`. Drivers expose only their type's basic operations. The world advances

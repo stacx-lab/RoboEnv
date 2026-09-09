@@ -82,14 +82,18 @@ class Task:
                 if len(parts) != 2 or parts[0] != task.backend:
                     raise ValueError("task id must use simulator/task_name with its backend")
                 item = parts[1]
-            if (
-                not isinstance(item, str)
-                or not item
-                or not item[0].isalnum()
+            if not isinstance(item, str):
+                raise ValueError(f"invalid task {name}")
+            # Robot references are relative catalog paths, including backend groups.
+            parts = item.split("/") if name == "robot" else [item]
+            if any(
+                not part
+                or not part[0].isalnum()
                 or any(
                     c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-"
-                    for c in item
+                    for c in part
                 )
+                for part in parts
             ):
                 raise ValueError(f"invalid task {name}")
         if not isinstance(task.instruction, str) or not task.instruction.strip():

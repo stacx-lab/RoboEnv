@@ -26,8 +26,6 @@ from typing import Any
 
 import numpy as np
 
-from roboenv_runtime.vla import msgpack_numpy
-
 __all__ = [
     "WebsocketPolicyClient",
     "quat_xyzw_to_axisangle",
@@ -43,6 +41,7 @@ class WebsocketPolicyClient:
 
     def __init__(self, url: str, *, connect_timeout_s: float = 30.0, api_key: str | None = None):
         import websockets.sync.client
+        from roboenv_runtime.vla import msgpack_numpy
 
         self.url = url if url.startswith("ws") else f"ws://{url}"
         self._packer = msgpack_numpy.Packer()
@@ -80,6 +79,8 @@ class WebsocketPolicyClient:
         ``reset_rng`` restores the policy's sampling key first (servers started by
         ``roboenv_runtime.vla.serve_openpi``), which is what makes a replay reproduce.
         """
+        from roboenv_runtime.vla import msgpack_numpy
+
         if reset_rng is not None and self.supports_rng_reset:
             obs = {**obs, "__roboenv_reset_rng__": reset_rng}
         self._ws.send(self._packer.pack(obs))

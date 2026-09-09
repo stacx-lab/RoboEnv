@@ -37,7 +37,7 @@ def inputs(tmp_path):
     return wheel, deployments
 
 
-def test_default_preparation_covers_eight_references_without_execution(tmp_path, monkeypatch):
+def test_default_preparation_excludes_retired_libero_references(tmp_path, monkeypatch):
     tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     monkeypatch.setattr(
@@ -45,7 +45,7 @@ def test_default_preparation_covers_eight_references_without_execution(tmp_path,
     )
     out = tmp_path / "validation"
     receipt = tool.prepare(deployments, wheel, out)
-    assert len(receipt["cases"]) == 8
+    assert len(receipt["cases"]) == 6
     assert receipt["phase"] == "prepared" and receipt["model_calls"] == 0
     assert receipt["reference_official"] is False
     assert receipt["harbor_loader_validated"] is True
@@ -55,7 +55,7 @@ def test_default_preparation_covers_eight_references_without_execution(tmp_path,
         tool.prepare(deployments, wheel, out)
 
 
-def test_seven_probe_plans_use_explicit_behavior_scene_and_yam_config(tmp_path):
+def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_path):
     tool = load_tool("validate_simulators")
     source = tmp_path / "source/behavior-probe"
     source.mkdir(parents=True)
@@ -72,7 +72,10 @@ def test_seven_probe_plans_use_explicit_behavior_scene_and_yam_config(tmp_path):
     cases = tool.select_cases(
         source=source.parent, backends=[*tool.DEFAULT_BACKENDS, "behavior"], modes=["probe"]
     )
-    assert len(cases) == 7
+    assert len(cases) == 8
+    assert {task.robot for _, task, _, _ in cases if task.backend == "libero"} == {
+        "libero/libero-panda-tabletop", "libero/libero-panda-kitchen",
+    }
     yam = next(task for _, task, _, _ in cases if task.robot == "robodojo-yam")
     assert yam.backend_kwargs["env_cfg_type"] == "yam"
     aloha = next(task for _, task, _, _ in cases if task.robot == "robotwin-aloha-agilex")
@@ -86,12 +89,12 @@ def test_seven_probe_plans_use_explicit_behavior_scene_and_yam_config(tmp_path):
     prepared = tool.prepare(
         deployments,
         wheel,
-        tmp_path / "seven-probes",
+        tmp_path / "probes",
         source=source.parent,
         backends=[*tool.DEFAULT_BACKENDS, "behavior"],
         modes=["probe"],
     )
-    assert len(prepared["cases"]) == 7 and prepared["harbor_loader_validated"]
+    assert len(prepared["cases"]) == 8 and prepared["harbor_loader_validated"]
     task["backend_kwargs"].pop("scene_model")
     (source / "task.yaml").write_text(yaml.safe_dump(task))
     with pytest.raises(ValueError, match="explicit scene_model"):
@@ -108,7 +111,7 @@ def write_trial(out, record, *, reward, program_completed=True):
             "request": {"op": "devices.call", "args": {"device": name, "action": "read"}},
             "response": {"ok": True, "result": {"read_only": True}},
         }
-        for name in record["expected_devices"]
+        for name in record["expected_reads"]
     ]
     raw = "".join(json.dumps(event) + "\n" for event in events)
     (trial / "verifier/actions.jsonl").write_text(raw)
@@ -159,7 +162,13 @@ def test_runner_classifies_real_success_separately_from_probe_connectivity(
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
-        deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"], modes=[mode]
+        deployments,
+        wheel,
+        out,
+        backends=["robotwin"],
+        cases=["robotwin/handover-mic"],
+        robots=["robotwin-dual-piper"],
+        modes=[mode],
     )
     calls = []
 
@@ -190,7 +199,12 @@ def test_missing_completion_or_modified_journal_cannot_certify_a_reference(tmp_p
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
-        deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"]
+        deployments,
+        wheel,
+        out,
+        backends=["robotwin"],
+        cases=["robotwin/handover-mic"],
+        robots=["robotwin-dual-piper"],
     )
     record = receipt["cases"][0]
     trial = write_trial(out, record, reward=1, program_completed=False)
@@ -221,7 +235,14 @@ def test_unavailable_image_is_a_recorded_preflight_failure_not_a_trial(tmp_path,
     tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
-    tool.prepare(deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"])
+    tool.prepare(
+        deployments,
+        wheel,
+        out,
+        backends=["robotwin"],
+        cases=["robotwin/handover-mic"],
+        robots=["robotwin-dual-piper"],
+    )
 
     def fail(*args, **kwargs):
         raise FileNotFoundError("fixture Docker unavailable")
@@ -239,7 +260,12 @@ def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path,
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
-        deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"]
+        deployments,
+        wheel,
+        out,
+        backends=["robotwin"],
+        cases=["robotwin/handover-mic"],
+        robots=["robotwin-dual-piper"],
     )
     program = out / "taskset" / receipt["cases"][0]["path"] / "solution/solution.py"
     program.write_text("# changed after preparation\n")
@@ -250,8 +276,10 @@ def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path,
 
 def test_case_selection_alone_narrows_probe_backends_without_guessing():
     tool = load_tool("validate_simulators")
-    cases = tool.select_cases(cases=["libero/drawer-and-bowl"], modes=["probe"])
-    assert len(cases) == 1 and cases[0][1].backend == "libero"
+    cases = tool.select_cases(
+        cases=["robotwin/handover-mic"], robots=["robotwin-dual-piper"], modes=["probe"]
+    )
+    assert len(cases) == 1 and cases[0][1].backend == "robotwin"
 
 
 def test_failed_advertised_device_read_has_a_failure_category_without_harbor_exception(tmp_path):
@@ -264,6 +292,7 @@ def test_failed_advertised_device_read_has_a_failure_category_without_harbor_exc
         "seed": 0,
         "mode": "probe",
         "expected_devices": ["left_arm", "world"],
+        "expected_reads": ["left_arm", "world"],
     }
     trial = write_trial(tmp_path, record, reward=0, program_completed=False)
     path = trial / "verifier/actions.jsonl"
@@ -280,3 +309,53 @@ def test_failed_advertised_device_read_has_a_failure_category_without_harbor_exc
     assert not evidence["device_read_probe_passed"]
     assert evidence["failure_category"] == "device-read-failed"
     assert evidence["failed_device_reads"] == ["world"]
+
+
+@pytest.mark.parametrize("backend,world_readable", [("libero", False), ("robocasa", False),
+                                                   ("robotwin", True)])
+def test_probe_reads_match_evidence_for_native_and_controller_worlds(
+    tmp_path, monkeypatch, backend, world_readable,
+):
+    tool = load_tool("validate_simulators")
+    wheel, deployments = inputs(tmp_path)
+    receipt = tool.prepare(deployments, wheel, tmp_path / "prepared", backends=[backend],
+                           modes=["probe"], seeds=[0])
+    record = next(r for r in receipt["cases"] if "world" in r["expected_devices"])
+    assert "world" in record["expected_devices"]
+    assert ("world" in record["expected_reads"]) == world_readable
+    reads = []
+    inventory = {"schema_version": "roboenv/devices/1", "devices": [
+        {"name": name, "type": "world" if name == "world" else "other", "actions": {
+            "read": {"supported": True, "read_only": True},
+        } if name in record["expected_reads"] else {}}
+        for name in record["expected_devices"]
+    ]}
+
+    def read(name):
+        reads.append(name)
+        return {"read_only": True}
+
+    monkeypatch.setattr("roboenv.client.Client", lambda: SimpleNamespace(
+        devices=lambda: inventory,
+        device=lambda name: SimpleNamespace(read=lambda: read(name)),
+    ))
+    exec(tool._probe_program(record["expected_devices"], record["expected_reads"]), {})
+    assert reads == record["expected_reads"]
+    trial = write_trial(tmp_path / "evidence", record, reward=0)
+    assert tool._trial_evidence(record, trial / "result.json")["device_read_probe_passed"]
+
+
+def test_original_version_one_probe_receipts_keep_their_read_requirements(tmp_path):
+    tool = load_tool("validate_simulators")
+    record = {
+        "id": "original-probe", "name": "roboenv/original-probe", "seed": 0,
+        "backend_task": "robotwin.handover_mic", "program_sha256": "a" * 64,
+        "mode": "probe", "expected_devices": ["left_arm", "world"],
+    }
+    for reads in (["left_arm", "world"], ["left_arm"]):
+        trial = write_trial(tmp_path / str(len(reads)), {**record, "expected_reads": reads},
+                            reward=0)
+        evidence = tool._trial_evidence(record, trial / "result.json")
+        assert evidence["device_read_probe_passed"] == (len(reads) == 2)
+        if len(reads) == 1:
+            assert evidence["failure_category"] == "incomplete-device-read-evidence"
