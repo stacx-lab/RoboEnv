@@ -58,6 +58,61 @@ def test_control_interval_samples_imu_once_per_physics_step():
     assert all(sensor.elapsed == pytest.approx(CONTROL_DT) for sensor in env.scene.values())
 
 
+def test_native_go2_write_read_and_stop_preserve_declared_clock():
+    from roboenv_runtime.adapters.isaaclab.backend import IsaacLabEnv
+    from roboenv_runtime.adapters.isaaclab.rig import PHYSICS_DT
+
+    class Tensor(np.ndarray):
+        def cpu(self):
+            return self
+
+        def numpy(self):
+            return np.asarray(self)
+
+    def tensor(values):
+        return SimpleNamespace(torch=np.asarray(values, dtype=float).view(Tensor))
+
+    measured = facts()["home"]
+    data = SimpleNamespace(
+        joint_pos=tensor([measured]), joint_vel=tensor([[0] * 12]),
+        root_link_pose_w=tensor([[10, 20, 30, 0, 0, 0, 1]]),
+        body_link_pose_w=tensor([[[10, 20, 29.7, 0, 0, 0, 1]] * 4]),
+    )
+    env = IsaacLabEnv.__new__(IsaacLabEnv)
+    env.model, env.steps, env.held = facts(), 0, 0
+    env.joint_ids, env.foot_ids = list(range(12)), list(range(4))
+    env.target = np.array([measured])
+    env.torch = SimpleNamespace(
+        as_tensor=lambda value, device, dtype: np.asarray(value, dtype=dtype)
+    )
+    env.robot = SimpleNamespace(data=data, set_joint_position_target_index=lambda **kw: None)
+    steps = []
+    env.sim = SimpleNamespace(device="cpu", step=lambda **kw: steps.append(PHYSICS_DT))
+
+    class Scene(dict):
+        def write_data_to_sim(self):
+            pass
+
+        def update(self, dt):
+            assert dt == PHYSICS_DT
+
+    env.scene = Scene({name: SimpleNamespace(data={}) for name in ("imu", *FEET)})
+    for _ in range(2):
+        assert env.write(facts()["posture"]) == {"accepted": True}
+    assert len(steps) == 8
+    state = env.read_body()
+    assert state["sample_time_s"] == .04 and state["positions"] == measured
+    assert state["pose"] is None and state["body_velocities"] == state["efforts"] == []
+    assert np.allclose(state["frame_poses"][FEET[0]], [0, 0, -.3, 0, 0, 0, 1])
+    env.stop()
+    assert np.allclose(env.target[0], measured)
+    assert env.read_body()["sample_time_s"] == .04 and len(steps) == 8
+    env.steps = 500
+    with pytest.raises(ValueError, match="budget exhausted"):
+        env.write(facts()["posture"])
+    assert len(steps) == 8
+
+
 class World:
     """Native effects spy: tests exercise the real binding and DeviceService."""
 
@@ -78,6 +133,7 @@ class World:
         return {
             "positions": self.target,
             "velocities": [0.0] * 12,
+            "efforts": [], "pose": None, "body_velocities": [], "faults": [],
             "frame_poses": {foot: [0, 0, 0, 0, 0, 0, 1] for foot in FEET},
             "sample_time_s": self.steps * 0.02,
         }
@@ -183,22 +239,22 @@ def test_go2_catalog_and_complex_schema(tmp_path):
     task = resolve_task("isaaclab/go2-posture", project=ROOT)
     body = yaml.safe_load((task.robot / "devices/body/profile.yaml").read_text())
     assert [j["name"] for j in body["intrinsics"]["joints"]] == list(JOINTS)
-    assert body["intrinsics"]["home_joints"] == facts()["home"]
+    assert body["type"] == "legged"
+    assert [body["intrinsics"]["home"][name] for name in JOINTS] == facts()["home"]
     assert body["extrinsics"]["frames"] == list(FEET)
     assert "mount" not in body["extrinsics"]
     for driver in task.robot.glob("devices/*/driver.py"):
         profile = yaml.safe_load(driver.with_name("profile.yaml").read_text())
-        typed = profile["type"] in {"force_torque", "imu"}
-        asset = (
-            "imu-client.py"
-            if profile["type"] == "imu"
-            else "force-torque-client.py"
-            if typed
-            else "device-client.py"
-        )
+        from roboenv.devices.export import DRIVERS, PORTABLE_TYPES
+
+        asset = DRIVERS[profile["type"]]
         assert driver.read_bytes() == (ROOT / "src/roboenv/assets" / asset).read_bytes()
+        if profile["type"] in PORTABLE_TYPES:
+            assert driver.with_name("_roboenv.py").read_bytes() == (
+                ROOT / "src/roboenv/assets/_roboenv.py"
+            ).read_bytes()
         access = profile["access"]
-        assert (access["connection"]["url"] if typed else access["url"]) == "http://127.0.0.1:8123"
+        assert access["connection"]["url"] == "http://127.0.0.1:8123"
         assert access["driver"]["persistent"] is False
     complex_root = ROOT.parent / "complex"
     if not shutil.which("bun") or not (complex_root / "node_modules/zod").exists():
@@ -238,6 +294,53 @@ def test_go2_regeneration(tmp_path):
     for path in output.rglob("*"):
         if path.is_file():
             assert path.read_bytes() == (ROOT / "catalog" / path.relative_to(output)).read_bytes()
+
+
+def test_go2_catalog_regenerates_from_recorded_facts_and_exports_legged(tmp_path, rig):
+    import runpy
+
+    from roboenv.devices.export import export_devices
+
+    output = tmp_path / "catalog"
+    generator = runpy.run_path(str(ROOT / "tools/generate_isaaclab_config.py"))
+    generator["generate"](output, facts())
+    for path in output.rglob("*"):
+        if path.is_file():
+            assert path.read_bytes() == (ROOT / "catalog" / path.relative_to(output)).read_bytes()
+    _, service = rig
+    descriptor = service.describe("body")
+    assert descriptor["type"] == "legged"
+    exported = tmp_path / "exported"
+    export_devices([descriptor], exported, {"endpoint": "http://localhost:8123"})
+    profile = yaml.safe_load((exported / "body/profile.yaml").read_text())
+    assert profile["access"]["connection"]["device"] == "body"
+    assert "control_mode" not in profile["access"]
+    assert profile["intrinsics"]["control"]["execution"] == {
+        "mode": "stepped", "interval_s": .02,
+    }
+    assert (exported / "body/driver.py").read_bytes() == (
+        ROOT / "src/roboenv/assets/legged-client.py"
+    ).read_bytes()
+    assert (exported / "body/_roboenv.py").is_file()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("control", {"mode": "joint_position", "execution": {"mode": "stepped", "interval_s": .01}}),
+    ("feedback", {"pose_frame": "world"}),
+    ("stop", {"behavior": "halt", "affected_devices": ["body"]}),
+])
+def test_go2_binding_rejects_false_control_and_feedback(tmp_path, field, value):
+    from roboenv_runtime.bindings.backends.isaaclab.devices import bind
+
+    task = resolve_task("isaaclab/go2-posture", project=ROOT)
+    spec = next(s for s in task.bindings.devices if s.entity == "body")
+    profile = yaml.safe_load((task.robot / spec.profile).read_text())
+    profile["intrinsics"][field] = value
+    (tmp_path / "profile.yaml").write_text(yaml.safe_dump(profile))
+    context = BindingContext("isaaclab", "go2", SimpleNamespace(_env=World()),
+                             devices={"body": "body"})
+    with pytest.raises(ValueError, match="body.intrinsics.*native Go2 profile"):
+        bind(replace(spec, profile="profile.yaml"), tmp_path, context)
 
 
 def test_native_go2_in_prepared_interpreter(tmp_path):
@@ -318,7 +421,7 @@ def test_contact_profiles_regenerate_and_export_with_typed_connections(tmp_path,
         assert profile["access"]["connection"]["device"] == descriptor["name"]
         assert "kind" not in profile["access"]
         assert (exported / descriptor["name"] / "driver.py").read_bytes() == (
-            ROOT / "src/roboenv/assets/force-torque-client.py"
+            ROOT / "src/roboenv/assets/sensor-client.py"
         ).read_bytes()
 
 
@@ -345,7 +448,7 @@ def test_contact_binding_rejects_false_measurement_claims(tmp_path, field, value
         SimpleNamespace(_env=World()),
         devices={"body": "body", "FL_foot": spec.name},
     )
-    with pytest.raises(ValueError, match="Contact measurement"):
+    with pytest.raises(ValueError, match="intrinsics.measurement.*native Go2 profile"):
         bind(replace(spec, profile="profile.yaml"), tmp_path, context)
 
 
@@ -383,7 +486,7 @@ def test_native_contact_read_rotates_force_without_fabricating_torque():
     assert env.steps == 3
 
 
-def test_imu_regeneration_export_and_portable_driver(tmp_path, rig):
+def test_imu_regeneration_export_and_portable_driver(tmp_path, rig, monkeypatch):
     import runpy
     from unittest.mock import patch
 
@@ -410,6 +513,7 @@ def test_imu_regeneration_export_and_portable_driver(tmp_path, rig):
     assert profile["access"]["connection"]["device"] == "imu"
     profile["access"]["connection"]["device"] = "remote-imu"
     profile_path.write_text(yaml.safe_dump(profile))
+    monkeypatch.syspath_prepend(str(exported / "imu"))
     driver = runpy.run_path(str(exported / "imu/driver.py"))
     requests = []
 
@@ -429,7 +533,7 @@ def test_imu_regeneration_export_and_portable_driver(tmp_path, rig):
             + "\n"
         ).encode()
 
-    with patch.dict(driver["remote"].__globals__, exchange=exchange):
+    with patch.object(driver["transport"], "exchange", exchange):
         result = driver["handle"]("read", {})
         assert result["linear_acceleration"]["z"] == 9.81
         assert result["orientation"] is None
@@ -458,7 +562,7 @@ def test_imu_binding_rejects_measurements_the_native_device_does_not_supply(tmp_
     context = BindingContext(
         "isaaclab", "go2", SimpleNamespace(_env=World()), devices={"body": "body", "imu": spec.name}
     )
-    with pytest.raises(ValueError, match="IMU must declare"):
+    with pytest.raises(ValueError, match="imu.intrinsics.measurement.*native Go2 profile"):
         bind(replace(spec, profile="profile.yaml"), tmp_path, context)
 
 
@@ -494,3 +598,108 @@ def test_native_imu_read_preserves_specific_force_and_unsupported_channels():
     assert reading["linear_acceleration"] == {"x": 0, "y": 0, "z": 9.81}
     assert reading["orientation"] is None and reading["magnetic_field"] is None
     assert env.steps == 3
+
+
+@pytest.mark.parametrize("entity,section,path,value", [
+    ("body", "intrinsics", ("joints", 0, "limits", "max"), 9),
+    ("body", "intrinsics", ("home", JOINTS[0]), 1),
+    ("body", "intrinsics", ("legs", 0, "foot_frame"), "FR_foot"),
+    ("body", "intrinsics", ("feedback", "velocities"), 1),
+    ("camera_front", "intrinsics", ("color", "projection", "fx"), 1),
+    ("camera_front", "intrinsics", ("depth", "quantity"), "range"),
+    ("camera_front", "extrinsics", ("mount", "translation_m"), [0, 0, 0]),
+    ("imu", "extrinsics", ("mount", "rotation_xyzw"), [0, 0, 1, 0]),
+])
+def test_binding_rejects_drift_from_shared_native_facts(tmp_path, entity, section, path, value):
+    from roboenv_runtime.bindings.backends.isaaclab.devices import bind
+
+    task = resolve_task("isaaclab/go2-posture", project=ROOT)
+    spec = next(s for s in task.bindings.devices if s.entity == entity)
+    profile = yaml.safe_load((task.robot / spec.profile).read_text())
+    target = profile[section]
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    (tmp_path / "profile.yaml").write_text(yaml.safe_dump(profile))
+    context = BindingContext("isaaclab", "go2", SimpleNamespace(_env=World()),
+                             devices={"body": "body", entity: spec.name})
+    with pytest.raises(ValueError, match="native Go2 profile"):
+        bind(replace(spec, profile="profile.yaml"), tmp_path, context)
+
+
+def test_bindings_resolve_renamed_body_sensor_references_and_calibration(tmp_path):
+    from roboenv_runtime.adapters.isaaclab.profiles import device_profiles
+    from roboenv_runtime.bindings.backends.isaaclab.devices import bind
+
+    names = {"body": "dog", "imu": "inertial", "FL_foot": "left_contact"}
+    profiles = device_profiles(facts(), names)
+    task = resolve_task("isaaclab/go2-posture", project=ROOT)
+    world = World()
+    context = BindingContext("isaaclab", "go2", SimpleNamespace(_env=world), devices=names)
+    for entity, name in names.items():
+        profile = profiles[entity]
+        profile.update(name=name)
+        profile["intrinsics"]["source"] = "calibration"
+        if entity == "imu":
+            profile["intrinsics"]["measurement"]["angular_velocity"]["bias"]["x"] = .25
+        path = f"{name}.yaml"
+        (tmp_path / path).write_text(yaml.safe_dump(profile))
+        spec = next(s for s in task.bindings.devices if s.entity == entity)
+        device = bind(replace(spec, name=name, profile=path), tmp_path, context)
+        description = device.describe()
+        assert description["name"] == name
+        if entity == "body":
+            assert description["intrinsics"]["stop"]["affected_devices"] == ["dog"]
+        if entity != "body":
+            assert description["extrinsics"]["mount"]["parent"] == "dog"
+    assert world.steps == 0
+
+
+def test_invalid_joint_targets_are_rejected_before_native_execution(rig):
+    world, service = rig
+    for target in ([99] * 12, [True] * 12, [0] * 11):
+        with pytest.raises(DeviceError) as error:
+            call(service, "body", "write", target=target)
+        assert error.value.code == "invalid_args"
+        assert error.value.details == {"effects": "none"}
+    assert world.steps == 0
+
+
+def test_camera_acquisition_is_cached_without_stepping_and_has_paired_timestamps(tmp_path):
+    from roboenv_runtime.adapters.isaaclab.backend import IsaacLabEnv
+
+    class Tensor(np.ndarray):
+        def cpu(self):
+            return self
+
+        def numpy(self):
+            return np.asarray(self)
+
+    def tensor(value):
+        return SimpleNamespace(torch=np.asarray(value).view(Tensor))
+
+    updates, renders = [], []
+    camera = SimpleNamespace(
+        update=lambda dt, **kw: updates.append((dt, kw)),
+        data=SimpleNamespace(output={
+            "rgb": tensor(np.zeros((1, 2, 2, 4), dtype=np.uint8)),
+            "distance_to_image_plane": tensor(np.array([[[[1], [np.inf]], [[0], [2]]]])),
+        }),
+    )
+    env = IsaacLabEnv.__new__(IsaacLabEnv)
+    env.steps, env.images, env.image_step = 3, None, None
+    env.sim = SimpleNamespace(render=lambda: renders.append(True))
+    env.scene = {"camera_front": camera}
+    first = env.read_camera(tmp_path)
+    assert first == env.read_camera(tmp_path)
+    assert env.steps == 3 and len(renders) == len(updates) == 1
+    assert first["sample_time_s"] == first["depth_sample_time_s"] == .06
+    assert first["width"] == first["depth_width"] == 2
+    assert "channels" not in first and "depth_scale" not in first
+    assert np.frombuffer(Path(first["depth_file"]).read_bytes().split(b"65535\n")[1],
+                         dtype=">u2").tolist() == [1000, 0, 0, 2000]
+    first["width"] = 99
+    assert env.read_camera(tmp_path)["width"] == 2
+    env.steps += 1
+    assert env.read_camera(tmp_path)["sample_time_s"] == .08
+    assert len(renders) == 2

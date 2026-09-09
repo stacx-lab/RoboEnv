@@ -1,158 +1,169 @@
-type: body
+type: legged
 intrinsics:
   source: introspected
-  mobility: mobile
-  drive: legged
+  method: introspection
+  calibrated_at: null
   joints:
   - name: FL_hip_joint
     type: revolute
     limits:
       min: -1.0471998814625516
       max: 1.0471998814625516
+    max_velocity: null
+    max_effort: null
   - name: FL_thigh_joint
     type: revolute
     limits:
       min: -1.5707999220623683
       max: 3.4906997829855553
+    max_velocity: null
+    max_effort: null
   - name: FL_calf_joint
     type: revolute
     limits:
       min: -2.722700050989595
       max: -0.8377599051700413
+    max_velocity: null
+    max_effort: null
   - name: FR_hip_joint
     type: revolute
     limits:
       min: -1.0471998814625516
       max: 1.0471998814625516
+    max_velocity: null
+    max_effort: null
   - name: FR_thigh_joint
     type: revolute
     limits:
       min: -1.5707999220623683
       max: 3.4906997829855553
+    max_velocity: null
+    max_effort: null
   - name: FR_calf_joint
     type: revolute
     limits:
       min: -2.722700050989595
       max: -0.8377599051700413
+    max_velocity: null
+    max_effort: null
   - name: RL_hip_joint
     type: revolute
     limits:
       min: -1.0471998814625516
       max: 1.0471998814625516
+    max_velocity: null
+    max_effort: null
   - name: RL_thigh_joint
     type: revolute
     limits:
       min: -0.5235999407312758
       max: 4.537899731027134
+    max_velocity: null
+    max_effort: null
   - name: RL_calf_joint
     type: revolute
     limits:
       min: -2.722700050989595
       max: -0.8377599051700413
+    max_velocity: null
+    max_effort: null
   - name: RR_hip_joint
     type: revolute
     limits:
       min: -1.0471998814625516
       max: 1.0471998814625516
+    max_velocity: null
+    max_effort: null
   - name: RR_thigh_joint
     type: revolute
     limits:
       min: -0.5235999407312758
       max: 4.537899731027134
+    max_velocity: null
+    max_effort: null
   - name: RR_calf_joint
     type: revolute
     limits:
       min: -2.722700050989595
       max: -0.8377599051700413
-  home_joints:
-  - 0.1
-  - 0.8
-  - -1.5
-  - -0.1
-  - 0.8
-  - -1.5
-  - 0.1
-  - 1.0
-  - -1.5
-  - -0.1
-  - 1.0
-  - -1.5
-  actions:
-  - joint: FL_hip_joint
-    units: rad
-    bounds:
-      min: -1.0471998814625516
-      max: 1.0471998814625516
-  - joint: FL_thigh_joint
-    units: rad
-    bounds:
-      min: -1.5707999220623683
-      max: 3.4906997829855553
-  - joint: FL_calf_joint
-    units: rad
-    bounds:
-      min: -2.722700050989595
-      max: -0.8377599051700413
-  - joint: FR_hip_joint
-    units: rad
-    bounds:
-      min: -1.0471998814625516
-      max: 1.0471998814625516
-  - joint: FR_thigh_joint
-    units: rad
-    bounds:
-      min: -1.5707999220623683
-      max: 3.4906997829855553
-  - joint: FR_calf_joint
-    units: rad
-    bounds:
-      min: -2.722700050989595
-      max: -0.8377599051700413
-  - joint: RL_hip_joint
-    units: rad
-    bounds:
-      min: -1.0471998814625516
-      max: 1.0471998814625516
-  - joint: RL_thigh_joint
-    units: rad
-    bounds:
-      min: -0.5235999407312758
-      max: 4.537899731027134
-  - joint: RL_calf_joint
-    units: rad
-    bounds:
-      min: -2.722700050989595
-      max: -0.8377599051700413
-  - joint: RR_hip_joint
-    units: rad
-    bounds:
-      min: -1.0471998814625516
-      max: 1.0471998814625516
-  - joint: RR_thigh_joint
-    units: rad
-    bounds:
-      min: -0.5235999407312758
-      max: 4.537899731027134
-  - joint: RR_calf_joint
-    units: rad
-    bounds:
-      min: -2.722700050989595
-      max: -0.8377599051700413
+    max_velocity: null
+    max_effort: null
+  home:
+    FL_hip_joint: 0.1
+    FL_thigh_joint: 0.8
+    FL_calf_joint: -1.5
+    FR_hip_joint: -0.1
+    FR_thigh_joint: 0.8
+    FR_calf_joint: -1.5
+    RL_hip_joint: 0.1
+    RL_thigh_joint: 1.0
+    RL_calf_joint: -1.5
+    RR_hip_joint: -0.1
+    RR_thigh_joint: 1.0
+    RR_calf_joint: -1.5
+  legs:
+  - name: FL
+    joints:
+    - FL_hip_joint
+    - FL_thigh_joint
+    - FL_calf_joint
+    foot_frame: FL_foot
+  - name: FR
+    joints:
+    - FR_hip_joint
+    - FR_thigh_joint
+    - FR_calf_joint
+    foot_frame: FR_foot
+  - name: RL
+    joints:
+    - RL_hip_joint
+    - RL_thigh_joint
+    - RL_calf_joint
+    foot_frame: RL_foot
+  - name: RR
+    joints:
+    - RR_hip_joint
+    - RR_thigh_joint
+    - RR_calf_joint
+    foot_frame: RR_foot
+  control:
+    mode: joint_position
+    execution:
+      mode: stepped
+      interval_s: 0.02
+  feedback:
+    velocities: true
+    efforts: false
+    pose_frame: null
+    velocity_frame: null
+    velocity_components: []
+    clock: simulation
+  stop:
+    behavior: hold
+    affected_devices:
+    - body
 extrinsics:
   source: introspected
+  method: introspection
+  calibrated_at: null
   frames:
   - FL_foot
   - FR_foot
   - RL_foot
   - RR_foot
 name: body
+loaded: false
 meta:
   created_at: '2026-09-07T00:00:00Z'
   updated_at: '2026-09-07T00:00:00Z'
 access:
   source: user
-  kind: url
-  url: http://127.0.0.1:8123
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: body
   driver:
     entry: driver.py
     interpreter: python3
@@ -164,4 +175,4 @@ access:
     - status
     - write
     - stop
-  control_mode: joint_position
+    timeout_s: 30

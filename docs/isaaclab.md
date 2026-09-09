@@ -2,9 +2,10 @@
 
 Isaac Lab is not officially supported by RoboEnv. This integration is an
 experimental prototype; the setup and device descriptions below do not establish
-simulator validation or benchmark support. The Go2 catalog still uses the legacy
-`body` device type, which the current Complex schema rejects; full catalog
-compatibility is not validated by the passing sensor and binding tests.
+simulator validation or benchmark support. The Go2 catalog uses Complex's `legged`
+device contract for `body`, with separate
+RGB-D, IMU and foot-contact devices. CPU schema checks do not establish native
+physics, walking or balance performance.
 
 RoboEnv exposes one free-base Go2 as a device service. Complex commands absolute
 joint positions through native DC motor control. This is a posture demonstration,
@@ -47,10 +48,10 @@ verifies their hashes and never downloads assets or rewrites the catalog.
 
 | Device | Interface |
 |---|---|
-| `body` | Twelve measured joint positions/velocities; absolute joint targets in radians; named foot poses relative to the base |
+| `body` | Type `legged`; twelve measured joint positions/velocities; absolute joint targets in radians; named foot poses relative to the base |
 | `camera_front` | Synthetic forward RGB-D, 256×256, 60° FOV |
 | `imu` | Sensor-frame angular velocity (rad/s), proper acceleration (m/s², +g at rest) |
-| `contact_fl_foot`, `contact_fr_foot`, `contact_rl_foot`, `contact_rr_foot` | Net foot-frame contact force (N), type `other`; no invented torque channels |
+| `contact_fl_foot`, `contact_fr_foot`, `contact_rl_foot`, `contact_rr_foot` | Net foot-frame contact force (N), type `force_torque`; no invented torque channels |
 | `world` | Reference profile only; no implicit body-to-world localization |
 
 The body joint order is FL, FR, RL, RR, with hip, thigh, calf for each leg.
@@ -63,7 +64,9 @@ one interval before episode time starts at zero.
 
 Reads include `sample_time_s`. RGB and optical-axis metric depth are rendered
 only when requested for a new simulation frame. Depth uses the shared 16-bit PGM
-millimetre encoding: zero means invalid. Downloaded image paths survive a one-shot
+millimetre encoding: zero means invalid. The profile declares the depth scale;
+reads report both image dimensions and paired acquisition timestamps. Downloaded
+image paths survive a one-shot
 driver's exit. Camera and contact configurations describe synthetic sensors, not
 claims of matching Unitree's physical camera or force sensors.
 
@@ -80,6 +83,11 @@ It does not approximate the simulated model with a different URDF. Its explicit
 camera configuration is shared with runtime. Native initialization checks the
 joint layout, limits, and home configuration against generated facts.
 
+`adapters/isaaclab/profiles.py` supplies both catalog generation and binding
+validation. Bindings verify operational fields against these shared facts while
+allowing sensor calibration metadata and bias to change. Native observation
+conversion lives in `observations.py`; the backend owns stepping and frame caching.
+
 ```sh
 # A separate CPU interpreter needs usd-core==25.11, numpy, and PyYAML.
 python tools/generate_isaaclab_config.py --out .cache/go2-catalog
@@ -91,9 +99,12 @@ To update checked-in facts intentionally, omit `--out` and supply
 
 Copy `catalog/robots/isaaclab-go2/workspace.yaml` and its `devices/` directory into
 Complex's `.complex/` workspace. Device profiles default to
-`access.url: http://127.0.0.1:8123`; edit that URL for a different server.
+`access.connection.url: http://127.0.0.1:8123`; edit that URL for a different server.
 An explicit `connection.json` takes precedence, followed by `ROBOENV_ENDPOINT`
-or `ROBOENV_SOCKET`, then the profile URL. Reading the YAML profile requires
+or `ROBOENV_SOCKET`, then the profile connection URL. Catalog profiles are
+registered unloaded; use `/load` in Complex to activate the devices you need.
+Keep each copied `_roboenv.py` support file beside its driver. IMU and contact
+devices share the same read-only sensor driver. Reading the YAML profile requires
 PyYAML in the driver interpreter. Bindings stay in RoboEnv; the copied drivers
 need no simulator or RoboEnv package.
 
@@ -108,3 +119,14 @@ Build a real image and deployment manifest before exporting; no image digest or
 GPU validation receipt is fabricated. On an RTX host, set
 `ROBOENV_ISAACLAB_TEST_PYTHON` to the prepared interpreter to run the native smoke
 check. CPU tests and rendered replay are reported separately.
+
+## Controller and arm composition
+
+The device accepts joint positions, not velocity or walking commands. Controllers
+own policy inference and support behavior. `stop` holds measured joint positions;
+it does not certify support while an arm operates. An independently controlled
+arm mounts to `body` through its own calibrated `extrinsics.mount`; the body has
+no static world mount. Body-relative camera/arm transforms need no world pose.
+World-relative manipulation requires localization, which this prototype does not
+expose. A physical arm, payload-adapted controller and coordinated simulation
+scheduling are separate work; concurrent device writes are not atomic steps.

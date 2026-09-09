@@ -1,11 +1,11 @@
 """One synchronous Go2 scene, owned and accessed by the worker's main thread."""
 
 import os
-from pathlib import Path
 
 import numpy as np
 
-from .geometry import relative_pose, rotation
+from .observations import body_state, camera_state, contact_state, imu_state
+from .task import JOINT_TOLERANCE_RAD, MAX_INTERVALS
 from .rig import CONTROL_DT, DECIMATION, FEET, JOINTS, PHYSICS_DT, facts, scene_config
 
 
@@ -89,7 +89,7 @@ class IsaacLabEnv:
                 _ = self.scene[foot].data
 
     def write(self, target):
-        if self.steps >= 500:
+        if self.steps >= MAX_INTERVALS:
             raise ValueError("Go2 control-interval budget exhausted")
         self.target[:, self.joint_ids] = self.torch.as_tensor(
             target, device=self.sim.device, dtype=self.target.dtype
@@ -97,7 +97,7 @@ class IsaacLabEnv:
         self._interval()
         self.steps += 1
         q = self.robot.data.joint_pos.torch[0, self.joint_ids].cpu().numpy()
-        self.held = self.held + 1 if np.max(np.abs(q - self.model["posture"])) < 0.05 else 0
+        self.held = self.held + 1 if np.max(np.abs(q - self.model["posture"])) < JOINT_TOLERANCE_RAD else 0
         return {"accepted": True}
 
     def stop(self):
@@ -105,63 +105,26 @@ class IsaacLabEnv:
         self.robot.set_joint_position_target_index(target=self.target)
         return {"stopped": True}
 
+    @property
+    def sample_time_s(self):
+        return self.steps * CONTROL_DT
+
     def read_body(self):
-        data = self.robot.data
-        root = data.root_link_pose_w.torch[0].cpu().numpy()
-        feet = data.body_link_pose_w.torch[0, self.foot_ids].cpu().numpy()
-        return {
-            "positions": data.joint_pos.torch[0, self.joint_ids].cpu().tolist(),
-            "velocities": data.joint_vel.torch[0, self.joint_ids].cpu().tolist(),
-            "frame_poses": {
-                name: relative_pose(root, pose) for name, pose in zip(FEET, feet, strict=True)
-            },
-            "faults": [],
-            "sample_time_s": self.steps * CONTROL_DT,
-        }
+        return body_state(self.robot, self.joint_ids, self.foot_ids, self.sample_time_s)
 
     def read_sensor(self, entity):
-        data = self.scene[entity].data
-        result = {"sample_time_s": self.steps * CONTROL_DT}
         if entity == "imu":
-            return {
-                **result,
-                "angular_velocity": dict(zip(("x", "y", "z"), data.ang_vel_b.torch[0].cpu().tolist())),
-                "linear_acceleration": dict(zip(("x", "y", "z"), data.lin_acc_b.torch[0].cpu().tolist())),
-                "orientation": None,
-                "magnetic_field": None,
-            }
-        index = self.foot_ids[FEET.index(entity)]
-        q = self.robot.data.body_link_pose_w.torch[0, index, 3:].cpu().numpy()
-        force = data.net_forces_w.torch[0, 0].cpu().numpy()
-        return {**result, "force": dict(zip(("x", "y", "z"), (rotation(q).T @ force).tolist())), "torque": None}
+            return imu_state(self.scene[entity], self.sample_time_s)
+        if entity not in FEET:
+            raise ValueError(f"Unknown Go2 sensor: {entity}")
+        return contact_state(self.scene[entity], self.robot,
+                             self.foot_ids[FEET.index(entity)], self.sample_time_s)
 
     def read_camera(self, directory):
         if self.image_step == self.steps:
             return dict(self.images)
-        from roboenv_runtime.runtime.worker import write_png
-        from roboenv_runtime.bindings.backends.shared.depth import DEPTH_SCALE, write_depth
-        import uuid
-
         self.sim.render()
-        camera = self.scene["camera_front"]
-        camera.update(0.0, force_recompute=True)
-        outputs = camera.data.output
-        rgb = outputs["rgb"].torch[0, :, :, :3].cpu().numpy()
-        depth = outputs["distance_to_image_plane"].torch[0].cpu().numpy().squeeze(-1)
-        directory = Path(directory)
-        directory.mkdir(parents=True, exist_ok=True)
-        file = directory / f"{uuid.uuid4().hex}.png"
-        h, w, channels = write_png(file, rgb)
-        write_depth(file.with_suffix(".pgm"), depth)
-        self.images = {
-            "file": str(file),
-            "depth_file": str(file.with_suffix(".pgm")),
-            "depth_scale": DEPTH_SCALE,
-            "height": h,
-            "width": w,
-            "channels": channels,
-            "sample_time_s": self.steps * CONTROL_DT,
-        }
+        self.images = camera_state(self.scene["camera_front"], directory, self.sample_time_s)
         self.image_step = self.steps
         return dict(self.images)
 

@@ -22,10 +22,13 @@ with roboenv.launch(task="isaaclab/go2-posture", interpreter=sys.executable, pro
     with roboenv.connect(run.endpoint) as env:
         body = env.device("body")
         initial = body.read()
-        assert "pose" not in initial and len(initial["frame_poses"]) == 4
+        assert initial["pose"] is None and len(initial["frame_poses"]) == 4
         target = [
             q + (0.1 if i % 3 == 1 else -0.2 if i % 3 == 2 else 0)
-            for i, q in enumerate(body.profile["intrinsics"]["home_joints"])
+            for i, q in enumerate(
+                body.profile["intrinsics"]["home"][j["name"]]
+                for j in body.profile["intrinsics"]["joints"]
+            )
         ]
         for _ in range(150):
             assert body.write(target)["accepted"]
@@ -41,13 +44,14 @@ with roboenv.launch(task="isaaclab/go2-posture", interpreter=sys.executable, pro
         body.stop()
         assert body.read()["sample_time_s"] == stamp
         copied = out / "camera_front"
-        copied.mkdir()
-        shutil.copyfile(
-            root / "catalog/robots/isaaclab-go2/devices/camera_front/driver.py",
-            copied / "driver.py",
+        shutil.copytree(
+            root / "catalog/robots/isaaclab-go2/devices/camera_front", copied,
         )
         result = subprocess.run(
-            [sys.executable, "-I", str(copied / "driver.py"), "read", "{}"],
+            [sys.executable, "-I", "-c",
+             "import runpy,sys; sys.path.insert(0,sys.argv[1]); sys.argv=sys.argv[2:]; "
+             "runpy.run_path(sys.argv[0],run_name='__main__')",
+             str(copied), str(copied / "driver.py"), "read", "{}"],
             env={**os.environ, "ROBOENV_ENDPOINT": run.endpoint},
             capture_output=True,
             text=True,

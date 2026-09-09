@@ -2,6 +2,8 @@
 
 from roboenv_runtime.core.adapter import AdapterBase, register_adapter
 from roboenv_runtime.core.types import Budget, ScoreReport
+from .rig import CONTROL_DT, JOINTS
+from .task import HOLD_INTERVALS, MAX_INTERVALS
 
 
 @register_adapter
@@ -21,16 +23,16 @@ class IsaacLabAdapter(AdapterBase):
         self._env.close()
 
     def goal(self):
-        from .rig import JOINTS
-
-        return f"Reach and hold the Go2 posture {dict(zip(JOINTS, self._env.model['posture'], strict=True))} in radians for 0.5 simulated seconds."
+        target = dict(zip(JOINTS, self._env.model["posture"], strict=True))
+        return (f"Reach and hold the Go2 posture {target} in radians "
+                f"for {HOLD_INTERVALS * CONTROL_DT:g} simulated seconds.")
 
     def score(self):
-        completed = self._env.held >= 25
+        completed = self._env.held >= HOLD_INTERVALS
         return ScoreReport(reward=float(completed), raw_score=float(completed), completed=completed)
 
     def budget(self):
-        return Budget(used=self._env.steps, max=500, unit="action_frames")
+        return Budget(used=self._env.steps, max=MAX_INTERVALS, unit="action_frames")
 
     def observe(self):
         return {"budget": self.budget().as_dict()}

@@ -18,23 +18,16 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "runtime/src"))
 sys.path.insert(0, str(ROOT / "src"))
+from roboenv.devices.export import driver_access, write_driver  # noqa: E402
 from roboenv.provisioning.isaaclab_assets import verify_assets  # noqa: E402
-from roboenv_runtime.adapters.isaaclab.rig import (  # noqa: E402
-    APERTURE,
-    CAMERA_POSITION,
-    CAMERA_ROTATION,
-    CAMERA_SIZE,
-    FEET,
-    FOCAL_LENGTH,
-    JOINTS,
+from roboenv_runtime.adapters.isaaclab.profiles import (  # noqa: E402
+    DEVICE_NAMES,
+    device_profiles,
 )
+from roboenv_runtime.adapters.isaaclab.rig import JOINTS  # noqa: E402
 
 META = {"created_at": "2026-09-07T00:00:00Z", "updated_at": "2026-09-07T00:00:00Z"}
-CONVENTION = (
-    "child-in-parent: pose of this device's frame expressed in the parent frame "
-    "(p_parent = R·p_child + t); quaternion [x,y,z,w]; camera frames are OpenCV "
-    "optical (+X right, +Y down, +Z forward)"
-)
+
 
 
 def extract(project):
@@ -90,142 +83,25 @@ def extract(project):
 
 def generate(out, model):
     robot = out / "robots/isaaclab-go2"
-    profiles = {}
-    joints = [
-        {"name": name, "type": "revolute", "limits": {"min": lo, "max": hi}}
-        for name, (lo, hi) in zip(JOINTS, model["limits"], strict=True)
-    ]
-    profiles["body"] = {
-        "type": "body",
-        "intrinsics": {
-            "source": "introspected",
-            "mobility": "mobile",
-            "drive": "legged",
-            "joints": joints,
-            "home_joints": model["home"],
-            "actions": [
-                {"joint": j["name"], "units": "rad", "bounds": dict(j["limits"])} for j in joints
-            ],
-        },
-        "extrinsics": {"source": "introspected", "frames": list(FEET)},
-    }
-
-    def mount(pos=(0, 0, 0), rot=(0, 0, 0, 1), frame=None):
-        return {
-            "source": "introspected",
-            "mount": {
-                "parent": "body",
-                **({"parent_frame": frame} if frame else {}),
-                "pose": {"translation": list(pos), "rotation": list(rot)},
-                "convention": CONVENTION,
-            },
-        }
-
-    focal = CAMERA_SIZE * FOCAL_LENGTH / APERTURE
-    profiles["camera_front"] = {
-        "type": "rgbd",
-        "intrinsics": {
-            "source": "introspected",
-            "value": {
-                "width": CAMERA_SIZE,
-                "height": CAMERA_SIZE,
-                "fx": focal,
-                "fy": focal,
-                "cx": CAMERA_SIZE / 2,
-                "cy": CAMERA_SIZE / 2,
-            },
-            "depth": {"scale": 0.001, "aligned": True},
-        },
-        "extrinsics": mount(CAMERA_POSITION, CAMERA_ROTATION),
-    }
-    profiles["imu"] = {
-        "type": "imu",
-        "intrinsics": {
-            "source": "introspected", "method": "introspection", "calibrated_at": None,
-            "measurement": {
-                "angular_velocity": {"axes": ["x", "y", "z"], "range": None,
-                                     "resolution": None, "bias": {"x": 0, "y": 0, "z": 0}},
-                "linear_acceleration": {"quantity": "specific_force", "axes": ["x", "y", "z"],
-                                        "range": None, "resolution": None,
-                                        "bias": {"x": 0, "y": 0, "z": 0}},
-                "orientation": None, "magnetic_field": None,
-            },
-            "sample_rate_hz": None,
-        },
-        "extrinsics": {
-            "source": "introspected", "method": "introspection", "calibrated_at": None,
-            "mount": {"parent": "body", "parent_frame": "body",
-                      "translation_m": model["imu_position"], "rotation_xyzw": [0, 0, 0, 1]},
-        },
-    }
-    for foot in FEET:
-        profiles[f"contact_{foot.lower()}"] = {
-            "type": "force_torque",
-            "intrinsics": {
-                "source": "introspected", "method": "introspection", "calibrated_at": None,
-                "measurement": {
-                    "quantity": "contact_normal", "target": {"device": "body", "frame": foot},
-                    "force": {"axes": ["x", "y", "z"], "range": None, "resolution": None,
-                              "bias": {"x": 0, "y": 0, "z": 0}},
-                    "torque": None,
-                },
-                "sample_rate_hz": None,
-            },
-            "extrinsics": {
-                "source": "introspected", "method": "introspection", "calibrated_at": None,
-                "mount": {"parent": "body", "parent_frame": foot,
-                          "translation_m": [0, 0, 0], "rotation_xyzw": [0, 0, 0, 1]},
-            },
-        }
-    profiles["world"] = {
-        "type": "world",
-        "intrinsics": {
-            "source": "default",
-            "bounds": {"min": [None] * 3, "max": [None] * 3},
-            "surfaces": [],
-        },
-    }
+    profiles = device_profiles(model)
     bindings = {}
-    driver = (ROOT / "src/roboenv/assets/device-client.py").read_bytes()
-    for name, profile in profiles.items():
-        profile.update(name=name, meta=META)
-        if name != "world":
-            actions = ["read", "load", "unload", "status"] + (
-                ["write", "stop"] if name == "body" else []
-            )
-            profile["access"] = {
-                "source": "user",
-                "kind": "url",
-                "url": "http://127.0.0.1:8123",
-                "driver": {
-                    "entry": "driver.py", "interpreter": "python3",
-                    "persistent": False, "actions": actions,
-                },
-                **({"control_mode": "joint_position"} if name == "body" else {}),
-            }
-        if profile["type"] in {"force_torque", "imu"}:
-            profile["access"] = {
-                "source": "user", "method": "unknown", "calibrated_at": None,
-                "connection": {"kind": "url", "url": "http://127.0.0.1:8123", "device": name},
-                "driver": profile["access"]["driver"],
-            }
+    for entity, profile in profiles.items():
+        name = DEVICE_NAMES[entity]
+        profile.update(name=name, loaded=False, meta=META)
         directory = robot / "devices" / name
         directory.mkdir(parents=True, exist_ok=True)
+        if profile["type"] != "world":
+            actions = ["read", "load", "unload", "status"]
+            if profile["type"] == "legged":
+                actions += ["write", "stop"]
+            profile["access"] = driver_access(profile["type"], name, actions,
+                                              "http://127.0.0.1:8123", timeout_s=30)
+            write_driver(directory, profile["type"])
         (directory / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
-        if name != "world":
-            (directory / "driver.py").write_bytes(
-                (ROOT / "src/roboenv/assets" / (
-                    "imu-client.py" if name == "imu" else "force-torque-client.py"
-                )).read_bytes()
-                if profile["type"] in {"force_torque", "imu"} else driver
-            )
         bindings[name] = {
-            "binding": "isaaclab.device/1",
-            "entity": name,
+            "binding": "isaaclab.device/1", "entity": entity,
             "profile": f"devices/{name}/profile.yaml",
         }
-        if name.startswith("contact_"):
-            bindings[name]["entity"] = profile["extrinsics"]["mount"]["parent_frame"]
     manifest = {
         "identity": {
             "source": "introspected",
@@ -284,6 +160,9 @@ def main():
             "generator_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             "rig_sha256": hashlib.sha256(
                 (ROOT / "runtime/src/roboenv_runtime/adapters/isaaclab/rig.py").read_bytes()
+            ).hexdigest(),
+            "profiles_sha256": hashlib.sha256(
+                (ROOT / "runtime/src/roboenv_runtime/adapters/isaaclab/profiles.py").read_bytes()
             ).hexdigest(),
             "assets": json.loads((ROOT / "src/roboenv/assets/isaaclab-go2.json").read_text()),
             "method": (
