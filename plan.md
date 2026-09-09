@@ -17,8 +17,10 @@ asset preparation, and named device frames. Keep robot differences in rig config
 
 ## Complex changes
 
-- Recognize a fixed `body` with declared joint actions as actuated, including
-  required driver actions, calibration readiness, and summaries.
+- Go2 now uses the joint-controlled `legged` type, including driver actions,
+  calibration readiness and dynamic frames. Do not revive the legacy `body` type.
+  The proposed fixed-start G1 rig still needs an explicit mounting/support design;
+  the current legged contract describes a free body, not a static world mount.
 - Export arm serial-chain geometry from the actual asset for existing local FK/IK.
   A Cartesian request is local IK followed by native absolute joint targets, not
   a simulator solver RPC. Respect actual arm DOFs and report nonconvergence.

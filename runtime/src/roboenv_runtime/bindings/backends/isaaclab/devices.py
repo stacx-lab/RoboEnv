@@ -5,16 +5,11 @@ from pathlib import Path
 import numpy as np
 
 from roboenv.devices.model import Action, BoundDevice
+from roboenv_runtime.adapters.isaaclab.profiles import device_profiles
 from roboenv_runtime.adapters.isaaclab.rig import FEET, JOINTS
+from .profile import validate
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
-TYPES = {
-    "body": "body",
-    "camera_front": "rgbd",
-    "imu": "imu",
-    "world": "world",
-    **{foot: "force_torque" for foot in FEET},
-}
 
 
 def bind(spec, root, context):
@@ -23,40 +18,16 @@ def bind(spec, root, context):
     world = context.native._env
     entity = spec.entity
     definition = spec.definition(root)
-    if entity not in TYPES or definition.type != TYPES[entity] or spec.config:
+    profiles = device_profiles(world.model, context.devices)
+    if entity not in profiles or definition.type != profiles[entity]["type"] or spec.config:
         raise ValueError("Unsupported Isaac Lab device selection or configuration")
-    if context.devices[entity] != spec.name:
+    if context.devices.get(entity) != spec.name:
         raise ValueError("A native device can have only one logical binding")
-    if entity != "world" and entity != "body":
-        mount = definition.extrinsics.get("mount", {})
-        if mount.get("parent") != context.devices.get("body"):
-            raise ValueError("Sensor mount must name the selected body device")
-        if entity in FEET and mount.get("parent_frame") != entity:
-            raise ValueError("Contact sensor mount must name its foot frame")
-    if entity in FEET:
-        measurement = definition.intrinsics.get("measurement", {})
-        if (measurement.get("quantity") != "contact_normal"
-                or measurement.get("target") != {"device": context.devices.get("body"), "frame": entity}
-                or measurement.get("torque", "missing") is not None
-                or not isinstance(measurement.get("force"), dict)
-                or measurement["force"].get("axes") != ["x", "y", "z"]):
-            raise ValueError("Contact measurement must declare normal force on its selected foot, without torque")
-        mount = definition.extrinsics["mount"]
-        if mount.get("translation_m") != [0, 0, 0] or mount.get("rotation_xyzw") != [0, 0, 0, 1]:
-            raise ValueError("Contact measurement frame must coincide with the foot frame")
-    if entity == "imu":
-        measurement = definition.intrinsics.get("measurement", {})
-        vectors = [measurement.get(key) for key in ("angular_velocity", "linear_acceleration")]
-        if (any(not isinstance(v, dict) or v.get("axes") != ["x", "y", "z"] for v in vectors)
-                or measurement["linear_acceleration"].get("quantity") != "specific_force"
-                or measurement.get("orientation", "missing") is not None
-                or measurement.get("magnetic_field", "missing") is not None):
-            raise ValueError("IMU must declare three-axis angular velocity and specific force only")
-        mount = definition.extrinsics["mount"]
-        if (mount.get("parent_frame") != context.devices.get("body")
-                or mount.get("translation_m") != world.model["imu_position"]
-                or mount.get("rotation_xyzw") != [0, 0, 0, 1]):
-            raise ValueError("IMU mount must match the native measurement point and frame")
+    if entity not in {"world", "body"} and "body" not in context.devices:
+        raise ValueError("Sensor mount requires the selected body device")
+    if entity != "world":
+        for section in ("intrinsics", "extrinsics"):
+            validate(getattr(definition, section), profiles[entity][section], f"{spec.name}.{section}")
     actions = {}
 
     def register(name, fn, required, schema=EMPTY, *, mutation=False):
@@ -76,24 +47,15 @@ def bind(spec, root, context):
         register("unload", lambda: {"unloaded": True}, ["unloaded"])
         register("status", lambda: {"loaded": True}, ["loaded"])
     if entity == "body":
-        if tuple(j["name"] for j in definition.intrinsics["joints"]) != JOINTS:
-            raise ValueError("Body profile joint order differs from the rig")
         register(
-            "read", world.read_body, ["positions", "velocities", "frame_poses", "sample_time_s"]
+            "read", world.read_body,
+            ["positions", "velocities", "efforts", "pose", "body_velocities",
+             "frame_poses", "faults", "sample_time_s"]
         )
-
-        def write(target):
-            command = np.asarray(target, dtype=float)
-            limits = np.asarray(world.model["limits"])
-            if command.shape != (len(JOINTS),) or not np.all(np.isfinite(command)):
-                raise ValueError("Expected twelve finite joint targets")
-            if np.any(command < limits[:, 0]) or np.any(command > limits[:, 1]):
-                raise ValueError("Joint target outside native limits")
-            return world.write(command)
 
         register(
             "write",
-            write,
+            lambda target: world.write(np.asarray(target, dtype=float)),
             ["accepted"],
             {
                 "type": "object",
@@ -102,9 +64,11 @@ def bind(spec, root, context):
                 "properties": {
                     "target": {
                         "type": "array",
-                        "minItems": 12,
-                        "maxItems": 12,
-                        "items": {"type": "number"},
+                        "minItems": len(JOINTS), "maxItems": len(JOINTS),
+                        "prefixItems": [
+                            {"type": "number", "minimum": low, "maximum": high}
+                            for low, high in world.model["limits"]
+                        ],
                     }
                 },
             },
@@ -115,7 +79,8 @@ def bind(spec, root, context):
         register(
             "read",
             lambda: world.read_camera(Path(context.native.run_dir) / "captures"),
-            ["file", "depth_file", "depth_scale", "width", "height", "channels", "sample_time_s"],
+            ["file", "width", "height", "sample_time_s",
+             "depth_file", "depth_width", "depth_height", "depth_sample_time_s"],
         )
     if entity == "imu" or entity in FEET:
         register(
