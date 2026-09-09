@@ -5,6 +5,8 @@ supervisor. Owner lifecycle commands remain on its local Unix socket.
 """
 
 import re
+import socket
+import threading
 from pathlib import Path
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,10 +20,40 @@ from .protocol import ProtocolError, Request, encode_ndjson
 
 
 def bind_http(supervisor, port, host="127.0.0.1"):
+    class Server(ThreadingHTTPServer):
+        def __init__(self, *args):
+            self.connections = set()
+            self.connections_lock = threading.Lock()
+            super().__init__(*args)
+
+        def get_request(self):
+            connection, address = super().get_request()
+            with self.connections_lock:
+                self.connections.add(connection)
+            return connection, address
+
+        def shutdown_request(self, connection):
+            with self.connections_lock:
+                self.connections.discard(connection)
+            super().shutdown_request(connection)
+
+        def server_close(self):
+            with self.connections_lock:
+                for connection in self.connections:
+                    try:
+                        connection.shutdown(socket.SHUT_RDWR)
+                    except OSError:
+                        pass
+                    connection.close()
+                self.connections.clear()
+            super().server_close()
+
     class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
         def setup(self):
             super().setup()
             self.connection.settimeout(10)
+            self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
         def log_message(self, *_args):
             pass
@@ -41,6 +73,10 @@ def bind_http(supervisor, port, host="127.0.0.1"):
             return True
 
         def do_GET(self):
+            if (self.headers.get("Transfer-Encoding") is not None
+                    or self.headers.get_all("Content-Length", ["0"]) != ["0"]):
+                self.send_error(400, "GET requests must not have a body")
+                return
             if not self.valid_endpoint():
                 return
             if self.path.startswith("/artifacts/"):
@@ -95,6 +131,7 @@ def bind_http(supervisor, port, host="127.0.0.1"):
             try:
                 payload = self.rfile.read(length)
                 if len(payload) != length:
+                    self.close_connection = True
                     raise ValueError("Incomplete request")
                 raw = json_loads(payload)
                 request = Request.from_mapping(raw, allowed_ops=PUBLIC_OPS)
@@ -107,6 +144,7 @@ def bind_http(supervisor, port, host="127.0.0.1"):
                 )
                 response = supervisor._unparsed_error(raw, error)
             except (TimeoutError, ConnectionError):
+                self.close_connection = True
                 return
             except Exception as exc:
                 response = supervisor._unparsed_error(
@@ -116,11 +154,10 @@ def bind_http(supervisor, port, host="127.0.0.1"):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
-            self.send_header("Connection", "close")
             self.end_headers()
             try:
                 self.wfile.write(data)
             except (BrokenPipeError, ConnectionResetError):
-                pass
+                self.close_connection = True
 
-    return ThreadingHTTPServer((host, port), Handler)
+    return Server((host, port), Handler)

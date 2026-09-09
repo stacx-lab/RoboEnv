@@ -52,7 +52,7 @@ access:
   driver:
     entry: driver.py
     interpreter: python3
-    persistent: false
+    persistent: true
     actions:
     - load
     - unload

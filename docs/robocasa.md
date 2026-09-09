@@ -198,9 +198,11 @@ or extrinsics. Required unknown facts use `???`; optional unavailable values use
 
 Catalog drivers share the adjacent `_roboenv.py` HTTP/Unix transport and **do not
 import RoboEnv**. Copy the complete device directory, including this support file. Set `ROBOENV_ENDPOINT` for the current service; the catalog carries no
-session connection file. New one-shot drivers discover the selected episode;
-runners can pin session/generation explicitly. Established SDK clients retain
-their original episode identity.
+session connection file. Drivers default to persistent processes and discover the
+selected episode once; runners can pin session/generation explicitly. Drivers and
+SDK clients retain their original episode identity. Reload the driver after changing
+the profile or episode connection. Configuration, HTTP connections, and local
+kinematics models are reused within the process.
 
 Arm/torso drivers additionally implement `fk(joints)` and `ik(pose, seed?)` using
 `kinex.manipulator` and `intrinsics.kinematics.model`, a serial chain with an

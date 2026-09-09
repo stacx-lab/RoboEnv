@@ -213,7 +213,9 @@ each typed driver so individual device directories remain portable.
 
 Drivers run in the agent environment, which may have no RoboEnv or simulator
 packages. Transport uses the standard library; typed validation and local
-kinematics use Kinex’s Python helpers and PyYAML. Test the copied files in that environment. Camera `file` and
+kinematics use Kinex’s Python helpers and PyYAML. Drivers default to persistent
+JSON-lines dialogs (`driver.py --serve`), sharing cached profile data and an HTTP
+connection across calls. Test the copied files in that environment. Camera `file` and
 `depth_file` paths must remain readable after a one-shot driver exits.
 
 Use `ROBOENV_ENDPOINT` to select a deployment without rewriting profiles. Catalogs

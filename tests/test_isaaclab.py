@@ -255,7 +255,7 @@ def test_go2_catalog_and_kinex_schema(tmp_path):
             ).read_bytes()
         access = profile["access"]
         assert access["connection"]["url"] == "http://127.0.0.1:8123"
-        assert access["driver"]["persistent"] is False
+        assert access["driver"]["persistent"] is True
     kinex_root = ROOT.parent / "kinex"
     if not shutil.which("bun") or not (kinex_root / "node_modules/zod").exists():
         pytest.skip("Kinex schema check requires sibling Kinex and Bun")

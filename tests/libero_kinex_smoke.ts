@@ -3,7 +3,7 @@ import path from "node:path"
 
 const [kinexRoot, cwd, output] = process.argv.slice(2)
 const { CalibrationStore } = await import(path.join(kinexRoot, "src/calibration/store.ts"))
-const { dispatchDevice } = await import(path.join(kinexRoot, "src/device/dispatch.ts"))
+const { dispatchDevice, deactivateDevice } = await import(path.join(kinexRoot, "src/device/dispatch.ts"))
 const { listPyTools } = await import(path.join(kinexRoot, "src/tool/python.ts"))
 const { runPyTool } = await import(path.join(kinexRoot, "src/tool/python-runner.ts"))
 const { Recorder } = await import(path.join(kinexRoot, "src/record/recorder.ts"))
@@ -39,6 +39,8 @@ try {
   await Recorder.stop()
   await dispatchDevice(cwd, arm, "stop", {})
   await dispatchDevice(cwd, gripper, "stop", {})
+  await Promise.all(devices.filter((device: { type: string }) => device.type !== "world")
+    .map((device: unknown) => deactivateDevice(cwd, device)))
 }
 
 // Imported harness watchers are process-scoped; all device/recording cleanup is above.

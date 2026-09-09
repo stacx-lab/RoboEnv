@@ -40,4 +40,4 @@ def handle(action, args):
 
 
 if __name__ == "__main__":
-    main(handle)
+    main(handle, transport)

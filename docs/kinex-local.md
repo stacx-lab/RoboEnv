@@ -50,6 +50,18 @@ PyYAML and typed actuator operations need Kinex’s Python helpers. Kinex suppli
 its Python library to drivers; for direct shell calls, set
 `PYTHONPATH="$kinex_repo/python${PYTHONPATH:+:$PYTHONPATH}"`.
 The agent environment does not need RoboEnv or simulator dependencies.
+Drivers use `persistent: true`: Kinex starts `driver.py --serve` once and reuses
+its configuration, kinematics model, and HTTP connection. `/reload <device>`
+restarts the process after driver/profile/connection edits. Session and generation
+stay fixed until reload; a pinned `connection.json` must be updated when switching
+episodes. HTTP idle connections are recreated before the next request; lost replies
+are reported without resending commands.
+
+`/unload` stops an actuator within its declared scope and releases its connection.
+On EOF or SIGTERM, a connected persistent actuator also attempts a bounded stop;
+a failed stop is logged, not treated as success. This does not stop the world.
+Direct single-call scripts retain their targets after exiting.
+
 Video export requires `ffmpeg`; the keyframe script requires Pillow.
 
 Confirm `devices/` exists and contains arm, base, torso, gripper, camera_left, camera_right,

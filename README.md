@@ -95,7 +95,11 @@ and world, using Kinex’s current device schemas. It implements the device-firs
 continuously while the agent thinks. Writes update persistent controller goals;
 reads do not request extra steps. Exported arm/torso drivers solve IK/FK locally
 using Kinex utilities and static profile geometry; they do not require RoboEnv
-in the agent environment. Pass `--sync` to `roboenv launch`, or set `backend_kwargs.realtime: false`
+in the agent environment. Exported drivers default to persistent JSON-lines
+processes and reuse HTTP connections, profile data, and local kinematics. Reload
+through Kinex after changing profiles or episode connections; unloading stops only
+the device's declared scope. Transport failures never resubmit commands.
+Pass `--sync` to `roboenv launch`, or set `backend_kwargs.realtime: false`
 in the task YAML for synchronous mode, where each write advances one control period, retaining all active goals.
 Arm and torso targets are absolute joint positions in radians/metres; gripper
 commands keep their native signed format. Acceptance never implies arrival.
