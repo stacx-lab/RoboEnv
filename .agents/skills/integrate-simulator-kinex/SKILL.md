@@ -53,6 +53,31 @@ Treat Kinex core edits as exceptions supported by a reproducible failure and a
 focused regression test. Keep simulator-specific controllers, registration and
 task logic out of its core. Do not relax schemas to accommodate an incomplete rig.
 
+## Keep the integration small
+
+Before adding files, map each requirement to an existing owner: source preparation,
+world lifecycle, device validation/transport, catalog export, task discovery, or
+acceptance. Reuse those implementations. Add a simulator-specific branch or helper
+only for behavior that the existing contract cannot express. Do not retain a second
+primitive/driver stack merely to resemble an older integration.
+
+Share device definitions and portable drivers across tasks. Represent rigid mounting
+differences with existing binding overrides; create another robot catalog only when
+hardware, control or sensor interfaces materially differ. Keep a small set of
+representative tasks in Git, generate the full task registry from upstream metadata,
+and put episode seeds, budgets and temporary variants in run configuration.
+
+For cleanup, distinguish runtime callers, independent CLI/policy entrypoints, scanned
+skills, and historical source/validation records. No import references proves only
+absence from that call graph. Before deletion, establish the replacement or retired
+scope and identify affected entrypoints. Preserve source/patch identities needed by
+retained receipts. Test changed receipt readers against the original format as well
+as newly generated records; passing tests after removing coverage is not equivalence.
+
+Remove duplicate checks only when the shared boundary still rejects the same invalid
+inputs before effects. Compare resolved profiles and behavior before/after factoring.
+After deleting packaged files, build from fresh staging and check wheel contents.
+
 ## Build the native integration
 
 - Pin the selected upstream and checksum-verified patches using RoboEnv's source
@@ -86,9 +111,9 @@ task logic out of its core. Do not relax schemas to accommodate an incomplete ri
 
 Extract stable robot/controller/camera facts from pinned sources or a task-free
 compiled model. Never encode sampled object locations, seed-specific poses or
-session identity in a rig. Generate one catalog per materially different embodiment
-or mounting arrangement, not one per task. Verify deterministic regeneration and
-mount invariance while changing robot joint pose.
+session identity in a rig. Generate shared device facts and the necessary mounting
+overrides, not one catalog per task or scene name. Verify deterministic regeneration,
+resolved-profile equality and mount invariance while changing robot joint pose.
 
 Follow the current RoboCasa catalog: workspace.yaml and devices under the robot
 directory, binding plans outside it. Reuse src/roboenv/devices/export.py and the
@@ -137,9 +162,11 @@ facts. Replay the owner command record in a fresh simulator process and compare 
 budget and native verdict under a declared tolerance. Failure must produce a nonzero
 exit code and preserved diagnostic artifacts.
 
-**Gate D — task completion by a frozen controller.** Choose three small representative
-tasks with distinct mechanisms where the simulator supports them. Configure an exact
-model/effort and finite development rounds/time only within authorization. Use the
+**Gate D — task completion by a frozen controller.** Use the requested task matrix;
+otherwise choose a small set covering distinct mechanisms. Keep extra stress tasks
+only when their coverage is needed. Configure the exact model/effort and finite
+development rounds/time within authorization; distinguish exactly N rounds from
+up to N rounds and do not silently stop an exact-round study after early success. Use the
 real Kinex agent to observe, implement and debug a reusable controller tool. Freeze
 all reusable code plus its Python manifest and dependency lock. Each validation uses
 a new Kinex process/workspace and a new simulator world; no model, repair, conversation,

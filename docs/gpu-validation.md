@@ -13,15 +13,15 @@ After building the SDK wheel and preparing an immutable-image deployment map:
 .venv/bin/python tools/validate_simulators.py \
   --deployments deployments/local/map.json \
   --sdk-wheel build/wheels/roboenv-0.2.0-py3-none-any.whl \
-  --backends libero --modes reference --seeds 0 \
+  --backends robocasa --modes reference --seeds 0 \
   --out .cache/validation-plan
 ```
 
 No Docker or GPU command runs during preparation. Generated task directories are
 checked by Harbor's actual loader, contain the ordinary environment and verifier,
 and use the existing task generator and taskset runner. Inspect `receipt.json`
-and `taskset/`. Preparing without a backend selection covers the eight small
-reference examples across LIBERO, RoboCasa, RoboTwin, and RoboDojo at seed 0.
+and `taskset/`. Preparing without a backend selection covers the six small
+reference examples across RoboCasa, RoboTwin, and RoboDojo at seed 0.
 
 Execution requires another new output directory; existing evidence is never
 overwritten. Select the permitted GPU using `ROBOENV_GPU` as for any Roboenv task:
@@ -30,8 +30,8 @@ overwritten. Select the permitted GPU using `ROBOENV_GPU` as for any Roboenv tas
 .venv/bin/python tools/validate_simulators.py \
   --deployments deployments/local/map.json \
   --sdk-wheel build/wheels/roboenv-0.2.0-py3-none-any.whl \
-  --backends libero --cases libero/drawer-and-bowl \
-  --modes reference --seeds 0 1 2 --run \
+  --backends libero --cases libero/spatial_0 \
+  --modes probe --seeds 0 1 2 --run \
   --out .cache/validation-run
 ```
 

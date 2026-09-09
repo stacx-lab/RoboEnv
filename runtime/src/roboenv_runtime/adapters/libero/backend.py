@@ -172,8 +172,6 @@ class LiberoEnv:
             controller.update(force=True)
             controller.reset_goal()
             return
-        if part != "gripper":
-            raise ValueError("Unknown native actuator")
         self._gripper_command = 0.0
         robot = self._robot
         actuators = robot._ref_joint_gripper_actuator_indexes

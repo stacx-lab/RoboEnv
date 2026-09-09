@@ -12,4 +12,3 @@ backend_kwargs:
 seed: 0
 budget_mode: practice
 action_abstraction: devices
-device_bindings: null

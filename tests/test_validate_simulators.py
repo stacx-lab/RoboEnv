@@ -72,7 +72,7 @@ def test_seven_probe_plans_use_explicit_behavior_scene_and_yam_config(tmp_path):
     cases = tool.select_cases(
         source=source.parent, backends=[*tool.DEFAULT_BACKENDS, "behavior"], modes=["probe"]
     )
-    assert len(cases) == 8
+    assert len(cases) == 7
     yam = next(task for _, task, _, _ in cases if task.robot == "robodojo-yam")
     assert yam.backend_kwargs["env_cfg_type"] == "yam"
     aloha = next(task for _, task, _, _ in cases if task.robot == "robotwin-aloha-agilex")
@@ -91,7 +91,7 @@ def test_seven_probe_plans_use_explicit_behavior_scene_and_yam_config(tmp_path):
         backends=[*tool.DEFAULT_BACKENDS, "behavior"],
         modes=["probe"],
     )
-    assert len(prepared["cases"]) == 8 and prepared["harbor_loader_validated"]
+    assert len(prepared["cases"]) == 7 and prepared["harbor_loader_validated"]
     task["backend_kwargs"].pop("scene_model")
     (source / "task.yaml").write_text(yaml.safe_dump(task))
     with pytest.raises(ValueError, match="explicit scene_model"):
@@ -108,7 +108,7 @@ def write_trial(out, record, *, reward, program_completed=True):
             "request": {"op": "devices.call", "args": {"device": name, "action": "read"}},
             "response": {"ok": True, "result": {"read_only": True}},
         }
-        for name in record["expected_devices"]
+        for name in record["expected_reads"]
     ]
     raw = "".join(json.dumps(event) + "\n" for event in events)
     (trial / "verifier/actions.jsonl").write_text(raw)
@@ -289,6 +289,7 @@ def test_failed_advertised_device_read_has_a_failure_category_without_harbor_exc
         "seed": 0,
         "mode": "probe",
         "expected_devices": ["left_arm", "world"],
+        "expected_reads": ["left_arm", "world"],
     }
     trial = write_trial(tmp_path, record, reward=0, program_completed=False)
     path = trial / "verifier/actions.jsonl"
@@ -305,3 +306,53 @@ def test_failed_advertised_device_read_has_a_failure_category_without_harbor_exc
     assert not evidence["device_read_probe_passed"]
     assert evidence["failure_category"] == "device-read-failed"
     assert evidence["failed_device_reads"] == ["world"]
+
+
+@pytest.mark.parametrize("backend,world_readable", [("libero", False), ("robocasa", False),
+                                                   ("robotwin", True)])
+def test_probe_reads_match_evidence_for_native_and_controller_worlds(
+    tmp_path, monkeypatch, backend, world_readable,
+):
+    tool = load_tool("validate_simulators")
+    wheel, deployments = inputs(tmp_path)
+    receipt = tool.prepare(deployments, wheel, tmp_path / "prepared", backends=[backend],
+                           modes=["probe"], seeds=[0])
+    record = next(r for r in receipt["cases"] if "world" in r["expected_devices"])
+    assert "world" in record["expected_devices"]
+    assert ("world" in record["expected_reads"]) == world_readable
+    reads = []
+    inventory = {"schema_version": "roboenv/devices/1", "devices": [
+        {"name": name, "type": "world" if name == "world" else "other", "actions": {
+            "read": {"supported": True, "read_only": True},
+        } if name in record["expected_reads"] else {}}
+        for name in record["expected_devices"]
+    ]}
+
+    def read(name):
+        reads.append(name)
+        return {"read_only": True}
+
+    monkeypatch.setattr("roboenv.client.Client", lambda: SimpleNamespace(
+        devices=lambda: inventory,
+        device=lambda name: SimpleNamespace(read=lambda: read(name)),
+    ))
+    exec(tool._probe_program(record["expected_devices"], record["expected_reads"]), {})
+    assert reads == record["expected_reads"]
+    trial = write_trial(tmp_path / "evidence", record, reward=0)
+    assert tool._trial_evidence(record, trial / "result.json")["device_read_probe_passed"]
+
+
+def test_original_version_one_probe_receipts_keep_their_read_requirements(tmp_path):
+    tool = load_tool("validate_simulators")
+    record = {
+        "id": "original-probe", "name": "roboenv/original-probe", "seed": 0,
+        "backend_task": "robotwin.handover_mic", "program_sha256": "a" * 64,
+        "mode": "probe", "expected_devices": ["left_arm", "world"],
+    }
+    for reads in (["left_arm", "world"], ["left_arm"]):
+        trial = write_trial(tmp_path / str(len(reads)), {**record, "expected_reads": reads},
+                            reward=0)
+        evidence = tool._trial_evidence(record, trial / "result.json")
+        assert evidence["device_read_probe_passed"] == (len(reads) == 2)
+        if len(reads) == 1:
+            assert evidence["failure_category"] == "incomplete-device-read-evidence"

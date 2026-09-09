@@ -4,14 +4,28 @@ import ast
 import re
 from pathlib import Path
 
+import yaml
+from roboenv.devices.bindings.spec import BindingPlan
+
 SUITES = ("libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90")
-RIGS = {
-    "libero_tabletop_manipulation": "libero-panda",
-    "libero_floor_manipulation": "libero-panda-floor",
-    "libero_kitchen_tabletop_manipulation": "libero-panda-kitchen",
-    "libero_living_room_tabletop_manipulation": "libero-panda-living-room",
-    "libero_study_tabletop_manipulation": "libero-panda-study",
-}
+ROBOT = "libero-panda"
+PROBLEMS = (
+    "libero_tabletop_manipulation",
+    "libero_floor_manipulation",
+    "libero_kitchen_tabletop_manipulation",
+    "libero_living_room_tabletop_manipulation",
+    "libero_study_tabletop_manipulation",
+)
+
+
+def device_bindings(catalog, problem):
+    """Apply native mounting facts to the shared Panda through existing overrides."""
+    root = Path(catalog) / "robots" / ROBOT
+    mounts = yaml.safe_load((root / "mounts.yaml").read_text())[problem]
+    devices = BindingPlan.load(root, backend="libero").as_dict()["devices"]
+    for name, overrides in mounts.items():
+        devices[name]["overrides"] = overrides
+    return devices
 
 
 def literal(path, name):
@@ -38,13 +52,14 @@ def entries(base):
             text = bddl.read_text()
             problem = re.search(r"\(problem\s+([^\s)]+)", text)
             language = re.search(r"\(:language\s+(.*?)\)", text, re.S)
-            if not problem or problem[1].lower() not in RIGS or not language:
+            if not problem or problem[1].lower() not in PROBLEMS or not language:
                 raise ValueError(f"Unsupported LIBERO task metadata: {bddl.name}")
             yield {
                 "suite_name": suite,
                 "task_id": index,
                 "name": name,
-                "robot": RIGS[problem[1].lower()],
+                "robot": ROBOT,
+                "problem": problem[1].lower(),
                 "bddl": bddl,
                 "states": states,
                 "instruction": " ".join(language[1].split()).strip('"'),

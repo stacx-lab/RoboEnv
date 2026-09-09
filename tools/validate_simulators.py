@@ -15,8 +15,7 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 
-import yaml
-from roboenv.devices.bindings.spec import binding_path
+from roboenv.devices.bindings.spec import BindingPlan, binding_path
 from roboenv.harbor.deployment import load_deployment
 from roboenv.harbor.taskset import deployment_map, export_taskset, validate_harbor_task
 from roboenv.privacy import validate_public_text
@@ -27,10 +26,6 @@ from roboenv.validation import json_loads
 ROOT = Path(__file__).resolve().parents[1]
 ROBOTS = {
     "libero-panda": ("libero", {}),
-    "libero-panda-floor": ("libero", {}),
-    "libero-panda-kitchen": ("libero", {}),
-    "libero-panda-living-room": ("libero", {}),
-    "libero-panda-study": ("libero", {}),
     "robocasa-panda-omron": ("robocasa", {}),
     "robotwin-dual-piper": ("robotwin", {"embodiment": "piper"}),
     "robotwin-aloha-agilex": ("robotwin", {"embodiment": "aloha_agilex"}),
@@ -74,7 +69,19 @@ def _verify_prepared_bundle(root):
             raise ValueError("prepared validation bundle changed; generate a new output")
 
 
-def _probe_program(names):
+def _probe_inventory(project, task):
+    root = project / "catalog/robots" / task.robot
+    plan = BindingPlan.load(root, backend=task.backend, devices=task.device_bindings)
+    readable = []
+    for spec in plan.devices:
+        profile = spec.resolved_profile(root)
+        actions = profile.get("access", {}).get("driver", {}).get("actions", [])
+        if profile["type"] != "world" or "read" in actions:
+            readable.append(spec.name)
+    return {"expected_devices": [s.name for s in plan.devices], "expected_reads": readable}
+
+
+def _probe_program(names, readable):
     return (
         "# Project-authored read-only device connectivity probe; not a benchmark solution.\n"
         "from roboenv.client import Client\n"
@@ -83,7 +90,10 @@ def _probe_program(names):
         "assert inventory['schema_version'] == 'roboenv/devices/1'\n"
         f"assert sorted(device['name'] for device in inventory['devices']) == {names!r}\n"
         "for descriptor in inventory['devices']:\n"
-        "    if descriptor['type'] == 'world': continue\n"
+        f"    if descriptor['name'] not in {readable!r}:\n"
+        "        assert descriptor['type'] == 'world'\n"
+        "        assert not descriptor['actions'].get('read', {}).get('supported', False)\n"
+        "        continue\n"
         "    action = descriptor['actions']['read']\n"
         "    assert action['supported'] is True and action['read_only'] is True\n"
         "    result = client.device(descriptor['name']).read()\n"
@@ -161,14 +171,15 @@ def select_cases(
                 task,
                 id=f"{task.backend}/probe-{robot}-{task.id.split('/')[-1]}",
                 robot=robot,
-                device_bindings=None,
+                device_bindings=task.device_bindings if task.robot == robot else None,
                 backend_kwargs={**task.backend_kwargs, **overrides},
                 action_abstraction="symbolic-primitives"
                 if backend == "behavior"
                 else task.action_abstraction,
             )
-            binding = yaml.safe_load(binding_path(project / "catalog/robots" / robot).read_text())
-            plans.append(("probe", task, source_path, _probe_program(sorted(binding["devices"]))))
+            inventory = _probe_inventory(project, task)
+            program = _probe_program(inventory["expected_devices"], inventory["expected_reads"])
+            plans.append(("probe", task, source_path, program))
     if not plans:
         raise ValueError("no validation cases matched")
     return plans
@@ -254,11 +265,7 @@ def prepare(
             "backend_task": task.backend_task,
             "robot": task.robot,
             "bindings_sha256": digest(binding_path(project / "catalog/robots" / task.robot)),
-            "expected_devices": sorted(
-                yaml.safe_load(binding_path(project / "catalog/robots" / task.robot).read_text())[
-                    "devices"
-                ]
-            ),
+            **_probe_inventory(project, task),
         }
     bundle = out / "taskset"
     export_taskset(
@@ -415,7 +422,8 @@ def _trial_evidence(record, result_path):
         and boot
         and program_completed
         and valid
-        and read_devices == set(record["expected_devices"])
+        # Earlier version-1 receipts required reads from every listed device.
+        and read_devices == set(record.get("expected_reads", record["expected_devices"]))
         and not mutating_probe_calls
     )
     failure = "harbor-exception" if result.get("exception_info") else None

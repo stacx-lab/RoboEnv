@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
-from roboenv.tasks.libero import RIGS
+from roboenv.tasks.libero import ROBOT, device_bindings
 from roboenv_runtime.adapters.libero.adapter import LiberoAdapter
 from roboenv_runtime.bindings import default_registry
 
@@ -43,8 +43,11 @@ def replay(record):
                 raise ValueError(f"Replay initialization mismatch: {key}")
         from dataclasses import replace
 
-        root = ROOT / "catalog/robots" / RIGS[native.wrapper.problem_name.lower()]
-        plan = BindingPlan.load(root, backend="libero")
+        root = ROOT / "catalog/robots" / ROBOT
+        plan = BindingPlan.load(
+            root, backend="libero",
+            devices=device_bindings(ROOT / "catalog", native.wrapper.problem_name.lower()),
+        )
         plan = replace(plan, devices=tuple(s for s in plan.devices if s.entity != "camera"))
         service = default_registry().assemble(
             plan, root, BindingContext("libero", "panda", adapter)

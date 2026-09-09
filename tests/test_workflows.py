@@ -36,7 +36,7 @@ def test_nested_simulation_and_flat_task_resolve_identically():
 
 
 def test_task_id_resolution_and_missing_task():
-    resolved = resolve_task("libero/mug-into-microwave", project=ROOT)
+    resolved = resolve_task("libero/10_9", project=ROOT)
     assert resolved.runtime_config()["adapter"] == "libero"
     assert resolved.task.backend_kwargs == {
         "suite_name": "libero_10", "task_id": 9, "init_state_index": 0, "realtime": True,
@@ -315,7 +315,7 @@ def test_grouped_catalog_ids_and_listing(capsys):
     from roboenv.tasks.catalog import load_catalog
 
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 15
+    assert len(catalog) == 12
     for identifier, (task, path) in catalog.items():
         assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
         assert identifier.split("/")[0] == task.backend

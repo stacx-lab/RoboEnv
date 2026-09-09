@@ -9,14 +9,20 @@ from pathlib import Path
 import pytest
 import yaml
 from helpers import ROOT, load_tool
-from roboenv.tasks.libero import RIGS, entries
+from roboenv.tasks.libero import PROBLEMS, ROBOT, device_bindings, entries
 from roboenv.tasks.resolve import resolve_task
+
+
+def require(condition, message):
+    if not condition:
+        if os.environ.get("ROBOENV_LIBERO_ACCEPTANCE") == "1":
+            pytest.fail(message)
+        pytest.skip(message)
 
 
 def interpreter():
     value = os.environ.get("ROBOENV_LIBERO_TEST_PYTHON")
-    if not value or not Path(value).is_file():
-        pytest.skip("Requires prepared official LIBERO interpreter")
+    require(value and Path(value).is_file(), "Requires prepared official LIBERO interpreter")
     return value
 
 
@@ -40,16 +46,19 @@ def run_native(script, *args, timeout=180):
 
 def test_official_registry_and_assets_are_complete():
     base = ROOT / "third_party/LIBERO/libero/libero"
-    if not base.exists():
-        pytest.skip("Requires pinned LIBERO checkout, but no simulator imports")
+    require(base.exists(), "Requires pinned LIBERO checkout, but no simulator imports")
     tasks = list(entries(base))
     assert len(tasks) == 130
-    assert set(t["robot"] for t in tasks) == set(RIGS.values())
+    assert {t["robot"] for t in tasks} == {ROBOT}
+    assert {t["problem"] for t in tasks} == set(PROBLEMS)
     assert [
         sum(t["suite_name"] == suite for t in tasks)
         for suite in ("libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90")
     ] == [10, 10, 10, 10, 90]
-    for task in ("spatial_0", "drawer-and-bowl", "mug-into-microwave"):
+    assert {p.parent.name for p in (ROOT / "catalog/tasks/libero").glob("*/task.yaml")} == {
+        "spatial_0", "90_0", "10_3", "10_9", "drawer-and-bowl",
+    }
+    for task in ("spatial_0", "90_0", "10_3", "10_9", "drawer-and-bowl"):
         resolved = resolve_task("libero/" + task, project=ROOT)
         assert resolved.task.action_abstraction == "devices"
         assert resolved.task.budget_mode == "practice"
@@ -58,14 +67,44 @@ def test_official_registry_and_assets_are_complete():
         assert not resolved.path.with_name("solution.py").exists()
 
 
+def test_discovered_scene_mounts_reach_prepared_kinex_workspaces(tmp_path):
+    from roboenv.tasks.catalog import discover
+
+    require((ROOT / "third_party/LIBERO/libero/libero").exists(), "Requires pinned LIBERO")
+    destination = tmp_path / "discovered"
+    assert discover(ROOT, destination, backends=["libero"])["tasks"] == 130
+    native = {
+        (e["suite_name"], e["task_id"]): e
+        for e in entries(ROOT / "third_party/LIBERO/libero/libero")
+    }
+    checked = set()
+    bindings = {p: device_bindings(ROOT / "catalog", p) for p in PROBLEMS}
+    for path in (destination / "tasks/libero").glob("*/task.yaml"):
+        resolved = resolve_task(path, catalog=ROOT / "catalog")
+        kwargs = resolved.task.backend_kwargs
+        problem = native[kwargs["suite_name"], kwargs["task_id"]]["problem"]
+        assert resolved.task.device_bindings == bindings[problem]
+        if problem in checked:
+            continue
+        workspace = tmp_path / problem
+        load_tool("prepare_kinex_workspace").prepare(
+            path, workspace, project=ROOT, catalog=ROOT / "catalog"
+        )
+        for spec in resolved.bindings.devices:
+            profile = workspace / ".kinex/devices" / spec.name / "profile.yaml"
+            assert yaml.safe_load(profile.read_text()) == spec.resolved_profile(resolved.robot)
+        checked.add(problem)
+    assert checked == set(PROBLEMS)
+
+
 def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
     from roboenv.devices.export import DRIVERS
 
     transport = (ROOT / "src/roboenv/assets/_roboenv.py").read_bytes()
     profiles = []
-    for rig in RIGS.values():
+    for rig in (ROBOT,):
         root = ROOT / "catalog/robots" / rig
-        assert {p.name for p in root.iterdir()} == {"workspace.yaml", "devices"}
+        assert {p.name for p in root.iterdir()} == {"workspace.yaml", "devices", "mounts.yaml"}
         assert {p.name for p in (root / "devices").iterdir()} == {
             "arm",
             "gripper",
@@ -95,11 +134,18 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
         assert "simulator" not in str(
             yaml.safe_load((root / "devices/arm/profile.yaml").read_text())["access"]
         )
-    kinex_root = ROOT.parent / "kinex"
-    bun = shutil.which("bun")
-    if not bun or not (kinex_root / "node_modules/zod").exists():
-        pytest.skip("Kinex schema integration requires sibling Kinex and Bun")
+    kinex_root = Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex"))
+    bun = shutil.which(os.environ.get("BUN", "bun"))
+    require(bun and (kinex_root / "node_modules/zod").exists(),
+            "Kinex schema integration requires prepared Kinex and Bun")
     payload = tmp_path / "profiles.json"
+    from roboenv.devices.bindings.spec import BindingPlan
+
+    for problem in PROBLEMS:
+        plan = BindingPlan.load(root, backend="libero", devices=device_bindings(
+            ROOT / "catalog", problem,
+        ))
+        profiles.extend(spec.resolved_profile(root) for spec in plan.devices)
     payload.write_text(json.dumps(profiles))
     workspace = tmp_path / "workspace"
     load_tool("prepare_kinex_workspace").prepare("libero/spatial_0", workspace, project=ROOT)
@@ -144,7 +190,7 @@ def test_static_generation_is_deterministic(tmp_path):
                 )
 
 
-@pytest.mark.parametrize("case", range(7))
+@pytest.mark.parametrize("case", range(8))
 @pytest.mark.parametrize("init", [0, 1])
 def test_native_geometry_control_and_initialization(tmp_path, case, init):
     run_native("tests/libero_native.py", "--out", tmp_path, "--case", case, "--init", init)

@@ -1,7 +1,4 @@
-# π0.5 fine-tuned on LIBERO by Physical Intelligence (openpi `pi05_libero`):
-# 96.9 % average over the four LIBERO suites in their evaluation.  Served by
-# the openpi checkout vendored under RoboDojo/XPolicyLab (its uv venv), read
-# from the repo-local openpi cache.
+# Independent OpenPI server configuration; not a native device binding.
 name: pi05_libero
 simulator: libero
 protocol: openpi-ws
@@ -33,51 +30,9 @@ obs:
   state: [eef_pos, eef_axisangle, gripper_qpos]   # 3 + 3 + 2
 action:
   dim: 7                    # OSC_POSE deltas (dx dy dz droll dpitch dyaw) + gripper (-1 open, +1 close)
-  replan_steps: 5           # execute 5 of each 50-step chunk, then re-infer (openpi default)
+  replan_steps: 5           # caller consumes this many actions before replanning
   controller: OSC_POSE      # the LIBERO datasets were collected with robosuite's OSC_POSE at 20 Hz
 notes: >
-  Trained on the LIBERO suites (spatial/object/goal/10); libero_90 and LIBERO-PRO
-  perturbations are out of distribution for it.  Its instruction is the
-  benchmark's language; give it the whole task, not a sub-goal.
-tool_doc: |
-  Hand closed-loop control to a pretrained vision-language-action policy (default
-  ``pi05_libero``: π0.5 fine-tuned on the LIBERO suites, ~97 % on spatial/object/goal/10
-  in its own evaluation) for up to ``n_actions`` control steps (20 Hz, one LIBERO horizon
-  step each), then get control back with a before/after report ``{"policy",
-  "actions_taken", "reward_before", "reward_after", "objects_moved_m", "budget", "note"}``.
-
-  It sees the benchmark's cameras and a language instruction — by default the task's own
-  sentence.  ``instruction`` overrides it, and the one edit measured to help is a sentence
-  rebuilt from the *goal predicate*: a LIBERO-PRO task that names a decoy object went from
-  0.0 to 1.0 in 210 steps that way.  What it will NOT do is pick between instances —
-  four phrasings of "open the bottom drawer" all opened the middle one.  Language selects
-  a skill, not an object.
-
-  **Call it in chunks, not once.**  ``roboenv.control.patterns.supervised_chunks(vla_run,
-  chunk=100, budget=600)`` is the measured default.  Two reasons: the report is the reward
-  after the LAST frame and this policy reaches the goal and then keeps moving (sliced in
-  50s, one task reads ``[0, 0, 1.0, 0, 0, …]`` — solved at frame 150, undone by 200); and
-  the sampling key is restored at each call's first inference, so a chunk boundary
-  re-draws the plan.  Chunking at 100 flipped 6 of 13 one-shot failures on LIBERO and 11
-  of 13 on LIBERO-PRO, and costs 2-4x fewer simulator steps on tasks one shot already won.
-  Chunk size is part of the answer: a task can win at 100 and fail at 125, or reach a joint
-  target at 50 that it never reaches at 100.
-
-  **Where it is worth calling**: its four training suites (34 of 40) and LIBERO-PRO
-  perturbations (8 of 11).  On libero_90, which it never trained on, it is 4 of 10 — and
-  across the whole campaign the policy is **0 of 16** on out-of-distribution atomic tasks,
-  so on those write code instead.  When it fails on a task it should win, the shape is
-  usually one of four: it never closes an articulation, it stops a pull short of the scored
-  threshold, it releases mid-air (slice the object's *z* to tell that from "will not
-  release" — they need opposite fixes), or it loses the referent on duplicate instances.
-  Let it transport, then diagnose each goal conjunct separately and repair only the failed
-  one, re-reading the world first — it may have opened a drawer over the object you want.
-
-  **Never hand it a state your code built**: it re-runs the skill it recognises, and
-  re-running "open drawer" on an open drawer shuts it.  Policy first, code second.
-
-  The first call boots the policy server (1-3 min, once per process; later calls are
-  immediate).  Refused when the horizon is exhausted.  A certificate that calls this is
-  less reliable than one that does not (18 % of 98 were not reproducible, against 69 of 69
-  for code-only programs) — verify it on a *second server process*, which is a stronger
-  test than three replays on the same one.
+  Independent OpenPI serving specification. The native LIBERO device adapter does
+  not attach a VLA tool; callers must supply the declared observations and handle
+  policy actions. Requires the OpenPI interpreter and checkpoint above.

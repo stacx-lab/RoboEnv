@@ -126,8 +126,6 @@ def bind(spec, root, context):
             return result
 
         def write(target):
-            if not isinstance(target, (list, tuple)) or any(type(v) not in (int, float) for v in target):
-                raise ValueError("Target must contain numbers, not booleans or strings")
             command = vector(target, size, lower=[a["min"] for a in limits],
                              upper=[a["max"] for a in limits])
             world.step({entity: command})

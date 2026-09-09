@@ -1,20 +1,4 @@
 {
-  "libero:panda:arm": {
-    "module": "libero.arm",
-    "source_sha256": "10e8d0869d2baa4dc11b19b61c417820c1a865048838a7335bc6631f9c82647a"
-  },
-  "libero:panda:camera": {
-    "module": "shared.camera",
-    "source_sha256": "c0c7c5491963d3284a50a160a68b590adedeb0b5b50fc6af8ba48a9ef9dc3748"
-  },
-  "libero:panda:gripper": {
-    "module": "libero.gripper",
-    "source_sha256": "b2c66a7ce22416d8086e2c86db9cb99ab324818c663aeacab8ff71b9dbd11745"
-  },
-  "libero:panda:world": {
-    "module": "libero.world",
-    "source_sha256": "29901c0c397cfb24e96a9a6d2f54032f231c26785ac38a5c058677cf4af99c43"
-  },
   "robodojo:arx_x5:arm": {
     "module": "robodojo.arm",
     "source_sha256": "c84583350dc85cefe62a254416a32d1c00eaf7e51d2201767dd617c08dfa8e58"

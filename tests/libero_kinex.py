@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import roboenv
@@ -28,7 +29,8 @@ def check(out, kinex, bun):
     with (out / "python.log").open("w") as log:
         subprocess.run([bun, str(kinex / "bin/kinex"), "python"], cwd=workspace,
                        env=env, check=True, stdout=log, stderr=log, timeout=180)
-    with roboenv.launch("libero/spatial_0", project=ROOT, realtime=False) as run:
+    with roboenv.launch("libero/spatial_0", project=ROOT, realtime=False,
+                        interpreter=sys.executable) as run:
         identity = {k: run.record[k] for k in ("session", "generation")}
         for driver in (workspace / ".kinex/devices").glob("*/driver.py"):
             driver.with_name("connection.json").write_text(json.dumps({

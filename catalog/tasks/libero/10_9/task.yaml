@@ -1,7 +1,7 @@
 id: libero/10_9
 backend: libero
 backend_task: libero.10_9
-robot: libero-panda-kitchen
+robot: libero-panda
 instruction: put the yellow and white mug in the microwave and close it
 backend_kwargs:
   realtime: true
@@ -11,4 +11,3 @@ backend_kwargs:
 seed: 0
 budget_mode: practice
 action_abstraction: devices
-device_bindings: null

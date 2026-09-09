@@ -25,7 +25,6 @@ log = logging.getLogger(__name__)
 
 #: simulator name -> "package.module:callable(adapter, spec, instruction) -> VlaHooks"
 HOOKS: dict[str, str] = {
-    "libero": "roboenv_runtime.adapters.libero.vla:LiberoPolicyHooks",
     "robocasa": "roboenv_runtime.adapters.robocasa.vla:RoboCasaPolicyHooks",
     "robotwin": "roboenv_runtime.adapters.robotwin.vla:RoboTwinPolicyHooks",
 }
@@ -129,12 +128,8 @@ def attach_vla_tool(adapter: Any, simulator: str) -> Any:
     adapter that already exports its own ``vla_run`` (RoboDojo) keeps it.  Returns the
     adapter.
 
-    Nothing here touches the adapter's state.  It used to ask ``adapter.tools()``
-    whether a ``vla_run`` was already there, which built the tool cache *before the
-    first* ``reset`` — and cap-x rebuilds LIBERO's env on reset, so every cached LIBERO
-    tool then closed over a stale environment: eight certified solutions replayed to
-    0.0 (round-4 integration, 2026-08-28).  The check now happens inside the wrapper,
-    where ``setdefault`` costs nothing and reads the tools the adapter really has.
+    Read tools inside the wrapper so reset cannot leave cached tools pointing
+    at a retired environment.
     """
     if simulator not in HOOKS:
         return adapter

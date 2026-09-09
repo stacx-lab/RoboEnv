@@ -3,9 +3,6 @@
 from roboenv_runtime.core.adapter import AdapterBase, register_adapter
 from roboenv_runtime.core.types import Budget, ScoreReport
 
-from .config import ensure_libero_config  # noqa: F401
-
-
 @register_adapter
 class LiberoAdapter(AdapterBase):
     name = "libero"

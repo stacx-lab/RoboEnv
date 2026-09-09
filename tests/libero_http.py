@@ -20,8 +20,9 @@ def check(out):
     task["backend_kwargs"]["realtime"] = False
     task_path = out / "task.yaml"
     task_path.write_text(yaml.safe_dump(task))
-    with roboenv.launch(task_path, catalog=ROOT / "catalog", port=0) as first:
-        with roboenv.launch(task_path, catalog=ROOT / "catalog", port=0) as second:
+    launch_options = {"catalog": ROOT / "catalog", "port": 0, "interpreter": sys.executable}
+    with roboenv.launch(task_path, **launch_options) as first:
+        with roboenv.launch(task_path, **launch_options) as second:
             a, b = roboenv.connect(first.endpoint), roboenv.connect(second.endpoint)
             assert dict(a.task.context) == {}
             assert set(first.client.request("environment.describe")) == {
@@ -84,7 +85,9 @@ def check(out):
             b.close()
     # A replacement episode on the same port must reject established clients.
     port = int(endpoint.rsplit(":", 1)[1])
-    with roboenv.launch(task_path, catalog=ROOT / "catalog", port=port) as replacement:
+    with roboenv.launch(
+        task_path, catalog=ROOT / "catalog", port=port, interpreter=sys.executable
+    ) as replacement:
         try:
             public.request("devices.list")
         except RemoteError:

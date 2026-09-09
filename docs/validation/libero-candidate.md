@@ -1,4 +1,8 @@
-# LIBERO resolved-environment acceptance
+# Historical LIBERO-PRO resolved-environment acceptance
+
+This receipt describes the retired cap-x/LIBERO-PRO integration. Its commands
+refer to that historical revision; the current official LIBERO recipe and gates
+are documented in [installation-reference.md](../installation-reference.md).
 
 [The machine-readable receipt](libero-candidate.json) records a real clean
 interpreter installation and local GPU replay. It does not certify Docker/Harbor,

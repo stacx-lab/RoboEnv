@@ -1,7 +1,7 @@
 id: libero/drawer-and-bowl
 backend: libero
 backend_task: libero.90_8
-robot: libero-panda-kitchen
+robot: libero-panda
 instruction: open the top drawer of the cabinet and put the bowl in it
 backend_kwargs:
   realtime: true
@@ -11,4 +11,3 @@ backend_kwargs:
 seed: 0
 budget_mode: practice
 action_abstraction: devices
-device_bindings: null

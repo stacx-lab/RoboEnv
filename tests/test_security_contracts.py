@@ -163,7 +163,7 @@ def test_deployment_rejects_overlapping_depots(tmp_path):
 
 def test_healthcheck_does_not_execute_an_unverified_interpreter_depot(tmp_path):
     path, _ = deployment(tmp_path)
-    task = Task.load(ROOT / "catalog/tasks/libero/drawer-and-bowl/task.yaml")
+    task = Task.load(ROOT / "catalog/tasks/libero/10_3/task.yaml")
     service = native_service(path, task, portable=True)
     assert service["healthcheck"]["test"] == [
         "CMD",

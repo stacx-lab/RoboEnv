@@ -104,40 +104,37 @@ A fresh isolated installation of all 143 packages also passed dependency
 consistency and SDK/runtime import-origin checks. These checks did not boot a
 RoboCasa world or validate assets or GPU replay.
 
-## Promoted LIBERO and RoboTwin recipes
+## Official LIBERO recipe
 
-The defaults now use `runtime/locks/libero-resolved.txt` and
-`runtime/locks/robotwin-resolved.txt`. Original `libero.txt` and `robotwin.txt`
-freezes and the candidate receipts remain untouched as historical evidence.
-The promoted locks match the tested candidate requirements exactly.
+LIBERO uses `runtime/locks/libero-official-resolved.txt` on Python 3.10, the
+pinned official `third_party/LIBERO` checkout, and robosuite 1.4.0. Prepare it with
+`roboenv prepare libero`. It does not load cap-x, LIBERO-PRO, PyRoKi/JAX, or a VLA
+server. Device/control and recording checks use `tools/accept_libero.py` with the
+prepared interpreter and a Kinex checkout.
 
-Both install **one** OpenCV distribution, `opencv-python==4.11.0.86`, because
-the selected robosuite/SAPIEN packages require that distribution. NumPy stays at
-1.26.4; installing desktop and headless OpenCV together is not a substitute for
-dependency consistency. RoboTwin retains Torch 2.4.1, SciPy 1.10.1, and JAX 0.4.29.
-LIBERO retains its tested MuJoCo, Torch, NumPy, and JAX core pins; its full resolved
-dependency changes are recorded in the [LIBERO validation receipt](validation/libero-candidate.md).
+The original `libero.txt`, candidate inputs and
+[historical LIBERO-PRO receipt](validation/libero-candidate.md) remain provenance
+for the retired integration. They are not the current recipe or its validation.
 
-The full cap-x distribution includes agent/training requirements that are not
-the Roboenv simulator dependency boundary. Instead, these recipes load the needed
-bridge modules from the source-locked checkout. LIBERO-PRO and its robosuite fork
-still install normally as editable packages; RoboTwin's benchmark source is
-source-only. No fake `capx` distribution is installed, and no dependency resolver
-is bypassed. Current cap-x initialization eagerly imports Franka IK types, so
-the locks still include PyRoKi/JAXLS even on RoboTwin's native-planner path.
+## Promoted RoboTwin recipe
 
-The two `*-source-pins.txt` files only bind PyRoKi's floating JAXLS Git URL to the
-same exact Git source already declared in the resolved lock. The setup audit
-rejects numeric version overrides, a different repository/revision, extras,
-markers, or packages absent from the lock. Installation additionally checks the
-installed commit and the actual consuming packages' source/version requirements.
-It is not permission to overwrite incompatible dependency constraints.
+RoboTwin uses `runtime/locks/robotwin-resolved.txt`. Its original `robotwin.txt`
+freeze and candidate receipt remain historical evidence. The promoted lock
+matches the tested candidate requirements, including NumPy 1.26.4, Torch 2.4.1,
+SciPy 1.10.1, JAX 0.4.29 and a single OpenCV distribution, opencv-python 4.11.0.86.
+
+The needed cap-x bridge modules load from the source-locked checkout; its full
+agent/training distribution is not installed. The source-only RoboTwin benchmark
+and cap-x's eager Franka IK imports still require PyRoKi/JAXLS.
+`robotwin-source-pins.txt` fixes PyRoKi's floating JAXLS URL to the exact source
+already declared in the resolved lock. The setup audit rejects numeric overrides
+and verifies installed source identities without bypassing dependency resolution.
 
 Current validation boundaries:
 
 | Backend | Setup preflight | Remaining installation evidence |
 |---|---|---|
-| LIBERO / LIBERO-PRO | Resolved recipe; clean installation checked | One fresh host seed-0 reference and device checks passed; new clean-environment container verification remains separate |
+| LIBERO | Official pinned source and isolated recipe | Native device, transport and replay gates via `tools/accept_libero.py`; full task solving and container acceptance are separate |
 | RoboCasa | Corrected recipe; fresh installation and package checks passed | Simulator boot, assets, and GPU replay remain unverified |
 | RoboTwin | Resolved recipe; clean installation checked | One fresh host seed-0 reference and unchanged independent verifier passed; new clean-environment container verification remains separate |
 | RoboDojo | Source and freeze syntax pass | Execute and verify a fresh full simulator installation, assets, and GPU episode |

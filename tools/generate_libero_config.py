@@ -1,4 +1,4 @@
-"""Generate five native LIBERO catalogs on CPU, without task objects or physics."""
+"""Generate one native LIBERO Panda and scene mounts without objects or physics."""
 
 import argparse
 import hashlib
@@ -15,7 +15,7 @@ import yaml
 from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.export import export_devices
-from roboenv.tasks.libero import RIGS
+from roboenv.tasks.libero import PROBLEMS, ROBOT
 from roboenv_runtime.adapters.libero.config import ensure_libero_config
 from roboenv_runtime.bindings import default_registry
 
@@ -89,6 +89,15 @@ def canonical(value):
     return value
 
 
+def differences(base, actual):
+    """Keep only changed native facts; binding overrides merge these recursively."""
+    assert base.keys() == actual.keys()
+    return {
+        key: differences(base[key], value) if isinstance(value, dict) else value
+        for key, value in actual.items() if value != base[key]
+    }
+
+
 def binding_plan():
     return {
         "schema_version": "roboenv/bindings/1",
@@ -152,7 +161,22 @@ def descriptors(problem):
 
 
 def generate(out, provenance=None):
-    for problem, rig in RIGS.items():
+    base = None
+    mounts = {}
+    for problem in PROBLEMS:
+        facts = {d["name"]: canonical(d) for d in descriptors(problem)}
+        if base is None:
+            base = facts
+        mounts[problem] = {}
+        for name, device in facts.items():
+            assert device["intrinsics"] == base[name]["intrinsics"], (problem, name)
+            if device["extrinsics"] != base[name]["extrinsics"]:
+                mounts[problem][name] = {
+                    "extrinsics": differences(base[name]["extrinsics"], device["extrinsics"]),
+                }
+        if problem != PROBLEMS[0]:
+            continue
+        rig = ROBOT
         destination = out / "robots" / rig
         destination.mkdir(parents=True, exist_ok=True)
         workspace = {
@@ -179,7 +203,7 @@ def generate(out, provenance=None):
         }
         (destination / "workspace.yaml").write_text(yaml.safe_dump(workspace, sort_keys=False))
         with tempfile.TemporaryDirectory() as temporary:
-            export_devices(descriptors(problem), temporary, {"endpoint": "http://127.0.0.1:8123"})
+            export_devices(list(facts.values()), temporary, {"endpoint": "http://127.0.0.1:8123"})
             for path in sorted(Path(temporary).glob("*/profile.yaml")):
                 profile = canonical(yaml.safe_load(path.read_text()))
                 profile["meta"] = META
@@ -195,6 +219,9 @@ def generate(out, provenance=None):
         (out / "bindings" / f"{rig}.yaml").write_text(
             yaml.safe_dump(binding_plan(), sort_keys=False)
         )
+    (out / "robots" / ROBOT / "mounts.yaml").write_text(
+        yaml.safe_dump(mounts, sort_keys=False)
+    )
     if provenance:
         import robosuite
 
@@ -237,7 +264,8 @@ def generate(out, provenance=None):
                     "renderer, or physics",
                     "camera_size": [128, 128],
                     "control_frequency_hz": 20,
-                    "rigs": RIGS,
+                    "robot": ROBOT,
+                    "problems": PROBLEMS,
                     "robosuite_version": robosuite.__version__,
                 },
                 indent=2,

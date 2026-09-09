@@ -95,7 +95,7 @@ def test_all_published_freezes_have_unambiguous_pins():
         assert auditor(lock)["passed"], lock.name
 
 
-@pytest.mark.parametrize("backend", ["libero", "robotwin"])
+@pytest.mark.parametrize("backend", ["robotwin"])
 def test_promoted_locks_match_the_validated_candidate_requirements(backend):
     locks = ROOT / "runtime/locks"
     for promoted, candidate in (

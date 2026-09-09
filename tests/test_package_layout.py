@@ -41,7 +41,7 @@ def test_robot_variants_share_handlers_but_keep_separate_binding_records():
             assert a["module"] == b["module"]
             assert a["source_sha256"] == b["source_sha256"]
     cameras = [record["module"] for key, record in index.items() if key.endswith(":camera")]
-    assert len(cameras) == 3  # RoboCasa now binds cameras directly to native rendering.
+    assert len(cameras) == 2  # RoboCasa and LIBERO bind cameras directly to native rendering.
     assert set(cameras) == {"shared.camera"}
 
 

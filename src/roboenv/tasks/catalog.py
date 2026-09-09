@@ -6,7 +6,7 @@ import ast
 import hashlib
 import json
 from collections import Counter
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import yaml
@@ -57,7 +57,7 @@ def _literal(path, variable):
     raise ValueError(f"upstream metadata variable not found: {variable}")
 
 
-def _task(backend, identifier, kwargs, instruction, *, robot=None):
+def _task(backend, identifier, kwargs, instruction, *, robot=None, device_bindings=None):
     task_name = identifier.removeprefix(backend + ".")
     return Task(
         id=f"{backend}/{task_name}",
@@ -67,6 +67,7 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None):
             **({"realtime": True} if backend in {"robocasa", "libero"} else {}), **kwargs,
         },
         robot=robot or ROBOTS[backend],
+        device_bindings=device_bindings,
         budget_mode="practice" if backend == "libero" else "official",
         instruction=instruction,
         action_abstraction="devices"
@@ -78,9 +79,13 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None):
 
 
 def _libero(root, issues):
-    from roboenv.tasks.libero import entries
+    from roboenv.tasks.libero import device_bindings, entries
 
+    bindings = {}
     for entry in entries(root / "third_party/LIBERO/libero/libero"):
+        problem = entry["problem"]
+        if problem not in bindings:
+            bindings[problem] = device_bindings(root / "catalog", problem)
         short = entry["suite_name"].removeprefix("libero_")
         yield (
             _task(
@@ -93,6 +98,7 @@ def _libero(root, issues):
                 },
                 entry["instruction"],
                 robot=entry["robot"],
+                device_bindings=bindings[problem],
             ),
             entry["bddl"],
         )
@@ -232,13 +238,7 @@ def discover(project, destination, backends=BACKENDS):
                 raise ValueError(f"duplicate discovered task: {task.id}")
             if task.id in existing:
                 old, _ = existing[task.id]
-                task = _task(
-                    backend,
-                    task.backend_task,
-                    task.backend_kwargs,
-                    old.instruction,
-                    robot=task.robot,
-                )
+                task = replace(task, instruction=old.instruction)
             bundle.add_yaml(f"tasks/{task.id}/task.yaml", asdict(task))
             records[task.id] = {
                 "backend": backend,

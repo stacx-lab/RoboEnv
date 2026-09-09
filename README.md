@@ -53,12 +53,22 @@ Launch streams simulator stdout/stderr to the terminal's stderr and retains the
 run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready.
 Python callers can enable streaming with `log_stream=sys.stderr`.
 
-Official LIBERO uses the same typed device path with five task-independent Panda
-rig catalogs. Run `roboenv prepare libero` and `roboenv launch libero/spatial_0`.
+Official LIBERO uses the same typed device path with one shared Panda catalog
+and native scene mounts in `catalog/robots/libero-panda/mounts.yaml`.
+Run `roboenv prepare libero` and `roboenv launch libero/spatial_0`.
 Its absolute joint control is explicitly a practice protocol, not the published OSC
 benchmark action space. `tools/accept_libero.py --out OUTPUT` runs native device,
 transport, Kinex recording and fresh-process replay gates without model calls;
 task-solving acceptance uses Kinex's `examples/simulator-acceptance/libero.json`.
+
+The checked-in LIBERO tasks are `spatial_0` (grasp/place), `90_0` (close drawer),
+`10_3` (bowl into bottom drawer, then close), and `10_9` (mug into microwave, then
+close). The latter two are multi-stage LIBERO-Long stress cases, selected for
+combined object and articulated-fixture manipulation, not an official per-task
+difficulty ranking. Discovery still covers all 130 native tasks and applies each
+scene's mounts through ordinary binding overrides; it does not duplicate drivers.
+The additional `drawer-and-bowl` example maps to `libero_90` task 8: open the
+top drawer and put the bowl inside. It uses the same shared Panda catalog.
 
 RoboCasa’s typed catalog contains arm, torso, base, gripper, three RGB-D cameras,
 and world, using Kinex’s current device schemas. It implements the device-first API: `env.task`, `env.devices()`, and
