@@ -71,6 +71,7 @@ class LiberoEnv:
         self.initialization = {}
         self._gripper_command = 0.0
         self.command_log = []
+        self.control_protocol = "absolute_joint_position"
         self.wrapper = ControlEnv.__new__(ControlEnv)
         try:
             self.wrapper.__init__(
@@ -101,6 +102,7 @@ class LiberoEnv:
         return self.env.sim
 
     def reset(self, *, seed):
+        self._joint_controller()
         random.seed(seed)
         np.random.seed(seed)
         self.wrapper.seed(seed)
@@ -115,6 +117,7 @@ class LiberoEnv:
         for _ in range(INITIALIZATION_FRAMES):
             self.tick()
         self.command_log = []
+        self.control_protocol = "absolute_joint_position"
         self.initialization = {
             "suite": self.suite_name,
             "task_id": self.task_id,
@@ -140,10 +143,16 @@ class LiberoEnv:
     def task_completed(self):
         return self._success
 
+    def _joint_controller(self):
+        controller = self._robot.controller
+        if controller.name != "JOINT_POSITION":
+            raise RuntimeError("Finish the OSC policy rollout before joint-device control or reset")
+        return controller
+
     def step(self, commands):
         if self._max_steps is not None and self._step_count >= self._max_steps:
             raise RuntimeError("LIBERO action frame budget exhausted")
-        controller = self._robot.controller
+        controller = self._joint_controller()
         for part, value in commands.items():
             if part == "arm":
                 target = np.array(value, dtype=float, copy=True)
@@ -166,9 +175,9 @@ class LiberoEnv:
     def stop_part(self, part):
         if part not in {"arm", "gripper"}:
             raise ValueError("Unknown native actuator")
+        controller = self._joint_controller()
         self.command_log.append({"frame": self._step_count, "op": "stop", "part": part})
         if part == "arm":
-            controller = self._robot.controller
             controller.update(force=True)
             controller.reset_goal()
             return
@@ -182,7 +191,7 @@ class LiberoEnv:
     def tick(self):
         if self._max_steps is not None and self._step_count >= self._max_steps:
             raise RuntimeError("LIBERO action frame budget exhausted")
-        controller = self._robot.controller
+        controller = self._joint_controller()
         previous = controller.__dict__.get("set_goal")
         # robosuite 1.4 updates policy goals at the first substep. Suppress only
         # that update; its native torque, gripper and task hooks still run.
@@ -190,15 +199,21 @@ class LiberoEnv:
         try:
             action = np.zeros(self._robot.action_dim)
             action[-1] = self._gripper_command
-            self.env.step(action)
-            self.sim.forward()
-            self._step_count += 1
-            self._success = bool(self.wrapper.check_success()) or self._success
+            self._advance(action)
         finally:
             if previous is None:
                 del controller.set_goal
             else:
                 controller.set_goal = previous
+
+    def _advance(self, action):
+        """One native action interval, shared by joint devices and explicit OSC rollouts."""
+        if self._max_steps is not None and self._step_count >= self._max_steps:
+            raise RuntimeError("LIBERO action frame budget exhausted")
+        self.env.step(action)
+        self.sim.forward()
+        self._step_count += 1
+        self._success = bool(self.wrapper.check_success()) or self._success
 
     def render(self, camera=None):
         if not self._render:

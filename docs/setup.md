@@ -124,7 +124,7 @@ Harbor task inputs.
 After preparing a native image deployment:
 
 ```sh
-roboenv export libero/10_9 --out generated/example
+roboenv export libero/mug-into-microwave --out generated/example
 ```
 
 The default deployment is `.cache/images/libero/deployment.json`; use

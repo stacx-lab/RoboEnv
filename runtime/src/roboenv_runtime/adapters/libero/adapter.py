@@ -36,7 +36,7 @@ class LiberoAdapter(AdapterBase):
         completed = self._env.task_completed()
         return ScoreReport(
             reward=float(completed), raw_score=float(completed), completed=completed,
-            detail={"control_protocol": "absolute_joint_position", "native_osc_equivalence": False},
+            detail={"control_protocol": self._env.control_protocol, "native_osc_equivalence": False},
         )
 
     def capture(self):

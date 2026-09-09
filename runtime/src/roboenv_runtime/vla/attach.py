@@ -2,8 +2,9 @@
 
 The tool is the same for every simulator — ``vla_run(n_actions, instruction=None,
 policy=<default>)`` running :func:`roboenv_runtime.vla.runner.run_policy` — so it is built
-here, from the policy spec, and attached by :func:`roboenv_runtime.core.adapter.make_adapter`
-to any adapter whose simulator has a registered hooks factory.  Adapters stay
+here, from the policy spec. :func:`roboenv_runtime.core.adapter.make_adapter`
+attaches it only for enabled adapters; native LIBERO comparisons opt in through
+:func:`build_vla_tool` under exclusive evaluation-harness ownership. Adapters stay
 untouched: they only provide the hooks (observation, one control step, budget)
 in a module of their own.  The tool's docstring, the part the model reads,
 comes from the spec's ``tool_doc`` so it describes *that* policy's strengths.
@@ -25,6 +26,7 @@ log = logging.getLogger(__name__)
 
 #: simulator name -> "package.module:callable(adapter, spec, instruction) -> VlaHooks"
 HOOKS: dict[str, str] = {
+    "libero": "roboenv_runtime.adapters.libero.vla:LiberoPolicyHooks",
     "robocasa": "roboenv_runtime.adapters.robocasa.vla:RoboCasaPolicyHooks",
     "robotwin": "roboenv_runtime.adapters.robotwin.vla:RoboTwinPolicyHooks",
 }

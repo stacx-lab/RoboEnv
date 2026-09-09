@@ -56,9 +56,13 @@ def test_official_registry_and_assets_are_complete():
         for suite in ("libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90")
     ] == [10, 10, 10, 10, 90]
     assert {p.parent.name for p in (ROOT / "catalog/tasks/libero").glob("*/task.yaml")} == {
-        "spatial_0", "90_0", "10_3", "10_9", "drawer-and-bowl",
+        "bowl-onto-plate", "close-top-drawer", "bowl-into-bottom-drawer",
+        "mug-into-microwave", "drawer-and-bowl",
     }
-    for task in ("spatial_0", "90_0", "10_3", "10_9", "drawer-and-bowl"):
+    for task in (
+        "bowl-onto-plate", "close-top-drawer", "bowl-into-bottom-drawer",
+        "mug-into-microwave", "drawer-and-bowl",
+    ):
         resolved = resolve_task("libero/" + task, project=ROOT)
         assert resolved.task.action_abstraction == "devices"
         assert resolved.task.budget_mode == "practice"
@@ -148,7 +152,7 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
         profiles.extend(spec.resolved_profile(root) for spec in plan.devices)
     payload.write_text(json.dumps(profiles))
     workspace = tmp_path / "workspace"
-    load_tool("prepare_kinex_workspace").prepare("libero/spatial_0", workspace, project=ROOT)
+    load_tool("prepare_kinex_workspace").prepare("libero/bowl-onto-plate", workspace, project=ROOT)
     checked = subprocess.run(
         [
             bun,
@@ -206,3 +210,9 @@ def test_clock_budget_and_replay(tmp_path):
 def test_native_contact_stop_and_release(tmp_path):
     run_native("tests/libero_contact.py", "--out", tmp_path / "contact.json")
     assert json.loads((tmp_path / "contact.json").read_text())["passed"]
+
+
+def test_native_vla_bridge_and_replay(tmp_path):
+    run_native("tests/libero_vla.py", "--out", tmp_path / "vla")
+    report = json.loads((tmp_path / "vla/report.json").read_text())
+    assert report["passed"] and report["model_calls"] == 0

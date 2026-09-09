@@ -1,12 +1,12 @@
-id: libero/10_9
+id: libero/bowl-into-bottom-drawer
 backend: libero
-backend_task: libero.10_9
+backend_task: libero.10_3
 robot: libero-panda
-instruction: put the yellow and white mug in the microwave and close it
+instruction: put the black bowl in the bottom drawer of the cabinet and close it
 backend_kwargs:
   realtime: true
   suite_name: libero_10
-  task_id: 9
+  task_id: 3
   init_state_index: 0
 seed: 0
 budget_mode: practice

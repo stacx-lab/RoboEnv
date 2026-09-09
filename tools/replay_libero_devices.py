@@ -52,6 +52,7 @@ def replay(record):
         service = default_registry().assemble(
             plan, root, BindingContext("libero", "panda", adapter)
         )
+        policy = None
         for event in record["commands"]:
             frame = event["frame"]
             if (
@@ -67,8 +68,29 @@ def replay(record):
                     service.call({"device": part, "action": "write", "args": {"target": target}})
             elif event["op"] == "stop":
                 service.call({"device": event["part"], "action": "stop", "args": {}})
+            elif event["op"] == "policy_begin":
+                from roboenv_runtime.adapters.libero.vla import LiberoPolicyHooks
+                from roboenv_runtime.vla.spec import load_policy_spec
+
+                if policy is not None:
+                    raise ValueError("Nested policy rollout in replay")
+                native.realtime = False
+                policy = LiberoPolicyHooks(adapter, load_policy_spec("pi05_libero"))
+                policy.begin()
+            elif event["op"] == "policy_step":
+                if policy is None:
+                    raise ValueError("Policy action without a controller transition")
+                policy.step(event["action"])
+            elif event["op"] == "policy_end":
+                if policy is None:
+                    raise ValueError("Policy end without a controller transition")
+                policy.end()
+                policy = None
+                native.realtime = True
             else:
                 raise ValueError("Unknown replay operation")
+        if policy is not None:
+            raise ValueError("Policy rollout did not restore joint control")
         while adapter.budget().used < record["budget"]["used"]:
             native.tick()
         state = native.sim.get_state().flatten()

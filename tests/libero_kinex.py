@@ -23,13 +23,13 @@ def tool(name):
 def check(out, kinex, bun):
     out.mkdir(parents=True, exist_ok=False)
     workspace = out / "workspace"
-    tool("prepare_kinex_workspace").prepare("libero/spatial_0", workspace, project=ROOT)
+    tool("prepare_kinex_workspace").prepare("libero/bowl-onto-plate", workspace, project=ROOT)
     env = {**os.environ, "KINEX_DATA_DIR": str(out / "kinex-data"),
            "KINEX_CONFIG_DIR": str(out / "kinex-config")}
     with (out / "python.log").open("w") as log:
         subprocess.run([bun, str(kinex / "bin/kinex"), "python"], cwd=workspace,
                        env=env, check=True, stdout=log, stderr=log, timeout=180)
-    with roboenv.launch("libero/spatial_0", project=ROOT, realtime=False,
+    with roboenv.launch("libero/bowl-onto-plate", project=ROOT, realtime=False,
                         interpreter=sys.executable) as run:
         identity = {k: run.record[k] for k in ("session", "generation")}
         for driver in (workspace / ".kinex/devices").glob("*/driver.py"):

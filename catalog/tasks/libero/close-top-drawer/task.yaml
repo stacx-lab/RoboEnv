@@ -1,4 +1,4 @@
-id: libero/90_0
+id: libero/close-top-drawer
 backend: libero
 backend_task: libero.90_0
 robot: libero-panda

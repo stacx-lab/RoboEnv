@@ -36,7 +36,7 @@ def test_nested_simulation_and_flat_task_resolve_identically():
 
 
 def test_task_id_resolution_and_missing_task():
-    resolved = resolve_task("libero/10_9", project=ROOT)
+    resolved = resolve_task("libero/mug-into-microwave", project=ROOT)
     assert resolved.runtime_config()["adapter"] == "libero"
     assert resolved.task.backend_kwargs == {
         "suite_name": "libero_10", "task_id": 9, "init_state_index": 0, "realtime": True,

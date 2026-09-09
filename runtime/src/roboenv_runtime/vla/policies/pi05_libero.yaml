@@ -1,4 +1,4 @@
-# Independent OpenPI server configuration; not a native device binding.
+# Explicit OpenPI comparison policy; not automatically attached to typed devices.
 name: pi05_libero
 simulator: libero
 protocol: openpi-ws
@@ -33,6 +33,18 @@ action:
   replan_steps: 5           # caller consumes this many actions before replanning
   controller: OSC_POSE      # the LIBERO datasets were collected with robosuite's OSC_POSE at 20 Hz
 notes: >
-  Independent OpenPI serving specification. The native LIBERO device adapter does
-  not attach a VLA tool; callers must supply the declared observations and handle
-  policy actions. Requires the OpenPI interpreter and checkpoint above.
+  The native LIBERO hook supports explicit synchronous rollouts with a finite
+  episode budget. The default device adapter does not attach a VLA tool.
+  This checkpoint targets spatial/object/goal/10; libero_90 and LIBERO-PRO
+  perturbations are outside that training scope. Preserve the benchmark language
+  instruction. Local joint-initialized rollouts are not official benchmark scores.
+tool_doc: |
+  Run pi05_libero for at most n_actions native OSC_POSE intervals, replanning
+  every five actions. Each interval counts against the existing episode budget.
+  Requires a reset native world with realtime=False, finite max_steps, both
+  policy cameras, and the OpenPI interpreter/checkpoint configured above.
+  The seven policy values are end-effector pose deltas plus gripper control;
+  they are not seven joint angles. The original joint controller is restored
+  and holds measured state on completion, cancellation, or inference failure.
+  Reported native success is latched; evaluate terminal predicates separately
+  if the comparison requires the goal to remain satisfied at episode end.

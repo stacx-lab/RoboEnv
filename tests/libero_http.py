@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def check(out):
-    task = yaml.safe_load(resolve_task("libero/spatial_0").path.read_text())
+    task = yaml.safe_load(resolve_task("libero/bowl-onto-plate").path.read_text())
     task["backend_kwargs"]["realtime"] = False
     task_path = out / "task.yaml"
     task_path.write_text(yaml.safe_dump(task))

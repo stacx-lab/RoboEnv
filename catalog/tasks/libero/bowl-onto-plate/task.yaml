@@ -1,4 +1,4 @@
-id: libero/spatial_0
+id: libero/bowl-onto-plate
 backend: libero
 backend_task: libero.spatial_0
 robot: libero-panda
