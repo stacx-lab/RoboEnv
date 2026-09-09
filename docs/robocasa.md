@@ -44,7 +44,7 @@ roboenv launch robocasa/arrange-vegetables --port 8124
 
 Copy the same robot directory into two harness workspaces and set each process's
 `ROBOENV_ENDPOINT` to its world. Changing endpoints does not require editing
-profiles. See [Complex local testing](complex-local.md).
+profiles. See [Kinex local testing](kinex-local.md).
 
 ## Implementation boundary
 
@@ -94,7 +94,7 @@ A successful write returns `accepted: true`, never arrival. `stop` holds the
 arm/torso/gripper or requests zero base velocity. It neither teleports joints nor
 pauses realtime physics; an in-flight synchronous interval finishes before stop.
 Actuator reads include faults and simulation acquisition `sample_time_s`. Camera
-acquisition timestamps use Unix seconds, as required by Complex. Reads do not step.
+acquisition timestamps use Unix seconds, as required by Kinex. Reads do not step.
 
 Choose the clock at launch; these mutually exclusive flags override the task YAML
 for this run without changing the catalog:
@@ -128,7 +128,7 @@ profiles carry no execution clock. The base declares `control.execution`: realti
 with `command_timeout_s: null` (retain commands until replaced/stopped), or stepped
 with `interval_s: 0.05` in a live synchronous export. The static catalog describes
 the default realtime mode. Reads, recording, status, local IK/FK, and stop
-never request advancement. Complex's `servo_to` and `track` use the same loop in
+never request advancement. Kinex's `servo_to` and `track` use the same loop in
 both modes; their wall-clock rate cap does not set simulation time.
 
 Both modes count `action_frames` with `max: null`; the original horizon and legacy
@@ -154,7 +154,7 @@ catalog/tasks/<simulator>/<task-name>/task.yaml
 ```
 
 The robot directory contains only `workspace.yaml` and `devices/`, ready to copy
-as the workspace’s `.complex/` directory. Binding plans and task/session configuration stay outside
+as the workspace’s `.kinex/` directory. Binding plans and task/session configuration stay outside
 that copy. Launch reads the catalog without rewriting it.
 
 Profiles derive from the pinned compiled MJCF, robot initialization, native
@@ -186,7 +186,7 @@ controller composition remains internal to the world.
 `config.camera` selects an existing sensor, which must also be enabled through
 `backend_kwargs.camera_names`. A profile does not create a camera.
 
-Profiles target Complex commit `5beca17` and its strict per-type schemas. Access
+Profiles target Kinex commit `5beca17` and its strict per-type schemas. Access
 uses typed `access.connection` and explicit driver actions. Manipulators store home
 positions by joint name, optional speed capability (`null` here), feedback channels,
 and stop scope. Gripper command and measured finger dimensions are independent;
@@ -203,11 +203,11 @@ runners can pin session/generation explicitly. Established SDK clients retain
 their original episode identity.
 
 Arm/torso drivers additionally implement `fk(joints)` and `ik(pose, seed?)` using
-`complex.manipulator` and `intrinsics.kinematics.model`, a serial chain with an
-explicit numerical IK configuration. Base and gripper adapters also use Complex’s
-typed command/feedback validators. Complex supplies its Python
+`kinex.manipulator` and `intrinsics.kinematics.model`, a serial chain with an
+explicit numerical IK configuration. Base and gripper adapters also use Kinex’s
+typed command/feedback validators. Kinex supplies its Python
 library on the driver's PYTHONPATH; parsing profiles requires PyYAML. The simulator
-service exposes no FK/IK RPC and has no solver dependency on Complex.
+service exposes no FK/IK RPC and has no solver dependency on Kinex.
 
 The chain stores fixed link origins, joint axes, anchors, and reference positions
 in profile joint order. FK returns the flange in the device base frame: metres and
@@ -252,7 +252,7 @@ The mobile `base` omits a static `extrinsics.mount` and declares
 edge. Measured base velocities are at the chassis origin in body coordinates, in
 m/s and rad/s; they are not normalized commands or raw generalized joint velocity.
 
-The torso remains a one-joint manipulator because Complex represents its live
+The torso remains a one-joint manipulator because Kinex represents its live
 base-to-flange transform. The arm and left/right cameras mount on `torso:flange`;
 the gripper and wrist camera mount on `arm:flange`. The gripper mount is its rigid
 flange-to-TCP offset. The torso base mounts rigidly on `base`; arm and torso each
@@ -280,7 +280,7 @@ depth reads carry matching acquisition Unix timestamps in `sample_time_s` and
 while the world state is locked; transport receipt time is separate. Scale and encoding live in the profile. Color facts
 use `intrinsics.color` with pinhole projection, distortion, and derived FOV; depth
 uses `intrinsics.depth` with color registration and optical-Z quantity. The camera
-table lists nominal native FOV; exported FOV follows Complex’s pixel-edge convention.
+table lists nominal native FOV; exported FOV follows Kinex’s pixel-edge convention.
 
 HTTP downloads are episode-scoped and client-local. SDK files last until client
 cleanup; one-shot driver files remain readable after process exit. RGB-only custom
@@ -303,11 +303,11 @@ creates a fresh episode identity. Harbor cleans up even when the agent fails.
 prepared RoboCasa interpreter, tests exercise real Panda–Omron controllers in a
 CPU Lift scene, both clocks, repeated goals, stop, invalid inputs, local FK/IK without
 state mutation, and rejected solver RPCs. They also check deterministic generation,
-Complex schema conformance, copied drivers without RoboEnv imports, HTTP episode
+Kinex schema conformance, copied drivers without RoboEnv imports, HTTP episode
 isolation, camera routing, file lifetime, and unchanged catalogs after launch.
 Set `ROBOENV_ROBOCASA_TEST_PYTHON` to select the interpreter explicitly.
 
 Camera transport tests use synthetic pixels. Kitchen boot, rendered calibration,
 task success, and fresh-process replay require separate evidence. See
-[Complex local testing](complex-local.md), [Harbor tasks](harbor-tasks.md), and
+[Kinex local testing](kinex-local.md), [Harbor tasks](harbor-tasks.md), and
 [simulator integration](simulator-integration.md) for those workflows.

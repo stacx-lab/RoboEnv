@@ -2,12 +2,12 @@
 
 Isaac Lab is not officially supported by RoboEnv. This integration is an
 experimental prototype; the setup and device descriptions below do not establish
-simulator validation or benchmark support. The Go2 catalog uses Complex's `legged`
+simulator validation or benchmark support. The Go2 catalog uses Kinex's `legged`
 device contract for `body`, with separate
 RGB-D, IMU and foot-contact devices. CPU schema checks do not establish native
 physics, walking or balance performance.
 
-RoboEnv exposes one free-base Go2 as a device service. Complex commands absolute
+RoboEnv exposes one free-base Go2 as a device service. Kinex commands absolute
 joint positions through native DC motor control. This is a posture demonstration,
 not a walking policy or an upstream locomotion benchmark. G1 is deferred in
 [plan.md](../plan.md).
@@ -98,11 +98,11 @@ To update checked-in facts intentionally, omit `--out` and supply
 `--provenance docs/isaaclab-config.provenance.json`.
 
 Copy `catalog/robots/isaaclab-go2/workspace.yaml` and its `devices/` directory into
-Complex's `.complex/` workspace. Device profiles default to
+Kinex's `.kinex/` workspace. Device profiles default to
 `access.connection.url: http://127.0.0.1:8123`; edit that URL for a different server.
 An explicit `connection.json` takes precedence, followed by `ROBOENV_ENDPOINT`
 or `ROBOENV_SOCKET`, then the profile connection URL. Catalog profiles are
-registered unloaded; use `/load` in Complex to activate the devices you need.
+registered unloaded; use `/load` in Kinex to activate the devices you need.
 Keep each copied `_roboenv.py` support file beside its driver. IMU and contact
 devices share the same read-only sensor driver. Reading the YAML profile requires
 PyYAML in the driver interpreter. Bindings stay in RoboEnv; the copied drivers

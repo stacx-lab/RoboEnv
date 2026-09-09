@@ -12,9 +12,9 @@ GRIPPER = ROOT / "catalog/robots/robocasa-panda-omron/devices/gripper"
 
 @pytest.fixture
 def gripper(monkeypatch):
-    library = ROOT.parent / "complex/python"
-    if not (library / "complex/end_effector.py").is_file():
-        pytest.skip("Requires the Complex Python library used by exported drivers")
+    library = ROOT.parent / "kinex/python"
+    if not (library / "kinex/end_effector.py").is_file():
+        pytest.skip("Requires the Kinex Python library used by exported drivers")
     monkeypatch.syspath_prepend(str(library))
     monkeypatch.syspath_prepend(str(GRIPPER))
     spec = importlib.util.spec_from_file_location("catalog_gripper", GRIPPER / "driver.py")

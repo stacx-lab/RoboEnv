@@ -71,7 +71,7 @@ def make_adapter(*, realtime=False):
 def check(root, temporary):
     import sys
 
-    sys.path.insert(0, str(root.parent / "complex/python"))
+    sys.path.insert(0, str(root.parent / "kinex/python"))
     import json
     from dataclasses import replace
     from types import SimpleNamespace

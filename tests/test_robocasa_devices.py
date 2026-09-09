@@ -112,8 +112,8 @@ def native_interpreter():
 
 
 def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
-    if not (ROOT.parent / "complex/python/complex/kinematics.py").is_file():
-        pytest.skip("Driver-local IK/FK integration requires the sibling Complex utility")
+    if not (ROOT.parent / "kinex/python/kinex/kinematics.py").is_file():
+        pytest.skip("Driver-local IK/FK integration requires the sibling Kinex utility")
     interpreter = native_interpreter()
     environment = {
         **os.environ,
@@ -130,29 +130,29 @@ def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     report = json.loads(result.stdout.splitlines()[-1])
     assert report["passed"] and not report["gpu_replay"]
-    check_complex_profiles(tmp_path, list((tmp_path / "devices").glob("*/profile.yaml")))
+    check_kinex_profiles(tmp_path, list((tmp_path / "devices").glob("*/profile.yaml")))
 
 
-def check_complex_profiles(tmp_path, paths):
-    # Check actual Complex schema/interface compatibility when the sibling harness
-    # is present. RoboEnv itself retains no runtime dependency on Complex.
+def check_kinex_profiles(tmp_path, paths):
+    # Check actual Kinex schema/interface compatibility when the sibling harness
+    # is present. RoboEnv itself retains no runtime dependency on Kinex.
     import shutil
 
-    complex_root = ROOT.parent / "complex"
-    if not (complex_root / "node_modules/zod").exists():
-        isolated = ROOT / ".cache/complex-schema"
-        if (isolated / "node_modules/zod").exists() and (complex_root / "src").is_dir():
+    kinex_root = ROOT.parent / "kinex"
+    if not (kinex_root / "node_modules/zod").exists():
+        isolated = ROOT / ".cache/kinex-schema"
+        if (isolated / "node_modules/zod").exists() and (kinex_root / "src").is_dir():
             # Reuse dependencies only; always test the sibling's CURRENT sources,
             # including its uncommitted contract updates.
-            current = tmp_path / "complex-current"
-            shutil.copytree(complex_root / "src", current / "src")
-            shutil.copyfile(complex_root / "package.json", current / "package.json")
+            current = tmp_path / "kinex-current"
+            shutil.copytree(kinex_root / "src", current / "src")
+            shutil.copyfile(kinex_root / "package.json", current / "package.json")
             (current / "node_modules").symlink_to(
                 isolated / "node_modules", target_is_directory=True
             )
-            complex_root = current
-    if not shutil.which("bun") or not (complex_root / "node_modules/zod").exists():
-        pytest.skip("Requires Bun and Complex schema dependencies")
+            kinex_root = current
+    if not shutil.which("bun") or not (kinex_root / "node_modules/zod").exists():
+        pytest.skip("Requires Bun and Kinex schema dependencies")
     payload = tmp_path / "profiles.json"
     payload.write_text(json.dumps([yaml.safe_load(path.read_text()) for path in paths]))
     code = (
@@ -188,15 +188,15 @@ def check_complex_profiles(tmp_path, paths):
             )
         )
     )
-    workspace = tmp_path / "complex-workspace"
+    workspace = tmp_path / "kinex-workspace"
     shutil.copytree(
         ROOT / "catalog/robots/robocasa-panda-omron",
-        workspace / ".complex",
+        workspace / ".kinex",
     )
     checked = subprocess.run(
         ["bun", "-e", code, str(payload), str(manifest), str(workspace)],
-        cwd=complex_root,
-        env={**os.environ, "COMPLEX_CONFIG_DIR": str(tmp_path / "complex-config")},
+        cwd=kinex_root,
+        env={**os.environ, "KINEX_CONFIG_DIR": str(tmp_path / "kinex-config")},
         capture_output=True,
         text=True,
         timeout=20,
@@ -204,8 +204,8 @@ def check_complex_profiles(tmp_path, paths):
     assert checked.returncode == 0, checked.stdout + checked.stderr
 
 
-def test_static_catalog_conforms_to_complex(tmp_path):
-    check_complex_profiles(
+def test_static_catalog_conforms_to_kinex(tmp_path):
+    check_kinex_profiles(
         tmp_path,
         sorted((ROOT / "catalog/robots/robocasa-panda-omron/devices").glob("*/profile.yaml")),
     )
@@ -419,7 +419,7 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         import shutil
         import sys
 
-        copied = tmp_path / "workspace/.complex/robots/robocasa-panda-omron"
+        copied = tmp_path / "workspace/.kinex/robots/robocasa-panda-omron"
         shutil.copytree(ROOT / "catalog/robots/robocasa-panda-omron", copied)
         # This task renders at 12x8; install its live calibration before reading.
         # Keep endpoint selection through deployment environment variables.

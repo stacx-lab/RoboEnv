@@ -1,4 +1,4 @@
-"""Read-only IMU/contact adapter. Complex dispatch applies calibration bias once."""
+"""Read-only IMU/contact adapter. Kinex dispatch applies calibration bias once."""
 
 import sys
 

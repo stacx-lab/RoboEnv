@@ -197,7 +197,7 @@ def bind(spec, root, context):
             directory.mkdir(parents=True, exist_ok=True)
             file = directory / f"{uuid.uuid4().hex}.png"
             extra = {}
-            # On-demand paired acquisition uses the Complex camera Unix clock.
+            # On-demand paired acquisition uses the Kinex camera Unix clock.
             acquired = time.time()
             if definition.type == "rgbd":
                 rgb, depth = world.render_rgbd(camera)

@@ -1,7 +1,7 @@
-# Local RoboCasa + Complex test plan
+# Local RoboCasa + Kinex test plan
 
 The checked-in `catalog/robots/robocasa-panda-omron` directory is already ready
-to copy into Complex. It contains a fixed robot manifest and eight devices:
+to copy into Kinex. It contains a fixed robot manifest and eight devices:
 arm, base, torso, gripper, camera_left, camera_right, camera_wrist, and world. Configuration is independent
 of the task, seed, kitchen layout, service port, and episode identity. Launch
 never writes to the catalog. See [RoboCasa catalog design](robocasa.md#catalog-and-generation).
@@ -25,30 +25,30 @@ Preparation is needed only if the simulator is not already prepared. Wait for
 simulation service; it neither generates nor updates the catalog configuration.
 
 For another task use another task ID. For parallel trials use different ports
-and separate Complex processes with different `ROBOENV_ENDPOINT` values. Both
+and separate Kinex processes with different `ROBOENV_ENDPOINT` values. Both
 can use byte-identical copies of the same robot configuration.
 
-## 2. Copy into a fresh Complex workspace (terminal B, RoboEnv checkout)
+## 2. Copy into a fresh Kinex workspace (terminal B, RoboEnv checkout)
 
-The following variables resolve the sibling Complex source checkout and create
+The following variables resolve the sibling Kinex source checkout and create
 an isolated workspace for this run. Keep this terminal open for the later steps.
 
 ```sh
 source .venv/bin/activate
 roboenv_repo="$PWD"
-complex_repo="$(realpath ../complex)"
-trial_workspace="$(mktemp -d "$roboenv_repo/.cache/complex-local.XXXXXX")"
-cp -R catalog/robots/robocasa-panda-omron "$trial_workspace/.complex"
+kinex_repo="$(realpath ../kinex)"
+trial_workspace="$(mktemp -d "$roboenv_repo/.cache/kinex-local.XXXXXX")"
+cp -R catalog/robots/robocasa-panda-omron "$trial_workspace/.kinex"
 cd "$trial_workspace"
 export ROBOENV_ENDPOINT=http://127.0.0.1:8123
 ```
 
-Use a working Complex installation with its TUI dependencies already installed
+Use a working Kinex installation with its TUI dependencies already installed
 (see the sibling README). Exported profiles invoke `python3`. Remote device access
 uses standard-library transport in the adjacent `_roboenv.py`; profile loading needs
-PyYAML and typed actuator operations need Complex’s Python helpers. Complex supplies
+PyYAML and typed actuator operations need Kinex’s Python helpers. Kinex supplies
 its Python library to drivers; for direct shell calls, set
-`PYTHONPATH="$complex_repo/python${PYTHONPATH:+:$PYTHONPATH}"`.
+`PYTHONPATH="$kinex_repo/python${PYTHONPATH:+:$PYTHONPATH}"`.
 The agent environment does not need RoboEnv or simulator dependencies.
 Video export requires `ffmpeg`; the keyframe script requires Pillow.
 
@@ -58,8 +58,8 @@ The task instruction is available through `roboenv.connect(ROBOENV_ENDPOINT).tas
 Check the driver without starting a model request:
 
 ```sh
-python3 .complex/devices/arm/driver.py status '{}'
-python3 .complex/devices/camera_left/driver.py read '{}'
+python3 .kinex/devices/arm/driver.py status '{}'
+python3 .kinex/devices/camera_left/driver.py read '{}'
 ```
 
 Expect `ok: true`; camera output must include an existing local RGB PNG `file`
@@ -70,7 +70,7 @@ Open that image to confirm that it depicts the initialized kitchen. Neither oper
 ## 3. TUI recording smoke test
 
 ```sh
-complex
+kinex
 ```
 
 Run these built-in slash commands in the TUI:
@@ -84,7 +84,7 @@ Run these built-in slash commands in the TUI:
 
 `:all` is deliberate: it records while the user pauses, including during this
 manual smoke test. The thin drivers do not implement native video streaming;
-Complex uses its supported stills sampler. Requested Hz is a target; inspect
+Kinex uses its supported stills sampler. Requested Hz is a target; inspect
 effective rates and skipped samples. Reads do not request physics steps. Realtime simulation continues during recording;
 synchronous mode advances only on writes.
 
@@ -92,10 +92,10 @@ With the recording running, use a separate terminal with the same activated
 venv and copied workspace. Read the current joint configuration and send it as an absolute hold target:
 
 ```sh
-target=$(python3 .complex/devices/arm/driver.py read '{}' | python3 -c \
+target=$(python3 .kinex/devices/arm/driver.py read '{}' | python3 -c \
   'import json,sys; r=json.load(sys.stdin); assert r["ok"], r; print(json.dumps({"target":r["positions"]}))')
-python3 .complex/devices/arm/driver.py write "$target"
-python3 .complex/devices/arm/driver.py stop '{}'
+python3 .kinex/devices/arm/driver.py write "$target"
+python3 .kinex/devices/arm/driver.py stop '{}'
 ```
 
 The target contains seven absolute joint positions in radians, in the profile’s
@@ -103,9 +103,9 @@ model joint order. Small measured soft-limit overshoots can make a write fail;
 consult the joint-limit recovery notes before commanding another target. `stop`
 holds the arm while world physics continues. Acceptance does not prove arrival.
 
-Direct shell driver calls bypass Complex's dispatch event log; the `:all`
+Direct shell driver calls bypass Kinex's dispatch event log; the `:all`
 samplers still record resulting images/state. To verify complete command
-tracing, perform a second test through Complex's `device` tool: ask the agent to
+tracing, perform a second test through Kinex's `device` tool: ask the agent to
 read arm state, issue one such write, stop, and read again. That step
 requires your configured model and normal motion approval. Start a fresh
 simulation episode before attempting the full task.
@@ -120,16 +120,16 @@ Finish the smoke recording in the TUI:
 
 `partial` is a recording annotation, not a benchmark verdict. Use the reported
 recording ID in the next step. `/load all` is available if the user previously
-unloaded devices; checked-in profiles default to loaded in Complex.
+unloaded devices; checked-in profiles default to loaded in Kinex.
 
 ## 4. Visualize the recording
 
 After leaving the TUI, in terminal B:
 
 ```sh
-recording_dir="$trial_workspace/.complex/recordings/RECORDING_ID"
-python3 "$complex_repo/builtin/skill/reflect/scripts/keyframes.py" "$recording_dir" --device camera_left
-python3 "$complex_repo/builtin/skill/reflect/scripts/video.py" "$recording_dir" --device camera_left
+recording_dir="$trial_workspace/.kinex/recordings/RECORDING_ID"
+python3 "$kinex_repo/builtin/skill/reflect/scripts/keyframes.py" "$recording_dir" --device camera_left
+python3 "$kinex_repo/builtin/skill/reflect/scripts/video.py" "$recording_dir" --device camera_left
 ```
 
 Replace `RECORDING_ID` with the stream ID from `/record status` (not a separate
@@ -144,11 +144,11 @@ provide visual playback. No new visualization server is required.
 | Check | Required evidence |
 |---|---|
 | Kitchen boot | Ready service, actual kitchen image, unchanged catalog |
-| Configuration | Complex sees the eight standard devices; driver status/read succeed |
+| Configuration | Kinex sees the eight standard devices; driver status/read succeed |
 | Basic control | One write sets a persistent goal; physics continues without requests and after device stop |
 | Recording | Nonempty camera/state events, readable saved images, completed manifest |
 | Visualization | Keyframe sheet and playable MP4 show the captured kitchen |
-| Dispatch tracing | Complex-issued read/write/stop appear in device events |
+| Dispatch tracing | Kinex-issued read/write/stop appear in device events |
 | Episode isolation | Existing SDK clients reject replacement episodes; a fresh driver attaches without rewriting configs |
 | Task success | Separate full attempt with the original RoboEnv verifier verdict |
 | Replay | Separate fresh-process replay with the same task/seed and recorded actions |

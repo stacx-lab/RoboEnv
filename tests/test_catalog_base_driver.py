@@ -12,9 +12,9 @@ BASE = ROOT / "catalog/robots/robocasa-panda-omron/devices/base"
 
 @pytest.fixture
 def base(monkeypatch):
-    library = ROOT.parent / "complex/python"
-    if not (library / "complex/base.py").is_file():
-        pytest.skip("Requires Complex's Python library for exported drivers")
+    library = ROOT.parent / "kinex/python"
+    if not (library / "kinex/base.py").is_file():
+        pytest.skip("Requires Kinex's Python library for exported drivers")
     monkeypatch.syspath_prepend(str(library))
     monkeypatch.syspath_prepend(str(BASE))
     spec = importlib.util.spec_from_file_location("catalog_base", BASE / "driver.py")

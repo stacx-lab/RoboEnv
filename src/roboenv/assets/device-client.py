@@ -1,4 +1,4 @@
-"""Portable device driver: stdlib transport and Complex's local kinematics."""
+"""Portable device driver: stdlib transport and Kinex's local kinematics."""
 
 import http.client
 import json
@@ -112,7 +112,7 @@ def handle(action, args):
     try:
         if action in {"fk", "ik"}:
             import yaml
-            from complex.kinematics import Kinematics
+            from kinex.kinematics import Kinematics
 
             profile = yaml.safe_load(Path(__file__).with_name("profile.yaml").read_text())
             solver = Kinematics(profile["intrinsics"])

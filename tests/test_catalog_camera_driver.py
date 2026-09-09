@@ -1,4 +1,4 @@
-"""The migrated catalog camera adapts RoboEnv transport to the Complex contract."""
+"""The migrated catalog camera adapts RoboEnv transport to the Kinex contract."""
 
 import importlib.util
 import json

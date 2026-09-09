@@ -1,4 +1,4 @@
-"""End-effector adapter: fenced RoboEnv transport and Complex profile validation."""
+"""End-effector adapter: fenced RoboEnv transport and Kinex profile validation."""
 
 import sys
 
@@ -15,7 +15,7 @@ def handle(action, args):
     if action not in {"read", "write", "stop", "load", "unload", "status"}:
         return {"ok": False, "error": f"Unsupported end-effector action: {action}"}
     try:
-        from complex.end_effector import command, reading, stopped
+        from kinex.end_effector import command, reading, stopped
 
         if action != "write" and args:
             raise ValueError(f"{action} takes no arguments")

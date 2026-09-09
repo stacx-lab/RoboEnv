@@ -1,7 +1,7 @@
 # RoboEnv
 
 Robotics environments with discoverable devices, shared simulation state, and
-benchmark verification. Use them from Python, the CLI, Complex, or Harbor.
+benchmark verification. Use them from Python, the CLI, Kinex, or Harbor.
 RoboEnv owns the environment and verdict; the agent harness owns reasoning and
 controller programs. See [DESIGN.md](DESIGN.md) for the architecture.
 
@@ -54,11 +54,11 @@ run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready
 Python callers can enable streaming with `log_stream=sys.stderr`.
 
 RoboCasa’s typed catalog contains arm, torso, base, gripper, three RGB-D cameras,
-and world, using Complex’s current device schemas. It implements the device-first API: `env.task`, `env.devices()`, and
+and world, using Kinex’s current device schemas. It implements the device-first API: `env.task`, `env.devices()`, and
 `env.device(name)`. Drivers expose only their type's basic operations. The world advances
 continuously while the agent thinks. Writes update persistent controller goals;
 reads do not request extra steps. Exported arm/torso drivers solve IK/FK locally
-using Complex utilities and static profile geometry; they do not require RoboEnv
+using Kinex utilities and static profile geometry; they do not require RoboEnv
 in the agent environment. Pass `--sync` to `roboenv launch`, or set `backend_kwargs.realtime: false`
 in the task YAML for synchronous mode, where each write advances one control period, retaining all active goals.
 Arm and torso targets are absolute joint positions in radians/metres; gripper
@@ -126,5 +126,5 @@ This is pre-release software. CPU and format checks do not certify GPU replay
 or benchmark success. Packages and simulator images are not automatically
 published; see [release rules](docs/releasing.md).
 
-For a populated Complex workspace, TUI recording, and MP4 playback, follow
-[the local test plan](docs/complex-local.md).
+For a populated Kinex workspace, TUI recording, and MP4 playback, follow
+[the local test plan](docs/kinex-local.md).

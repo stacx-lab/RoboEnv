@@ -108,7 +108,7 @@ revision。没有来源说明时默认标记 project-reference 和 official=fals
 
 runner 只把本机 depot 路径放入子进程环境变量，不写进公开 task。
 它随后调用标准 harbor run；--agent 可换为当前 Harbor 已安装的 agent。
-Complex 自定义安装器由独立 integration 提供，不打包进 Roboenv。
+Kinex 自定义安装器由独立 integration 提供，不打包进 Roboenv。
 
 也可在 taskset 目录直接调用 harbor run -c job.json -a AGENT -m MODEL。
 需要先设置 taskset.json.required_env 列出的 ROBOENV_DEPOT_* 变量；
@@ -129,13 +129,13 @@ GPU 选择使用 ROBOENV_GPU。路径、凭证和模型端点只能进入本地�
 
 新后端遵循 [DESIGN.md](../DESIGN.md) 和 [Simulator 接入](simulator-integration.md)。
 静态 `catalog/robots/ROBOT/` 只有 `workspace.yaml` 与 `devices/`；它可以直接
-复制到 `.complex/robots/ROBOT/`。`catalog/bindings/ROBOT.yaml`、seed、场景
-参数和 verifier 数据属于 owner 侧，不进入 Complex robot 配置。
+复制到 `.kinex/robots/ROBOT/`。`catalog/bindings/ROBOT.yaml`、seed、场景
+参数和 verifier 数据属于 owner 侧，不进入 Kinex robot 配置。
 
 `launch` 不生成或修改 catalog。当前 RoboCasa Harbor 路径还会把 live descriptors
 和薄 driver 发布到 `/run/roboenv/robot`，作为 trial-local 输出；这不改变静态配置，
-也不应夹带场景状态。Complex 的机器人选择和 workspace 准备由 harness integration
-完成，RoboEnv 不会因为设置 `ROBOENV_ROBOT` 就自动注册 Complex workspace。
+也不应夹带场景状态。Kinex 的机器人选择和 workspace 准备由 harness integration
+完成，RoboEnv 不会因为设置 `ROBOENV_ROBOT` 就自动注册 Kinex workspace。
 
 Ready 后通过 `ROBOENV_ENDPOINT=http://sim:8123` 连接设备。不同 trial 网络可复用
 内部端口；同一网络/主机发布的端口必须区分。每个 trial 的世界、预算、identity

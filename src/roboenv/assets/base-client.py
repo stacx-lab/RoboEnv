@@ -1,4 +1,4 @@
-"""Base adapter: fenced RoboEnv transport and Complex profile validation."""
+"""Base adapter: fenced RoboEnv transport and Kinex profile validation."""
 
 import sys
 
@@ -15,7 +15,7 @@ def handle(action, args):
     if action not in {"read", "write", "stop", "load", "unload", "status"}:
         return {"ok": False, "error": f"Unsupported base action: {action}"}
     try:
-        from complex.base import command, reading
+        from kinex.base import command, reading
 
         profile = settings()
         if action != "write" and args:
