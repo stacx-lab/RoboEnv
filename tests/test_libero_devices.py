@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 from helpers import ROOT, load_tool
-from roboenv.tasks.libero import PROBLEMS, ROBOT, device_bindings, entries
+from roboenv.tasks.libero import ROBOTS, entries
 from roboenv.tasks.resolve import resolve_task
 
 
@@ -49,8 +49,17 @@ def test_official_registry_and_assets_are_complete():
     require(base.exists(), "Requires pinned LIBERO checkout, but no simulator imports")
     tasks = list(entries(base))
     assert len(tasks) == 130
-    assert {t["robot"] for t in tasks} == {ROBOT}
-    assert {t["problem"] for t in tasks} == set(PROBLEMS)
+    assert {t["robot"] for t in tasks} == set(ROBOTS.values())
+    assert {t["problem"] for t in tasks} == set(ROBOTS)
+    lookup = {(t["suite_name"], t["task_id"]): t["robot"] for t in tasks}
+    for suite, task_id, scene in [
+        ("libero_spatial", 0, "tabletop"),
+        ("libero_object", 0, "floor"),
+        ("libero_10", 0, "living-room"),
+        ("libero_10", 2, "kitchen"),
+        ("libero_10", 5, "study"),
+    ]:
+        assert lookup[suite, task_id] == f"libero/libero-panda-{scene}"
     assert [
         sum(t["suite_name"] == suite for t in tasks)
         for suite in ("libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90")
@@ -68,10 +77,13 @@ def test_official_registry_and_assets_are_complete():
         assert resolved.task.budget_mode == "practice"
         assert resolved.task.backend_kwargs["init_state_index"] == 0
         assert resolved.task.backend_kwargs["realtime"] is True
+        kwargs = resolved.task.backend_kwargs
+        assert resolved.task.robot == lookup[kwargs["suite_name"], kwargs["task_id"]]
+        assert resolved.task.device_bindings is None
         assert not resolved.path.with_name("solution.py").exists()
 
 
-def test_discovered_scene_mounts_reach_prepared_kinex_workspaces(tmp_path):
+def test_discovered_scene_robots_reach_prepared_kinex_workspaces(tmp_path):
     from roboenv.tasks.catalog import discover
 
     require((ROOT / "third_party/LIBERO/libero/libero").exists(), "Requires pinned LIBERO")
@@ -82,12 +94,13 @@ def test_discovered_scene_mounts_reach_prepared_kinex_workspaces(tmp_path):
         for e in entries(ROOT / "third_party/LIBERO/libero/libero")
     }
     checked = set()
-    bindings = {p: device_bindings(ROOT / "catalog", p) for p in PROBLEMS}
     for path in (destination / "tasks/libero").glob("*/task.yaml"):
         resolved = resolve_task(path, catalog=ROOT / "catalog")
         kwargs = resolved.task.backend_kwargs
         problem = native[kwargs["suite_name"], kwargs["task_id"]]["problem"]
-        assert resolved.task.device_bindings == bindings[problem]
+        assert resolved.task.robot == native[kwargs["suite_name"], kwargs["task_id"]]["robot"]
+        assert resolved.task.device_bindings is None
+        assert all(not spec.overrides for spec in resolved.bindings.devices)
         if problem in checked:
             continue
         workspace = tmp_path / problem
@@ -96,9 +109,14 @@ def test_discovered_scene_mounts_reach_prepared_kinex_workspaces(tmp_path):
         )
         for spec in resolved.bindings.devices:
             profile = workspace / ".kinex/devices" / spec.name / "profile.yaml"
-            assert yaml.safe_load(profile.read_text()) == spec.resolved_profile(resolved.robot)
+            assert yaml.safe_load(profile.read_text()) == yaml.safe_load(
+                (resolved.robot / spec.profile).read_text()
+            )
+        assert (workspace / ".kinex/workspace.yaml").read_bytes() == (
+            resolved.robot / "workspace.yaml"
+        ).read_bytes()
         checked.add(problem)
-    assert checked == set(PROBLEMS)
+    assert checked == set(ROBOTS)
 
 
 def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
@@ -106,9 +124,12 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
 
     transport = (ROOT / "src/roboenv/assets/_roboenv.py").read_bytes()
     profiles = []
-    for rig in (ROBOT,):
+    assert {p.name for p in (ROOT / "catalog/robots/libero").iterdir()} == {
+        Path(rig).name for rig in ROBOTS.values()
+    }
+    for rig in ROBOTS.values():
         root = ROOT / "catalog/robots" / rig
-        assert {p.name for p in root.iterdir()} == {"workspace.yaml", "devices", "mounts.yaml"}
+        assert {p.name for p in root.iterdir()} == {"workspace.yaml", "devices"}
         assert {p.name for p in (root / "devices").iterdir()} == {
             "arm",
             "gripper",
@@ -143,13 +164,6 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
     require(bun and (kinex_root / "node_modules/zod").exists(),
             "Kinex schema integration requires prepared Kinex and Bun")
     payload = tmp_path / "profiles.json"
-    from roboenv.devices.bindings.spec import BindingPlan
-
-    for problem in PROBLEMS:
-        plan = BindingPlan.load(root, backend="libero", devices=device_bindings(
-            ROOT / "catalog", problem,
-        ))
-        profiles.extend(spec.resolved_profile(root) for spec in plan.devices)
     payload.write_text(json.dumps(profiles))
     workspace = tmp_path / "workspace"
     load_tool("prepare_kinex_workspace").prepare("libero/bowl-onto-plate", workspace, project=ROOT)
@@ -186,6 +200,13 @@ def test_static_generation_is_deterministic(tmp_path):
     for name in ("first", "second"):
         destination = tmp_path / name
         run_native("tools/generate_libero_config.py", "--out", destination)
+        expected = {
+            path.relative_to(ROOT / "catalog")
+            for subtree in ("robots/libero", "bindings/libero")
+            for path in (ROOT / "catalog" / subtree).rglob("*") if path.is_file()
+        }
+        actual = {p.relative_to(destination) for p in destination.rglob("*") if p.is_file()}
+        assert actual == expected
         for path in destination.rglob("*"):
             if path.is_file():
                 assert (

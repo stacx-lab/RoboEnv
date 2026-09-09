@@ -1,0 +1,23 @@
+identity:
+  source: user
+  id: libero-panda-living-room
+  name: libero-panda-living-room
+  platform: sim
+  kind: arm
+  model: Native LIBERO Panda and PandaGripper
+sim:
+  source: user
+  simulator: libero
+devices:
+  source: user
+safety:
+  source: user
+  max_cartesian_velocity: null
+  max_joint_velocity: null
+  keep_out_zones: []
+  notes: No additional velocity caps. Native collisions and joint limits apply. Stop
+    holds its device; it does not pause the world. Use camera observations to plan
+    and verify motions.
+meta:
+  created_at: '2026-09-07T00:00:00Z'
+  updated_at: '2026-09-08T00:00:00Z'

@@ -1,0 +1,11 @@
+name: world
+type: world
+intrinsics:
+  source: default
+  bounds: null
+  surfaces: []
+  method: unknown
+  calibrated_at: null
+meta:
+  created_at: '2026-09-07T00:00:00Z'
+  updated_at: '2026-09-08T00:00:00Z'

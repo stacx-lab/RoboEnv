@@ -28,7 +28,7 @@ def check(directory):
     try:
         adapter.reset(0)
         world = adapter._env
-        root = ROOT / "catalog/robots/libero-panda/devices"
+        root = ROOT / "catalog/robots/libero/libero-panda-tabletop/devices"
         profiles = {
             name: yaml.safe_load((root / name / "profile.yaml").read_text())
             for name in ("arm", "camera", "camera_wrist")

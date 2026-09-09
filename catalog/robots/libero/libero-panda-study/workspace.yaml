@@ -1,7 +1,7 @@
 identity:
   source: user
-  id: libero-panda
-  name: libero-panda
+  id: libero-panda-study
+  name: libero-panda-study
   platform: sim
   kind: arm
   model: Native LIBERO Panda and PandaGripper

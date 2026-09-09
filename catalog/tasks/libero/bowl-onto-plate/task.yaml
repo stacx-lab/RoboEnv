@@ -1,7 +1,7 @@
 id: libero/bowl-onto-plate
 backend: libero
 backend_task: libero.spatial_0
-robot: libero-panda
+robot: libero/libero-panda-tabletop
 instruction: Pick the akita black bowl between the plate and the ramekin and place
   it on the plate
 backend_kwargs:

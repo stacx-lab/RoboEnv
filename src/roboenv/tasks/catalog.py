@@ -18,7 +18,7 @@ from roboenv.tasks.model import Task
 BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab")
 ROBOTS = {
     "isaaclab": "isaaclab-go2",
-    "libero": "libero-panda",
+    "libero": "libero/libero-panda-tabletop",
     "robocasa": "robocasa-panda-omron",
     "robotwin": "robotwin-dual-piper",
     "robodojo": "robodojo-arx-x5",
@@ -79,13 +79,9 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None, device_bindin
 
 
 def _libero(root, issues):
-    from roboenv.tasks.libero import device_bindings, entries
+    from roboenv.tasks.libero import entries
 
-    bindings = {}
     for entry in entries(root / "third_party/LIBERO/libero/libero"):
-        problem = entry["problem"]
-        if problem not in bindings:
-            bindings[problem] = device_bindings(root / "catalog", problem)
         short = entry["suite_name"].removeprefix("libero_")
         yield (
             _task(
@@ -98,7 +94,6 @@ def _libero(root, issues):
                 },
                 entry["instruction"],
                 robot=entry["robot"],
-                device_bindings=bindings[problem],
             ),
             entry["bddl"],
         )

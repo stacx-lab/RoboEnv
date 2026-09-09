@@ -221,9 +221,10 @@ def test_all_catalogs_load_without_contacting_simulators():
     )
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
-    for robot in sorted((ROOT / "catalog/robots").iterdir()):
+    for workspace in sorted((ROOT / "catalog/robots").rglob("workspace.yaml")):
         from roboenv.devices.bindings.spec import binding_path
 
+        robot = workspace.parent
         raw = yaml.safe_load(binding_path(robot).read_text())
         plan = BindingPlan.load(robot, backend=raw["backend"])
         if raw["backend"] in {"robocasa", "isaaclab", "libero"}:

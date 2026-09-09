@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
-from roboenv.tasks.libero import ROBOT, device_bindings
+from roboenv.tasks.libero import ROBOTS
 from roboenv_runtime.adapters.libero.adapter import LiberoAdapter
 from roboenv_runtime.bindings import default_registry
 
@@ -38,11 +38,8 @@ def probe(suite, task, init, directory, render=False):
     try:
         adapter.reset(0)
         world = adapter._env
-        root = ROOT / "catalog/robots" / ROBOT
-        plan = BindingPlan.load(
-            root, backend="libero",
-            devices=device_bindings(ROOT / "catalog", world.wrapper.problem_name.lower()),
-        )
+        root = ROOT / "catalog/robots" / ROBOTS[world.wrapper.problem_name.lower()]
+        plan = BindingPlan.load(root, backend="libero")
         if not render:
             plan = replace(plan, devices=tuple(s for s in plan.devices if s.entity != "camera"))
         service = default_registry().assemble(
@@ -157,7 +154,7 @@ def probe(suite, task, init, directory, render=False):
             "task": task,
             "init_state_index": init,
             "seed": 0,
-            "rig": ROBOT,
+            "rig": ROBOTS[world.wrapper.problem_name.lower()],
             "problem": world.wrapper.problem_name.lower(),
             "initialization": world.initialization,
             "joint_error_rad": error,

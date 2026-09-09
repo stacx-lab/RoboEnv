@@ -1,0 +1,28 @@
+schema_version: roboenv/bindings/1
+backend: libero
+embodiment: panda
+devices:
+  arm:
+    binding: libero.device/1
+    entity: arm
+    profile: devices/arm/profile.yaml
+  gripper:
+    binding: libero.device/1
+    entity: gripper
+    profile: devices/gripper/profile.yaml
+  camera:
+    binding: libero.device/1
+    entity: camera
+    profile: devices/camera/profile.yaml
+    config:
+      camera: agentview
+  camera_wrist:
+    binding: libero.device/1
+    entity: camera
+    profile: devices/camera_wrist/profile.yaml
+    config:
+      camera: robot0_eye_in_hand
+  world:
+    binding: libero.device/1
+    entity: world
+    profile: devices/world/profile.yaml

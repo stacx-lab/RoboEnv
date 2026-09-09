@@ -53,8 +53,11 @@ Launch streams simulator stdout/stderr to the terminal's stderr and retains the
 run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready.
 Python callers can enable streaming with `log_stream=sys.stderr`.
 
-Official LIBERO uses the same typed device path with one shared Panda catalog
-and native scene mounts in `catalog/robots/libero-panda/mounts.yaml`.
+Official LIBERO uses the same typed device path with complete scene-specific Panda
+catalogs in `catalog/robots/libero/libero-panda-{tabletop,floor,kitchen,living-room,study}/`.
+Each task selects its robot by a relative catalog path, such as
+`robot: libero/libero-panda-kitchen`; each scene directory contains its full device
+profiles and native mounting geometry.
 Run `roboenv prepare libero` and `roboenv launch libero/bowl-onto-plate`.
 Its absolute joint control is explicitly a practice protocol, not the published OSC
 benchmark action space. `tools/accept_libero.py --out OUTPUT` runs native device,
@@ -66,10 +69,11 @@ The checked-in LIBERO tasks are `bowl-onto-plate` (grasp/place),
 then close), and `mug-into-microwave` (place the mug, then close).
 The latter two are multi-stage LIBERO-Long stress cases, selected for
 combined object and articulated-fixture manipulation, not an official per-task
-difficulty ranking. Discovery still covers all 130 native tasks and applies each
-scene's mounts through ordinary binding overrides; it does not duplicate drivers.
+difficulty ranking. Discovery covers all 130 native tasks and selects each scene's
+robot catalog from the task's BDDL problem type. Each catalog includes portable
+copies of the shared device drivers.
 The additional `drawer-and-bowl` example maps to `libero_90` task 8: open the
-top drawer and put the bowl inside. It uses the same shared Panda catalog.
+top drawer and put the bowl inside. It uses the kitchen Panda catalog.
 
 For an explicit VLA comparison, `roboenv_runtime.adapters.libero.vla.LiberoPolicyHooks` adapts
 the same native world to OpenPI observations and OSC pose actions. An evaluation

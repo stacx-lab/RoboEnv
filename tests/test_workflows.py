@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -43,6 +44,37 @@ def test_task_id_resolution_and_missing_task():
     }
     with pytest.raises(ValueError, match="tasks list"):
         resolve_task("not-a-task", project=ROOT)
+
+
+def test_grouped_robot_resolves_external_bindings_and_launches(tmp_path):
+    catalog = tmp_path / "catalog"
+    reference = "fakeshell/toy-puck"
+    robot = catalog / "robots" / reference
+    shutil.copytree(FIXTURE / "catalog/robots/toy-puck", robot)
+    binding = catalog / "bindings" / f"{reference}.yaml"
+    binding.parent.mkdir(parents=True)
+    (robot / "bindings.yaml").rename(binding)
+    task = asdict(Task.load(FIXTURE / "task.yaml"))
+    task["robot"] = reference
+    path = tmp_path / "task.yaml"
+    path.write_text(yaml.safe_dump(task))
+    resolved = resolve_task(path, catalog=catalog)
+    assert resolved.robot == robot
+    assert [spec.name for spec in resolved.bindings.devices] == ["controller"]
+    with launch(path, project=ROOT, catalog=catalog, timeout=20) as env:
+        client = roboenv.connect(env.endpoint)
+        assert client.device("controller").write([0.3])["position"][0] == pytest.approx(0.3)
+
+
+@pytest.mark.parametrize("reference", [
+    "../toy-puck", "libero/../toy-puck", "libero/./toy-puck", "/libero/toy-puck",
+    "libero//toy-puck", "libero/", "libero\\toy-puck",
+])
+def test_robot_references_reject_unsafe_paths(reference):
+    task = asdict(Task.load(FIXTURE / "task.yaml"))
+    task["robot"] = reference
+    with pytest.raises(ValueError, match="invalid task robot"):
+        Task.from_dict(task)
 
 
 def test_launch_connect_driver_and_budget(monkeypatch):

@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def robot_subset(directory):
     import shutil
 
-    root = ROOT / "catalog/robots/libero-panda"
+    root = ROOT / "catalog/robots/libero/libero-panda-tabletop"
     target = directory / "robot"
     shutil.copytree(root, target)
     plan = BindingPlan.load(root, backend="libero")

@@ -47,7 +47,7 @@ def check(out):
         world.sim.forward()
         world.stop_part("arm")
         world.stop_part("gripper")
-        root = ROOT / "catalog/robots/libero-panda"
+        root = ROOT / "catalog/robots/libero/libero-panda-tabletop"
         plan = BindingPlan.load(root, backend="libero")
         plan = replace(plan, devices=tuple(s for s in plan.devices if s.entity != "camera"))
         devices = default_registry().assemble(

@@ -13,10 +13,15 @@ BINDING_CONTRACT = "roboenv/bindings/1"
 
 
 def binding_path(root):
-    """Server bundles carry a local plan; catalogs keep plans outside robot configs."""
+    """Local bundle plans take precedence; catalog plans mirror the robot path."""
     root = Path(root)
     local = root / "bindings.yaml"
-    return local if local.exists() else root.parent.parent / "bindings" / f"{root.name}.yaml"
+    if local.exists():
+        return local
+    for parent in root.parents:
+        if parent.name == "robots":
+            return parent.parent / "bindings" / f"{root.relative_to(parent)}.yaml"
+    return root.parent.parent / "bindings" / f"{root.name}.yaml"
 
 
 def _name(value, label):

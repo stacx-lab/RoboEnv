@@ -21,11 +21,12 @@ from roboenv.harbor.taskset import deployment_map, export_taskset, validate_harb
 from roboenv.privacy import validate_public_text
 from roboenv.tasks.artifacts import Bundle
 from roboenv.tasks.catalog import load_catalog
+from roboenv.tasks.libero import ROBOTS as LIBERO_ROBOTS
 from roboenv.validation import json_loads
 
 ROOT = Path(__file__).resolve().parents[1]
 ROBOTS = {
-    "libero-panda": ("libero", {}),
+    **{robot: ("libero", {}) for robot in LIBERO_ROBOTS.values()},
     "robocasa-panda-omron": ("robocasa", {}),
     "robotwin-dual-piper": ("robotwin", {"embodiment": "piper"}),
     "robotwin-aloha-agilex": ("robotwin", {"embodiment": "aloha_agilex"}),
@@ -169,7 +170,7 @@ def select_cases(
                 raise ValueError("BEHAVIOR validation needs an explicit scene_model in task source")
             task = replace(
                 task,
-                id=f"{task.backend}/probe-{robot}-{task.id.split('/')[-1]}",
+                id=f"{task.backend}/probe-{robot.replace('/', '-')}-{task.id.split('/')[-1]}",
                 robot=robot,
                 device_bindings=task.device_bindings if task.robot == robot else None,
                 backend_kwargs={**task.backend_kwargs, **overrides},
