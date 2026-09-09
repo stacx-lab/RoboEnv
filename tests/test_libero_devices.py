@@ -147,6 +147,7 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
             if profile["type"] == "world":
                 assert not path.with_name("driver.py").exists()
             else:
+                assert profile["access"]["driver"]["persistent"] is True
                 assert path.with_name("driver.py").read_bytes() == (
                     ROOT / "src/roboenv/assets" / DRIVERS[profile["type"]]
                 ).read_bytes()

@@ -16,9 +16,9 @@ DRIVERS = {
 PORTABLE_TYPES = frozenset(DRIVERS)
 
 
-def driver_access(kind, name, actions, endpoint, *, control_mode=None, timeout_s=None):
+def driver_access(kind, name, actions, endpoint, *, timeout_s=None):
     driver = {"entry": "driver.py", "interpreter": "python3",
-              "persistent": False, "actions": actions}
+              "persistent": True, "actions": actions}
     if timeout_s is not None:
         driver["timeout_s"] = timeout_s
     if kind in DRIVERS:
@@ -28,8 +28,8 @@ def driver_access(kind, name, actions, endpoint, *, control_mode=None, timeout_s
                            "camera" if kind in {"rgb", "rgbd"} else "device": name},
             "driver": driver,
         }
-    return {"source": "user", "kind": "url", "url": endpoint, "driver": driver,
-            **({"control_mode": control_mode} if control_mode is not None else {})}
+    return {"source": "user", "connection": {"kind": "url", "url": endpoint, "device": name},
+            "driver": driver}
 
 
 def write_driver(directory, kind):
@@ -40,8 +40,7 @@ def write_driver(directory, kind):
     (directory / "driver.py").write_bytes(
         assets.joinpath(DRIVERS.get(kind, "device-client.py")).read_bytes()
     )
-    if kind in PORTABLE_TYPES:
-        (directory / "_roboenv.py").write_bytes(assets.joinpath("_roboenv.py").read_bytes())
+    (directory / "_roboenv.py").write_bytes(assets.joinpath("_roboenv.py").read_bytes())
 
 
 def export_devices(profiles, directory, connection):
@@ -62,7 +61,6 @@ def export_devices(profiles, directory, connection):
                 actions += [action for action in ("fk", "ik") if action not in actions]
             profile["access"] = driver_access(
                 descriptor["type"], name, actions, connection["endpoint"],
-                control_mode=descriptor["control_mode"],
             )
             write_driver(destination, descriptor["type"])
             (destination / "connection.json").write_text(json.dumps(connection) + "\n")

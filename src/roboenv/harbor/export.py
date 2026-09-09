@@ -80,12 +80,13 @@ def export_task(
             driver = access.setdefault("driver", {})
             actions = driver.get("actions", ["read"])
             driver.update(
-                entry="driver.py", interpreter="python3", persistent=False, actions=actions
+                entry="driver.py", interpreter="python3", persistent=True, actions=actions
             )
             prefix = f"environment/definition/robot/devices/{spec.name}/"
             if task.backend not in {"robocasa", "isaaclab", "libero"}:
                 out.add_yaml(prefix + "profile.yaml", profile)
                 out.add(prefix + "driver.py", assets.joinpath("device-client.py").read_bytes())
+                out.add(prefix + "_roboenv.py", assets.joinpath("_roboenv.py").read_bytes())
         out.add(
             "environment/definition/robot/lib/README.md",
             "Device implementations run on the server; clients use the public SDK.\n",

@@ -17,6 +17,7 @@ from roboenv.client import Client, RemoteError
 from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.contract import DEVICE_CONTRACT
+from roboenv.devices.export import write_driver
 from roboenv.harbor.export import export_task
 from roboenv_runtime.adapters.fakeshell import FakeShell
 from roboenv_runtime.runtime.protocol import Request, Response
@@ -162,10 +163,7 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
 def test_thin_driver_needs_only_stdlib_and_socket(device_service, tmp_path):
     client, _, _ = device_service
     driver = tmp_path / "controller/driver.py"
-    driver.parent.mkdir()
-    driver.write_text(
-        importlib.resources.files("roboenv").joinpath("assets/device-client.py").read_text()
-    )
+    write_driver(driver.parent, "other")
     result = subprocess.run(
         [sys.executable, "-S", str(driver), "read", "{}"],
         env={**os.environ, "ROBOENV_SOCKET": client.socket_path},
@@ -180,8 +178,9 @@ def test_thin_driver_needs_only_stdlib_and_socket(device_service, tmp_path):
 @pytest.mark.parametrize("override", [None, "environment", "connection"])
 def test_portable_driver_uses_profile_url_with_explicit_overrides(tmp_path, monkeypatch, override):
     driver = tmp_path / "driver.py"
-    driver.write_bytes((ROOT / "src/roboenv/assets/device-client.py").read_bytes())
-    (tmp_path / "profile.yaml").write_text("access:\n  url: http://profile:8124\n")
+    write_driver(driver.parent, "other")
+    monkeypatch.syspath_prepend(str(driver.parent))
+    (tmp_path / "profile.yaml").write_text("access:\n  connection:\n    kind: url\n    url: http://profile:8124\n")
     for key in ("ROBOENV_ENDPOINT", "ROBOENV_SOCKET", "ROBOENV_SESSION", "ROBOENV_GENERATION"):
         monkeypatch.delenv(key, raising=False)
     expected = "http://profile:8124"
@@ -204,7 +203,7 @@ def test_portable_driver_uses_profile_url_with_explicit_overrides(tmp_path, monk
         response.update(ok=True, result={"data": {"loaded": True}})
         return (json.dumps(response) + "\n").encode()
 
-    remote.__globals__["exchange"] = exchange
+    remote.__self__.exchange = exchange
     assert remote("status", {}) == {"loaded": True}
 
 
@@ -453,11 +452,12 @@ def test_malformed_device_requests_cannot_move_world(device_service, args):
 
 
 @pytest.mark.parametrize("failure", ["lost", "mismatched", "missing_data"])
-def test_portable_driver_never_retries_an_uncertain_write(tmp_path, failure):
+def test_portable_driver_never_retries_an_uncertain_write(tmp_path, failure, monkeypatch):
     device = tmp_path / "arm"
     device.mkdir()
     driver = device / "driver.py"
-    driver.write_bytes((ROOT / "src/roboenv/assets/device-client.py").read_bytes())
+    write_driver(driver.parent, "other")
+    monkeypatch.syspath_prepend(str(driver.parent))
     (device / "connection.json").write_text(json.dumps({
         "endpoint": "http://unused", "session": "test", "generation": 0,
     }))
@@ -478,7 +478,7 @@ def test_portable_driver_never_retries_an_uncertain_write(tmp_path, failure):
             response["result"] = {}
         return json.dumps(response).encode() + b"\n"
 
-    handle.__globals__["exchange"] = exchange
+    handle.__globals__["transport"].exchange = exchange
     result = handle("write", {"joints": [0.1]})
     assert len(requests) == 1
     assert result["ok"] is False
