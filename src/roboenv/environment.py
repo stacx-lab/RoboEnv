@@ -301,7 +301,7 @@ def launch(
         {
             "task": asdict(spec),
             "observation_access": "sensors-only"
-            if spec.backend in {"robocasa", "isaaclab"}
+            if spec.backend in {"robocasa", "isaaclab", "libero"}
             else "benchmark-ground-truth",
         },
     )

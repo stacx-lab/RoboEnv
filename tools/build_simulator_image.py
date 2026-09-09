@@ -20,7 +20,7 @@ from roboenv.provisioning.sources import status
 WORKSPACE = Path(__file__).resolve().parents[1]
 INTERPRETERS = {
     "isaaclab": ".venv-sim/isaaclab",
-    "libero": "third_party/cap-x/.venv-libero",
+    "libero": ".venv-sim/libero",
     "robotwin": "third_party/cap-x/.venv-robotwin",
     "robocasa": "miniconda3/envs/robocasa",
     "robodojo": "miniconda3/envs/RoboDojo",
@@ -28,11 +28,7 @@ INTERPRETERS = {
 }
 SOURCES = {
     "isaaclab": ["third_party/IsaacLab"],
-    "libero": [
-        "third_party/cap-x",
-        "third_party/cap-x/capx/third_party/LIBERO-PRO",
-        "third_party/cap-x/capx/third_party/libero_dependencies/robosuite",
-    ],
+    "libero": ["third_party/LIBERO"],
     "robotwin": ["third_party/cap-x", "third_party/RoboTwin"],
     "robocasa": ["third_party/robocasa", "third_party/robosuite"],
     "robodojo": [

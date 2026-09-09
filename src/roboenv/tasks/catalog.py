@@ -5,7 +5,6 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
-import re
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
@@ -64,11 +63,14 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None):
         id=f"{backend}/{task_name}",
         backend=backend,
         backend_task=identifier,
-        backend_kwargs={**({"realtime": True} if backend == "robocasa" else {}), **kwargs},
+        backend_kwargs={
+            **({"realtime": True} if backend in {"robocasa", "libero"} else {}), **kwargs,
+        },
         robot=robot or ROBOTS[backend],
+        budget_mode="practice" if backend == "libero" else "official",
         instruction=instruction,
         action_abstraction="devices"
-        if backend in {"robocasa", "isaaclab"}
+        if backend in {"robocasa", "isaaclab", "libero"}
         else "symbolic-primitives"
         if backend == "behavior"
         else "cartesian-primitives",
@@ -76,49 +78,24 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None):
 
 
 def _libero(root, issues):
-    base = root / "third_party/cap-x/capx/third_party/LIBERO-PRO/libero/libero"
-    mapping = _literal(base / "benchmark/libero_suite_task_map.py", "libero_task_map")
-    module = ast.parse((base / "benchmark/__init__.py").read_text())
-    registered = set()
-    for cls in module.body:
-        if isinstance(cls, ast.ClassDef) and any(
-            isinstance(d, ast.Name) and d.id == "register_benchmark" for d in cls.decorator_list
-        ):
-            for node in ast.walk(cls):
-                if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
-                    if any(isinstance(n, ast.Attribute) and n.attr == "name" for n in node.targets):
-                        registered.add(node.value.value)
-    for suite in sorted(registered):
-        if suite not in mapping:
-            issues.append(
-                {"id": suite, "reason": "no static task map; composite suite not expanded"}
-            )
-            continue
-        for index, name in enumerate(mapping[suite]):
-            bddl = base / "bddl_files" / suite / (name + ".bddl")
-            if not bddl.is_file():
-                issues.append({"id": f"{suite}:{index}", "reason": "missing BDDL definition"})
-                continue
-            match = re.search(r"\(:language\s+(.*?)\)", bddl.read_text(), re.S)
-            instruction = (
-                " ".join(match.group(1).split()).strip('"') if match else name.replace("_", " ")
-            )
-            short = suite.removeprefix("libero_")
-            group = (
-                "libero"
-                if suite
-                in {"libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90"}
-                else "libero-pro"
-            )
-            yield (
-                _task(
-                    "libero",
-                    f"{group}.{short}_{index}",
-                    {"suite_name": suite, "task_id": index},
-                    instruction,
-                ),
-                bddl,
-            )
+    from roboenv.tasks.libero import entries
+
+    for entry in entries(root / "third_party/LIBERO/libero/libero"):
+        short = entry["suite_name"].removeprefix("libero_")
+        yield (
+            _task(
+                "libero",
+                f"libero.{short}_{entry['task_id']}",
+                {
+                    "suite_name": entry["suite_name"],
+                    "task_id": entry["task_id"],
+                    "init_state_index": 0,
+                },
+                entry["instruction"],
+                robot=entry["robot"],
+            ),
+            entry["bddl"],
+        )
 
 
 def _robocasa(root, issues):

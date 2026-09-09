@@ -1,1 +1,1 @@
-"""libero device action implementations."""
+"""Native official LIBERO devices."""

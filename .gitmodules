@@ -20,3 +20,6 @@
 [submodule "isaaclab"]
 	path = third_party/IsaacLab
 	url = https://github.com/isaac-sim/IsaacLab.git
+[submodule "libero"]
+	path = third_party/LIBERO
+	url = https://github.com/Lifelong-Robot-Learning/LIBERO.git

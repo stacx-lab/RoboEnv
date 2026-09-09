@@ -45,10 +45,12 @@ def test_every_catalog_slot_has_a_registered_non_catalog_implementation(robot):
 
 
 def libero_service(controllers):
-    robot = ROOT / "catalog/robots/libero-panda"
-    plan = BindingPlan.load(robot, backend="libero")
-    context = BindingContext("libero", "panda", object(), public_tools=controllers)
-    return default_registry().assemble(plan, robot, context)
+    import legacy_libero
+
+    robot = legacy_libero.ROBOT
+    plan = BindingPlan.load(robot, backend="legacy-libero")
+    context = BindingContext("legacy-libero", "panda", object(), public_tools=controllers)
+    return legacy_libero.registry().assemble(plan, robot, context)
 
 
 def test_missing_controller_is_reported_before_execution():
@@ -91,9 +93,15 @@ def test_controllers_cannot_execute_during_binding_construction():
         controller.call("move")
 
 
-def test_device_and_primitive_calls_share_worker_accounting(tmp_path):
+def test_device_and_primitive_calls_share_worker_accounting(tmp_path, monkeypatch):
+    import legacy_libero
+
+    monkeypatch.setattr(
+        "roboenv_runtime.bindings.assembly.default_registry", legacy_libero.registry
+    )
+
     class ArmWorld(FakeShell):
-        name = "libero"
+        name = "legacy-libero"
         embodiment = "panda"
 
         def tools(self):
@@ -107,7 +115,7 @@ def test_device_and_primitive_calls_share_worker_accounting(tmp_path):
         task_id="test",
         seed=0,
         run_dir=tmp_path,
-        device_root=ROOT / "catalog/robots/libero-panda",
+        device_root=legacy_libero.ROBOT,
     )
     try:
         worker.dispatch(

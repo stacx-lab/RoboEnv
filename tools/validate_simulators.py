@@ -27,6 +27,10 @@ from roboenv.validation import json_loads
 ROOT = Path(__file__).resolve().parents[1]
 ROBOTS = {
     "libero-panda": ("libero", {}),
+    "libero-panda-floor": ("libero", {}),
+    "libero-panda-kitchen": ("libero", {}),
+    "libero-panda-living-room": ("libero", {}),
+    "libero-panda-study": ("libero", {}),
     "robocasa-panda-omron": ("robocasa", {}),
     "robotwin-dual-piper": ("robotwin", {"embodiment": "piper"}),
     "robotwin-aloha-agilex": ("robotwin", {"embodiment": "aloha_agilex"}),
@@ -79,6 +83,7 @@ def _probe_program(names):
         "assert inventory['schema_version'] == 'roboenv/devices/1'\n"
         f"assert sorted(device['name'] for device in inventory['devices']) == {names!r}\n"
         "for descriptor in inventory['devices']:\n"
+        "    if descriptor['type'] == 'world': continue\n"
         "    action = descriptor['actions']['read']\n"
         "    assert action['supported'] is True and action['read_only'] is True\n"
         "    result = client.device(descriptor['name']).read()\n"
@@ -123,6 +128,8 @@ def select_cases(
             if robots and task.robot not in robots:
                 continue
             reference = source_path.with_name("solution.py")
+            if not reference.exists() and not cases:
+                continue
             if not reference.is_file() or reference.is_symlink():
                 raise ValueError("reference validation requires an explicit regular solution.py")
             note = reference.with_name("solution-source.json")
@@ -141,6 +148,8 @@ def select_cases(
             if backend not in backends or (robots and robot not in robots):
                 continue
             candidates = [(task, path) for task, path in selected if task.backend == backend]
+            if backend == "libero":
+                candidates = [(t, p) for t, p in candidates if t.robot == robot]
             if not candidates:
                 continue
             task, source_path = next(

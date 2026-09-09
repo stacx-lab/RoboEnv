@@ -228,7 +228,7 @@ def main():
     raw = None
     try:
         task = strict_json(Path(__file__).with_name("task.json").read_bytes())
-        if task.get("backend") == "robocasa":
+        if task.get("backend") in {"robocasa", "libero"}:
             identity = strict_json(Path("/run/roboenv/identity.json").read_bytes())
             task["session"] = identity["session"]
         mode = task.get("budget_mode", "official")

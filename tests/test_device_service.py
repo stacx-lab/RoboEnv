@@ -226,7 +226,7 @@ def test_all_catalogs_load_without_contacting_simulators():
 
         raw = yaml.safe_load(binding_path(robot).read_text())
         plan = BindingPlan.load(robot, backend=raw["backend"])
-        if raw["backend"] in {"robocasa", "isaaclab"}:
+        if raw["backend"] in {"robocasa", "isaaclab", "libero"}:
             # Offline definitions validate without a world; native bindings require
             # real model/controller facts, covered by backend conformance tests.
             assert all(spec.definition(robot) for spec in plan.devices)
@@ -239,10 +239,16 @@ def test_all_catalogs_load_without_contacting_simulators():
             assert "driver" not in device
 
 
-def test_server_reads_cannot_bypass_submission_or_return_fake_poses(tmp_path):
-    # The production LIBERO driver uses pure tcp(), which must be advertised read-only.
+def test_server_reads_cannot_bypass_submission_or_return_fake_poses(tmp_path, monkeypatch):
+    import legacy_libero
+
+    monkeypatch.setattr(
+        "roboenv_runtime.bindings.assembly.default_registry", legacy_libero.registry
+    )
+
+    # The historical primitive fixture uses pure tcp(), which must be advertised read-only.
     class World(FakeShell):
-        name, embodiment = "libero", "panda"  # CPU stub of the legacy public LIBERO surface
+        name, embodiment = "legacy-libero", "panda"  # CPU stub of the legacy public LIBERO surface
 
         def tools(self):
             return {
@@ -258,7 +264,7 @@ def test_server_reads_cannot_bypass_submission_or_return_fake_poses(tmp_path):
         task_id="test",
         seed=0,
         run_dir=tmp_path,
-        device_root=ROOT / "catalog/robots/libero-panda",
+        device_root=legacy_libero.ROBOT,
     )
     try:
         result = worker.dispatch("devices.call", {"device": "arm", "action": "read", "args": {}})
@@ -389,11 +395,16 @@ def test_restart_retrieves_terminal_results_and_fences_unfinished_intents(tmp_pa
     assert restored.handle(conflict)["error"]["code"] == "request_id_conflict"
 
 
-def test_camera_artifact_uses_shared_path_and_rejects_traversal(tmp_path):
+def test_camera_artifact_uses_shared_path_and_rejects_traversal(tmp_path, monkeypatch):
+    import legacy_libero
+
+    monkeypatch.setattr(
+        "roboenv_runtime.bindings.assembly.default_registry", legacy_libero.registry
+    )
     import numpy as np
 
     class CameraWorld(FakeShell):
-        name, embodiment = "libero", "panda"  # CPU camera stub, not a GPU replay
+        name, embodiment = "legacy-libero", "panda"  # CPU camera stub, not a GPU replay
 
         def capture(self):
             return np.zeros((8, 8, 3), dtype=np.uint8)
@@ -403,7 +414,7 @@ def test_camera_artifact_uses_shared_path_and_rejects_traversal(tmp_path):
         task_id="test",
         seed=0,
         run_dir=tmp_path,
-        device_root=ROOT / "catalog/robots/libero-panda",
+        device_root=legacy_libero.ROBOT,
     )
     try:
         result = worker.dispatch(

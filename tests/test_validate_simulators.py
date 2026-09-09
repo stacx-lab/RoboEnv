@@ -37,7 +37,7 @@ def inputs(tmp_path):
     return wheel, deployments
 
 
-def test_default_preparation_covers_eight_references_without_execution(tmp_path, monkeypatch):
+def test_default_preparation_excludes_retired_libero_references(tmp_path, monkeypatch):
     tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     monkeypatch.setattr(
@@ -45,7 +45,7 @@ def test_default_preparation_covers_eight_references_without_execution(tmp_path,
     )
     out = tmp_path / "validation"
     receipt = tool.prepare(deployments, wheel, out)
-    assert len(receipt["cases"]) == 8
+    assert len(receipt["cases"]) == 6
     assert receipt["phase"] == "prepared" and receipt["model_calls"] == 0
     assert receipt["reference_official"] is False
     assert receipt["harbor_loader_validated"] is True
@@ -72,7 +72,7 @@ def test_seven_probe_plans_use_explicit_behavior_scene_and_yam_config(tmp_path):
     cases = tool.select_cases(
         source=source.parent, backends=[*tool.DEFAULT_BACKENDS, "behavior"], modes=["probe"]
     )
-    assert len(cases) == 7
+    assert len(cases) == 8
     yam = next(task for _, task, _, _ in cases if task.robot == "robodojo-yam")
     assert yam.backend_kwargs["env_cfg_type"] == "yam"
     aloha = next(task for _, task, _, _ in cases if task.robot == "robotwin-aloha-agilex")
@@ -91,7 +91,7 @@ def test_seven_probe_plans_use_explicit_behavior_scene_and_yam_config(tmp_path):
         backends=[*tool.DEFAULT_BACKENDS, "behavior"],
         modes=["probe"],
     )
-    assert len(prepared["cases"]) == 7 and prepared["harbor_loader_validated"]
+    assert len(prepared["cases"]) == 8 and prepared["harbor_loader_validated"]
     task["backend_kwargs"].pop("scene_model")
     (source / "task.yaml").write_text(yaml.safe_dump(task))
     with pytest.raises(ValueError, match="explicit scene_model"):
@@ -159,7 +159,13 @@ def test_runner_classifies_real_success_separately_from_probe_connectivity(
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
-        deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"], modes=[mode]
+        deployments,
+        wheel,
+        out,
+        backends=["robotwin"],
+        cases=["robotwin/handover-mic"],
+        robots=["robotwin-dual-piper"],
+        modes=[mode],
     )
     calls = []
 
@@ -190,7 +196,12 @@ def test_missing_completion_or_modified_journal_cannot_certify_a_reference(tmp_p
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
-        deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"]
+        deployments,
+        wheel,
+        out,
+        backends=["robotwin"],
+        cases=["robotwin/handover-mic"],
+        robots=["robotwin-dual-piper"],
     )
     record = receipt["cases"][0]
     trial = write_trial(out, record, reward=1, program_completed=False)
@@ -221,7 +232,14 @@ def test_unavailable_image_is_a_recorded_preflight_failure_not_a_trial(tmp_path,
     tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
-    tool.prepare(deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"])
+    tool.prepare(
+        deployments,
+        wheel,
+        out,
+        backends=["robotwin"],
+        cases=["robotwin/handover-mic"],
+        robots=["robotwin-dual-piper"],
+    )
 
     def fail(*args, **kwargs):
         raise FileNotFoundError("fixture Docker unavailable")
@@ -239,7 +257,12 @@ def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path,
     wheel, deployments = inputs(tmp_path)
     out = tmp_path / "validation"
     receipt = tool.prepare(
-        deployments, wheel, out, backends=["libero"], cases=["libero/drawer-and-bowl"]
+        deployments,
+        wheel,
+        out,
+        backends=["robotwin"],
+        cases=["robotwin/handover-mic"],
+        robots=["robotwin-dual-piper"],
     )
     program = out / "taskset" / receipt["cases"][0]["path"] / "solution/solution.py"
     program.write_text("# changed after preparation\n")
@@ -250,8 +273,10 @@ def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path,
 
 def test_case_selection_alone_narrows_probe_backends_without_guessing():
     tool = load_tool("validate_simulators")
-    cases = tool.select_cases(cases=["libero/drawer-and-bowl"], modes=["probe"])
-    assert len(cases) == 1 and cases[0][1].backend == "libero"
+    cases = tool.select_cases(
+        cases=["robotwin/handover-mic"], robots=["robotwin-dual-piper"], modes=["probe"]
+    )
+    assert len(cases) == 1 and cases[0][1].backend == "robotwin"
 
 
 def test_failed_advertised_device_read_has_a_failure_category_without_harbor_exception(tmp_path):

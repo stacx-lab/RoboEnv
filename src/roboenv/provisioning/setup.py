@@ -487,6 +487,10 @@ def prepare(backend, *, project=None, install_to=None, progress=None):
 
 
 def _prepare_assets(backend, root, report, progress):
+    if backend == "libero":
+        from roboenv.provisioning.libero_assets import prepare_assets
+
+        return {**report, **prepare_assets(root, progress=progress)}
     if backend == "isaaclab":
         from roboenv.provisioning.isaaclab_assets import prepare_assets
 

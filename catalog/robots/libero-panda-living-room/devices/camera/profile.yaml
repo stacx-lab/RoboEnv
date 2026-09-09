@@ -1,0 +1,60 @@
+name: camera
+type: rgb
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  color:
+    width: 128
+    height: 128
+    fps: null
+    pixel_format: rgb8
+    image_format: png
+    projection:
+      model: pinhole
+      fx: 154.509667991878
+      fy: 154.509667991878
+      cx: 64.0
+      cy: 64.0
+      skew: 0
+    distortion:
+      model: none
+    fov:
+      horizontal_deg: 44.999425744206
+      vertical_deg: 44.999425744206
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mount:
+    parent: world
+    parent_frame: world
+    translation_m:
+    - 0.606577371684
+    - 0.0
+    - 0.96
+    rotation_xyzw:
+    - 0.618216636352
+    - 0.618217649631
+    - -0.343231407917
+    - -0.343230722463
+meta:
+  created_at: '2026-09-07T00:00:00Z'
+  updated_at: '2026-09-08T00:00:00Z'
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    camera: camera
+  driver:
+    entry: driver.py
+    interpreter: python3
+    persistent: false
+    actions:
+    - load
+    - unload
+    - status
+    - read

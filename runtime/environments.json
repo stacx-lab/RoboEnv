@@ -2,30 +2,23 @@
   "schema": "roboenv/environments/1",
   "backends": {
     "libero": {
-      "python": "3.12",
-      "lock": "runtime/locks/libero-resolved.txt",
+      "python": "3.10",
+      "lock": "runtime/locks/libero-official-resolved.txt",
       "historical_freeze": "runtime/locks/libero.txt",
-      "source_pins": "runtime/locks/libero-source-pins.txt",
-      "source_only": ["third_party/cap-x"],
-      "editables": ["third_party/cap-x/capx/third_party/LIBERO-PRO", "third_party/cap-x/capx/third_party/libero_dependencies/robosuite"],
+      "editables": [
+        "third_party/LIBERO"
+      ],
       "index_url": "https://pypi.org/simple",
-      "extra_indexes": [],
+      "extra_indexes": [
+        "https://download.pytorch.org/whl/cpu"
+      ],
       "known_blockers": [],
-      "import_probes": ["capx.envs.base", "capx.envs.tasks.base", "capx.integrations.base_api", "roboenv_runtime.adapters.libero"],
-      "recorded_validation": {
-        "clean_dependency_resolution": true,
-        "dependency_consistency": true,
-        "host_fresh_process_gpu_replay": true,
-        "clean_environment_container_replay": false,
-        "task": "libero.90_8",
-        "seed": 0,
-        "reward": 1.0,
-        "completed": true,
-        "budget": {"used": 2779, "max": 4000, "unit": "sim_steps"},
-        "evidence": "docs/validation/libero-candidate.json",
-        "scope": "One host seed-0 project reference and device checks; not every task/seed or the new container image."
-      },
-      "asset_instructions": "third_party/cap-x/capx/third_party/LIBERO-PRO/README.md"
+      "import_probes": [
+        "libero.libero.benchmark",
+        "libero.libero.envs",
+        "roboenv_runtime.adapters.libero"
+      ],
+      "asset_instructions": "third_party/LIBERO/README.md"
     },
     "robocasa": {
       "python": "3.11",

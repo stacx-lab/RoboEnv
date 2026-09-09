@@ -151,9 +151,13 @@ def test_recorded_recipe_validation_is_not_a_certificate_for_this_invocation(
         assert not report["clean_install_verified"]
         assert not report["gpu_replay_verified"]
         recorded = report["recorded_recipe_validation"]
-        assert recorded["host_fresh_process_gpu_replay"]
-        assert not recorded["clean_environment_container_replay"]
-        assert report["source_only"]
+        if backend == "libero":
+            assert not recorded  # Official integration does not inherit PRO success evidence.
+            assert not report["source_only"]
+        else:
+            assert recorded["host_fresh_process_gpu_replay"]
+            assert not recorded["clean_environment_container_replay"]
+            assert report["source_only"]
         assert report["source_pins_audit"]["passed"]
     behavior, _ = setup.audit("behavior", project=project)
     assert not behavior["install_preflight_passed"]
@@ -168,7 +172,7 @@ def test_missing_checkouts_fail_despite_recorded_recipe_validation(recipe_projec
     report, _ = setup.audit(backend, project=project)
     assert report["lock_audit"]["passed"]
     assert report["source_pins_audit"]["passed"]
-    assert report["recorded_recipe_validation"]["host_fresh_process_gpu_replay"]
+    assert bool(report["recorded_recipe_validation"]) is (backend == "robotwin")
     assert not report["sources_ready"]
     assert not report["install_preflight_passed"]
     assert "missing-local-package-checkout" in report["blockers"]

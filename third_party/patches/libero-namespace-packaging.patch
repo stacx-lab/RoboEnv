@@ -1,0 +1,22 @@
+diff --git a/setup.py b/setup.py
+index 59d4900..14995d1 100644
+--- a/setup.py
++++ b/setup.py
+@@ -1,7 +1,7 @@
+ # read the contents of your README file
+ from os import path
+ 
+-from setuptools import find_packages, setup
++from setuptools import find_namespace_packages, setup
+ 
+ this_directory = path.abspath(path.dirname(__file__))
+ with open(path.join(this_directory, "./README.md"), encoding="utf-8") as f:
+@@ -13,7 +13,7 @@ long_description = "".join(lines)
+ 
+ setup(
+     name="libero",
+-    packages=[package for package in find_packages() if package.startswith("libero")],
++    packages=find_namespace_packages(include=["libero", "libero.*"]),
+     install_requires=[],
+     eager_resources=["*"],
+     include_package_data=True,

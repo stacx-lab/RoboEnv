@@ -38,7 +38,9 @@ def test_nested_simulation_and_flat_task_resolve_identically():
 def test_task_id_resolution_and_missing_task():
     resolved = resolve_task("libero/mug-into-microwave", project=ROOT)
     assert resolved.runtime_config()["adapter"] == "libero"
-    assert resolved.task.backend_kwargs == {"suite_name": "libero_10", "task_id": 9}
+    assert resolved.task.backend_kwargs == {
+        "suite_name": "libero_10", "task_id": 9, "init_state_index": 0, "realtime": True,
+    }
     with pytest.raises(ValueError, match="tasks list"):
         resolve_task("not-a-task", project=ROOT)
 
@@ -313,7 +315,7 @@ def test_grouped_catalog_ids_and_listing(capsys):
     from roboenv.tasks.catalog import load_catalog
 
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 9
+    assert len(catalog) == 15
     for identifier, (task, path) in catalog.items():
         assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
         assert identifier.split("/")[0] == task.backend
@@ -353,7 +355,7 @@ def test_clock_override_reaches_runtime_without_catalog_edits(realtime):
 def test_clock_validation_precedes_launch_effects(monkeypatch):
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("unexpected process"))
     with pytest.raises(ValueError, match="Clock selection is not supported"):
-        launch("libero/mug-into-microwave", project=ROOT, realtime=True)
+        launch("robotwin/handover-mic", project=ROOT, realtime=True)
     with pytest.raises(ValueError, match="boolean"):
         launch("robocasa/pick-place-microwave", project=ROOT, realtime="false")
     task = asdict(resolve_task("robocasa/pick-place-microwave", project=ROOT).task)

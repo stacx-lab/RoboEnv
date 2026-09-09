@@ -14,7 +14,6 @@
       "url": "https://github.com/capgym/cap-x.git",
       "revision": "53e9966d7a8e2fa7494676772bccc35280f5c0ed",
       "backends": [
-        "libero",
         "robotwin",
         "robodojo"
       ],
@@ -30,9 +29,7 @@
       "parent": "capx",
       "url": "https://github.com/uynitsuj/LIBERO-PRO.git",
       "revision": "47aaa8038930bcdc84ab9ea2867e2ffc8039ab4a",
-      "backends": [
-        "libero"
-      ],
+      "backends": [],
       "patches": [
         {
           "path": "third_party/patches/libero-pro-runtime.patch",
@@ -45,9 +42,7 @@
       "parent": "capx",
       "url": "https://github.com/Max-Fu/robosuite",
       "revision": "a498b087d4bc5a3981e3d27030d09bc537a537f3",
-      "backends": [
-        "libero"
-      ]
+      "backends": []
     },
     "robocasa": {
       "path": "third_party/robocasa",
@@ -140,6 +135,20 @@
         {
           "path": "third_party/patches/isaaclab-install.patch",
           "sha256": "3e4dfccc8e8f3b496c6f8f46b3a388afa4caf1557c3c2a33489df0e394f6492b"
+        }
+      ]
+    },
+    "libero": {
+      "path": "third_party/LIBERO",
+      "url": "https://github.com/Lifelong-Robot-Learning/LIBERO.git",
+      "revision": "8f1084e3132a39270c3a13ebe37270a43ece2a01",
+      "backends": [
+        "libero"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/libero-namespace-packaging.patch",
+          "sha256": "4b82c2465305acf5a2c067053d626a4531002fa54ce1578ab2c8b6fcd0973b47"
         }
       ]
     }

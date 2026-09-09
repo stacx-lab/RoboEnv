@@ -46,7 +46,8 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None):
     if realtime is not None:
         if type(realtime) is not bool:
             raise ValueError("realtime must be a boolean")
-        if task.backend != "robocasa" and not (task.backend == "isaaclab" and realtime is False):
+        selectable = task.backend in {"robocasa", "libero"}
+        if not selectable and not (task.backend == "isaaclab" and realtime is False):
             raise ValueError(f"Clock selection is not supported for {task.backend}")
         task = replace(task, backend_kwargs={**task.backend_kwargs, "realtime": realtime})
     robot = catalog / "robots" / task.robot
