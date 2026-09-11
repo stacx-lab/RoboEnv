@@ -1,8 +1,12 @@
 id: robotwin/stack-blocks-three
 backend: robotwin
 backend_task: robotwin.stack_blocks_three
-robot: robotwin-dual-piper
-instruction: Stack the three blocks into a tower (block2 on block1, block3 on block2)
+robot: robotwin/robotwin-dual-piper
+instruction: Stack the blocks into a tower with red on the bottom, green in the middle,
+  and blue on top, then release both grippers.
 seed: 0
-budget_mode: official
-backend_kwargs: {"task_name":"stack_blocks_three"}
+budget_mode: practice
+backend_kwargs:
+  task_name: stack_blocks_three
+  realtime: false
+action_abstraction: devices

@@ -1,0 +1,23 @@
+identity:
+  source: user
+  id: robotwin-dual-piper
+  name: robotwin-dual-piper
+  platform: sim
+  kind: other
+  model: robotwin-dual-piper
+sim:
+  source: user
+  simulator: robotwin
+devices:
+  source: user
+safety:
+  source: user
+  max_cartesian_velocity: null
+  max_joint_velocity: null
+  keep_out_zones: []
+  notes: 'Native joint limits and collisions apply. Stop holds its device. Coordinated
+    writes may share step: {id: N, devices: [...]}; all participants must submit once
+    before that step executes.'
+meta:
+  created_at: '2026-09-09T00:00:00Z'
+  updated_at: '2026-09-09T00:00:00Z'

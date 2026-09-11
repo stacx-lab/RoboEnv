@@ -9,11 +9,71 @@ index 672c88e..9401c45 100644
 +
 +yam:
 +  file_path: "./assets/embodiments/yam"
+diff --git a/env_cfg/task_config/taskgen_dr_visual.yml b/env_cfg/task_config/taskgen_dr_visual.yml
+new file mode 100644
+index 0000000..7dc7635
+--- /dev/null
++++ b/env_cfg/task_config/taskgen_dr_visual.yml
+@@ -0,0 +1,38 @@
++# if you want to modify the config, please check the following tutorial first:
++# https://robotwin-platform.github.io/doc/usage/configurations.html
++render_freq: 0
++episode_num: 50
++use_seed: false
++save_freq: 15
++embodiment: [aloha-agilex]
++language_num: 100
++eval_instruction: seen
++domain_randomization:
++  random_background: true
++  cluttered_table: true
++  clean_background_rate: 0.05
++  random_head_camera_dis: 0
++  random_table_height: 0
++  random_light: true
++  crazy_random_light_rate: 0
++camera:
++  head_camera_type: D435
++  wrist_camera_type: D435
++  collect_head_camera: true
++  collect_wrist_camera: true
++data_type:
++  rgb: true
++  third_view: false
++  depth: false
++  pointcloud: false
++  observer: false
++  endpose: true
++  qpos: true
++  mesh_segmentation: false
++  actor_segmentation: false
++pcd_down_sample_num: 1024
++pcd_crop: true
++save_path: ./data
++clear_cache_freq: 5
++collect_data: true
++eval_video_log: true
 diff --git a/envs/_base_task.py b/envs/_base_task.py
-index 301da9f..063c1f4 100644
+index 301da9f..755122d 100644
 --- a/envs/_base_task.py
 +++ b/envs/_base_task.py
-@@ -1128,8 +1128,15 @@ class Base_Task(gym.Env):
+@@ -218,7 +218,14 @@ class Base_Task(gym.Env):
+ 
+         # declare sapien scene
+         scene_config = sapien.SceneConfig()
+-        self.scene = self.engine.create_scene(scene_config)
++        render_device = os.environ.get("ROBOTWIN_RENDER_DEVICE")
++        if render_device:
++            sapien.physx.set_scene_config(scene_config)
++            self.scene = sapien.Scene([
++                sapien.physx.PhysxCpuSystem(), sapien.render.RenderSystem(render_device)
++            ])
++        else:
++            self.scene = self.engine.create_scene(scene_config)
+         # set simulation timestep
+         self.scene.set_timestep(kwargs.get("timestep", 1 / 250))
+         # add ground to scene
+@@ -1128,8 +1135,15 @@ class Base_Task(gym.Env):
              pre_path = plan_func(pre_pose)
              if pre_path["status"] != "Success":
                  return False
@@ -31,7 +91,7 @@ index 301da9f..063c1f4 100644
  
          if contact_point_id is not None:
              if type(contact_point_id) != list:
-@@ -1138,6 +1145,7 @@ class Base_Task(gym.Env):
+@@ -1138,6 +1152,7 @@ class Base_Task(gym.Env):
          else:
              contact_point_id = actor.iter_contact_points()
  
@@ -39,7 +99,7 @@ index 301da9f..063c1f4 100644
          for i, _ in contact_point_id:
              pre_pose = self.get_grasp_pose(actor, arm_tag, contact_point_id=i, pre_dis=pre_dis)
              if pre_pose is None:
-@@ -1148,6 +1156,7 @@ class Base_Task(gym.Env):
+@@ -1148,6 +1163,7 @@ class Base_Task(gym.Env):
                  GRASP_DIRECTION_DIC[("top_down_little_left" if arm_tag == "right" else "top_down_little_right")],
              )
              now_dis_side = cal_quat_dis(pose[-4:], GRASP_DIRECTION_DIC[pref_direction])
@@ -47,7 +107,7 @@ index 301da9f..063c1f4 100644
  
              if res_pre_top_down_pose is None or now_dis_top_down < dis_top_down:
                  res_pre_top_down_pose = pre_pose
-@@ -1165,6 +1174,27 @@ class Base_Task(gym.Env):
+@@ -1165,6 +1181,27 @@ class Base_Task(gym.Env):
                  res_pose = pose
                  dis = now_dis
  
@@ -566,47 +626,3 @@ index 9dfc08f..a2f25b6 100644
  
      # The data of gripper has been normalized
      def get_left_arm_jointState(self) -> list:
-diff --git a/env_cfg/task_config/taskgen_dr_visual.yml b/env_cfg/task_config/taskgen_dr_visual.yml
-new file mode 100644
-index 0000000..7dc7635
---- /dev/null
-+++ b/env_cfg/task_config/taskgen_dr_visual.yml
-@@ -0,0 +1,38 @@
-+# if you want to modify the config, please check the following tutorial first:
-+# https://robotwin-platform.github.io/doc/usage/configurations.html
-+render_freq: 0
-+episode_num: 50
-+use_seed: false
-+save_freq: 15
-+embodiment: [aloha-agilex]
-+language_num: 100
-+eval_instruction: seen
-+domain_randomization:
-+  random_background: true
-+  cluttered_table: true
-+  clean_background_rate: 0.05
-+  random_head_camera_dis: 0
-+  random_table_height: 0
-+  random_light: true
-+  crazy_random_light_rate: 0
-+camera:
-+  head_camera_type: D435
-+  wrist_camera_type: D435
-+  collect_head_camera: true
-+  collect_wrist_camera: true
-+data_type:
-+  rgb: true
-+  third_view: false
-+  depth: false
-+  pointcloud: false
-+  observer: false
-+  endpose: true
-+  qpos: true
-+  mesh_segmentation: false
-+  actor_segmentation: false
-+pcd_down_sample_num: 1024
-+pcd_crop: true
-+save_path: ./data
-+clear_cache_freq: 5
-+collect_data: true
-+eval_video_log: true

@@ -1,0 +1,28 @@
+schema_version: roboenv/bindings/1
+backend: robotwin
+embodiment: piper
+devices:
+  head_camera:
+    binding: robotwin.device/1
+    entity: head_camera
+  left_arm:
+    binding: robotwin.device/1
+    entity: left_arm
+  left_camera:
+    binding: robotwin.device/1
+    entity: left_camera
+  left_gripper:
+    binding: robotwin.device/1
+    entity: left_gripper
+  right_arm:
+    binding: robotwin.device/1
+    entity: right_arm
+  right_camera:
+    binding: robotwin.device/1
+    entity: right_camera
+  right_gripper:
+    binding: robotwin.device/1
+    entity: right_gripper
+  world:
+    binding: robotwin.device/1
+    entity: world

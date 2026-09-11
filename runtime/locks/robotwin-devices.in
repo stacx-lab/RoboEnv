@@ -1,0 +1,21 @@
+# Source-backed SAPIEN/mplib device runtime. No policy server or cap-x stack.
+# Native point-cloud FPS and cuRobo policy planning are outside this device recipe.
+torch==2.4.1+cpu
+numpy==1.26.4
+scipy==1.10.1
+sapien==3.0.0b1
+mplib==0.2.1
+toppra==0.6.9
+transforms3d==0.4.2
+trimesh==4.4.3
+open3d==0.18.0
+opencv-python==4.10.0.84
+gymnasium==0.29.1
+imageio==2.34.2
+h5py==3.16.0
+PyYAML==6.0.3
+Pillow==11.3.0
+jsonschema==4.26.0
+packaging==26.3
+# SAPIEN 3.0.0b1 imports pkg_resources, removed by newer setuptools releases.
+setuptools==80.9.0
