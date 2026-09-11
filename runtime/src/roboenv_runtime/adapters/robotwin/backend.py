@@ -13,10 +13,9 @@ Two control routes are exposed to the API layer:
 
 RoboTwin resolves many asset paths relative to the CWD ("./assets/..."), so
 this module chdirs the worker process into the vendored RoboTwin root at env
-construction. Use absolute ``output_dir`` paths in capx YAML configs.
+construction. Use absolute ``output_dir`` paths in simulator configs.
 """
 
-# Moved from third_party/cap-x/capx/envs/simulators/robotwin.py on 2026-08-26 (refactor P2); cap-x keeps a shim.
 
 from __future__ import annotations
 

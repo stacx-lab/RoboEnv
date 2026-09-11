@@ -35,8 +35,6 @@ from roboenv_runtime.runtime.protocol import (
 
 __all__ = ["ClientError", "RemoteAPI", "WorkerClient", "main"]
 
-# Moved (rewritten) from codex_dojo_alltasks/harness/client.py on 2026-08-26 (refactor P3).
-
 
 class ClientError(RuntimeError):
     """A remote operation failed; the message carries ``code: message``."""

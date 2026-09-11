@@ -4,7 +4,6 @@
     "libero": {
       "python": "3.10",
       "lock": "runtime/locks/libero-official-resolved.txt",
-      "historical_freeze": "runtime/locks/libero.txt",
       "editables": [
         "third_party/LIBERO"
       ],
@@ -23,7 +22,6 @@
     "robocasa": {
       "python": "3.11",
       "lock": "runtime/locks/robocasa-resolved.txt",
-      "historical_freeze": "runtime/locks/robocasa.txt",
       "editables": [
         "third_party/robocasa",
         "third_party/robosuite"
@@ -36,7 +34,6 @@
     "robotwin": {
       "python": "3.10",
       "lock": "runtime/locks/robotwin-devices-resolved.txt",
-      "historical_freeze": "runtime/locks/robotwin.txt",
       "source_only": [
         "third_party/RoboTwin"
       ],
@@ -50,25 +47,6 @@
         "roboenv_runtime.adapters.robotwin.backend"
       ],
       "asset_instructions": "third_party/RoboTwin/README.md",
-      "recorded_validation": {
-        "clean_dependency_resolution": true,
-        "dependency_consistency": true,
-        "host_fresh_process_gpu_replay": true,
-        "clean_environment_container_replay": false,
-        "task": "robotwin.handover_mic",
-        "seed": 0,
-        "reference_exit_code": 0,
-        "verifier_exit_code": 0,
-        "reward": 1.0,
-        "completed": true,
-        "budget": {
-          "used": 64,
-          "max": 60000,
-          "unit": "api_calls"
-        },
-        "evidence": "runtime/locks/robotwin.candidate.json",
-        "scope": "Historical primitive-bridge recipe only. Not evidence for the current typed device recipe, source closure, or control protocol."
-      },
       "index_strategy": "unsafe-best-match"
     },
     "robodojo": {
@@ -90,7 +68,6 @@
         "h5py",
         "roboenv_runtime.adapters.robodojo.backend"
       ],
-      "historical_freeze": "runtime/locks/robodojo.txt",
       "index_strategy": "unsafe-best-match",
       "index_url": "https://pypi.org/simple",
       "source_only": [

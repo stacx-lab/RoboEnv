@@ -25,29 +25,19 @@ records, credentials, machine-specific deployment files, assets and checkpoints.
 
 ## Evidence and backend boundaries
 
-| Backend | Completed evidence | Still required |
+| Backend | Current integration | Validation boundary |
 |---|---|---|
-| CPU fixture | Real Docker/Harbor device trial, reward 1 | Recheck after material contract changes |
-| LIBERO / LIBERO-PRO | Pinned-source Docker reference trial; new consistent environment installs and fresh-process device/reference checks | Full candidate-image matrix and additional tasks/seeds |
-| RoboCasa | Docker with read-only assets, reference and verifier success after transient-XML fix | Fully fresh simulator dependency installation and wider regression |
-| RoboTwin | New consistent environment, real device bridge imports, fresh-process reference and verifier success; terminal budget fix tested | Candidate Docker/embodiment matrix and additional tasks/seeds |
-| RoboDojo | Source/binding tests, verified interpreter-depot image, Isaac startup | Complete device/task regression after optional policy-client decoupling; YAM validation |
-| BEHAVIOR | Continuous typed devices, source-backed recipes and main-thread clock support | Current-source native and Harbor execution evidence must be collected separately |
+| CPU fixture | Device, worker and Harbor contract tests | Synthetic world; no native physics claim |
+| LIBERO | Official source, scene-specific Panda devices | Native replay and task success need matching receipts |
+| RoboCasa | Panda-Omron devices and continuous control | Installation, native execution and replay are separate gates |
+| RoboTwin | Source-backed dual-arm typed devices | Each embodiment and control protocol needs its own evidence |
+| RoboDojo | Source-backed ARX-X5 and YAM devices | Layout, assets and native execution must match the selected task |
+| BEHAVIOR | R1Pro typed devices and clock support | Symbolic receipts do not validate continuous device control |
+| Isaac Lab | Experimental Go2 posture devices | Not an officially supported backend |
 
-LIBERO and RoboTwin now have reviewed default resolved recipes; original freezes
-remain unchanged. Their environment receipts document exactly which dependencies
-changed, which sources were installed or source-only, and the single-seed evidence.
-See [setup](setup.md) and the reports under docs/validation.
-
-BEHAVIOR's observed package set has independently demonstrated conflicting
-mandatory metadata constraints. Its candidate is explicitly blocked, not a clean
-lock. A prepared interpreter snapshot is useful but does not prove a consistent
-cold installation. RoboDojo/BEHAVIOR remain experimental for this source preview.
-
-The source-catalog format test covers 1,055 definitions: LIBERO 484, RoboCasa 367,
-RoboTwin 100, RoboDojo 54, BEHAVIOR 50. It records 534 excluded discovery entries,
-including missing definitions, unexpanded composite suites and missing scenes.
-Those counts are not execution or success rates.
+Current recipes and installation boundaries are documented in [setup](setup.md)
+and [the installation reference](installation-reference.md). Discovery counts
+and execution coverage must be measured against the selected current sources.
 
 ## Integrity and scoring
 

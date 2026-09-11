@@ -7,13 +7,11 @@ semantics:
   programs and must run exactly once after reset;
 * ``EvalEnv.reward_manager`` evaluates that already-registered program.
 
-The legacy Cap-X score adapter mixes the two and pumps the state machine on
-every read.  ``ScoreClock`` instead seals the registrars, advances the reward
+``ScoreClock`` seals the registrars, advances the reward
 manager at the benchmark's action-frame cadence, and provides a monotonic
 server-side success latch.  It intentionally never calls ``adapter.score``.
 """
 
-# Moved from codex_dojo_alltasks/harness/score_clock.py on 2026-08-26 (refactor P3).
 
 from __future__ import annotations
 

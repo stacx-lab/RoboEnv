@@ -204,7 +204,7 @@ index 21ae432..0ca4ddc 100644
              )
              # plan
 -            plan_config = MotionGenPlanConfig(max_attempts=10)
-+            plan_config = _curobo_plan_config()  # Local patch: effort from CAPX_PLANNER_* (see top of file)
++            plan_config = _curobo_plan_config()  # Local patch: effort from ROBOENV_PLANNER_* (see top of file)
              if constraint_pose is not None:
                  pose_cost_metric = PoseCostMetric(
                      hold_partial_pose=True,
@@ -213,7 +213,7 @@ index 21ae432..0ca4ddc 100644
              start_joint_states = JointState.from_position(joint_angles_cuda, joint_names=self.active_joints_name)
              # plan
 -            plan_config = MotionGenPlanConfig(max_attempts=10)
-+            plan_config = _curobo_plan_config()  # Local patch: effort from CAPX_PLANNER_* (see top of file)
++            plan_config = _curobo_plan_config()  # Local patch: effort from ROBOENV_PLANNER_* (see top of file)
              if constraint_pose is not None:
                  pose_cost_metric = PoseCostMetric(
                      hold_partial_pose=True,
@@ -225,29 +225,29 @@ index 21ae432..0ca4ddc 100644
 +# --------------------------------------------------------------------------- local patch
 +# Planner effort is controlled by environment variables so a replay can reproduce the
 +# conditions of the run that produced a solution:
-+#   CAPX_PLANNER_GENEROUS=1  -> replay defaults (mplib 5 s, curobo 10 attempts)
-+#   CAPX_PLANNER_TIME=<s>    -> explicit wall-clock budget for mplib planning_time AND the
++#   ROBOENV_PLANNER_GENEROUS=1  -> replay defaults (mplib 5 s, curobo 10 attempts)
++#   ROBOENV_PLANNER_TIME=<s>    -> explicit wall-clock budget for mplib planning_time AND the
 +#                               curobo MotionGenPlanConfig.timeout (overrides GENEROUS)
-+#   CAPX_PLANNER_SEED=<int>  -> seed OMPL's global RNG (mplib.set_global_seed) so RRT sampling
++#   ROBOENV_PLANNER_SEED=<int>  -> seed OMPL's global RNG (mplib.set_global_seed) so RRT sampling
 +#                               is a fixed sequence; the found path then depends only on the
 +#                               seed and on the budget being large enough to reach it.
 +def _planner_time_s(agent_default, generous_default):
-+    explicit = os.environ.get("CAPX_PLANNER_TIME")
++    explicit = os.environ.get("ROBOENV_PLANNER_TIME")
 +    if explicit:
 +        return float(explicit)
-+    return generous_default if os.environ.get("CAPX_PLANNER_GENEROUS") else agent_default
++    return generous_default if os.environ.get("ROBOENV_PLANNER_GENEROUS") else agent_default
 +
 +
 +def _curobo_plan_config(**kwargs):
-+    kwargs.setdefault("max_attempts", 10 if os.environ.get("CAPX_PLANNER_GENEROUS") else 4)
-+    explicit = os.environ.get("CAPX_PLANNER_TIME")
++    kwargs.setdefault("max_attempts", 10 if os.environ.get("ROBOENV_PLANNER_GENEROUS") else 4)
++    explicit = os.environ.get("ROBOENV_PLANNER_TIME")
 +    if explicit:
 +        kwargs.setdefault("timeout", float(explicit))
 +    return MotionGenPlanConfig(**kwargs)
 +
 +
 +def _seed_planners_from_env():
-+    seed = os.environ.get("CAPX_PLANNER_SEED")
++    seed = os.environ.get("ROBOENV_PLANNER_SEED")
 +    if seed is None or seed == "":
 +        return
 +    try:
@@ -255,7 +255,7 @@ index 21ae432..0ca4ddc 100644
 +
 +        mplib.set_global_seed(int(seed))
 +    except Exception as exc:  # noqa: BLE001
-+        print(f"[planner] CAPX_PLANNER_SEED ignored: {exc}")
++        print(f"[planner] ROBOENV_PLANNER_SEED ignored: {exc}")
 +
 +
 +_seed_planners_from_env()
@@ -268,7 +268,7 @@ index 21ae432..0ca4ddc 100644
                  current_qpos=np.array(now_qpos),
                  time_step=1 / 250,
 -                planning_time=5,
-+                planning_time=_planner_time_s(2, 5),  # Local patch: effort from CAPX_PLANNER_* (see top of file)
++                planning_time=_planner_time_s(2, 5),  # Local patch: effort from ROBOENV_PLANNER_* (see top of file)
                  # rrt_range=0.05
                  # =================== mplib 0.1.1 ===================
                  # use_point_cloud=use_point_cloud,
@@ -443,7 +443,7 @@ index 9dfc08f..a2f25b6 100644
 +            res = {"status": [], "position": [], "velocity": []}
 +            for tp in target_lst_copy:
 +                r = self.left_mplib_planner.plan_pose(
-+                    now_qpos, tp, arms_tag="left", try_times=(6 if os.environ.get("CAPX_PLANNER_GENEROUS") else 2), log=False)
++                    now_qpos, tp, arms_tag="left", try_times=(6 if os.environ.get("ROBOENV_PLANNER_GENEROUS") else 2), log=False)
 +                res["status"].append(r.get("status", "Fail"))
 +                res["position"].append(r.get("position", []))
 +                res["velocity"].append(r.get("velocity", []))
@@ -476,7 +476,7 @@ index 9dfc08f..a2f25b6 100644
 +            result = {"status": [], "position": [], "velocity": []}
 +            for tp in target_lst_copy:
 +                r = self.left_mplib_planner.plan_pose(
-+                    now_qpos, tp, arms_tag="left", try_times=(6 if os.environ.get("CAPX_PLANNER_GENEROUS") else 2), log=False)
++                    now_qpos, tp, arms_tag="left", try_times=(6 if os.environ.get("ROBOENV_PLANNER_GENEROUS") else 2), log=False)
 +                result["status"].append(r.get("status", "Fail"))
 +                result["position"].append(r.get("position", []))
 +                result["velocity"].append(r.get("velocity", []))
@@ -493,7 +493,7 @@ index 9dfc08f..a2f25b6 100644
 +            res = {"status": [], "position": [], "velocity": []}
 +            for tp in target_lst_copy:
 +                r = self.right_mplib_planner.plan_pose(
-+                    now_qpos, tp, arms_tag="right", try_times=(6 if os.environ.get("CAPX_PLANNER_GENEROUS") else 2), log=False)
++                    now_qpos, tp, arms_tag="right", try_times=(6 if os.environ.get("ROBOENV_PLANNER_GENEROUS") else 2), log=False)
 +                res["status"].append(r.get("status", "Fail"))
 +                res["position"].append(r.get("position", []))
 +                res["velocity"].append(r.get("velocity", []))
@@ -526,7 +526,7 @@ index 9dfc08f..a2f25b6 100644
 +            result = {"status": [], "position": [], "velocity": []}
 +            for tp in target_lst_copy:
 +                r = self.right_mplib_planner.plan_pose(
-+                    now_qpos, tp, arms_tag="right", try_times=(6 if os.environ.get("CAPX_PLANNER_GENEROUS") else 2), log=False)
++                    now_qpos, tp, arms_tag="right", try_times=(6 if os.environ.get("ROBOENV_PLANNER_GENEROUS") else 2), log=False)
 +                result["status"].append(r.get("status", "Fail"))
 +                result["position"].append(r.get("position", []))
 +                result["velocity"].append(r.get("velocity", []))
@@ -575,7 +575,7 @@ index 9dfc08f..a2f25b6 100644
 +            # plan_pose directly: the mplib planner instance carries the
 +            # embodiment's planner_type ("curobo"), so plan_path would no-op.
 +            result = self.left_mplib_planner.plan_pose(
-+                now_qpos, trans_target_pose, arms_tag="left", try_times=(10 if os.environ.get("CAPX_PLANNER_GENEROUS") else 3), log=False)
++                now_qpos, trans_target_pose, arms_tag="left", try_times=(10 if os.environ.get("ROBOENV_PLANNER_GENEROUS") else 3), log=False)
 +        return result
  
      def right_plan_path(
@@ -621,7 +621,7 @@ index 9dfc08f..a2f25b6 100644
 +            # plan_pose directly: the mplib planner instance carries the
 +            # embodiment's planner_type ("curobo"), so plan_path would no-op.
 +            result = self.right_mplib_planner.plan_pose(
-+                now_qpos, trans_target_pose, arms_tag="right", try_times=(10 if os.environ.get("CAPX_PLANNER_GENEROUS") else 3), log=False)
++                now_qpos, trans_target_pose, arms_tag="right", try_times=(10 if os.environ.get("ROBOENV_PLANNER_GENEROUS") else 3), log=False)
 +        return result
  
      # The data of gripper has been normalized

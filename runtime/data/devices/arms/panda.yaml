@@ -1,8 +1,0 @@
-# Franka Emika Panda, as robosuite/LIBERO models it.
-kind: arm
-id: panda
-vendor: Franka Emika
-dof: 7
-joint_names: [robot0_joint1, robot0_joint2, robot0_joint3, robot0_joint4, robot0_joint5, robot0_joint6, robot0_joint7]
-tool_frame: robot0_eef
-reach_m: 0.855

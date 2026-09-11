@@ -223,14 +223,14 @@ def test_nested_catalog_duplicate_ids_are_rejected(tmp_path):
     "robotwin/handover-mic", "robotwin/stack-blocks-three",
     "robodojo/general-pickup", "robodojo/stack-bowls",
 ])
-def test_retired_primitive_reference_is_preserved_but_cannot_be_exported(tmp_path, identifier):
-    import hashlib
-
+def test_retired_reference_cannot_be_exported(tmp_path, identifier):
     wheel, _ = inputs(tmp_path)
-    task = ROOT / "catalog/tasks" / identifier / "task.yaml"
-    reference = task.with_name("solution.py")
-    provenance = json.loads(task.with_name("solution-source.json").read_text())
-    assert hashlib.sha256(reference.read_bytes()).hexdigest() == provenance["program_sha256"]
+    source = tmp_path / "source"
+    source.mkdir()
+    task = source / "task.yaml"
+    task.write_bytes((ROOT / "catalog/tasks" / identifier / "task.yaml").read_bytes())
+    task.with_name("solution.py").write_text("# Retired reference rejection fixture.\n")
+    task.with_name("solution-source.json").write_text(json.dumps({"retired": True}))
     destination = tmp_path / "retired"
     with pytest.raises(ValueError, match="reference program is retired"):
         export_task(

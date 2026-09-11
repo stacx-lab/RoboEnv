@@ -1,4 +1,0 @@
-# Source identity only: pins PyRoKi's otherwise floating jaxls URL to the
-# same upstream repository and commit recorded by the historical environment.
-# Use as uv --override for URL unification, not for version-range overrides.
-jaxls @ git+https://github.com/brentyi/jaxls.git@6fe7cf9d56223736b2c0272d080ec7346203c648

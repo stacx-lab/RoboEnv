@@ -92,67 +92,30 @@ not its parent. Running the installed simulator outside that checkout requires
 `ROBOENV_ROOT` to identify the selected, pinned source root. Generated native
 images set their own container-local source root.
 
-## Resolved RoboCasa recipe
+## Current simulator recipes
 
-RoboCasa uses `runtime/locks/robocasa-resolved.txt` on Python 3.11 and the explicit
-PyPI index. The original `robocasa.txt` remains a historical freeze: its
-`gym-notices==0.2.0` pin is unavailable. The resolved recipe changes that pin to
-`0.1.0`, preserves all other historical versions, and pins five previously
-implicit SDK/server dependencies. Resolution and an install dry-run cover the
-complete recipe, including both simulator source packages and the SDK/runtime.
-A fresh isolated installation of all 143 packages also passed dependency
-consistency and SDK/runtime import-origin checks. These checks did not boot a
-RoboCasa world or validate assets or GPU replay.
+`runtime/environments.json` selects the current recipes:
 
-## Official LIBERO recipe
-
-LIBERO uses `runtime/locks/libero-official-resolved.txt` on Python 3.10, the
-pinned official `third_party/LIBERO` checkout, and robosuite 1.4.0. Prepare it with
-`roboenv prepare libero`. It does not load cap-x, LIBERO-PRO, PyRoKi/JAX, or a VLA
-server. Device/control and recording checks use `tools/accept_libero.py` with the
-prepared interpreter and a Kinex checkout.
-
-The original `libero.txt`, candidate inputs and
-[historical LIBERO-PRO receipt](validation/libero-candidate.md) remain provenance
-for the retired integration. They are not the current recipe or its validation.
-
-## Promoted RoboTwin recipe
-
-RoboTwin uses `runtime/locks/robotwin-resolved.txt`. Its original `robotwin.txt`
-freeze and candidate receipt remain historical evidence. The promoted lock
-matches the tested candidate requirements, including NumPy 1.26.4, Torch 2.4.1,
-SciPy 1.10.1, JAX 0.4.29 and a single OpenCV distribution, opencv-python 4.11.0.86.
-
-The needed cap-x bridge modules load from the source-locked checkout; its full
-agent/training distribution is not installed. The source-only RoboTwin benchmark
-and cap-x's eager Franka IK imports still require PyRoKi/JAXLS.
-`robotwin-source-pins.txt` fixes PyRoKi's floating JAXLS URL to the exact source
-already declared in the resolved lock. The setup audit rejects numeric overrides
-and verifies installed source identities without bypassing dependency resolution.
-
-Current validation boundaries:
-
-| Backend | Setup preflight | Remaining installation evidence |
+| Backend | Python | Dependency lock |
 |---|---|---|
-| LIBERO | Official pinned source and isolated recipe | Native device, transport and replay gates via `tools/accept_libero.py`; full task solving and container acceptance are separate |
-| RoboCasa | Corrected recipe; fresh installation and package checks passed | Simulator boot, assets, and GPU replay remain unverified |
-| RoboTwin | Resolved recipe; clean installation checked | One fresh host seed-0 reference and unchanged independent verifier passed; new clean-environment container verification remains separate |
-| RoboDojo | Source and freeze syntax pass | Execute and verify a fresh full simulator installation, assets, and GPU episode |
-| BEHAVIOR | Blocked | No clean-install dependency lock published yet; upstream license acceptance remains explicit |
+| LIBERO | 3.10 | `libero-official-resolved.txt` |
+| RoboCasa | 3.11 | `robocasa-resolved.txt` |
+| RoboTwin | 3.10 | `robotwin-devices-resolved.txt` |
+| RoboDojo | 3.11 | `robodojo-devices-resolved.txt` |
+| BEHAVIOR | 3.11 | `behavior-devices-resolved.txt` |
+| Isaac Lab | 3.12 | `isaaclab-resolved.txt` |
 
-Read-only audit results keep `clean_install_verified` and `gpu_replay_verified`
-false for the current invocation. `recorded_recipe_validation` separately reports
-the checked-in historical evidence. A successful new installation sets only its
-clean-install result; it does not inherit another machine's GPU result.
+Locks live under `runtime/locks/`. Source selection uses `upstreams.lock.json`.
+LIBERO uses the official upstream; RoboTwin and RoboDojo use their pinned
+benchmark sources directly. Typed robot catalogs and bindings select the native
+control configuration. See [setup](setup.md) for backend prerequisites.
 
-The host proofs cover LIBERO `libero.90_8`, seed 0, at 2779/4000 simulation steps,
-and RoboTwin `robotwin.handover_mic`, seed 0, at 64/60000 API calls. The reference
-programs are project-authored, not claims of official benchmark solutions.
-See the [RoboTwin candidate receipt](../runtime/locks/robotwin.candidate.json)
-for its exact package/source changes and the independently checked trial.
-Neither proof covers all tasks, seeds, embodiments, optional services, training,
-or a newly built Docker image. The locks pin package versions and Git revisions;
-they are not yet hash-locked binary wheel sets.
+Read-only preflight does not certify installation or GPU replay. A successful
+installation verifies that environment's dependencies and imports. Native boot,
+device conformance, Harbor execution, task success and fresh-process replay
+require their own receipts from the matching source and artifact versions.
+Archived primitive-bridge installation results do not validate these recipes.
+The dependency locks are not hash-locked binary wheel sets.
 
 ## Assets: explicit provenance and content verification
 

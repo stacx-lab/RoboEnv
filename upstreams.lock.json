@@ -9,38 +9,6 @@
     "isaaclab"
   ],
   "sources": {
-    "capx": {
-      "path": "third_party/cap-x",
-      "url": "https://github.com/capgym/cap-x.git",
-      "revision": "53e9966d7a8e2fa7494676772bccc35280f5c0ed",
-      "backends": [],
-      "patches": [
-        {
-          "path": "third_party/patches/capx-runtime.patch",
-          "sha256": "c97c33e63139829113768a1d3cdc5783ce52e088dad705b70d9eb9112330ce51"
-        }
-      ]
-    },
-    "libero_pro": {
-      "path": "third_party/cap-x/capx/third_party/LIBERO-PRO",
-      "parent": "capx",
-      "url": "https://github.com/uynitsuj/LIBERO-PRO.git",
-      "revision": "47aaa8038930bcdc84ab9ea2867e2ffc8039ab4a",
-      "backends": [],
-      "patches": [
-        {
-          "path": "third_party/patches/libero-pro-runtime.patch",
-          "sha256": "8af0243b52b96d78b93281b4a11a65eac0f9ab7c841e0df0ff667d732c0fc7df"
-        }
-      ]
-    },
-    "libero_robosuite": {
-      "path": "third_party/cap-x/capx/third_party/libero_dependencies/robosuite",
-      "parent": "capx",
-      "url": "https://github.com/Max-Fu/robosuite",
-      "revision": "a498b087d4bc5a3981e3d27030d09bc537a537f3",
-      "backends": []
-    },
     "robocasa": {
       "path": "third_party/robocasa",
       "url": "https://github.com/robocasa/robocasa.git",
@@ -115,7 +83,7 @@
       "patches": [
         {
           "path": "third_party/patches/robotwin-runtime.patch",
-          "sha256": "e0734f080d6ba00fd823e6e2efc7c98ec9da8e208c2710934dfb77f9e565f4ac"
+          "sha256": "b9b31f968bba21237d1a180d960a3d5de6eaf3803e479811ab9df250bb853a9f"
         }
       ]
     },

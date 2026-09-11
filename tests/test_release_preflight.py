@@ -126,9 +126,9 @@ def test_runtime_must_depend_on_exact_sdk_server_extra(project):
 def test_source_notice_revision_and_patch_digest_are_enforced(project):
     inventory = project / "docs/source-notices.json"
     content = json.loads(inventory.read_text())
-    content["sources"]["capx"]["revision"] = "0" * 40
+    content["sources"]["robotwin"]["revision"] = "0" * 40
     inventory.write_text(json.dumps(content))
-    patch = project / "third_party/patches/capx-runtime.patch"
+    patch = project / "third_party/patches/robotwin-runtime.patch"
     patch.write_bytes(patch.read_bytes() + b"\n")
     result = PREFLIGHT.inspect(project, mode="development")
     assert not result["passed"]

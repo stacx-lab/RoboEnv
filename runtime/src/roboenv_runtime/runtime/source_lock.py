@@ -1,6 +1,5 @@
 """Verify read-only dependency provenance before a simulator boot."""
 
-# Moved from codex_dojo_alltasks/harness/source_lock.py on 2026-08-26 (refactor P3).
 
 from __future__ import annotations
 

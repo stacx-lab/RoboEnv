@@ -7,7 +7,6 @@ logs outside this campaign.  The manager below uses RoboDojo's native
 once per action frame.
 """
 
-# Moved from codex_dojo_alltasks/harness/vla_manager.py on 2026-08-26 (refactor P3).
 
 from __future__ import annotations
 

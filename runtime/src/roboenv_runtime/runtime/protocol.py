@@ -7,7 +7,6 @@ clients and safely deduplicate retries after a lost response.
 This module deliberately contains no simulator imports.
 """
 
-# Moved from codex_dojo_alltasks/harness/protocol.py on 2026-08-26 (refactor P3).
 
 from __future__ import annotations
 

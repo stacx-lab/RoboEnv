@@ -6,7 +6,6 @@ same-directory temporary file, fsynced, replaced atomically, and followed by
 a directory fsync.
 """
 
-# Moved from codex_dojo_alltasks/harness/atomic.py on 2026-08-26 (refactor P3).
 
 from __future__ import annotations
 

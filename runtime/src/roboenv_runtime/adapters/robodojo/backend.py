@@ -7,10 +7,9 @@ robot telemetry; scene state and the native evaluator remain private.
 
 Primitive planning methods are retained for explicit legacy callers. They are
 not registered on the default device interface. Preparation uses the isolated
-Isaac Sim 5.1 recipe and pinned RoboDojo sources; no cap-x package is required.
+Isaac Sim 5.1 recipe and pinned RoboDojo sources.
 """
 
-# Historical origin: third_party/cap-x/capx/envs/simulators/robodojo.py, 2026-08-26.
 
 from __future__ import annotations
 
@@ -263,7 +262,7 @@ class RoboDojoEnv:
         # RoboDojo replays saved layouts. Do NOT use seed_manager.get_seeds():
         # it walks an internal cursor, so successive resets silently load
         # *different* scenes. Address the layout by id instead, so reset(seed=k)
-        # is reproducible the way CaP-X's trial loop assumes.
+        # reproduces the same selected layout.
         seeds = [self._layout_id_for(self.seed)]
         if self._soft_reset_possible(seeds):
             self._soft_reset()
@@ -934,7 +933,7 @@ class RoboDojoEnv:
         ok = principal_range_ok(q, roll, self.PRINCIPAL_MARGIN_RAD, limits)
         if not ok:
             self._principal_refused = int(getattr(self, "_principal_refused", 0)) + 1
-            if os.environ.get("CAPX_RD_DEBUG"):
+            if os.environ.get("ROBOENV_ROBODOJO_DEBUG"):
                 print(f"[dbg-guard] refused wound solution {np.round(q, 3).tolist()}", flush=True)
         return ok
 
@@ -1117,7 +1116,7 @@ class RoboDojoEnv:
         tip_target = np.asarray(position, dtype=float).reshape(3)
         print(
             f"[robodojo] goto_pose V16 {arm} tip={np.round(tip_target, 3).tolist()} "
-            f"tilt={max_tilt_deg} dbg={bool(os.environ.get('CAPX_RD_DEBUG'))}",
+            f"tilt={max_tilt_deg} dbg={bool(os.environ.get('ROBOENV_ROBODOJO_DEBUG'))}",
             flush=True,
         )
 
@@ -1146,7 +1145,7 @@ class RoboDojoEnv:
         # the closing line identical but lands on the other IK branch — near the
         # table or the workspace edge it is often the only reachable one.
         candidates = [c for base in candidates for c in (base, self._tilted(base, 2, 180.0))]
-        dbg = bool(os.environ.get("CAPX_RD_DEBUG"))
+        dbg = bool(os.environ.get("ROBOENV_ROBODOJO_DEBUG"))
         goal_quat = None
         refused_before = int(getattr(self, "_principal_refused", 0))
         q_now = np.asarray(rm.get_joint(robot, [0])[0], dtype=float).reshape(-1)

@@ -6,7 +6,7 @@ export ROBOENV_SOCKET=/run/roboenv/sim.sock ROBOENV_GENERATION=0
 export TMPDIR=/tmp PYTHONDONTWRITEBYTECODE=1 NUMBA_CACHE_DIR=/tmp/numba
 export MPLCONFIGDIR=/tmp/mpl MUJOCO_GL=egl XDG_CACHE_HOME=/tmp/cache
 export ROBOT_DESCRIPTIONS_CACHE=/opt/roboenv/runtime/.cache/robot_descriptions
-export CAPX_PLANNER_GENEROUS=1 CAPX_PLANNER_SEED=1
+export ROBOENV_PLANNER_GENEROUS=1 ROBOENV_PLANNER_SEED=1
 # The pure-Python SDK wheel is mounted read-only; no network/install at startup.
 export PYTHONPATH="${ROBOENV_SDK_PATH:?SDK wheel required}:${PYTHONPATH:-}"
 mkdir -p /run/roboenv /run/roboenv-private

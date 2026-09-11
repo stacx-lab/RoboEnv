@@ -35,7 +35,7 @@ action:
 notes: >
   The native LIBERO hook supports explicit synchronous rollouts with a finite
   episode budget. The default device adapter does not attach a VLA tool.
-  This checkpoint targets spatial/object/goal/10; libero_90 and LIBERO-PRO
+  This checkpoint targets spatial/object/goal/10; libero_90 and modified task suites
   perturbations are outside that training scope. Preserve the benchmark language
   instruction. Local joint-initialized rollouts are not official benchmark scores.
 tool_doc: |
