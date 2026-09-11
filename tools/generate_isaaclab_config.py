@@ -82,7 +82,7 @@ def extract(project):
 
 
 def generate(out, model):
-    robot = out / "robots/isaaclab-go2"
+    robot = out / "robots/isaaclab/isaaclab-go2"
     profiles = device_profiles(model)
     bindings = {}
     for entity, profile in profiles.items():
@@ -127,8 +127,8 @@ def generate(out, model):
         "meta": META,
     }
     (robot / "workspace.yaml").write_text(yaml.safe_dump(manifest, sort_keys=False))
-    (out / "bindings").mkdir(parents=True, exist_ok=True)
-    (out / "bindings/isaaclab-go2.yaml").write_text(
+    (out / "bindings/isaaclab").mkdir(parents=True, exist_ok=True)
+    (out / "bindings/isaaclab/isaaclab-go2.yaml").write_text(
         yaml.safe_dump(
             {
                 "schema_version": "roboenv/bindings/1",

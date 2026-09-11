@@ -1,7 +1,7 @@
 id: behavior/turning-on-radio
 backend: behavior
 backend_task: behavior.turning_on_radio
-robot: behavior-r1pro
+robot: behavior/behavior-r1pro
 instruction: Turn on the radio receiver that's on the table in the living room.
 backend_kwargs:
   activity_name: turning_on_radio

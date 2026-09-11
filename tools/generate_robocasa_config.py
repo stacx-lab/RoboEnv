@@ -29,7 +29,7 @@ from robosuite.robots import ROBOT_CLASS_MAPPING
 from robosuite.utils.binding_utils import MjSim
 
 ROOT = Path(__file__).resolve().parents[1]
-ROBOT = ROOT / "catalog/robots/robocasa-panda-omron"
+ROBOT = ROOT / "catalog/robots/robocasa/robocasa-panda-omron"
 
 
 def descriptors():

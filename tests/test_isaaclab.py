@@ -372,7 +372,7 @@ def test_go2_worker_public_projection_and_terminal_freeze(tmp_path):
         task_id="isaaclab.go2-posture",
         seed=17,
         run_dir=tmp_path,
-        device_root=ROOT / "catalog/robots/isaaclab-go2",
+        device_root=ROOT / "catalog/robots/isaaclab/isaaclab-go2",
         reset_adapter=False,
     )
     try:
@@ -402,7 +402,7 @@ def test_contact_profiles_regenerate_and_export_with_typed_connections(tmp_path,
     generator = runpy.run_path(str(ROOT / "tools/generate_isaaclab_config.py"))
     generator["generate"](tmp_path, facts())
     for foot in FEET:
-        relative = Path(f"robots/isaaclab-go2/devices/contact_{foot.lower()}")
+        relative = Path(f"robots/isaaclab/isaaclab-go2/devices/contact_{foot.lower()}")
         for filename in ("profile.yaml", "driver.py"):
             assert (tmp_path / relative / filename).read_bytes() == (
                 ROOT / "catalog" / relative / filename
@@ -494,7 +494,7 @@ def test_imu_regeneration_export_and_portable_driver(tmp_path, rig, monkeypatch)
 
     generator = runpy.run_path(str(ROOT / "tools/generate_isaaclab_config.py"))
     generator["generate"](tmp_path, facts())
-    relative = Path("robots/isaaclab-go2/devices/imu")
+    relative = Path("robots/isaaclab/isaaclab-go2/devices/imu")
     for filename in ("profile.yaml", "driver.py"):
         assert (tmp_path / relative / filename).read_bytes() == (
             ROOT / "catalog" / relative / filename

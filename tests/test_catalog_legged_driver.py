@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-BODY = ROOT / "catalog/robots/isaaclab-go2/devices/body"
+BODY = ROOT / "catalog/robots/isaaclab/isaaclab-go2/devices/body"
 
 
 @pytest.fixture

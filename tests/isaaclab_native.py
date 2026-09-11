@@ -45,7 +45,7 @@ with roboenv.launch(task="isaaclab/go2-posture", interpreter=sys.executable, pro
         assert body.read()["sample_time_s"] == stamp
         copied = out / "camera_front"
         shutil.copytree(
-            root / "catalog/robots/isaaclab-go2/devices/camera_front", copied,
+            root / "catalog/robots/isaaclab/isaaclab-go2/devices/camera_front", copied,
         )
         result = subprocess.run(
             [sys.executable, "-I", "-c",

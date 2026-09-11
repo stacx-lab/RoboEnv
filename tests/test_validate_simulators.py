@@ -74,7 +74,7 @@ def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_p
         "id": "explicit-behavior-case",
         "backend": "behavior",
         "backend_task": "behavior.explicit",
-        "robot": "behavior-r1pro",
+        "robot": "behavior/behavior-r1pro",
         "instruction": "Fixture instruction from explicit source",
         "backend_kwargs": {"activity_name": "fixture", "scene_model": "explicit_scene"},
         "action_abstraction": "devices",
@@ -382,7 +382,7 @@ def test_original_version_one_probe_receipts_keep_their_read_requirements(tmp_pa
     "robotwin/handover-mic", "robotwin/stack-blocks-three",
     "robodojo/general-pickup", "robodojo/stack-bowls",
 ])
-def test_retired_native_reference_cannot_be_selected(identifier):
+def test_removed_native_reference_cannot_be_selected(identifier):
     tool = load_tool("validate_simulators")
-    with pytest.raises(ValueError, match="reference is retired"):
+    with pytest.raises(ValueError, match="requires an explicit regular solution.py"):
         tool.select_cases(backends=[identifier.split("/")[0]], cases=[identifier])

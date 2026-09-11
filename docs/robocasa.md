@@ -65,7 +65,7 @@ exported driver; task-solving programs belong in the harness. Use the
 
 ## Devices and control
 
-The standard [Panda–Omron catalog](../catalog/robots/robocasa-panda-omron/workspace.yaml)
+The standard [Panda–Omron catalog](../catalog/robots/robocasa/robocasa-panda-omron/workspace.yaml)
 has eight devices. Driven devices also implement `load`, `unload`, and `status`;
 these do not reset or close the world.
 
@@ -144,12 +144,12 @@ initial placement do not change its static profiles. Different robots, controlle
 resolutions, or camera arrangements require a matching catalog configuration.
 
 ```text
-catalog/robots/robocasa-panda-omron/
+catalog/robots/robocasa/robocasa-panda-omron/
   workspace.yaml
   devices/<name>/profile.yaml
   devices/<name>/driver.py       # except world
   devices/<name>/_roboenv.py      # shared portable transport, except world
-catalog/bindings/robocasa-panda-omron.yaml
+catalog/bindings/robocasa/robocasa-panda-omron.yaml
 catalog/tasks/<simulator>/<task-name>/task.yaml
 ```
 

@@ -1,7 +1,7 @@
 id: isaaclab/go2-posture
 backend: isaaclab
 backend_task: isaaclab.go2-posture
-robot: isaaclab-go2
+robot: isaaclab/isaaclab-go2
 instruction: 'Move Go2 to this joint posture (radians): [0.1, 0.9, -1.7, -0.1, 0.9,
   -1.7, 0.1, 1.1, -1.7, -0.1, 1.1, -1.7]. Order: FL, FR, RL, RR; hip, thigh, calf
   per leg. Hold every joint within 0.05 rad for 0.5 simulated seconds. Repeated body

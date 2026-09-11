@@ -184,13 +184,13 @@ def check_kinex_profiles(tmp_path, paths):
     manifest.write_text(
         json.dumps(
             yaml.safe_load(
-                (ROOT / "catalog/robots/robocasa-panda-omron/workspace.yaml").read_text()
+                (ROOT / "catalog/robots/robocasa/robocasa-panda-omron/workspace.yaml").read_text()
             )
         )
     )
     workspace = tmp_path / "kinex-workspace"
     shutil.copytree(
-        ROOT / "catalog/robots/robocasa-panda-omron",
+        ROOT / "catalog/robots/robocasa/robocasa-panda-omron",
         workspace / ".kinex",
     )
     checked = subprocess.run(
@@ -205,9 +205,10 @@ def check_kinex_profiles(tmp_path, paths):
 
 
 def test_static_catalog_conforms_to_kinex(tmp_path):
+    devices = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices"
     check_kinex_profiles(
         tmp_path,
-        sorted((ROOT / "catalog/robots/robocasa-panda-omron/devices").glob("*/profile.yaml")),
+        sorted(devices.glob("*/profile.yaml")),
     )
 
 
@@ -225,7 +226,7 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
         timeout=45,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    robot = ROOT / "catalog/robots/robocasa-panda-omron"
+    robot = ROOT / "catalog/robots/robocasa/robocasa-panda-omron"
     assert {p.name for p in (robot / "devices").iterdir()} == {
         "arm",
         "base",
@@ -329,9 +330,9 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
                 yaml.safe_dump({"id": task_id, "adapter": "robocasa", "text": "Lift the cube."})
             )
             robot = tmp_path / f"robot-{index}"
-            shutil.copytree(ROOT / "catalog/robots/robocasa-panda-omron", robot)
+            shutil.copytree(ROOT / "catalog/robots/robocasa/robocasa-panda-omron", robot)
             plan = BindingPlan.load(
-                ROOT / "catalog/robots/robocasa-panda-omron", backend="robocasa"
+                ROOT / "catalog/robots/robocasa/robocasa-panda-omron", backend="robocasa"
             ).as_dict()
             if index:
                 plan["devices"] = {
@@ -419,8 +420,8 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         import shutil
         import sys
 
-        copied = tmp_path / "workspace/.kinex/robots/robocasa-panda-omron"
-        shutil.copytree(ROOT / "catalog/robots/robocasa-panda-omron", copied)
+        copied = tmp_path / "workspace/.kinex/robots/robocasa/robocasa-panda-omron"
+        shutil.copytree(ROOT / "catalog/robots/robocasa/robocasa-panda-omron", copied)
         # This task renders at 12x8; install its live calibration before reading.
         # Keep endpoint selection through deployment environment variables.
         export_devices(

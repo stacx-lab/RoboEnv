@@ -27,12 +27,12 @@ from roboenv.validation import json_loads
 ROOT = Path(__file__).resolve().parents[1]
 ROBOTS = {
     **{robot: ("libero", {}) for robot in LIBERO_ROBOTS.values()},
-    "robocasa-panda-omron": ("robocasa", {}),
+    "robocasa/robocasa-panda-omron": ("robocasa", {}),
     "robotwin/robotwin-dual-piper": ("robotwin", {"embodiment": "piper"}),
     "robotwin/robotwin-aloha-agilex": ("robotwin", {"embodiment": "aloha_agilex"}),
     "robodojo/robodojo-arx-x5": ("robodojo", {"env_cfg_type": "arx_x5"}),
     "robodojo/robodojo-yam": ("robodojo", {"env_cfg_type": "yam", "layout_config": "arx_x5"}),
-    "behavior-r1pro": ("behavior", {}),
+    "behavior/behavior-r1pro": ("behavior", {}),
 }
 DEFAULT_BACKENDS = ("libero", "robocasa", "robotwin", "robodojo")
 

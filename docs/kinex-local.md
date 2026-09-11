@@ -1,6 +1,6 @@
 # Local RoboCasa + Kinex test plan
 
-The checked-in `catalog/robots/robocasa-panda-omron` directory is already ready
+The checked-in `catalog/robots/robocasa/robocasa-panda-omron` directory is already ready
 to copy into Kinex. It contains a fixed robot manifest and eight devices:
 arm, base, torso, gripper, camera_left, camera_right, camera_wrist, and world. Configuration is independent
 of the task, seed, kitchen layout, service port, and episode identity. Launch
@@ -38,7 +38,7 @@ source .venv/bin/activate
 roboenv_repo="$PWD"
 kinex_repo="$(realpath ../kinex)"
 trial_workspace="$(mktemp -d "$roboenv_repo/.cache/kinex-local.XXXXXX")"
-cp -R catalog/robots/robocasa-panda-omron "$trial_workspace/.kinex"
+cp -R catalog/robots/robocasa/robocasa-panda-omron "$trial_workspace/.kinex"
 cd "$trial_workspace"
 export ROBOENV_ENDPOINT=http://127.0.0.1:8123
 ```

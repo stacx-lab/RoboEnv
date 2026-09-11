@@ -12,7 +12,7 @@ TIMESTAMP = "2026-09-09T00:00:00Z"
 
 def write_rig(root, robot, backend, embodiment, facts):
     catalog = Path(root)
-    robot_path = f"{backend}/{robot}" if backend in {"robotwin", "robodojo"} else robot
+    robot_path = f"{backend}/{robot}"
     directory = catalog / "robots" / robot_path
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "workspace.yaml").write_text(yaml.safe_dump({

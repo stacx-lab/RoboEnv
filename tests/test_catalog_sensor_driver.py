@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 @pytest.mark.parametrize("name", ["imu", "contact_fl_foot", "contact_fr_foot",
                                   "contact_rl_foot", "contact_rr_foot"])
 def test_sensor_driver_is_read_only_and_returns_raw_measurements(name, monkeypatch):
-    directory = ROOT / "catalog/robots/isaaclab-go2/devices" / name
+    directory = ROOT / "catalog/robots/isaaclab/isaaclab-go2/devices" / name
     monkeypatch.syspath_prepend(str(directory))
     spec = importlib.util.spec_from_file_location("catalog_sensor", directory / "driver.py")
     module = importlib.util.module_from_spec(spec)
