@@ -159,6 +159,8 @@ environments stay outside Git.
 
 See [simulator integration](docs/simulator-integration.md) for adapter, service,
 and device catalog authoring, and [RoboCasa](docs/robocasa.md) for the reference rig.
+The [repository skills](docs/skills.md) separate end-to-end integration from
+[running Kinex test jobs](docs/simulator-kinex-testing.md) on an existing backend.
 [Installation evidence](docs/installation-reference.md) and
 [GPU validation](docs/gpu-validation.md) describe tested coverage.
 

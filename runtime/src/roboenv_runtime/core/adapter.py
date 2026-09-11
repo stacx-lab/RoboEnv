@@ -25,6 +25,8 @@ under :mod:`roboenv_runtime.adapters` and one line in :data:`BUILTIN_ADAPTERS`.
 
 from __future__ import annotations
 
+from roboenv.tasks.model import DEVICE_BACKENDS
+
 import importlib
 import logging
 from abc import ABC, abstractmethod
@@ -312,7 +314,7 @@ def make_adapter(name: str, **kwargs: Any) -> EnvAdapter:
     try:  # pretrained policies as tools (roboenv_runtime.vla) — optional, never fatal
         from roboenv_runtime.vla.attach import attach_vla_tool
 
-        if name not in {"robocasa", "isaaclab", "libero"}:
+        if name not in DEVICE_BACKENDS:
             attach_vla_tool(adapter, name)
     except Exception as exc:
         logging.getLogger(__name__).debug("vla tool not attached to %s: %s", name, exc)

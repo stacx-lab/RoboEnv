@@ -18,7 +18,7 @@ Environment variables (all optional):
 ``ROBODOJO_ROOT`` / ``ROBOTWIN_ROOT``
     The RoboDojo checkout and the RoboTwin checkout.  Defaults:
     ``<root>/third_party/RoboDojo`` (falling back to the pre-refactor ``<root>/RoboDojo``)
-    and ``<capx_root>/capx/third_party/RoboTwin``.
+    and ``<root>/third_party/RoboTwin``.
 """
 
 from __future__ import annotations
@@ -108,5 +108,4 @@ def robotwin_root() -> Path:
     override = _env_path("ROBOTWIN_ROOT")
     if override is not None:
         return override
-    native = repo_root() / "third_party" / "RoboTwin"
-    return native if native.is_dir() else capx_root() / "capx" / "third_party" / "RoboTwin"
+    return repo_root() / "third_party" / "RoboTwin"

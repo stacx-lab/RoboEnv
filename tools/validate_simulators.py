@@ -28,10 +28,10 @@ ROOT = Path(__file__).resolve().parents[1]
 ROBOTS = {
     **{robot: ("libero", {}) for robot in LIBERO_ROBOTS.values()},
     "robocasa-panda-omron": ("robocasa", {}),
-    "robotwin-dual-piper": ("robotwin", {"embodiment": "piper"}),
-    "robotwin-aloha-agilex": ("robotwin", {"embodiment": "aloha_agilex"}),
-    "robodojo-arx-x5": ("robodojo", {"env_cfg_type": "arx_x5"}),
-    "robodojo-yam": ("robodojo", {"env_cfg_type": "yam"}),
+    "robotwin/robotwin-dual-piper": ("robotwin", {"embodiment": "piper"}),
+    "robotwin/robotwin-aloha-agilex": ("robotwin", {"embodiment": "aloha_agilex"}),
+    "robodojo/robodojo-arx-x5": ("robodojo", {"env_cfg_type": "arx_x5"}),
+    "robodojo/robodojo-yam": ("robodojo", {"env_cfg_type": "yam", "layout_config": "arx_x5"}),
     "behavior-r1pro": ("behavior", {}),
 }
 DEFAULT_BACKENDS = ("libero", "robocasa", "robotwin", "robodojo")
@@ -119,11 +119,13 @@ def select_cases(
     if robots and set(robots) - set(ROBOTS):
         raise ValueError("unknown validation robot")
     inventory = load_catalog(project / "catalog/tasks")
+    explicit_ids = set()
     if source is not None:
         extra = load_catalog(source)
         if set(extra) & set(inventory):
             raise ValueError("additional task source must not replace built-in example IDs")
         inventory.update(extra)
+        explicit_ids = set(extra)
     selected = [
         (task, path)
         for task, path in inventory.values()
@@ -144,7 +146,18 @@ def select_cases(
             if not reference.is_file() or reference.is_symlink():
                 raise ValueError("reference validation requires an explicit regular solution.py")
             note = reference.with_name("solution-source.json")
-            if note.exists() and json_loads(note.read_text()).get("official") is True:
+            provenance = json_loads(note.read_text()) if note.exists() else {}
+            if not isinstance(provenance, dict):
+                raise ValueError("reference provenance must be an object")
+            if "retired" in provenance and type(provenance["retired"]) is not bool:
+                raise ValueError("reference retirement status must be a boolean")
+            if provenance.get("retired") is True:
+                if cases:
+                    raise ValueError(
+                        "selected reference is retired; use a validated typed controller"
+                    )
+                continue
+            if provenance.get("official") is True:
                 raise ValueError("this validation lane accepts project-authored references only")
             plans.append(
                 (
@@ -161,6 +174,10 @@ def select_cases(
             candidates = [(task, path) for task, path in selected if task.backend == backend]
             if backend == "libero":
                 candidates = [(t, p) for t, p in candidates if t.robot == robot]
+            # A supplied task source takes priority over built-in examples for
+            # that backend; otherwise adding an example silently changes jobs.
+            explicit = [(t, p) for t, p in candidates if t.id in explicit_ids]
+            candidates = explicit or candidates
             if not candidates:
                 continue
             task, source_path = next(
@@ -174,9 +191,7 @@ def select_cases(
                 robot=robot,
                 device_bindings=task.device_bindings if task.robot == robot else None,
                 backend_kwargs={**task.backend_kwargs, **overrides},
-                action_abstraction="symbolic-primitives"
-                if backend == "behavior"
-                else task.action_abstraction,
+                action_abstraction=task.action_abstraction,
             )
             inventory = _probe_inventory(project, task)
             program = _probe_program(inventory["expected_devices"], inventory["expected_reads"])

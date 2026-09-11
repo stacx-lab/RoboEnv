@@ -173,6 +173,25 @@ def test_healthcheck_does_not_execute_an_unverified_interpreter_depot(tmp_path):
     ]
 
 
+def test_deployment_runtime_options_reach_compose_and_identity(tmp_path):
+    from roboenv.harbor.deployment import deployment_contract
+
+    path, spec = deployment(tmp_path)
+    baseline = deployment_contract(load_deployment(path, "libero"))
+    spec["runtime_options"] = {"start_period": "1200s", "shm_size": "8gb"}
+    path.write_text(json.dumps(spec))
+    task = Task.load(ROOT / "catalog/tasks/libero/bowl-into-bottom-drawer/task.yaml")
+    service = native_service(path, task, portable=True)
+    assert service["healthcheck"]["start_period"] == "1200s"
+    assert service["shm_size"] == "8gb"
+    assert deployment_contract(load_deployment(path, "libero")) != baseline
+    for options in ({"extra": True}, {"start_period": "0s"}, {"shm_size": 8}, []):
+        spec["runtime_options"] = options
+        path.write_text(json.dumps(spec))
+        with pytest.raises(ValueError, match="runtime option"):
+            load_deployment(path, "libero")
+
+
 def test_task_runner_rejects_changed_deployment_identity_before_launch(tmp_path, monkeypatch):
     path, spec = deployment(tmp_path)
     mapping = tmp_path / "deployments.json"

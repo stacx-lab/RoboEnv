@@ -13,15 +13,15 @@ import yaml
 from roboenv.project import project_root
 from roboenv.provisioning.sources import load_lock, status
 from roboenv.tasks.artifacts import Bundle
-from roboenv.tasks.model import Task
+from roboenv.tasks.model import DEVICE_BACKENDS, Task
 
 BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab")
 ROBOTS = {
     "isaaclab": "isaaclab-go2",
     "libero": "libero/libero-panda-tabletop",
     "robocasa": "robocasa-panda-omron",
-    "robotwin": "robotwin-dual-piper",
-    "robodojo": "robodojo-arx-x5",
+    "robotwin": "robotwin/robotwin-dual-piper",
+    "robodojo": "robodojo/robodojo-arx-x5",
     "behavior": "behavior-r1pro",
 }
 
@@ -64,17 +64,16 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None, device_bindin
         backend=backend,
         backend_task=identifier,
         backend_kwargs={
-            **({"realtime": True} if backend in {"robocasa", "libero"} else {}), **kwargs,
+            **({"realtime": True} if backend in {"robocasa", "libero"} else {}),
+            **kwargs,
         },
         robot=robot or ROBOTS[backend],
         device_bindings=device_bindings,
-        budget_mode="practice" if backend == "libero" else "official",
+        budget_mode="practice"
+        if backend in {"libero", "robotwin", "robodojo", "behavior"}
+        else "official",
         instruction=instruction,
-        action_abstraction="devices"
-        if backend in {"robocasa", "isaaclab", "libero"}
-        else "symbolic-primitives"
-        if backend == "behavior"
-        else "cartesian-primitives",
+        action_abstraction="devices" if backend in DEVICE_BACKENDS else "cartesian-primitives",
     )
 
 
@@ -136,19 +135,19 @@ def _robotwin(root, issues):
         source = base / "envs" / (name + ".py")
         if not source.is_file():
             raise ValueError(f"RoboTwin task source missing: {name}")
-        instruction = (
-            "Complete the benchmark task: "
-            + name.replace("_", " ")
-            + ". Inspect the live task description."
-        )
         description = base / "description/task_instruction" / (name + ".json")
-        if description.is_file():
-            data = json.loads(description.read_text())
-            if isinstance(data.get("description"), str):
-                instruction = data["description"]
+        data = json.loads(description.read_text()) if description.is_file() else {}
+        instruction = data.get("full_description")
+        if not isinstance(instruction, str) or not instruction.strip():
+            issues.append({
+                "backend": "robotwin", "task": name,
+                "reason": "task lacks the upstream full_description instruction",
+            })
+            continue
+        instruction = instruction.strip()
         for group, robot, embodiment in (
             ("robotwin", ROBOTS["robotwin"], "piper"),
-            ("robotwin-aloha", "robotwin-aloha-agilex", "aloha_agilex"),
+            ("robotwin-aloha", "robotwin/robotwin-aloha-agilex", "aloha_agilex"),
         ):
             yield (
                 _task(
@@ -164,6 +163,7 @@ def _robotwin(root, issues):
 
 def _robodojo(root, issues):
     base = root / "third_party/RoboDojo/task/RoboDojo"
+    index = yaml.safe_load((base / "config/_task.yml").read_text())
     for config in sorted((base / "config").glob("*.yml")):
         name = config.stem
         source = base / "tasks" / (name + ".py")
@@ -175,7 +175,40 @@ def _robodojo(root, issues):
             continue
         description = (ast.get_docstring(cls) or "").split("\n\n")[0].strip()
         description = description or "Complete the benchmark task: " + name.replace("_", " ") + "."
-        yield _task("robodojo", "robodojo." + name, {"task_name": name}, description), source
+        yield (
+            _task(
+                "robodojo",
+                "robodojo." + name,
+                {"task_name": name, "env_cfg_type": "arx_x5"},
+                description,
+            ),
+            source,
+        )
+        config_name = (
+            index["tasks"]
+            .get(name, {})
+            .get("robot_config", index.get("common", {}).get("robot_config", "dual_x5"))
+        )
+        if config_name != "dual_x5":
+            issues.append(
+                {
+                    "backend": "robodojo",
+                    "task": name,
+                    "embodiment": "yam",
+                    "reason": "Native task overrides its robot configuration: " + config_name,
+                }
+            )
+            continue
+        yield (
+            _task(
+                "robodojo",
+                "robodojo.yam_" + name,
+                {"task_name": name, "env_cfg_type": "yam", "layout_config": "arx_x5"},
+                description,
+                robot="robodojo/robodojo-yam",
+            ),
+            source,
+        )
 
 
 def _behavior(root, issues):

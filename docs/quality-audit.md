@@ -32,7 +32,7 @@ records, credentials, machine-specific deployment files, assets and checkpoints.
 | RoboCasa | Docker with read-only assets, reference and verifier success after transient-XML fix | Fully fresh simulator dependency installation and wider regression |
 | RoboTwin | New consistent environment, real device bridge imports, fresh-process reference and verifier success; terminal budget fix tested | Candidate Docker/embodiment matrix and additional tasks/seeds |
 | RoboDojo | Source/binding tests, verified interpreter-depot image, Isaac startup | Complete device/task regression after optional policy-client decoupling; YAM validation |
-| BEHAVIOR | Source discovery, symbolic binding tests, verified interpreter-depot image | Real task/device regression and a satisfiable clean-install recipe |
+| BEHAVIOR | Continuous typed devices, source-backed recipes and main-thread clock support | Current-source native and Harbor execution evidence must be collected separately |
 
 LIBERO and RoboTwin now have reviewed default resolved recipes; original freezes
 remain unchanged. Their environment receipts document exactly which dependencies
@@ -72,7 +72,7 @@ Every receipt applies only to its exact program, SDK/runtime and image identitie
 - Some action schemas remain broad; generic IK/FK, emergency stop, ROS and
   high-frequency telemetry are not implied by the device type.
 - Full backend/embodiment/seed regression and all-task runtime coverage are not
-  complete. BEHAVIOR is symbolic-primitives, not continuous motor control.
+  complete. Historical BEHAVIOR symbolic receipts do not validate its current continuous device protocol.
 - Strict lint covers the new SDK/tools; migrated runtime still has type/style
   debt, with fatal-error checks enforced across the complete runtime.
 - A wheel/core SBOM or audit does not cover a complete simulator image. Image

@@ -5,6 +5,14 @@ a reusable device catalog. Follow [DESIGN.md](../DESIGN.md); [RoboCasa](robocasa
 is the reference implementation. Existing primitive bridges are not the interface
 for new integrations.
 
+For coding-agent workflows, use
+[integrate-simulator-kinex](../.agents/skills/integrate-simulator-kinex/SKILL.md).
+It owns source/recipe/native-device implementation and continues into
+[test-simulator-kinex](../.agents/skills/test-simulator-kinex/SKILL.md) for real job
+acceptance in the same authorized task. For an existing integration that only
+needs a test job, start with the testing skill. See [skill layout](skills.md) and
+[job modes and evidence](simulator-kinex-testing.md).
+
 ## Choose the scope
 
 | Change | Files and behavior to update |
@@ -321,5 +329,30 @@ Run `bash tools/check.sh` after adding positive and negative tests for:
 
 Report CPU/config checks, GPU boot, device checks, task success, and fresh-process
 replay separately. A recording or successful Harbor load proves none of the latter.
+Integration completion requires the working native/agent path and diagnosed,
+truthful outcomes; it does not require a difficult task to succeed. Use real
+session messages, device events, videos and matched command replay to distinguish
+controller/perception failures from integration defects. Minimum task success
+rates and frozen held-out trials belong to separately requested task-performance
+acceptance. See [Kinex integration testing](simulator-kinex-testing.md).
 GPU/model runs require explicit scope; preserve prior evidence. Use
 [Kinex local testing](kinex-local.md) for copied workspaces and recording.
+
+### Native rig organization and clocks
+
+RoboTwin and RoboDojo keep their complete rigs under
+`catalog/robots/robotwin/robotwin-*` and `catalog/robots/robodojo/robodojo-*`.
+Owner binding paths mirror those namespaces under `catalog/bindings/`. Robot
+identity IDs remain flat; task `robot` fields are relative catalog paths.
+
+RoboTwin, RoboDojo and BEHAVIOR share native target validation, atomic write groups,
+owner recording and adapter lifecycle. RoboDojo and BEHAVIOR advance realtime
+physics on the worker's creating thread. BEHAVIOR accepts `--realtime` and `--sync`;
+its base execution profile follows the selected clock without changing geometry.
+`tools/check_native_clock.py` checks real worker progress, motion, terminal freeze
+and independent replay; direct adapter checks alone cannot establish worker behavior.
+
+Image preparation reads interpreter defaults and optional `shm_size` /
+`start_period` from `catalog/deployments/BACKEND.yaml`. These are build defaults,
+not ready deployment receipts: a built image digest and verified independent
+asset mounts are still required.

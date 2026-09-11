@@ -72,3 +72,14 @@ def invoke(client, *, request_id=None, **extra):
     return client.device("controller").call(
         "invoke", {"tool_name": "push", "kwargs": {"dx": 0.3}, **extra}, request_id=request_id
     )
+
+
+def legacy_registry():
+    """Opt-in historical controller binding, never the production device default."""
+    from roboenv.devices.bindings.registry import BindingRegistry
+    from roboenv_runtime.bindings.simulators import bind_simulator_device
+
+    registry = BindingRegistry()
+    for backend in ("robotwin", "robodojo", "behavior"):
+        registry.register(backend + ".device/1", bind_simulator_device)
+    return registry

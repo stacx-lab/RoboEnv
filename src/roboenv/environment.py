@@ -22,6 +22,7 @@ from pathlib import Path
 import yaml
 from roboenv.client import Client
 from roboenv.project import project_root
+from roboenv.tasks.model import DEVICE_BACKENDS
 from roboenv.tasks.resolve import resolve_task
 from roboenv.validation import json_loads
 
@@ -301,7 +302,7 @@ def launch(
         {
             "task": asdict(spec),
             "observation_access": "sensors-only"
-            if spec.backend in {"robocasa", "isaaclab", "libero"}
+            if spec.backend in DEVICE_BACKENDS
             else "benchmark-ground-truth",
         },
     )

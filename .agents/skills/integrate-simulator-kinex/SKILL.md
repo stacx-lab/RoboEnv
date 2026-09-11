@@ -1,221 +1,252 @@
 ---
 name: integrate-simulator-kinex
-description: Implement a new simulator in RoboEnv and connect it to Kinex from source preparation through native device tests, live task solving, and independent frozen-controller acceptance. Use for complete simulator onboarding across these repositories.
+description: Implement or migrate a RoboEnv simulator to Kinex typed devices, from source and isolated installation through native code, portable catalogs, and complete acceptance. Use for new or changed simulator integrations; use test-simulator-kinex to run jobs on an existing integration.
 ---
 
 # Integrate a simulator with RoboEnv and Kinex
 
-Deliver a working integration and executable acceptance protocol in one continuous
-workflow. Discover the current code before choosing interfaces. RoboCasa is the
-reference integration; simulator-specific facts must come from the new simulator.
-Never stop at generated profiles, fake-provider checks, or a service that merely boots.
+Carry the requested integration through implementation, environment preparation,
+tests, and executable acceptance in one continuous workflow. RoboCasa is an
+architecture reference; LIBERO supplies native probe and replay examples. Inspect
+their actual coverage before using either as acceptance evidence. A catalog,
+fake-provider test, successful boot, or historical receipt cannot certify a new
+integration or a different source revision.
 
-## Establish scope once
+This skill guides integration work; it does not bundle a simulator or campaign
+runner. Missing backend code, recipes, drivers, and acceptance helpers are work to
+implement within the requested integration, not reasons to return only a plan.
+For a review-only request, inspect and report without executing this workflow.
 
-Find both repositories, read their nearest AGENTS.md, inspect status/diffs and
-upstreams, and preserve existing work. Use the user's requested branches and
-publication scope. Do not infer authorization to commit, push or run paid models
-from this skill alone.
+Use [test-simulator-kinex](../test-simulator-kinex/SKILL.md) for the executable
+acceptance stages of this integration. This is a division of workflow ownership,
+not a separate agent or a required user handoff. Continue into that skill in the
+same authorized task. A request only to run an existing simulator job starts there
+and does not require this implementation workflow.
 
-Resolve minor choices from the code. If essential information is missing, ask one
-combined question at the beginning: simulator/upstream and task family, native
-assets or credentials, exact model/effort and bounded execution budget, and any
-required benchmark mode. Continue independent inspection while waiting. Once
-these are settled, implement, test, diagnose ordinary failures, and iterate without
-requiring a new prompt for each phase. Stop only for an exhausted agreed budget,
-missing external access, or a choice changing scientific meaning or protected data.
+For multiple simulators, write a plan identifying shared transport/driver/runner
+changes, backend-specific source/recipe/rig changes, dependencies, execution order,
+and affected regression gates. Stabilize shared contracts before collecting final
+evidence. Keep each native world and result directory independent; a shared change
+invalidates every affected backend receipt, while a backend-only change need not.
 
-Record exact source revisions, effective configuration, seeds, initial-state IDs,
-commands, interpreter/dependency identities and artifact locations in machine-readable
-receipts outside source control. Update only necessary existing documentation; the
-implementation, tests, protocol and receipts are the primary deliverables.
+## Establish scope and executable prerequisites
 
-## Trace the active contract
+Find both repositories, read their nearest AGENTS.md, inspect status/diffs, HEAD,
+tracking and upstreams, and preserve existing work. When asked for the latest code,
+verify remote tips without silently replacing a checkout. Follow the requested
+branch/publication scope; this skill does not authorize commits, pushes or merges.
 
-Read RoboEnv README.md, DESIGN.md, docs/simulator-integration.md and the current
-RoboCasa adapter/backend/bindings/generator. Read Kinex's actual schemas in
-src/calibration/, required actions in src/device/interface.ts, dispatch and
-Python-runner code, python/kinex/ helpers, and builtin/device/templates/.
+Resolve routine choices from the current code and existing session authorization.
+If essential scope is missing, ask one combined question covering only unresolved
+choices: upstream/task family, assets and required license/access authorization,
+GPU allocation, exact model/effort, bounded execution cost/time, and benchmark or
+deployment mode. Continue independent implementation while waiting. Do not invoke
+paid models or accept licenses implicitly. Once scope is settled, execute and
+diagnose ordinary failures without requesting another prompt for each phase.
 
-Trace the complete path before editing:
+Read the testing skill's [acceptance contract](../test-simulator-kinex/references/acceptance.md)
+before choosing tasks or running solutions. Record its effective run specification
+outside source control. Default
+to local sensor-only, typed-device integration acceptance; official benchmark
+equivalence and Harbor deployment are separate scopes. Explicit user choices win.
+Integration acceptance establishes a working agent/simulator loop, not a minimum
+task success rate. Require real model observation and device control, correctly
+reported native outcomes, recording and replay; inspect failures to distinguish
+integration defects from controller/perception failures. Do not keep optimizing a
+difficult task solely to obtain success unless task-performance acceptance was
+requested. Frozen 3/3 task success belongs to that separate scope.
 
-1. Selected upstream revision and assets → isolated interpreter and preparation.
-2. Native world → adapter → shared WorldSession/worker → device bindings/service.
-3. Static rig catalog → portable typed drivers → Kinex workspace and tools.
-4. Owner submission → native verdict and recording → new-process replay.
+Preflight the actual executables, imports and entrypoints, not just their names:
 
-Prefer the existing abstractions. Keep one native world per episode, with one
-authority for reset, serialization, physical time, budgets, termination and score.
-Bindings reference that world; they never start another simulator or loop through
-their own worker socket. Reasoning and controller programs belong in Kinex.
+- Bootstrap RoboEnv's development CLI using `tools/bootstrap.sh`; inspect the
+  selected recipe, source lock, asset preparation and diagnostics.
+- Prepare Kinex with its declared Bun version and dependency lock. Trace current
+  schemas, lifecycle, Python tools, recording, provider and model/effort routing.
+- Locate a working campaign runner and all its imports/bridges/protocol files in
+  the selected Kinex checkout. A README reference or archived experiment is not an
+  installed dependency. If absent, implement the small owner-side harness described
+  in the acceptance reference using current Kinex APIs. Record its source identity.
+- Verify the requested model/effort reaches the provider request with a no-network
+  request-construction test. Check credentials without printing them. Do not assume
+  an old `--effort` CLI flag exists or silently use another model/default effort.
 
-Treat Kinex core edits as exceptions supported by a reproducible failure and a
-focused regression test. Keep simulator-specific controllers, registration and
-task logic out of its core. Do not relax schemas to accommodate an incomplete rig.
+Do not spend the model development budget until the native and no-model Kinex
+paths work. Track implementation, infrastructure and controller failures separately.
 
-## Keep the integration small
+## Trace the current integration and migration boundary
 
-Before adding files, map each requirement to an existing owner: source preparation,
-world lifecycle, device validation/transport, catalog export, task discovery, or
-acceptance. Reuse those implementations. Add a simulator-specific branch or helper
-only for behavior that the existing contract cannot express. Do not retain a second
-primitive/driver stack merely to resemble an older integration.
+Read RoboEnv README.md, DESIGN.md, docs/setup.md, docs/simulator-integration.md,
+and the selected adapter/backend/bindings/generator. Inspect the RoboCasa and
+LIBERO implementations where their contracts apply. In Kinex, read src/calibration/,
+src/device/interface.ts, src/device/dispatch.ts, src/device/driver.ts,
+src/tool/python-runner.ts, src/python/, python/kinex/ and builtin/device/templates/.
 
-Share device definitions and portable drivers across tasks. Represent rigid mounting
-differences with existing binding overrides; create another robot catalog only when
-hardware, control or sensor interfaces materially differ. Keep a small set of
-representative tasks in Git, generate the full task registry from upstream metadata,
-and put episode seeds, budgets and temporary variants in run configuration.
+Trace this path before choosing edits:
 
-For cleanup, distinguish runtime callers, independent CLI/policy entrypoints, scanned
-skills, and historical source/validation records. No import references proves only
-absence from that call graph. Before deletion, establish the replacement or retired
-scope and identify affected entrypoints. Preserve source/patch identities needed by
-retained receipts. Test changed receipt readers against the original format as well
-as newly generated records; passing tests after removing coverage is not equivalence.
+1. Pinned upstream and assets → isolated interpreter and installation recipe.
+2. Native world → adapter → WorldSession/worker → bindings and device service.
+3. Static rig → copied portable drivers → Kinex lifecycle and normal tool runner.
+4. Generated task → owner submission → native verdict and command record → replay.
 
-Remove duplicate checks only when the shared boundary still rejects the same invalid
-inputs before effects. Compare resolved profiles and behavior before/after factoring.
-After deleting packaged files, build from fresh staging and check wheel contents.
+For RoboTwin, RoboDojo or BEHAVIOR, read the corresponding section of
+[backends.md](references/backends.md). Classify existing surfaces as reusable,
+requiring migration, or independently retained. These backends may already boot
+through older primitive APIs; that does not make their catalogs Kinex-compatible.
+Migrate registry selection, task discovery, launch/export and tests together so
+generated tasks use the same typed path as the small checked-in examples.
 
-## Build the native integration
+Keep one native world per episode and one authority for reset, physical time,
+serialization, budgets, termination, score and evidence. Bindings reference that
+world; they do not create another simulator, agent loop or worker-socket round trip.
+Reasoning, perception and task-solving programs belong in Kinex tools/skills.
 
-- Pin the selected upstream and checksum-verified patches using RoboEnv's source
-  management. Check its current default branch with `roboenv sources check-updates`.
-  Never commit inside submodules or initialize unrelated simulators.
-- Add the isolated dependency recipe, asset checks, noninteractive setup and
-  diagnostics. Prove `roboenv prepare BACKEND`, `doctor`, source status and task
-  discovery work. SDK import and catalog discovery must not initialize a GPU.
-- Implement a thin adapter for lifecycle, instruction, budget, owner observation
-  and the original task predicate. Put native controllers/rendering in the backend.
-  Register the lazy adapter and fixed binding ID in the existing registries.
-- Define joint order, units, frames, command bounds, measured feedback, stop scope,
-  camera acquisition clocks and controller semantics before exposing devices.
-  Validate malformed/nonfinite/out-of-range input before any effect.
-- For manipulators, accept absolute joint targets and retain other actuators' goals.
-  Acceptance means the target was accepted; determine arrival from later feedback.
-  Preserve measured soft-limit overshoot; only private solver seeds may be projected.
-  FK/IK belongs in Kinex's local driver helpers, without simulator RPC or live edits.
-- State clock semantics explicitly: synchronous writes advance one native interval;
-  realtime goals advance through the shared scheduler. Reads, lifecycle, stop and
-  local geometry must not request physical steps. Test coordinated writes against
-  the actual batching contract; concurrent calls alone do not guarantee atomicity.
-- Preserve native success and declared budgets. If typed control or an unbounded
-  practice mode differs from a published benchmark, mark that mode explicitly and
-  never label its results as equivalent benchmark scores.
-- Expose instructions, robot facts and declared sensors publicly. Keep object truth,
-  seeds, state restoration, owner sockets and verdicts outside agent workspaces.
-  Use the existing Harbor isolation/export path when that is the evaluation target.
+Reuse existing owners for preparation, lifecycle, transport, export and acceptance.
+Keep simulator-specific registration/controllers/task logic out of Kinex core.
+Generic Kinex core changes require a reproduced compatibility failure and a focused
+regression test; adding an acceptance example is distinct from changing its core.
+Do not relax schemas to accommodate incomplete profiles.
 
-## Generate a portable rig and connect Kinex
+Before removing old paths, identify runtime callers, generated-task consumers,
+independent policy/CLI entrypoints, scanned content and historical receipt readers.
+Keep retained modes explicit and test their boundaries. No import matches alone
+does not establish that a file is unused. Preserve source/patch identities and old
+evidence; do not delete coverage to make a migration pass.
 
-Extract stable robot/controller/camera facts from pinned sources or a task-free
-compiled model. Never encode sampled object locations, seed-specific poses or
-session identity in a rig. Generate shared device facts and the necessary mounting
-overrides, not one catalog per task or scene name. Verify deterministic regeneration,
-resolved-profile equality and mount invariance while changing robot joint pose.
+## Prepare a reproducible native environment
 
-Follow the current RoboCasa catalog: workspace.yaml and devices under the robot
-directory, binding plans outside it. Reuse src/roboenv/devices/export.py and the
-existing typed client assets with their adjacent transport support files. Copy the
-whole required driver bundle, including local geometry assets. Do not copy session
-connection files into the static catalog.
+Use `roboenv sources check-updates --backends BACKEND` and follow the repository's
+source policy when selecting the upstream base. Pin changes and checksum-verified
+patches; never commit inside submodules or initialize unrelated simulators. Use
+documentation matching the selected source revision and review changes from it.
 
-Parse every generated device with Kinex's current Device schema and required-action
-checks. Validate its calibration plan. Match native inventory against exported
-joint names, bounds, controller, camera dimensions, intrinsics and mounts at startup.
-Use explicit parent frames; attach moving cameras to a live flange, with OpenCV
-optical axes and declared depth units when applicable.
+Implement missing isolated recipes, import probes, asset acquisition/verification,
+noninteractive setup and diagnostics through src/roboenv/provisioning/. Separate
+development, simulator and agent Python environments. Resolve dependency conflicts
+instead of hiding them with `--no-deps`; a prepared interpreter is not an install lock.
 
-Prepare a fresh `.kinex/` workspace using the current preparation helper. Use
-`kinex python` for the agent's separate environment. Pin the launched episode's
-session/generation beside copied drivers, activate devices through Kinex lifecycle,
-then exercise discovery, sensor reads, local FK/IK, a bounded servo and stop through
-the normal Kinex tool runner. Simulator packages must not be needed by the drivers.
+For Gate A, install the final recipe into a new prefix using
+`roboenv prepare BACKEND --prefix NEW_PREFIX`. Reused environments can accelerate
+development, but `prepare` reuse and `doctor` alone do not prove fresh installation.
+Check dependency consistency, exact source/import origins from outside the repo,
+and verified asset identities. Reuse existing assets only after verification;
+do not overwrite datasets, interpreters or previous evidence.
 
-## Implement and run the acceptance protocol
+Inspect the upstream boot sequence and renderer requirements. Make cold-start,
+device activation, execution, replay and shutdown timeouts separately configurable.
+Capture progress/logs and clean up only processes/resources owned by this run.
+SDK imports and task discovery must not initialize a GPU. Asset or credential
+blockers leave dependent gates pending while independent implementation continues.
 
-Write the pass conditions and test matrix before evaluating solutions. Reuse
-RoboEnv's native probes and Kinex's examples/simulator-acceptance machinery where
-appropriate; add the new backend's protocol and owner replay implementation.
-Do not copy a different simulator's numerical limits or task definitions.
+## Implement the native device contract
 
-**Gate A — static and isolated installation.** Run required source checks and
-packaging checks. Validate all advertised tasks without starting the simulator,
-every rig's current Kinex schema/actions/calibration, deterministic generation,
-dependency consistency and pinned asset identity. Exercise positive and negative
-configuration cases; record skips as uncovered checks.
+- Keep the adapter thin: lifecycle, instruction, budget, private observation and
+  original task predicate. Native controllers and rendering belong in the backend;
+  register its lazy adapter and fixed binding IDs in the existing registries.
+- Define joint order, units, reference frames, bounds, measured feedback and stop
+  scope before exposing devices. Reject malformed, nonfinite, out-of-range and
+  overlapping actuator commands before effects.
+- Manipulators accept absolute joint targets and preserve other actuators' goals.
+  Acceptance means a target was accepted; arrival requires measured feedback.
+  Preserve measured soft-limit overshoot; project only private solver seeds.
+  FK/IK uses Kinex's local geometry helpers without simulator RPC or state edits.
+- Declare supported clocks. Synchronous writes advance one native control interval;
+  coordinated writes must compose according to an explicit atomic-step contract.
+  Realtime goals advance through the shared scheduler. Reads, stop and geometry
+  calls do not request extra physics steps. Reset may perform declared initialization
+  settling, recorded separately from episode control; device load never resets.
+- Honor native thread affinity for creation, stepping, sensing and destruction.
+  A simulator that works in a direct adapter test can deadlock when a background
+  clock calls its physics API. Keep native execution on the required owner thread
+  and verify the actual worker path, including idle connections and clock progress.
+- Preserve native success and budget accounting, including initialization, control
+  decimation, truncation and terminal freeze. Declare practice modes when control
+  or horizons differ from the benchmark; do not relabel their results as official.
+- Expose instructions, robot facts and permitted sensors. Keep object truth, seeds,
+  restoration, owner sockets, journals and verdicts outside public device responses
+  and agent workspaces. Remove legacy invoke/scene/score shortcuts from the default
+  Kinex path; shared transport alone does not sanitize a backend's observations.
 
-**Gate B — real native device conformance.** Cover every rig/controller family and
-at least two fixed initial states with a fresh process per case. Check small measured
-motion, convergence versus acceptance, stop and gripper contact/release, FK against
-native geometry at varied poses, IK residuals, dynamic mounts, render dimensions and
-optical projection. Check both supported clocks, finite-budget terminal freeze,
-read-only invariance, invalid commands with zero effects, and reset rebinding.
+## Generate complete rigs and connect Kinex
 
-**Gate C — transport and Kinex.** Run simultaneous independent episodes. Test request
-deduplication, rejected stale identities after endpoint reuse, denied owner operations
-and private cached results, and camera artifact access. Run real Kinex device/tool
-execution and background recording. Decode the actual videos; check nonblack frames,
-readable files, timestamps, observed cadence, recorder shutdown and immutable profile
-facts. Replay the owner command record in a fresh simulator process and compare state,
-budget and native verdict under a declared tolerance. Failure must produce a nonzero
-exit code and preserved diagnostic artifacts.
+A rig is a stable embodiment, controller, sensor arrangement and mounting geometry.
+Reuse it across tasks with that arrangement. Different stable mount configurations
+may have separate complete catalogs, as in `catalog/robots/libero/libero-panda-*`.
+Preserve those scene rigs; do not collapse them into shared runtime mount overrides.
+Share generators and driver implementations without making a copied rig incomplete.
+Bindings belong outside the robot directory; use safe relative catalog paths and
+the existing resolver. Keep only representative task examples in Git.
 
-**Gate D — task completion by a frozen controller.** Use the requested task matrix;
-otherwise choose a small set covering distinct mechanisms. Keep extra stress tasks
-only when their coverage is needed. Configure the exact model/effort and finite
-development rounds/time within authorization; distinguish exactly N rounds from
-up to N rounds and do not silently stop an exact-round study after early success. Use the
-real Kinex agent to observe, implement and debug a reusable controller tool. Freeze
-all reusable code plus its Python manifest and dependency lock. Each validation uses
-a new Kinex process/workspace and a new simulator world; no model, repair, conversation,
-live state or hidden owner information carries into validation. Run two identical
-initial-state trials for repeatability and one held-out initial state. Default to
-3/3 successful trials per task; agree any different threshold before running.
+Extract robot/controller/camera facts from pinned sources or a task-free compiled
+model. Never encode sampled object placements, seed-specific poses or session
+identity. Verify deterministic regeneration, resolved-profile equality and rigid
+mount invariance while joints move. Match live inventory to exported joint names,
+bounds, controllers, camera dimensions, intrinsics and mounts at startup. Use live
+flange parents for moving sensors, OpenCV optical axes and explicit depth units.
 
-For each validation require all of: normal controller exit, recorded real device
-interaction, owner/native success, unchanged controller and device-configuration
-hashes, valid recordings and
-successful independent replay. An agent's success statement, zero process exit code,
-or matching replay of a failed episode cannot pass this gate. Record failure categories
-and continue only within the predeclared development budget. Do not lower thresholds
-after observing results. Distinguish local API conformance from adversarial filesystem
-isolation; local host runs do not certify a Harbor container deployment.
+Reuse src/roboenv/devices/export.py and typed client assets. Copy each required
+driver bundle including transport support and local geometry resources. Audit the
+actual workspace helper: copying only top-level `*.py` files loses URDF/JSON or
+nested resources. Extend copying with an explicit resource set and portability
+test when needed; never copy task assets, owner evidence or simulator packages.
 
-The current LIBERO protocol demonstrates the command structure; create the equivalent
-backend-specific file and probes for the new simulator:
+Parse every profile with the selected Kinex Device schema, required-action checks
+and calibration plan. Prepare a fresh `.kinex/` workspace through the current
+helper, run `kinex python`, and verify the actual driver/tool interpreter. Pin the
+launched session/generation beside drivers, outside the static catalog. Activate
+devices through Kinex lifecycle and exercise discovery, sensor reads, local FK/IK,
+bounded servo and stop through normal tool execution.
 
-```sh
-# Infrastructure gates, no model calls:
-ROBOENV_REPO/.venv/bin/python ROBOENV_REPO/tools/accept_BACKEND.py \
-  --python SIMULATOR_PYTHON --kinex KINEX_REPO --out FRESH_INFRASTRUCTURE_OUTPUT
+Test persistent drivers and their support files in the agent environment. Cached
+profiles/connections must not survive an episode identity change unnoticed; reload
+or restart through lifecycle. No driver may start its own simulator. World and
+fixed-base profiles remain driverless according to the current schema.
 
-# Full bounded development and independent frozen-program validation:
-SIMULATOR_PYTHON KINEX_REPO/examples/simulator-acceptance/campaign.py \
-  --roboenv ROBOENV_REPO --python SIMULATOR_PYTHON \
-  --protocol KINEX_REPO/examples/simulator-acceptance/BACKEND.json \
-  --model AUTHORIZED_MODEL --effort AUTHORIZED_EFFORT --out FRESH_TASK_OUTPUT
-```
+## Complete acceptance through the testing skill
 
-Replace these arguments with discovered paths and the authorized scope. The generic
-campaign expects `prepare_kinex_workspace.py`, `finalize_episode.py`, a backend replay
-script selected by the protocol, and normal `solve_task` Kinex tool discovery. If the
-new simulator needs different initialization keys, set them in the protocol rather
-than adding simulator branches to the campaign. Extend a helper only when its actual
-contract cannot represent the new backend.
+Follow [test-simulator-kinex](../test-simulator-kinex/SKILL.md) in full-integration
+mode, carrying the established source identities, authorization, task/rig matrix,
+clocks, limits, numerical tolerances and private output location. Do not ask the
+user to repeat the original instruction or authorize the same resources again.
 
-Validate the acceptance machinery itself with a controller that claims success and
-exits normally without solving the task: the owner verdict must reject it. Also test
-artifact mutation and missing evidence. Run the real gates after those checks, not
-only the negative fixtures.
+Implementation owns any missing native conformance, replay, asset preparation or
+runner capabilities. Add them to the existing RoboEnv or Kinex owners; the testing
+skill then executes them. A helper for another backend is not interchangeable.
 
-## Finish based on evidence
+Required evidence is layered:
 
-Inspect final diffs against the starting upstream revisions, run the repositories'
-required checks, verify preserved reference work and publish only within authorization.
-Report changed integration surfaces, exact commands and receipts, each gate's status,
-task/seed counts, and remaining failures. Do not call the integration accepted while
-an agreed gate is failed or unrun. If an external prerequisite blocks the final gate,
-deliver the implementation and precise restart command with that gate explicitly
-pending; never fabricate successful evidence or require the user to rediscover context.
+| Gate | Completion evidence |
+| --- | --- |
+| A | Static/catalog checks and installation of the final recipe in a new prefix |
+| B | Measured native devices, geometry, cameras, contact, clocks and lifecycle |
+| C | Real transport and no-model Kinex execution, recording and independent replay |
+| D | Authorized visual model session, real control, truthful outcome, recording/replay and failure diagnosis |
+| Optional task performance | Frozen fresh-process trials meeting the requested native success threshold |
+
+A standalone smoke job cannot substitute for these gates. Keep harness execution,
+controller completion, native task outcome, media integrity, device/source identity
+and replay as separate checks. An honestly reported controller failure can support
+integration acceptance when the integration path works and its failure is diagnosed.
+Missing observations, broken drivers or unverifiable replay cannot. Preserve failed
+attempts; require unchanged frozen inputs and held-out history for task-performance
+trials when that scope is selected.
+
+Fix integration failures within the authorized scope, rerun affected gates, then
+resume acceptance. Do not edit a frozen candidate during final validation. Harbor
+deployment requires the additional exported-task, loader, agent/verifier and image
+evidence defined by the testing skill; local acceptance cannot establish isolation.
+
+## Finish or resume from evidence
+
+Run required repository checks for the changed surfaces; integration code changes
+normally require RoboEnv `tools/check.sh` and Kinex tests/typecheck when affected.
+Revalidate gates affected by later source, recipe, rig or helper changes. Preserve
+older receipts; never combine incompatible revisions into one accepted result.
+
+Report changed files, exact source/environment identities, executed commands,
+per-gate status, task/rig/initial-state counts and artifact locations. Acceptance
+requires all agreed integration gates to pass. Budget exhaustion, external prerequisites and
+unsolved tasks must remain explicit in their own result fields, with completed code
+and checks delivered. Save a precise resume command/configuration and compatible
+artifact references outside source control; do not require the user to reconstruct
+context or authorize the same work again. Never promise task success within an
+arbitrary finite model budget.

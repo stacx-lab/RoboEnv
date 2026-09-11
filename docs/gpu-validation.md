@@ -60,8 +60,9 @@ The seventh plan, BEHAVIOR R1Pro, requires an **additional explicit task source*
 
 The selected normalized task must declare `backend_kwargs.scene_model`; no scene
 or task instance is guessed. An additional source cannot replace a built-in
-example ID. BEHAVIOR remains a symbolic-primitives condition, not continuous
-motor control. The command above still only prepares; add `--run` to execute.
+example ID. BEHAVIOR uses continuous typed motor devices with physical grasping.
+Select `backend_kwargs.realtime: true` for its main-thread wall-clock scheduler;
+otherwise writes advance one control interval. The command above still only prepares; add `--run` to execute.
 
 ## What each receipt field proves
 
