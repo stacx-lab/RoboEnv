@@ -108,7 +108,9 @@ revision。没有来源说明时默认标记 project-reference 和 official=fals
 
 runner 只把本机 depot 路径放入子进程环境变量，不写进公开 task。
 它随后调用标准 harbor run；--agent 可换为当前 Harbor 已安装的 agent。
-Kinex 自定义安装器由独立 integration 提供，不打包进 Roboenv。
+For Kinex, use `--agent kinex --agent-config AGENT.json`. RoboEnv provides the
+optional Harbor bridge and external bundle tools; the Kinex agent source remains
+an explicit dependency. See [Kinex Harbor execution](simulator-kinex-testing.md).
 
 也可在 taskset 目录直接调用 harbor run -c job.json -a AGENT -m MODEL。
 需要先设置 taskset.json.required_env 列出的 ROBOENV_DEPOT_* 变量；
@@ -128,9 +130,10 @@ GPU 选择使用 ROBOENV_GPU。路径、凭证和模型端点只能进入本地�
 ## 6. 新设备设计下的配置与观测边界
 
 新后端遵循 [DESIGN.md](../DESIGN.md) 和 [Simulator 接入](simulator-integration.md)。
-静态 `catalog/robots/ROBOT/` 只有 `workspace.yaml` 与 `devices/`；它可以直接
-复制到 `.kinex/robots/ROBOT/`。`catalog/bindings/ROBOT.yaml`、seed、场景
-参数和 verifier 数据属于 owner 侧，不进入 Kinex robot 配置。
+Static `catalog/robots/ROBOT/` contains `workspace.yaml` and `devices/`.
+The Kinex Harbor bridge prepares `.kinex/workspace.yaml` and `.kinex/devices/`
+inside `/app/workspace` using public live profiles. Binding configuration,
+scene parameters and verifier data remain owner-side.
 
 `launch` 不生成或修改 catalog。当前 RoboCasa Harbor 路径还会把 live descriptors
 和薄 driver 发布到 `/run/roboenv/robot`，作为 trial-local 输出；这不改变静态配置，

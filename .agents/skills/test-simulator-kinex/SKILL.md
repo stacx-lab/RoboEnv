@@ -50,9 +50,10 @@ Check these entrypoints instead of assuming archived commands still work:
 - RoboEnv: `roboenv doctor BACKEND`, task discovery and `roboenv launch`,
   `tools/prepare_kinex_workspace.py`, `tools/finalize_episode.py`, and the selected
   backend's native conformance/replay tools.
-- Kinex: `examples/simulator-acceptance/{campaign,infrastructure,aggregate}.py`
-  when present, all required imports and `--help`, the pinned Bun version and
-  `kinex python`. Read the current example README and parsers.
+- RoboEnv Harbor bridge: `tools/package_kinex_agent.py`, `roboenv tasks run
+  --agent kinex`, `src/roboenv/harbor/kinex.py`, and `integrations/kinex/`.
+  Kinex supplies its normal APIs and `kinex python`; no campaign files belong
+  in its checkout. Read `docs/simulator-kinex-testing.md` for current commands.
 - LIBERO/RoboCasa may use separate native/protocol runners. Select their actual
   supported route. The generic `replay_native_devices.py` currently accepts
   RoboTwin, RoboDojo and BEHAVIOR, not every backend's record format.
@@ -65,8 +66,8 @@ BEHAVIOR seed changes alone do not select another presampled activity instance.
 Create an owner-side run specification before launch: interpreters, task/cases,
 exact model/effort when used, recording devices/rates, stage deadlines, GPU,
 fresh output paths and prior artifact/evidence references. Pass only fields the
-selected parser consumes. For the current campaign runner, `role` belongs to the
-final aggregation spec, not the per-job spec.
+selected parser consumes. Use Harbor JobConfig for scheduling and timeouts,
+standard tasks for native seed/clock settings, and agent kwargs for tool/model inputs.
 
 Inspect GPU/disk capacity and accepted licenses/credentials. Existing session
 authorization persists; ask only about missing access or material scope. Never
@@ -128,19 +129,18 @@ is sufficient unless further task development was requested. No overall limit
 still requires finite child-stage deadlines. Controllers use permitted devices and
 perception, never native object truth, verdicts or reference solutions.
 
-The current `infrastructure.py` covers the static/native/transport/probe evidence,
-and `campaign.py develop` records live-agent evidence. Audit their files together
-with installation evidence and failure classifications for integration acceptance.
-The existing `aggregate.py` is a task-performance aggregator requiring native
-success; it does not implement a task-success-optional integration report. Do not
-add ignored spec fields or relabel its failed output as passed.
+Harbor agent receipts record execution, integrity and media; the verifier records
+native outcome and the supervisor journal. Audit these with independent native
+replay, installation and transport evidence. `tools/report_kinex_harbor.py` reports
+bridge execution separately from task success. Keep missing evidence gates
+explicit; do not infer replay or task acceptance from bridge completion.
 
 **Optional task performance — Frozen validation.** When requested, establish
 trial counts and success criteria separately from integration readiness.
 
 Freeze selected reusable tool/skills/libraries and Python lock before final cases.
 Check the discovered tool ID against its manifest and directory. The current
-example freezer expects `.kinex/tool/<tool>/tool.yaml`; align its directory with
+RoboEnv freezer expects `.kinex/tool/<tool>/tool.yaml`; align its directory with
 the manifest name during development, before freezing and verifying lineage.
 Every final case starts a new native world and Kinex process/workspace, restoring
 the exact artifact without model calls, repairs or prior conversation/state.

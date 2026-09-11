@@ -198,7 +198,7 @@ def export_taskset(
     }
 
 
-def run_taskset(path, deployments, *, agent, model=None, extra_args=()):
+def run_taskset(path, deployments, *, agent, model=None, agent_config=None, extra_args=()):
     root = Path(path).resolve()
     manifest = json_loads((root / "taskset.json").read_text())
     if (
@@ -240,4 +240,28 @@ def run_taskset(path, deployments, *, agent, model=None, extra_args=()):
     # Docker's separate data filesystem must also have space (checked by the builder).
     with tempfile.TemporaryDirectory(prefix=".harbor-", dir=root) as temporary:
         environment["TMPDIR"] = temporary
+        if agent_config is not None or agent == "kinex":
+            from harbor.models.job.config import JobConfig
+
+            options = json_loads(Path(agent_config).read_text()) if agent_config else {}
+            if not isinstance(options, dict):
+                raise ValueError("agent config must be a JSON object of Harbor agent kwargs")
+            if agent == "kinex" and agent_config:
+                for key in ("bundle", "tool_directory", "artifact"):
+                    if key in options:
+                        options[key] = str(
+                            (Path(agent_config).resolve().parent / options[key]).resolve()
+                        )
+            name = "roboenv.harbor.kinex:KinexAgent" if agent == "kinex" else agent
+            configured = {"model_name": model, "kwargs": options}
+            configured["import_path" if ":" in name else "name"] = name
+            job = json_loads((root / "job.json").read_text())
+            job["agents"] = [configured]
+            for task in job["tasks"]:
+                task["path"] = str((root / task["path"]).resolve())
+            job["jobs_dir"] = str((root / job.get("jobs_dir", "jobs")).resolve())
+            config = JobConfig.model_validate(job)
+            effective = Path(temporary) / "job.json"
+            effective.write_text(config.model_dump_json(indent=2))
+            command = [executable, "run", "-c", str(effective), *extra_args]
         return subprocess.run(command, cwd=root, env=environment).returncode

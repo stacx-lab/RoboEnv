@@ -18,7 +18,7 @@ roboenv prepare robotwin
 
 This synchronizes pinned RoboTwin sources, installs its isolated interpreter,
 downloads and verifies its public embodiment/object assets, and reports setup
-checks. RoboTwin and RoboDojo run from their source checkouts without cap-x.
+checks. RoboTwin and RoboDojo run from their source checkouts directly.
 Substitute another simulator as needed.
 Progress is printed to stderr as each stage starts and finishes, with elapsed-time
 updates every 15 seconds during long stages. Installation output stays in the
@@ -165,12 +165,11 @@ loader. Local launch and export use the same task resolver and device binding
 configuration. Image and asset preparation are described in
 [Harbor tasks](harbor-tasks.md).
 
-Historical RoboTwin and RoboDojo primitive `solution.py` programs remain in the
-catalog with `retired: true` provenance. Reference export and explicit reference
-validation reject them because the default tasks now expose typed devices.
+RoboTwin and RoboDojo tasks expose typed devices and do not ship primitive
+reference solutions.
 Use `tools/validate_simulators.py --modes probe` for device connectivity checks;
-full Kinex controller development and frozen task acceptance use Kinex's
-`examples/simulator-acceptance/` harness.
+Kinex controller development and frozen task acceptance use RoboEnv's
+[standard Harbor task integration](simulator-kinex-testing.md).
 
 `tools/check_native_transport.py` exercises two concurrent native episodes,
 request deduplication, lost-reply recovery, public/owner separation and endpoint

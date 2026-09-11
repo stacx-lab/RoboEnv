@@ -27,10 +27,9 @@ Unknown causes are not model-reasoning diagnoses. A controller exception must st
 visible even when the surrounding harness finalizes and replays correctly.
 
 Record `integration_passed`, `task_success` and `controller_completed` separately in
-the owner review. Preserve the original receipts. `infrastructure.py` plus live
-`campaign.py develop` evidence and installation/failure review support this audit.
-The current `aggregate.py` implements strict task-performance acceptance; its
-failed task result must not be rewritten or bypassed with unsupported spec fields.
+the owner review. Preserve the original receipts. Audit live Harbor Kinex
+`mode: develop` evidence alongside installation, native replay and failure review.
+A failed task result must remain a failure in the task-performance report.
 The freeze, held-out selection and 3/3 rules below apply when task performance is
 requested. Fresh-process command replay remains required for integration itself.
 
@@ -81,18 +80,22 @@ the user has authorized finite time/round limits instead.
 
 ## Establish or implement the runner
 
-Inspect the selected Kinex checkout before assuming
-`examples/simulator-acceptance/campaign.py` exists. The integration working tree may provide it even when its base commit does not.
+Inspect the selected RoboEnv checkout before assuming
+`src/roboenv/harbor/kinex.py` and `integrations/kinex/` exist in RoboEnv.
+Use the standard Harbor task/job path in `docs/simulator-kinex-testing.md`;
+Kinex no longer owns external campaign scheduling scripts.
 Inspect the current files and `--help`, including all imports and bridges.
 Historical scripts may inform implementation, but are not a portable runtime
 dependency and may target different APIs. Do not depend on a private experiment directory.
 
-If no equivalent exists, add a small owner-side acceptance example in Kinex, with
-protocol parsing, artifact freezing, development, no-model execution and result
-aggregation. Put backend-native probes/replay in RoboEnv. Reuse:
+Extend the RoboEnv Harbor bridge for missing external orchestration behavior.
+Keep only generic harness corrections in Kinex. Harbor owns trials, deadlines,
+concurrency and container cleanup; do not restore a separate local campaign loop.
+Put backend-native probes/replay in RoboEnv. Reuse:
 
-- RoboEnv `resolve_task`, `roboenv.launch`, `tools/prepare_kinex_workspace.py` and
-  `tools/finalize_episode.py`, after checking their actual contracts.
+- RoboEnv's task resolver/exporter and independent verifier for Harbor jobs.
+  Native conformance helpers may use `roboenv.launch` and owner finalization;
+  these helpers are separate from task scheduling.
 - Kinex `CalibrationStore`, `activateDevice`, `listPyTools`, `runPyTool`, `execute`,
   `Session`, `createRunner`, `Recorder` and `observeDevices` at their current paths.
   Use normal tool discovery and permission/device boundaries, not direct calls to
@@ -144,9 +147,9 @@ Configure renderer warmup and all stage timeouts; do not impose LIBERO's histori
 180-second launch limit on an Isaac backend. In receipts distinguish cold boot from
 steady-state stepping. Test concurrent independent native worlds only within the
 authorized resource allocation; insufficient capacity leaves that check pending.
-The current campaign example accepts `timeouts.media` (default 120 seconds) for
-complete recording decoding and checks. Set it explicitly for long RGB/depth
-recordings or slow storage; a longer deadline must not weaken media validation.
+The Harbor bridge uses a bounded media check (currently 120 seconds) for
+complete recording decoding and checks. A longer bound requires a supported,
+tested option; do not add an ignored timeout key or weaken media validation.
 In realtime read-only tests, distinguish ordinary scheduler ticks from additional
 steps requested by a read. Compare serialized observations and step accounting;
 elapsed wall time alone cannot establish a read-induced physics effect.

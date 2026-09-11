@@ -90,6 +90,7 @@ def main(argv=None):
     run.add_argument("--deployments", required=True, type=Path)
     run.add_argument("--agent", required=True)
     run.add_argument("--model")
+    run.add_argument("--agent-config", type=Path, help="JSON file of Harbor agent kwargs")
     for name in (
         "describe",
         "devices",
@@ -166,7 +167,8 @@ def main(argv=None):
                 result = validate_harbor_task(args.task)
             else:
                 return run_taskset(
-                    args.bundle, args.deployments, agent=args.agent, model=args.model
+                    args.bundle, args.deployments, agent=args.agent, model=args.model,
+                    agent_config=args.agent_config,
                 )
         elif args.command == "describe":
             result = client.describe()
