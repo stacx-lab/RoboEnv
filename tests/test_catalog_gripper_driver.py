@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-GRIPPER = ROOT / "catalog/robots/robocasa-panda-omron/devices/gripper"
+GRIPPER = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices/gripper"
 
 
 @pytest.fixture

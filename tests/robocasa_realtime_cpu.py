@@ -28,7 +28,7 @@ def check(root, temporary):
     native.horizon = native.env.horizon = 2
     native._max_steps = 1  # Legacy overrides must not cap realtime testing.
     worker = SimWorker(adapter, task_id="cpu-realtime", seed=7, run_dir=temporary,
-                       device_root=root / "catalog/robots/robocasa-panda-omron")
+                       device_root=root / "catalog/robots/robocasa/robocasa-panda-omron")
     try:
         def call(device, action, **args):
             return worker.dispatch("devices.call", {"device": device, "action": action,
@@ -100,7 +100,7 @@ def check_synchronous(root, temporary):
     native.horizon = native.env.horizon = 2
     native._max_steps = 1
     worker = SimWorker(adapter, task_id="cpu-synchronous", seed=7, run_dir=temporary,
-                       device_root=root / "catalog/robots/robocasa-panda-omron")
+                       device_root=root / "catalog/robots/robocasa/robocasa-panda-omron")
     try:
         def call(device, action, **args):
             return worker.dispatch("devices.call", {"device": device, "action": action,

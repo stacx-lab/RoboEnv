@@ -164,7 +164,7 @@ def test_local_kinematics_is_cached_and_never_connects_for_cleanup(tmp_path, mon
     if not library.is_dir():
         pytest.skip("Requires adjacent Kinex Python library")
     monkeypatch.syspath_prepend(str(library))
-    source = ROOT / "catalog/robots/robocasa-panda-omron/devices/arm"
+    source = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices/arm"
     for file in source.iterdir():
         if file.is_file():
             shutil.copy2(file, tmp_path / file.name)

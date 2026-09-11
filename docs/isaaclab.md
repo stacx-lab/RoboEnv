@@ -97,7 +97,7 @@ To update checked-in facts intentionally, omit `--out` and supply
 `--facts-out runtime/src/roboenv_runtime/adapters/isaaclab/go2.json` and
 `--provenance docs/isaaclab-config.provenance.json`.
 
-Copy `catalog/robots/isaaclab-go2/workspace.yaml` and its `devices/` directory into
+Copy `catalog/robots/isaaclab/isaaclab-go2/workspace.yaml` and its `devices/` directory into
 Kinex's `.kinex/` workspace. Device profiles default to
 `access.connection.url: http://127.0.0.1:8123`; edit that URL for a different server.
 An explicit `connection.json` takes precedence, followed by `ROBOENV_ENDPOINT`

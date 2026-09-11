@@ -17,12 +17,12 @@ from roboenv.tasks.model import DEVICE_BACKENDS, Task
 
 BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab")
 ROBOTS = {
-    "isaaclab": "isaaclab-go2",
+    "isaaclab": "isaaclab/isaaclab-go2",
     "libero": "libero/libero-panda-tabletop",
-    "robocasa": "robocasa-panda-omron",
+    "robocasa": "robocasa/robocasa-panda-omron",
     "robotwin": "robotwin/robotwin-dual-piper",
     "robodojo": "robodojo/robodojo-arx-x5",
-    "behavior": "behavior-r1pro",
+    "behavior": "behavior/behavior-r1pro",
 }
 
 

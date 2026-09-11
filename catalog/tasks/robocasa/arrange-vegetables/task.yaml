@@ -1,7 +1,7 @@
 id: robocasa/arrange-vegetables
 backend: robocasa
 backend_task: robocasa.ArrangeVegetables
-robot: robocasa-panda-omron
+robot: robocasa/robocasa-panda-omron
 instruction: 'Arrange the vegetables: move each vegetable from the sink area onto
   the cutting board on the counter. Success is the benchmark''s own check. The simulator
   is a device service; the agent works through file-defined devices and tools.'

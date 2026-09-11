@@ -132,7 +132,7 @@ def check(root, temporary):
     native = adapter._env
     import shutil
 
-    source = root / "catalog/robots/robocasa-panda-omron"
+    source = root / "catalog/robots/robocasa/robocasa-panda-omron"
     plan = BindingPlan.load(source, backend="robocasa")
     robot = temporary / "robot"
     shutil.copytree(source, robot)

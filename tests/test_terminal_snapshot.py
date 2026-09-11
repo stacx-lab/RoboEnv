@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CountedObservationWorld(FakeShell):
-    """CPU reproduction of CapxBridge's seven charged RoboTwin observation reads."""
+    """Seven charged observation reads exercise terminal budget stability."""
 
     def __init__(self, max_budget=60_000):
         super().__init__(max_budget=max_budget)
