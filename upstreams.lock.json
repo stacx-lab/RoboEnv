@@ -13,9 +13,7 @@
       "path": "third_party/cap-x",
       "url": "https://github.com/capgym/cap-x.git",
       "revision": "53e9966d7a8e2fa7494676772bccc35280f5c0ed",
-      "backends": [
-        "robodojo"
-      ],
+      "backends": [],
       "patches": [
         {
           "path": "third_party/patches/capx-runtime.patch",
@@ -90,6 +88,12 @@
       "revision": "afca7b09d60d8beb9c1cb28b43066499940b969b",
       "backends": [
         "robodojo"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/robodojo-isaaclab-optional-streaming.patch",
+          "sha256": "72224359f5b515b74d0a47739696e08e007ac219e62d386051817a2937d20bd1"
+        }
       ]
     },
     "curobo": {

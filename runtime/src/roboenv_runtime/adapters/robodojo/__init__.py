@@ -1,8 +1,4 @@
-"""RoboDojo (Isaac Sim) — adapter, backend, cap-x API and launcher env.
-
-Importing this package registers :class:`RoboDojoAdapter`; nothing heavy is
-imported until an adapter (or the backend) is instantiated.
-"""
+"""RoboDojo source-native device adapter."""
 
 from __future__ import annotations
 

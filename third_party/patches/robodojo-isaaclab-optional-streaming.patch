@@ -1,0 +1,21 @@
+diff --git a/source/isaaclab/setup.py b/source/isaaclab/setup.py
+index 369bf5b..cd805e0 100644
+--- a/source/isaaclab/setup.py
++++ b/source/isaaclab/setup.py
+@@ -36,8 +36,6 @@ INSTALL_REQUIRES = [
+     "warp-lang",
+     # make sure this is consistent with isaac sim version
+     "pillow==11.3.0",
+-    # livestream
+-    "starlette==0.49.1",
+     # testing
+     "pytest",
+     "pytest-mock",
+@@ -73,6 +71,7 @@ setup(
+     include_package_data=True,
+     python_requires=">=3.10",
+     install_requires=INSTALL_REQUIRES,
++    extras_require={"livestream": ["starlette==0.49.1"]},
+     dependency_links=PYTORCH_INDEX_URL,
+     packages=["isaaclab"],
+     classifiers=[
