@@ -91,7 +91,15 @@ def load_deployment(path, backend):
         or any(not isinstance(v, str) or "\x00" in v for v in extra.values())
     ):
         raise ValueError("deployment environment cannot override task identity or runtime roots")
-    return {**spec, "mounts": normalized, "environment": extra}
+    options = spec.get("runtime_options", {})
+    if not isinstance(options, dict) or set(options) - {"shm_size", "start_period"}:
+        raise ValueError("unsupported deployment runtime options")
+    patterns = {"shm_size": r"[1-9][0-9]*(?:b|kb|mb|gb)",
+                "start_period": r"[1-9][0-9]*(?:ms|s|m)"}
+    if any(not isinstance(value, str) or not re.fullmatch(patterns[key], value)
+           for key, value in options.items()):
+        raise ValueError("invalid deployment runtime option")
+    return {**spec, "mounts": normalized, "environment": extra, "runtime_options": options}
 
 
 def deployment_contract(spec):
@@ -103,6 +111,7 @@ def deployment_contract(spec):
             {"target": mount["target"], "read_only": mount["read_only"]} for mount in spec["mounts"]
         ],
         "environment": spec["environment"],
+        "runtime_options": spec.get("runtime_options", {}),
     }
 
 
@@ -162,4 +171,9 @@ def native_service(path, task, *, portable=False):
 
     if task.backend == "fakeshell":
         service.pop("deploy", None)
+    options = spec["runtime_options"]
+    service["shm_size"] = options.get("shm_size", service["shm_size"])
+    service["healthcheck"]["start_period"] = options.get(
+        "start_period", service["healthcheck"]["start_period"],
+    )
     return service

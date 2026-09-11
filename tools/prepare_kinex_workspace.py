@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 import yaml
+from roboenv.devices.export import driver_resources
 from roboenv.tasks.resolve import resolve_task
 
 
@@ -28,13 +29,13 @@ def prepare(task, destination, *, project=None, catalog=None):
             (device / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
             if profile["type"] != "world":
                 source = resolved.robot / Path(spec.profile).parent
-                for support in source.glob("*.py"):
-                    if support.is_symlink():
-                        raise ValueError("Device support files must not be symlinks")
-                    shutil.copy2(support, device / support.name)
+                for support in driver_resources(source):
+                    target = device / support
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source / support, target)
         (staging / "instruction.md").write_text(resolved.task.instruction + "\n")
         (staging / "AGENTS.md").write_text(
-            "# Robot workspace\n\n" + resolved.task.instruction + "\n\n"
+            "# Robot workspace\n\nRead instruction.md for the current episode's public task.\n\n"
             "Use the declared device interfaces and camera observations. Manipulator writes "
             "accept absolute joint positions; acceptance does not imply arrival. "
             "Stop holds a device. The environment owner controls the episode lifecycle.\n"

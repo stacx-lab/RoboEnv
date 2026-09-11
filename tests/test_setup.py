@@ -47,6 +47,7 @@ def test_prepare_default_install_and_reuse(tmp_path, monkeypatch):
         setup, "install", lambda backend, destination, **kwargs: calls.append(destination)
     )
     progress = []
+    monkeypatch.setattr(setup, "_prepare_assets", lambda backend, root, report, progress: report)
     setup.prepare("robotwin", progress=progress.append)
     assert any("Synchronizing" in message for message in progress)
     assert calls == ["sync", tmp_path / ".venv-sim/robotwin"]

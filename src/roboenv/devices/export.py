@@ -16,6 +16,49 @@ DRIVERS = {
 PORTABLE_TYPES = frozenset(DRIVERS)
 
 
+def driver_resources(directory):
+    """Return validated, explicitly portable files from a static device bundle.
+
+    Existing catalogs contain only top-level Python support. A resource manifest
+    additionally permits nested local geometry without exporting episode data.
+    """
+    directory = Path(directory)
+    manifest = directory / "driver-resources.json"
+    if manifest.is_symlink():
+        raise ValueError("Driver resource manifest must not be a symlink")
+    names = sorted(path.name for path in directory.glob("*.py"))
+    if manifest.exists():
+        content = json.loads(manifest.read_text())
+        if not isinstance(content, dict) or set(content) != {"schema", "files"}:
+            raise ValueError("Invalid driver resource manifest")
+        if content["schema"] != "roboenv/driver-resources/1":
+            raise ValueError("Unsupported driver resource manifest")
+        names = content["files"]
+        if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+            raise ValueError("Driver resources must be relative file names")
+        if len(set(names)) != len(names) or "driver.py" not in names:
+            raise ValueError("Driver resources must include driver.py exactly once")
+    resources = []
+    for name in names:
+        relative = Path(name)
+        if (
+            not name or relative.is_absolute() or ".." in relative.parts
+            or str(relative) != name or relative.suffix not in {".py", ".json", ".urdf"}
+            or relative.name in {"connection.json", "owner-record.json", "verdict.json"}
+            or any(part.startswith(".") for part in relative.parts)
+        ):
+            raise ValueError(f"Invalid portable driver resource: {name}")
+        source = directory / relative
+        if any(path.is_symlink() for path in (source, *source.parents)):
+            raise ValueError("Device support files must not contain symlinks")
+        if not source.is_file() or not source.resolve().is_relative_to(directory.resolve()):
+            raise ValueError(f"Missing portable driver resource: {name}")
+        resources.append(relative)
+    if manifest.exists():
+        resources.append(Path(manifest.name))
+    return resources
+
+
 def driver_access(kind, name, actions, endpoint, *, timeout_s=None):
     driver = {"entry": "driver.py", "interpreter": "python3",
               "persistent": True, "actions": actions}

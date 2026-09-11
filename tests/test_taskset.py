@@ -217,3 +217,25 @@ def test_nested_catalog_duplicate_ids_are_rejected(tmp_path):
 
     with pytest.raises(ValueError, match="duplicate task id"):
         load_catalog(tmp_path)
+
+
+@pytest.mark.parametrize("identifier", [
+    "robotwin/handover-mic", "robotwin/stack-blocks-three",
+    "robodojo/general-pickup", "robodojo/stack-bowls",
+])
+def test_retired_primitive_reference_is_preserved_but_cannot_be_exported(tmp_path, identifier):
+    import hashlib
+
+    wheel, _ = inputs(tmp_path)
+    task = ROOT / "catalog/tasks" / identifier / "task.yaml"
+    reference = task.with_name("solution.py")
+    provenance = json.loads(task.with_name("solution-source.json").read_text())
+    assert hashlib.sha256(reference.read_bytes()).hexdigest() == provenance["program_sha256"]
+    destination = tmp_path / "retired"
+    with pytest.raises(ValueError, match="reference program is retired"):
+        export_task(
+            task, ROOT / "catalog", destination, wheel,
+            deployment_path=tmp_path / (identifier.split("/")[0] + ".json"),
+            include_reference=True,
+        )
+    assert not destination.exists()

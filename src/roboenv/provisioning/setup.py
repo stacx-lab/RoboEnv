@@ -2,7 +2,7 @@
 
 Run from the repository's development environment. The low-level installer never repairs an
 existing environment, suppresses dependency resolution, fetches assets, accepts
-licenses, or claims a GPU replay. Preparation also acquires RoboCasa kitchen assets.
+licenses, or claims a GPU replay. Preparation separately acquires public backend assets.
 Rejected installs preserve a private failure log.
 """
 
@@ -277,15 +277,6 @@ import roboenv_runtime.runtime.worker
 if settings["backend"] == "libero":
     from roboenv_runtime.adapters.libero import ensure_libero_config
     ensure_libero_config()
-if "third_party/cap-x" in settings["source_only"]:
-    from roboenv_runtime.adapters.base import ensure_capx_importable
-    ensure_capx_importable()
-    import capx
-    root = Path(settings["project"]) / "third_party/cap-x"
-    if not Path(capx.__file__).resolve().is_relative_to(root.resolve()):
-        raise RuntimeError("bridge import did not come from the selected locked checkout")
-    if any(normalize(item.metadata["Name"]) == "capx" for item in metadata.distributions()):
-        raise RuntimeError("source-only cap-x must not also be installed as a distribution")
 for module_name in settings["import_probes"]:
     importlib.import_module(module_name)
 print("Selected packages, source identities and declared import probes passed; no GPU episode ran.")
@@ -458,7 +449,7 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
 
 
 def prepare(backend, *, project=None, install_to=None, progress=None):
-    """Prepare an interpreter and, for RoboCasa, its kitchen assets."""
+    """Prepare a source-backed interpreter and the backend's supported asset depot."""
     root = project_root(project)
     # Validate the backend before using it in a filesystem path or syncing sources.
     with stage(progress, "Checking simulator configuration and existing sources"):
@@ -487,6 +478,36 @@ def prepare(backend, *, project=None, install_to=None, progress=None):
 
 
 def _prepare_assets(backend, root, report, progress):
+    if backend == "behavior":
+        from roboenv.provisioning.behavior_assets import prepare_assets
+
+        return {**report, **prepare_assets(root, progress=progress)}
+    if backend == "robodojo":
+        from roboenv.provisioning.robodojo_assets import prepare_assets
+        from roboenv.provisioning.yam_usd import verify
+
+        assets = prepare_assets(root, progress=progress)
+        if assets["yam_native_conversion_required"]:
+            if os.environ.get("OMNI_KIT_ACCEPT_EULA", "").upper() != "YES":
+                return {**report, **assets, "license_acceptance_required": "Isaac Sim EULA"}
+            registration = root / ".cache/roboenv/installations/robodojo.json"
+            interpreter = json_loads(registration.read_text())["python"]
+            directory = Path(assets["asset_depot"]) / "Robots/yam"
+            with stage(progress, "Converting pinned YAM geometry with Isaac Lab"):
+                subprocess.run(
+                    [interpreter, "-m", "roboenv.provisioning.yam_usd", str(directory)],
+                    cwd=root,
+                    check=True,
+                    timeout=1800,
+                )
+            assets.update(
+                environment_assets_verified=verify(directory), yam_native_conversion_required=False
+            )
+        return {**report, **assets}
+    if backend == "robotwin":
+        from roboenv.provisioning.robotwin_assets import prepare_assets
+
+        return {**report, **prepare_assets(root, progress=progress)}
     if backend == "libero":
         from roboenv.provisioning.libero_assets import prepare_assets
 

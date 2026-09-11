@@ -19,11 +19,12 @@ from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.contract import DEVICE_CONTRACT
 from roboenv.devices.export import write_driver
 from roboenv.harbor.export import export_task
+from roboenv.tasks.model import DEVICE_BACKENDS
 from roboenv_runtime.adapters.fakeshell import FakeShell
 from roboenv_runtime.runtime.protocol import Request, Response
 from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
 from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError
-from service_fixtures import invoke
+from service_fixtures import invoke, legacy_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -226,7 +227,7 @@ def test_all_catalogs_load_without_contacting_simulators():
         robot = workspace.parent
         raw = yaml.safe_load(binding_path(robot).read_text())
         plan = BindingPlan.load(robot, backend=raw["backend"])
-        if raw["backend"] in {"robocasa", "isaaclab", "libero"}:
+        if raw["backend"] in DEVICE_BACKENDS:
             # Offline definitions validate without a world; native bindings require
             # real model/controller facts, covered by backend conformance tests.
             assert all(spec.definition(robot) for spec in plan.devices)
@@ -239,7 +240,8 @@ def test_all_catalogs_load_without_contacting_simulators():
             assert "driver" not in device
 
 
-def test_server_reads_cannot_bypass_submission_or_return_fake_poses(tmp_path):
+def test_server_reads_cannot_bypass_submission_or_return_fake_poses(tmp_path, monkeypatch):
+    monkeypatch.setattr("roboenv_runtime.bindings.assembly.default_registry", legacy_registry)
 
     class World(FakeShell):
         name, embodiment = "robodojo", "arx_x5"
@@ -258,7 +260,7 @@ def test_server_reads_cannot_bypass_submission_or_return_fake_poses(tmp_path):
         task_id="test",
         seed=0,
         run_dir=tmp_path,
-        device_root=ROOT / "catalog/robots/robodojo-arx-x5",
+        device_root=ROOT / "tests/fixtures/legacy-native-catalogs/robodojo-arx-x5",
     )
     try:
         result = worker.dispatch("devices.call", {"device": "arm", "action": "read", "args": {}})
@@ -389,7 +391,8 @@ def test_restart_retrieves_terminal_results_and_fences_unfinished_intents(tmp_pa
     assert restored.handle(conflict)["error"]["code"] == "request_id_conflict"
 
 
-def test_camera_artifact_uses_shared_path_and_rejects_traversal(tmp_path):
+def test_camera_artifact_uses_shared_path_and_rejects_traversal(tmp_path, monkeypatch):
+    monkeypatch.setattr("roboenv_runtime.bindings.assembly.default_registry", legacy_registry)
     import numpy as np
 
     class CameraWorld(FakeShell):
@@ -403,7 +406,7 @@ def test_camera_artifact_uses_shared_path_and_rejects_traversal(tmp_path):
         task_id="test",
         seed=0,
         run_dir=tmp_path,
-        device_root=ROOT / "catalog/robots/robodojo-arx-x5",
+        device_root=ROOT / "tests/fixtures/legacy-native-catalogs/robodojo-arx-x5",
     )
     try:
         result = worker.dispatch(

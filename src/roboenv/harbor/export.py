@@ -12,6 +12,7 @@ from roboenv.devices.bindings.spec import BINDING_CONTRACT
 from roboenv.devices.contract import DEVICE_CONTRACT
 from roboenv.privacy import validate_public_text
 from roboenv.tasks.artifacts import Bundle, sha
+from roboenv.tasks.model import DEVICE_BACKENDS
 from roboenv.validation import json_loads, yaml_load
 
 
@@ -83,7 +84,7 @@ def export_task(
                 entry="driver.py", interpreter="python3", persistent=True, actions=actions
             )
             prefix = f"environment/definition/robot/devices/{spec.name}/"
-            if task.backend not in {"robocasa", "isaaclab", "libero"}:
+            if task.backend not in DEVICE_BACKENDS:
                 out.add_yaml(prefix + "profile.yaml", profile)
                 out.add(prefix + "driver.py", assets.joinpath("device-client.py").read_bytes())
                 out.add(prefix + "_roboenv.py", assets.joinpath("_roboenv.py").read_bytes())
@@ -108,7 +109,7 @@ def export_task(
         },
         "capabilities": ["device-driver/1", "roboenv-public-primitives/1"],
         "observation_access": "sensors-only"
-        if task.backend in {"robocasa", "isaaclab", "libero"}
+        if task.backend in DEVICE_BACKENDS
         else "benchmark-ground-truth",
         "action_abstraction": task.action_abstraction,
         "compatibility": {
@@ -121,7 +122,7 @@ def export_task(
     manifest["endpoint"]["generation"] = 0
     manifest["binding_contract"] = BINDING_CONTRACT
     manifest["binding_mode"] = "explicit"
-    if task.backend in {"robocasa", "isaaclab", "libero"}:
+    if task.backend in DEVICE_BACKENDS:
         out.add("environment/sim/environment.json", json.dumps(manifest, indent=2) + "\n")
         manifest = {
             "task": {"id": task.id, "instruction": task.instruction, "context": {}},
@@ -131,7 +132,7 @@ def export_task(
     out.add("environment/definition/environment.json", json.dumps(manifest, indent=2) + "\n")
     out.add("environment/sdk/" + wheel.name, wheel.read_bytes())
     dockerfile = assets.joinpath("main.Dockerfile").read_text()
-    if task.backend in {"robocasa", "isaaclab", "libero"}:
+    if task.backend in DEVICE_BACKENDS:
         dockerfile += (
             "\nRUN useradd --create-home --uid 1000 agent "
             "&& chown -R agent:agent /app\nUSER agent\n"
@@ -166,7 +167,7 @@ def export_task(
         "volumes": ["roboenv-run:/run/roboenv:ro", "./definition:/env:ro"],
         "environment": public_env,
     }
-    if task.backend in {"robocasa", "isaaclab", "libero"}:
+    if task.backend in DEVICE_BACKENDS:
         sim["user"] = "0:0"
         public_env.update(ROBOENV_ENDPOINT="http://sim:8123", ROBOENV_ROBOT="/run/roboenv/robot")
         sim["environment"].update(
@@ -191,7 +192,7 @@ def export_task(
     out.add_yaml("environment/smoke-compose.yaml", smoke)
     observation_access = (
         "sensors-only"
-        if task.backend in {"robocasa", "isaaclab", "libero"}
+        if task.backend in DEVICE_BACKENDS
         else "benchmark-ground-truth"
     )
     out.add(
@@ -210,10 +211,10 @@ observation_access = "{observation_access}"
 action_abstraction = "{task.action_abstraction}"
 [agent]
 timeout_sec = 3600.0
-{'user = "agent"' if task.backend in {"robocasa", "isaaclab", "libero"} else ""}
+{'user = "agent"' if task.backend in DEVICE_BACKENDS else ""}
 [verifier]
 timeout_sec = 600.0
-{'user = "root"' if task.backend in {"robocasa", "isaaclab", "libero"} else ""}
+{'user = "root"' if task.backend in DEVICE_BACKENDS else ""}
 [environment]
 build_timeout_sec = 1800.0
 cpus = 4
@@ -260,7 +261,7 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
                 "Results are not benchmark eligible."
             ),
         )
-    if task.backend in {"robocasa", "isaaclab", "libero"}:
+    if task.backend in DEVICE_BACKENDS:
         clock_instruction = (
             "Physics continues while you think. Writes update persistent commands; "
             "stop stops a device, not the world. "
@@ -313,6 +314,10 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
         )
         if not isinstance(provenance, dict):
             raise ValueError("reference provenance must be an object")
+        if "retired" in provenance and type(provenance["retired"]) is not bool:
+            raise ValueError("reference retirement status must be a boolean")
+        if provenance.get("retired") is True:
+            raise ValueError("reference program is retired; select a validated typed controller")
         if "official" in provenance and type(provenance["official"]) is not bool:
             raise ValueError("reference official status must be a boolean")
         if provenance.get("official") is True:

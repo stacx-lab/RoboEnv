@@ -29,6 +29,8 @@ op                      what
 
 from __future__ import annotations
 
+from roboenv.tasks.model import DEVICE_BACKENDS
+
 import argparse
 import contextlib
 import copy
@@ -40,6 +42,8 @@ import stat
 import struct
 import sys
 import threading
+import queue
+from concurrent.futures import Future
 import time
 import zlib
 from collections.abc import Mapping, Sequence
@@ -628,7 +632,7 @@ class SimWorker:
             "reset", "reset_same_task", "shutdown",
         }:
             raise WorkerRPCError("world_failed", "World lifecycle failed; owner recovery is required")
-        if self.adapter.name in {"robocasa", "isaaclab", "libero"} and op in {
+        if self.adapter.name in DEVICE_BACKENDS and op in {
             "call", "skill", "exec", "vla", "reset", "reset_same_task", "checkpoint", "restore",
         }:
             raise WorkerRPCError("unsupported_op", "This backend accepts basic device operations; start a new service for a new episode")
@@ -660,7 +664,7 @@ class SimWorker:
                         return self.devices.inventory()
                     description = self.devices.environment()
                     task = description.get("task", {})
-                    if self.adapter.name in {"robocasa", "isaaclab", "libero"}:
+                    if self.adapter.name in DEVICE_BACKENDS:
                         description = {
                             "task": {"id": task.get("id", self.task_id),
                                      "instruction": self.adapter.goal() or task.get("instruction", ""),
@@ -829,6 +833,84 @@ class WorkerUnixServer(socketserver.UnixStreamServer):
         self.max_bytes = max_bytes
         super().__init__(socket_address(path), WorkerRequestHandler)
 
+    def dispatch(self, raw):
+        return handle_mapping(self.worker, raw)
+
+
+class MainThreadWorkerUnixServer(socketserver.ThreadingMixIn, WorkerUnixServer):
+    """Decode connections in threads; run every native call on the owner thread.
+
+    Isaac cannot advance physics on the background clock thread. Idle or partial
+    connections must also leave its main execution lane available for clock ticks.
+    """
+
+    daemon_threads = True
+    block_on_close = False
+    request_handoff_timeout = 0.02
+
+    def __init__(self, *args, **kwargs):
+        self._pending = queue.SimpleQueue()
+        self._pending_lock = threading.Lock()
+        self._closing = False
+        self._stop_serving = threading.Event()
+        self._native_stopped = threading.Event()
+        super().__init__(*args, **kwargs)
+
+    def serve_forever(self, poll_interval=0.2):
+        # WorkerClient opens a new socket for every RPC. Accepting only from
+        # the native loop would throttle all devices to one request per frame,
+        # even when a batch could otherwise drain the pending request queue.
+        acceptor = threading.Thread(
+            target=super().serve_forever, kwargs={"poll_interval": poll_interval},
+            name="roboenv-worker-accept", daemon=True,
+        )
+        self._native_stopped.clear()
+        acceptor.start()
+        try:
+            while not self._stop_serving.is_set():
+                self.service_native_requests()
+        finally:
+            super().shutdown()
+            acceptor.join()
+            self._native_stopped.set()
+
+    def shutdown(self):
+        self._stop_serving.set()
+        self._native_stopped.wait()
+
+    def dispatch(self, raw):
+        future = Future()
+        with self._pending_lock:
+            if self._closing:
+                raise WorkerRPCError("worker_closed", "worker is closing")
+            self._pending.put((future, raw))
+        return future.result()
+
+    def service_native_requests(self):
+        # A slow native tick must not limit all devices together to one RPC per
+        # physics frame. Give decoding/reply threads a bounded opportunity to
+        # hand over the next request, then service the clock even under a flood.
+        for _ in range(16):
+            try:
+                timeout = min(self.request_handoff_timeout, self.worker.world.poll_interval)
+                future, raw = self._pending.get(timeout=timeout)
+            except queue.Empty:
+                break
+            if future.set_running_or_notify_cancel():
+                try:
+                    future.set_result(handle_mapping(self.worker, raw))
+                except Exception as exc:
+                    future.set_exception(exc)
+        self.worker.world.poll()
+
+    def server_close(self):
+        with self._pending_lock:
+            self._closing = True
+            while not self._pending.empty():
+                future, _raw = self._pending.get_nowait()
+                future.cancel()
+        super().server_close()
+
 
 class WorkerRequestHandler(socketserver.StreamRequestHandler):
     """One NDJSON request per line; connections may carry several."""
@@ -843,7 +925,7 @@ class WorkerRequestHandler(socketserver.StreamRequestHandler):
             except ProtocolError as exc:
                 response = _strict_error({}, exc.code, exc.message, details=exc.details)
             else:
-                response = handle_mapping(server.worker, raw)
+                response = server.dispatch(raw)
             try:
                 self.wfile.write(encode_ndjson(response, max_bytes=server.max_bytes))
                 self.wfile.flush()
@@ -869,7 +951,8 @@ def build_adapter(
     task = find_task(task_ref)
     kwargs = dict(task.adapter_kwargs)
     if task.adapter == "robodojo":
-        kwargs["respect_task_step_lim"] = budget_mode == "official"
+        # Typed RoboDojo always clamps action frames to the native task horizon.
+        # The retired primitive wrapper's raw-step override is not its contract.
         kwargs.setdefault("max_steps", practice_max_steps)
     adapter = make_adapter(task.adapter, **kwargs)
     return adapter, task.id
@@ -952,7 +1035,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             generation=args.generation,
             privileged=args.privileged,
         )
-        server = WorkerUnixServer(str(socket_path), worker, args.max_ndjson_bytes)
+        server_type = MainThreadWorkerUnixServer if worker.world.main_thread_clock else WorkerUnixServer
+        server = server_type(str(socket_path), worker, args.max_ndjson_bytes)
         os.chmod(socket_path, 0o600)
         log.info(
             "worker ready: task=%s seed=%s mode=%s socket=%s",
@@ -970,7 +1054,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         old_term = signal.signal(signal.SIGTERM, request_shutdown)
         old_int = signal.signal(signal.SIGINT, request_shutdown)
         try:
-            server.serve_forever(poll_interval=0.2)
+            server.serve_forever(poll_interval=worker.world.poll_interval)
         finally:
             signal.signal(signal.SIGTERM, old_term)
             signal.signal(signal.SIGINT, old_int)

@@ -1,0 +1,125 @@
+"""Public transport contracts on instrumented worlds; not native physics evidence."""
+
+import copy
+from dataclasses import replace
+from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
+import pytest
+from roboenv.devices.bindings.registry import BindingContext
+from roboenv.devices.bindings.spec import BindingPlan
+from roboenv.devices.model import DeviceError
+from roboenv_runtime.adapters.device_control import DeviceControl
+from roboenv_runtime.bindings import default_registry
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_robodojo_public_instruction_uses_cached_native_description():
+    from roboenv_runtime.adapters.robodojo.adapter import RoboDojoAdapter
+
+    class Native:
+        obs_manager = SimpleNamespace(instruction=["Pick up the blue cup by 10 cm."])
+
+        def gen_instruction(self, *_args):
+            raise AssertionError("Public reads must not regenerate or resample descriptions")
+
+    adapter = RoboDojoAdapter.__new__(RoboDojoAdapter)
+    adapter._env = SimpleNamespace(_env=Native())
+    assert adapter.goal() == "Pick up the blue cup by 10 cm."
+    assert adapter.goal() == "Pick up the blue cup by 10 cm."
+
+
+def service(tmp_path, *, embodiment="piper"):
+    root = ROOT / "catalog/robots/robotwin/robotwin-dual-piper"
+    plan = BindingPlan.load(root, backend="robotwin")
+    facts = {}
+    for spec in plan.devices:
+        definition = spec.definition(root)
+        facts[spec.entity] = {
+            "type": definition.type,
+            "intrinsics": definition.intrinsics,
+            "extrinsics": definition.extrinsics,
+        }
+    world = SimpleNamespace(embodiment=embodiment, device_facts=facts, steps=0)
+    actuator_names = [
+        name for name, fact in facts.items() if fact["type"] in {"manipulator", "end_effector"}
+    ]
+    targets = {name: [0.0] * (6 if name.endswith("arm") else 1) for name in actuator_names}
+
+    def advance():
+        world.steps += 1
+
+    world.control = DeviceControl(
+        {name: [(-1.0, 1.0)] * len(value) for name, value in targets.items()},
+        targets,
+        lambda target: None,
+        advance,
+        realtime=False,
+        exhausted=lambda: world.steps >= 3,
+    )
+    world.device_write = world.control.write
+    world.device_stop = lambda name: world.control.stop(name, targets[name])
+    world.device_read = lambda name: {
+        "positions": targets[name],
+        "velocities": [0.0] * len(targets[name]),
+    }
+    world.device_image = lambda name: (np.zeros((240, 320, 3), dtype=np.uint8), np.ones((240, 320)))
+    owner = SimpleNamespace(_env=world, run_dir=tmp_path)
+    context = BindingContext("robotwin", "piper", owner)
+    return default_registry().assemble(plan, root, context), world, plan, root, context
+
+
+def test_public_world_has_no_truth_or_mutation_shortcuts(tmp_path):
+    wire, world, *_ = service(tmp_path)
+    try:
+        assert wire.describe("world")["actions"] == {}
+        for action in ("read", "state", "invoke", "score", "reset", "restore"):
+            with pytest.raises(DeviceError):
+                wire.call({"device": "world", "action": action, "args": {}})
+        assert world.steps == 0
+    finally:
+        wire.close()
+
+
+def test_atomic_transport_and_read_stop_invariance(tmp_path):
+    wire, world, *_ = service(tmp_path)
+
+    def call(device, action, args=None):
+        return wire.call({"device": device, "action": action, "args": args or {}})
+
+    try:
+        group = {"id": 0, "devices": ["left_arm", "right_arm"]}
+        call("left_arm", "write", {"target": [0.1] * 6, "step": group})
+        assert world.steps == 0
+        with pytest.raises(DeviceError):
+            call("right_arm", "write", {"target": [float("nan")] * 6, "step": group})
+        assert world.steps == 0
+        call("right_arm", "write", {"target": [0.2] * 6, "step": group})
+        assert world.steps == 1
+        for action in ("load", "read", "status", "stop", "unload"):
+            call("left_arm", action)
+        call("head_camera", "read")
+        assert world.steps == 1
+        assert len(list((tmp_path / "captures").glob("*.png"))) == 1
+    finally:
+        wire.close()
+
+
+def test_rig_mismatch_and_aliases_fail_before_effects(tmp_path):
+    with pytest.raises(ValueError, match="embodiment"):
+        service(tmp_path, embodiment="aloha_agilex")
+    wire, world, plan, root, context = service(tmp_path)
+    try:
+        alias = replace(plan.devices[0], name="alias")
+        duplicate = replace(plan, devices=(*plan.devices, alias))
+        with pytest.raises(ValueError, match="alias"):
+            default_registry().assemble(duplicate, root, context)
+        world.device_facts = copy.deepcopy(world.device_facts)
+        world.device_facts["left_arm"]["intrinsics"]["home"]["joint1"] = 0.123
+        with pytest.raises(ValueError, match="Catalog intrinsics"):
+            default_registry().assemble(plan, root, context)
+        assert world.steps == 0
+    finally:
+        wire.close()

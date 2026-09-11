@@ -18,9 +18,3 @@ name                    simulator                              embodiment
 ``behavior``            BEHAVIOR-1K on OmniGibson/Isaac Sim    r1pro
 ======================  =====================================  ============
 """
-
-from __future__ import annotations
-
-from roboenv_runtime.adapters.base import CapxBridge
-
-__all__ = ["CapxBridge"]

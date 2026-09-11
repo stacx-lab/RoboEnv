@@ -37,7 +37,17 @@ def inputs(tmp_path):
     return wheel, deployments
 
 
-def test_default_preparation_excludes_retired_libero_references(tmp_path, monkeypatch):
+def typed_reference_fixture(tmp_path):
+    source = tmp_path / "reference-source"
+    source.mkdir()
+    task = yaml.safe_load((ROOT / "catalog/tasks/robotwin/handover-mic/task.yaml").read_text())
+    task["id"] = "robotwin/test-reference"
+    (source / "task.yaml").write_text(yaml.safe_dump(task))
+    (source / "solution.py").write_text("# Fixture for result classification; never executed.\n")
+    return source
+
+
+def test_default_preparation_excludes_retired_primitive_references(tmp_path, monkeypatch):
     tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     monkeypatch.setattr(
@@ -45,7 +55,8 @@ def test_default_preparation_excludes_retired_libero_references(tmp_path, monkey
     )
     out = tmp_path / "validation"
     receipt = tool.prepare(deployments, wheel, out)
-    assert len(receipt["cases"]) == 6
+    assert len(receipt["cases"]) == 2
+    assert {case["backend"] for case in receipt["cases"]} == {"robocasa"}
     assert receipt["phase"] == "prepared" and receipt["model_calls"] == 0
     assert receipt["reference_official"] is False
     assert receipt["harbor_loader_validated"] is True
@@ -66,7 +77,7 @@ def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_p
         "robot": "behavior-r1pro",
         "instruction": "Fixture instruction from explicit source",
         "backend_kwargs": {"activity_name": "fixture", "scene_model": "explicit_scene"},
-        "action_abstraction": "symbolic-primitives",
+        "action_abstraction": "devices",
     }
     (source / "task.yaml").write_text(yaml.safe_dump(task))
     cases = tool.select_cases(
@@ -76,12 +87,14 @@ def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_p
     assert {task.robot for _, task, _, _ in cases if task.backend == "libero"} == {
         "libero/libero-panda-tabletop", "libero/libero-panda-kitchen",
     }
-    yam = next(task for _, task, _, _ in cases if task.robot == "robodojo-yam")
+    yam = next(task for _, task, _, _ in cases if task.robot == "robodojo/robodojo-yam")
     assert yam.backend_kwargs["env_cfg_type"] == "yam"
-    aloha = next(task for _, task, _, _ in cases if task.robot == "robotwin-aloha-agilex")
+    assert yam.backend_kwargs["layout_config"] == "arx_x5"
+    aloha = next(task for _, task, _, _ in cases if task.robot == "robotwin/robotwin-aloha-agilex")
     assert aloha.backend_kwargs["embodiment"] == "aloha_agilex"
     behavior = next(task for _, task, _, _ in cases if task.backend == "behavior")
     assert behavior.backend_kwargs["scene_model"] == "explicit_scene"
+    assert behavior.action_abstraction == "devices"
     for _, _, _, program in cases:
         assert "client.device(descriptor['name']).read()" in program
         assert not any(value in program for value in ("submit", "reset", "shutdown", "_private"))
@@ -166,8 +179,9 @@ def test_runner_classifies_real_success_separately_from_probe_connectivity(
         wheel,
         out,
         backends=["robotwin"],
-        cases=["robotwin/handover-mic"],
-        robots=["robotwin-dual-piper"],
+        cases=["robotwin/test-reference"],
+        source=typed_reference_fixture(tmp_path),
+        robots=["robotwin/robotwin-dual-piper"],
         modes=[mode],
     )
     calls = []
@@ -203,8 +217,9 @@ def test_missing_completion_or_modified_journal_cannot_certify_a_reference(tmp_p
         wheel,
         out,
         backends=["robotwin"],
-        cases=["robotwin/handover-mic"],
-        robots=["robotwin-dual-piper"],
+        cases=["robotwin/test-reference"],
+        source=typed_reference_fixture(tmp_path),
+        robots=["robotwin/robotwin-dual-piper"],
     )
     record = receipt["cases"][0]
     trial = write_trial(out, record, reward=1, program_completed=False)
@@ -241,7 +256,8 @@ def test_unavailable_image_is_a_recorded_preflight_failure_not_a_trial(tmp_path,
         out,
         backends=["robotwin"],
         cases=["robotwin/handover-mic"],
-        robots=["robotwin-dual-piper"],
+        robots=["robotwin/robotwin-dual-piper"],
+        modes=["probe"],
     )
 
     def fail(*args, **kwargs):
@@ -265,7 +281,8 @@ def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path,
         out,
         backends=["robotwin"],
         cases=["robotwin/handover-mic"],
-        robots=["robotwin-dual-piper"],
+        robots=["robotwin/robotwin-dual-piper"],
+        modes=["probe"],
     )
     program = out / "taskset" / receipt["cases"][0]["path"] / "solution/solution.py"
     program.write_text("# changed after preparation\n")
@@ -277,7 +294,7 @@ def test_modified_prepared_program_is_rejected_before_docker_or_harbor(tmp_path,
 def test_case_selection_alone_narrows_probe_backends_without_guessing():
     tool = load_tool("validate_simulators")
     cases = tool.select_cases(
-        cases=["robotwin/handover-mic"], robots=["robotwin-dual-piper"], modes=["probe"]
+        cases=["robotwin/handover-mic"], robots=["robotwin/robotwin-dual-piper"], modes=["probe"]
     )
     assert len(cases) == 1 and cases[0][1].backend == "robotwin"
 
@@ -312,7 +329,7 @@ def test_failed_advertised_device_read_has_a_failure_category_without_harbor_exc
 
 
 @pytest.mark.parametrize("backend,world_readable", [("libero", False), ("robocasa", False),
-                                                   ("robotwin", True)])
+                                                   ("robotwin", False)])
 def test_probe_reads_match_evidence_for_native_and_controller_worlds(
     tmp_path, monkeypatch, backend, world_readable,
 ):
@@ -359,3 +376,13 @@ def test_original_version_one_probe_receipts_keep_their_read_requirements(tmp_pa
         assert evidence["device_read_probe_passed"] == (len(reads) == 2)
         if len(reads) == 1:
             assert evidence["failure_category"] == "incomplete-device-read-evidence"
+
+
+@pytest.mark.parametrize("identifier", [
+    "robotwin/handover-mic", "robotwin/stack-blocks-three",
+    "robodojo/general-pickup", "robodojo/stack-bowls",
+])
+def test_retired_native_reference_cannot_be_selected(identifier):
+    tool = load_tool("validate_simulators")
+    with pytest.raises(ValueError, match="reference is retired"):
+        tool.select_cases(backends=[identifier.split("/")[0]], cases=[identifier])

@@ -347,7 +347,7 @@ def test_grouped_catalog_ids_and_listing(capsys):
     from roboenv.tasks.catalog import load_catalog
 
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 12
+    assert len(catalog) == 13
     for identifier, (task, path) in catalog.items():
         assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
         assert identifier.split("/")[0] == task.backend
@@ -387,7 +387,7 @@ def test_clock_override_reaches_runtime_without_catalog_edits(realtime):
 def test_clock_validation_precedes_launch_effects(monkeypatch):
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("unexpected process"))
     with pytest.raises(ValueError, match="Clock selection is not supported"):
-        launch("robotwin/handover-mic", project=ROOT, realtime=True)
+        launch("isaaclab/go2-posture", project=ROOT, realtime=True)
     with pytest.raises(ValueError, match="boolean"):
         launch("robocasa/pick-place-microwave", project=ROOT, realtime="false")
     task = asdict(resolve_task("robocasa/pick-place-microwave", project=ROOT).task)

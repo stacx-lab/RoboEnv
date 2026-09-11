@@ -29,7 +29,17 @@ class WorldSession:
         self._closed = False
         self._halt = threading.Event()
         self._thread = None
+        self.main_thread_clock = bool(getattr(native, "realtime_on_main_thread", False)) and (
+            getattr(native, "realtime_interval", None) is not None
+        )
+        self._interval = None
+        self._deadline = None
+        self._owner_thread = None
         self.failure = None
+
+    @property
+    def poll_interval(self):
+        return min(0.2, self._interval) if self.main_thread_clock and self._interval else 0.2
 
     def start(self):
         """Start an adapter's optional wall-clock-paced simulation after binding."""
@@ -39,8 +49,13 @@ class WorldSession:
         if not math.isfinite(interval) or interval <= 0:
             raise ValueError("realtime interval must be positive")
         with self.lock:
-            if self._closed or self._thread is not None:
+            if self._closed or self._interval is not None:
                 raise RuntimeError("world cannot be started twice")
+            self._interval = interval
+            if self.main_thread_clock:
+                self._owner_thread = threading.get_ident()
+                self._deadline = time.monotonic() + interval
+                return
             self._thread = threading.Thread(
                 target=self._run, args=(interval,), name="roboenv-world", daemon=True
             )
@@ -49,24 +64,36 @@ class WorldSession:
     def _run(self, interval):
         deadline = time.monotonic() + interval
         while not self._halt.wait(max(0, deadline - time.monotonic())):
-            with self.lock:
-                if self._halt.is_set():
-                    return
-                try:
-                    budget = self.native.budget()
-                    if budget.exhausted:
-                        self._halt.set()
-                        return
-                    self.native.realtime_tick()
-                except Exception as exc:
-                    # Publish failure before releasing the state lock so submit
-                    # cannot seal a partially advanced, failed physics frame.
-                    self.failure = exc
-                    self._halt.set()
-                    return
+            self._tick()
             # Best effort 1x speed. A slow simulator never skips physics or
             # runs an unbounded catch-up burst after a slow device read.
             deadline = max(deadline + interval, time.monotonic())
+
+    def poll(self):
+        """Service a thread-affine native clock from the worker's execution lane."""
+        if not self.main_thread_clock or self._deadline is None or self._halt.is_set():
+            return
+        if threading.get_ident() != self._owner_thread:
+            raise RuntimeError("native clock must run on its creating thread")
+        if time.monotonic() < self._deadline:
+            return
+        self._tick()
+        self._deadline = max(self._deadline + self._interval, time.monotonic())
+
+    def _tick(self):
+        with self.lock:
+            if self._halt.is_set():
+                return
+            try:
+                if self.native.budget().exhausted:
+                    self._halt.set()
+                    return
+                self.native.realtime_tick()
+            except Exception as exc:
+                # Publish failure before releasing the state lock so submit
+                # cannot seal a partially advanced, failed physics frame.
+                self.failure = exc
+                self._halt.set()
 
     def freeze(self):
         """Linearize the terminal snapshot with ticks; safe while holding lock."""

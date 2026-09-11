@@ -1,4 +1,4 @@
-"""All production slots assemble without importing an engine or catalog code."""
+"""Explicit legacy controller compatibility; default native bindings are tested separately."""
 
 import importlib
 from dataclasses import replace
@@ -10,13 +10,13 @@ from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.model import DeviceError
 from roboenv_runtime.adapters.fakeshell import FakeShell
-from roboenv_runtime.bindings import default_registry
 from roboenv_runtime.bindings.backend import BackendControllers
 from roboenv_runtime.bindings.simulators import binding_index
 from roboenv_runtime.runtime.worker import SimWorker
+from service_fixtures import legacy_registry
 
 ROOT = Path(__file__).resolve().parents[1]
-ROBOTS = sorted(p for p in (ROOT / "catalog/robots").iterdir() if (p / "bindings.yaml").is_file())
+ROBOTS = sorted((ROOT / "tests/fixtures/legacy-native-catalogs").iterdir())
 
 
 @pytest.mark.parametrize("robot", ROBOTS, ids=lambda p: p.name)
@@ -32,7 +32,7 @@ def test_every_catalog_slot_has_a_registered_non_catalog_implementation(robot):
         for dependencies in module.REQUIRES.values():
             controllers.update({name: lambda: None for name in dependencies})
     context = BindingContext(backend, embodiment, object(), public_tools=controllers)
-    service = default_registry().assemble(plan, robot, context)
+    service = legacy_registry().assemble(plan, robot, context)
     try:
         for spec in plan.devices:
             description = service.describe(spec.name)
@@ -45,10 +45,10 @@ def test_every_catalog_slot_has_a_registered_non_catalog_implementation(robot):
 
 
 def robodojo_service(controllers):
-    robot = ROOT / "catalog/robots/robodojo-arx-x5"
+    robot = ROOT / "tests/fixtures/legacy-native-catalogs/robodojo-arx-x5"
     plan = BindingPlan.load(robot, backend="robodojo")
     context = BindingContext("robodojo", "arx_x5", object(), public_tools=controllers)
-    return default_registry().assemble(plan, robot, context)
+    return legacy_registry().assemble(plan, robot, context)
 
 
 def test_missing_controller_is_reported_before_execution():
@@ -93,7 +93,8 @@ def test_controllers_cannot_execute_during_binding_construction():
         controller.call("move")
 
 
-def test_device_and_primitive_calls_share_worker_accounting(tmp_path):
+def test_legacy_device_accounting_does_not_enable_public_primitives(tmp_path, monkeypatch):
+    monkeypatch.setattr("roboenv_runtime.bindings.assembly.default_registry", legacy_registry)
 
     class ArmWorld(FakeShell):
         name = "robodojo"
@@ -110,22 +111,25 @@ def test_device_and_primitive_calls_share_worker_accounting(tmp_path):
         task_id="test",
         seed=0,
         run_dir=tmp_path,
-        device_root=ROOT / "catalog/robots/robodojo-arx-x5",
+        device_root=ROOT / "tests/fixtures/legacy-native-catalogs/robodojo-arx-x5",
     )
     try:
         worker.dispatch(
             "devices.call", {"device": "arm", "action": "write", "args": {"target": [0.1, 0, 0]}}
         )
         assert worker.basic_call_count == 2  # motion plus pose query, each counted once
-        worker.dispatch("call", {"name": "goto_pose", "kwargs": {"xyz": [0.2, 0, 0]}})
-        assert worker.basic_call_count == 3
-        assert worker.adapter.budget().used == 100
+        from roboenv_runtime.runtime.worker import WorkerRPCError
+
+        with pytest.raises(WorkerRPCError, match="basic device"):
+            worker.dispatch("call", {"name": "goto_pose", "kwargs": {"xyz": [0.2, 0, 0]}})
+        assert worker.basic_call_count == 2
+        assert worker.adapter.budget().used == 50
     finally:
         worker.close()
 
 
 def piper_world_service(*, functional_controller=True, failed_pose=False):
-    root = ROOT / "catalog/robots/robotwin-dual-piper"
+    root = ROOT / "catalog/robots/robotwin/robotwin-dual-piper"
     plan = BindingPlan.load(root, backend="robotwin")
     plan = replace(plan, devices=tuple(spec for spec in plan.devices if spec.name == "world"))
     functional_calls = []
@@ -160,7 +164,14 @@ def piper_world_service(*, functional_controller=True, failed_pose=False):
         public_dispatch=lambda op, args: observations[op],
         public_tools=controllers,
     )
-    return default_registry().assemble(plan, root, context), functional_calls
+    # Retain regression coverage for the independently retained primitive handler.
+    # The default RoboTwin registry now uses a sensor-only native world.
+    from roboenv.devices.bindings.registry import BindingRegistry
+    from roboenv_runtime.bindings.simulators import bind_simulator_device
+
+    registry = BindingRegistry()
+    registry.register("robotwin.device/1", bind_simulator_device)
+    return registry.assemble(plan, root, context), functional_calls
 
 
 @pytest.mark.parametrize("functional_controller", [False, True])

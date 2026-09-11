@@ -16,23 +16,16 @@ import subprocess
 from pathlib import Path
 
 from roboenv.provisioning.sources import status
+from roboenv.tasks.catalog import BACKENDS
+from roboenv.validation import yaml_load
 
 WORKSPACE = Path(__file__).resolve().parents[1]
-INTERPRETERS = {
-    "isaaclab": ".venv-sim/isaaclab",
-    "libero": ".venv-sim/libero",
-    "robotwin": "third_party/cap-x/.venv-robotwin",
-    "robocasa": "miniconda3/envs/robocasa",
-    "robodojo": "miniconda3/envs/RoboDojo",
-    "behavior": ".cache/miniconda3/envs/behavior",
-}
 SOURCES = {
     "isaaclab": ["third_party/IsaacLab"],
     "libero": ["third_party/LIBERO"],
-    "robotwin": ["third_party/cap-x", "third_party/RoboTwin"],
+    "robotwin": ["third_party/RoboTwin"],
     "robocasa": ["third_party/robocasa", "third_party/robosuite"],
     "robodojo": [
-        "third_party/cap-x",
         "third_party/RoboDojo",
         "third_party/RoboDojo/third_party/IsaacLab",
         "third_party/RoboDojo/third_party/curobo",
@@ -139,7 +132,7 @@ def check_docker_storage(size):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("backend", choices=INTERPRETERS)
+    parser.add_argument("backend", choices=BACKENDS)
     parser.add_argument("--dependencies", required=True, type=Path)
     parser.add_argument(
         "--interpreter",
@@ -153,6 +146,7 @@ def main():
     parser.add_argument("--asset-mode", choices=("reference", "copy"), default="reference")
     parser.add_argument("--interpreter-mode", choices=("image", "depot"), default="image")
     args = parser.parse_args()
+    settings = yaml_load((WORKSPACE / "catalog/deployments" / f"{args.backend}.yaml").read_text())
     source_status = status(WORKSPACE, [args.backend])
     if not source_status["ready"]:
         parser.error("pinned upstream sources are not ready; run roboenv sources sync first")
@@ -162,7 +156,7 @@ def main():
     interpreter = (
         args.interpreter.absolute()
         if args.interpreter is not None
-        else root / INTERPRETERS[args.backend] / "bin/python"
+        else root / settings["interpreter"]
     )
     if interpreter.parent.name != "bin":
         parser.error("interpreter must be the bin/python executable of an isolated environment")
@@ -192,10 +186,6 @@ def main():
         str(root): "/opt/roboenv/runtime",
         str(environment): "/opt/sim-env",
         str(root / "RoboDojo"): "/opt/roboenv/runtime/third_party/RoboDojo",
-        str(root / "cap-x"): "/opt/roboenv/runtime/third_party/cap-x",
-        str(
-            root / "third_party/cap-x/capx/third_party/RoboTwin"
-        ): "/opt/roboenv/runtime/third_party/RoboTwin",
         str(WORKSPACE): "/opt/roboenv/runtime",
     }
     # Fresh copies: never hardlink mutable environments/bridge source to the old checkout.
@@ -228,8 +218,6 @@ def main():
     mounts = []
     for relative in EXTERNAL[args.backend]:
         source = root / relative
-        if args.backend == "robotwin" and not source.exists():
-            source = root / "third_party/cap-x/capx/third_party/RoboTwin/assets"
         if source.is_dir():
             destination = source
             if args.asset_mode == "copy":
@@ -251,8 +239,6 @@ def main():
     def ignore(directory, names):
         blocked = {".git", "__pycache__", "node_modules", ".cache", "XPolicyLab"}
         blocked |= {name for name in names if name.startswith((".venv", ".env"))}
-        if Path(directory).name == "capx":
-            blocked.add("third_party")
         if Path(directory) == WORKSPACE / "third_party/RoboDojo":
             blocked.add("third_party")
         blocked |= {name for name in names if str(Path(directory) / name) in exclusions}
@@ -332,6 +318,8 @@ def main():
         "mounts": mounts,
         "runtime_wheel_sha256": hashlib.sha256(args.runtime_wheel.read_bytes()).hexdigest(),
         "interpreter": "/opt/sim-env/bin/python",
+        "runtime_options": {key: settings[key] for key in ("shm_size", "start_period")
+                            if key in settings},
         "legacy_tree_required": False,
         "source_revisions": {item["name"]: item["actual"] for item in source_status["sources"]},
         "interpreter_mode": args.interpreter_mode,

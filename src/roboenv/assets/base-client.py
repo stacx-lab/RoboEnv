@@ -21,7 +21,9 @@ def handle(action, args):
         if action != "write" and args:
             raise ValueError(f"{action} takes no arguments")
         if action == "write":
-            value = command(profile, args)
+            value = command(profile, {key: item for key, item in args.items() if key != "step"})
+            if "step" in args:
+                value["step"] = args["step"]
             return {"ok": True, **remote(action, value)}
         if action == "read":
             return {"ok": True, **reading(profile, remote(action, args))}
