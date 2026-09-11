@@ -116,7 +116,10 @@ def test_read_cannot_dispatch_motion_and_identity_is_checked(device_service):
     assert client.request("observe")["budget"]["used"] == 0
 
 
-def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, tmp_path):
+@pytest.mark.parametrize(
+    "backend", [None, "libero", "robocasa", "robotwin", "robodojo", "behavior"]
+)
+def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, tmp_path, backend):
     client, supervisor, _ = device_service
     program = tmp_path / "solution.py"
     program.write_text('push(0.3)\nassert get_object_pose(name="puck")[0][0] >= 0.3\n')
@@ -143,9 +146,11 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
     assets = importlib.resources.files("roboenv").joinpath("assets")
     verifier = tmp_path / "verify.py"
     verifier.write_text(assets.joinpath("verify.py").read_text())
-    (tmp_path / "task.json").write_text(
-        json.dumps({"task_id": "device-toy", "seed": 0, "session": "harbor"})
-    )
+    task = {"task_id": "device-toy", "seed": 0, "session": "harbor", "backend": backend}
+    if backend:
+        task["session"] = "stale-deployment-session"
+        Path(client.socket_path).with_name("identity.json").write_text('{"session":"harbor"}')
+    (tmp_path / "task.json").write_text(json.dumps(task))
     result = subprocess.run(
         [sys.executable, str(verifier)],
         cwd=tmp_path,
