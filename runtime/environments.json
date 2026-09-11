@@ -99,7 +99,7 @@
     },
     "behavior": {
       "python": "3.11",
-      "lock": null,
+      "lock": "runtime/locks/behavior-devices-resolved.txt",
       "editables": [
         "third_party/BEHAVIOR-1K/bddl3",
         "third_party/BEHAVIOR-1K/OmniGibson"
@@ -108,10 +108,14 @@
         "https://pypi.nvidia.com",
         "https://download.pytorch.org/whl/cu128"
       ],
-      "known_blockers": [
-        "No clean-install dependency lock is published yet. The prepared interpreter is not a reproducible install recipe."
-      ],
-      "asset_instructions": "third_party/BEHAVIOR-1K/README.md"
+      "known_blockers": [],
+      "asset_instructions": "third_party/BEHAVIOR-1K/README.md",
+      "index_strategy": "unsafe-best-match",
+      "index_url": "https://pypi.org/simple",
+      "import_probes": [
+        "omnigibson",
+        "roboenv_runtime.adapters.behavior"
+      ]
     },
     "isaaclab": {
       "python": "3.12",

@@ -4,18 +4,20 @@ identity:
   name: behavior-r1pro
   platform: sim
   kind: mobile
-  model: Dual-arm R1 Pro on a holonomic base, driven through symbolic primitives in
-    a multi-room house.
+  model: behavior-r1pro
 sim:
   source: user
   simulator: behavior
-  composition:
-  - controller
 devices:
   source: user
 safety:
   source: user
-  max_cartesian_velocity: ???
-  max_joint_velocity: ???
+  max_cartesian_velocity: null
+  max_joint_velocity: null
   keep_out_zones: []
-  notes: Native primitive control only; unknown calibration is not invented.
+  notes: 'Native joint limits and collisions apply. Stop holds its device. Coordinated
+    writes may share step: {id: N, devices: [...]}; all participants must submit once
+    before that step executes.'
+meta:
+  created_at: '2026-09-09T00:00:00Z'
+  updated_at: '2026-09-09T00:00:00Z'

@@ -1,0 +1,181 @@
+name: trunk
+type: manipulator
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  kinematics:
+    model:
+      format: serial_chain
+      joints:
+      - name: torso_joint1
+        type: revolute
+        limits:
+          min: -1.1345
+          max: 1.8326
+        max_velocity: 2.5
+        max_effort: 100.0
+      - name: torso_joint2
+        type: revolute
+        limits:
+          min: -2.7925
+          max: 2.5307
+        max_velocity: 2.5
+        max_effort: 100.0
+      - name: torso_joint3
+        type: revolute
+        limits:
+          min: -1.8326
+          max: 1.5708
+        max_velocity: 2.5
+        max_effort: 100.0
+      - name: torso_joint4
+        type: revolute
+        limits:
+          min: -3.0543
+          max: 3.0543
+        max_velocity: 2.5
+        max_effort: 100.0
+      chain:
+      - origin:
+        - -0.079032
+        - 0.0
+        - 0.34265
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 0
+        axis:
+        - 0.0
+        - 1.0
+        - 0.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+      - origin:
+        - 0.0
+        - 0.0
+        - 0.4
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 1
+        axis:
+        - 0.0
+        - 1.0
+        - 0.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+      - origin:
+        - 0.0
+        - 0.0001005
+        - 0.3
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 2
+        axis:
+        - 0.0
+        - -1.0
+        - 0.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+      - origin:
+        - 0.0
+        - -0.00010015
+        - 0.09962
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 3
+        axis:
+        - 0.0
+        - 0.0
+        - 1.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+    ik:
+      backend: numerical
+      method: damped_least_squares
+      position_tolerance_m: 0.0001
+      rotation_tolerance_rad: 0.001
+      max_iterations: 200
+      damping: 0.01
+  home:
+    torso_joint1: 0.0
+    torso_joint2: 0.0
+    torso_joint3: 0.0
+    torso_joint4: 0.0
+  control:
+    speed: null
+  feedback:
+    velocities: true
+    efforts: false
+    pose_source: driver
+    flange_to_reported:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+  stop:
+    behavior: hold
+    affected_devices:
+    - trunk
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mount:
+    parent: base
+    parent_frame: base
+    translation_m:
+    - 0.0
+    - 0.0
+    - 0.0
+    rotation_xyzw:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: trunk
+  driver:
+    entry: driver.py
+    interpreter: python3
+    persistent: true
+    actions:
+    - load
+    - unload
+    - status
+    - read
+    - write
+    - stop
+    - fk
+    - ik
+meta:
+  created_at: '2026-09-09T00:00:00Z'
+  updated_at: '2026-09-09T00:00:00Z'

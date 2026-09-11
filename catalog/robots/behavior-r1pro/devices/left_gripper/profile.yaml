@@ -1,0 +1,70 @@
+name: left_gripper
+type: end_effector
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  tool_type: parallel_gripper
+  aperture_m: null
+  control:
+    mode: position
+    units: normalized
+    resolution: null
+    bounds:
+      min: 0
+      max: 1
+    open_target: 1
+    close_target: 0
+    speed: null
+  feedback:
+    positions:
+    - name: left_gripper_finger_joint1
+      units: m
+    - name: left_gripper_finger_joint2
+      units: m
+    velocities: true
+    sensors: []
+    clock: simulation
+    aperture_model: null
+  stop:
+    behavior: hold
+    affected_devices:
+    - left_gripper
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mount:
+    parent: left_arm
+    parent_frame: flange
+    translation_m:
+    - 0
+    - 0
+    - 0
+    rotation_xyzw:
+    - 0
+    - 0
+    - 0
+    - 1
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: left_gripper
+  driver:
+    entry: driver.py
+    interpreter: python3
+    persistent: true
+    actions:
+    - load
+    - unload
+    - status
+    - read
+    - write
+    - stop
+meta:
+  created_at: '2026-09-09T00:00:00Z'
+  updated_at: '2026-09-09T00:00:00Z'

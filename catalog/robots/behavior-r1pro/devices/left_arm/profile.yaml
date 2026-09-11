@@ -1,0 +1,259 @@
+name: left_arm
+type: manipulator
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  kinematics:
+    model:
+      format: serial_chain
+      joints:
+      - name: left_arm_joint1
+        type: revolute
+        limits:
+          min: -4.4506
+          max: 1.309
+        max_velocity: 7.1209
+        max_effort: 55.0
+      - name: left_arm_joint2
+        type: revolute
+        limits:
+          min: -0.1745
+          max: 3.1416
+        max_velocity: 7.1209
+        max_effort: 55.0
+      - name: left_arm_joint3
+        type: revolute
+        limits:
+          min: -2.356196
+          max: 2.356196
+        max_velocity: 8.3776
+        max_effort: 25.0
+      - name: left_arm_joint4
+        type: revolute
+        limits:
+          min: -2.0944
+          max: 0.3491
+        max_velocity: 8.3776
+        max_effort: 25.0
+      - name: left_arm_joint5
+        type: revolute
+        limits:
+          min: -2.356196
+          max: 2.356196
+        max_velocity: 10.472
+        max_effort: 18.0
+      - name: left_arm_joint6
+        type: revolute
+        limits:
+          min: -1.047198
+          max: 1.047198
+        max_velocity: 10.472
+        max_effort: 18.0
+      - name: left_arm_joint7
+        type: revolute
+        limits:
+          min: -1.5708
+          max: 1.5708
+        max_velocity: 10.472
+        max_effort: 18.0
+      chain:
+      - origin:
+        - 0.0
+        - 0.0735
+        - 0.0
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 0
+        axis:
+        - 0.0
+        - 1.0
+        - 0.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+      - origin:
+        - 0.025012
+        - 0.081265
+        - 0.0
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 1
+        axis:
+        - 1.0
+        - 0.0
+        - 0.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+      - origin:
+        - -0.025012
+        - 0.0
+        - -0.1155
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 2
+        axis:
+        - 0.0
+        - 0.0
+        - 1.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+      - origin:
+        - 0.0
+        - 0.035065
+        - -0.1945
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 3
+        axis:
+        - 0.0
+        - 1.0
+        - 0.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+      - origin:
+        - 0.0
+        - -0.035065
+        - -0.095
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 4
+        axis:
+        - 0.0
+        - 0.0
+        - 1.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+      - origin:
+        - 0.0
+        - -0.028
+        - -0.16305
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 5
+        axis:
+        - 0.0
+        - 1.0
+        - 0.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+      - origin:
+        - 0.0295
+        - 0.028
+        - 0.0
+        - 0.0
+        - 0.0
+        - 0.0
+        - 1.0
+        joint: 6
+        axis:
+        - 1.0
+        - 0.0
+        - 0.0
+        anchor:
+        - 0.0
+        - 0.0
+        - 0.0
+        reference: 0.0
+    ik:
+      backend: numerical
+      method: damped_least_squares
+      position_tolerance_m: 0.0001
+      rotation_tolerance_rad: 0.001
+      max_iterations: 200
+      damping: 0.01
+  home:
+    left_arm_joint1: 0.0
+    left_arm_joint2: 1.5700000524520874
+    left_arm_joint3: 0.0
+    left_arm_joint4: -1.5700000524520874
+    left_arm_joint5: 1.5700000524520874
+    left_arm_joint6: 0.0
+    left_arm_joint7: 0.0
+  control:
+    speed: null
+  feedback:
+    velocities: true
+    efforts: false
+    pose_source: driver
+    flange_to_reported:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+  stop:
+    behavior: hold
+    affected_devices:
+    - left_arm
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mount:
+    parent: trunk
+    parent_frame: flange
+    translation_m:
+    - -0.00048618
+    - 0.097234
+    - 0.30302
+    rotation_xyzw:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: left_arm
+  driver:
+    entry: driver.py
+    interpreter: python3
+    persistent: true
+    actions:
+    - load
+    - unload
+    - status
+    - read
+    - write
+    - stop
+    - fk
+    - ik
+meta:
+  created_at: '2026-09-09T00:00:00Z'
+  updated_at: '2026-09-09T00:00:00Z'
