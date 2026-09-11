@@ -14,7 +14,6 @@
       "url": "https://github.com/capgym/cap-x.git",
       "revision": "53e9966d7a8e2fa7494676772bccc35280f5c0ed",
       "backends": [
-        "robotwin",
         "robodojo"
       ],
       "patches": [
@@ -112,7 +111,7 @@
       "patches": [
         {
           "path": "third_party/patches/robotwin-runtime.patch",
-          "sha256": "8fcd1f5f9e81d022f8f5941edb26728e419f6483b931b0b88c212e96f89f2526"
+          "sha256": "e0734f080d6ba00fd823e6e2efc7c98ec9da8e208c2710934dfb77f9e565f4ac"
         }
       ]
     },

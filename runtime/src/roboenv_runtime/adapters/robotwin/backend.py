@@ -1,7 +1,7 @@
 """RoboTwin dual-arm (Piper) low-level environment wrapper.
 
 Wraps RoboTwin 2.0 bimanual tasks (SAPIEN 3, Vulkan ray-tracing renderer)
-behind capx's BaseEnv interface. Requires the ``.venv-robotwin`` environment;
+through the native SAPIEN API. Requires the ``.venv-robotwin`` environment;
 in other venvs the import fails and the registration guard skips this family.
 
 Two control routes are exposed to the API layer:
@@ -24,6 +24,7 @@ import importlib
 import importlib.util
 import os
 import sys
+import time
 from collections.abc import Callable
 from copy import deepcopy
 from typing import Any, Literal
@@ -34,14 +35,13 @@ import yaml
 
 from roboenv_runtime.paths import robotwin_root
 
-ROBOTWIN_ROOT = str(robotwin_root())  # $ROBOTWIN_ROOT or <cap-x>/capx/third_party/RoboTwin
+ROBOTWIN_ROOT = str(robotwin_root())  # $ROBOTWIN_ROOT or the selected RoboTwin checkout
 if not os.path.isdir(ROBOTWIN_ROOT):
     raise ModuleNotFoundError(f"RoboTwin not found at {ROBOTWIN_ROOT}")
 if ROBOTWIN_ROOT not in sys.path:
     sys.path.insert(0, ROBOTWIN_ROOT)
 
 import sapien  # noqa: E402, F401  (probe: fails fast outside .venv-robotwin)
-from capx.envs.base import BaseEnv  # noqa: E402
 
 # RoboTwin's envs.utils reads "./assets/..." at IMPORT time and everywhere else
 # relative to the CWD, so importing it requires chdir'ing into the RoboTwin
@@ -179,8 +179,8 @@ def _assemble_task_args(
     return args
 
 
-class RoboTwinEnv(BaseEnv):
-    """capx BaseEnv over a RoboTwin bimanual task with dual Piper arms."""
+class RoboTwinEnv:
+    """A source-backed RoboTwin task, independent of any agent harness."""
 
     def __init__(
         self,
@@ -196,14 +196,16 @@ class RoboTwinEnv(BaseEnv):
         collect_wrist_camera: bool = True,
         save_freq: int = 25,
         task_module_path: str | None = None,
+        auto_reset: bool = True,
+        allow_seed_substitution: bool = True,
     ) -> None:
-        super().__init__()
         self.privileged = privileged
         self.max_steps = max_steps
         self.seed = seed
         self.enable_render = enable_render
         self.viser_debug = viser_debug  # not supported yet for RoboTwin
         self.task_name = task_name
+        self.allow_seed_substitution = allow_seed_substitution
 
         _ensure_robotwin_imported()  # chdirs this process into the RoboTwin root
 
@@ -243,7 +245,8 @@ class RoboTwinEnv(BaseEnv):
         self._frame_buffer: list[np.ndarray] = []
         self._wrist_frame_buffer: list[np.ndarray] = []
 
-        self.reset(seed=seed)
+        if auto_reset:
+            self.reset(seed=seed)
 
     # ------------------------------ lifecycle ------------------------------
 
@@ -273,25 +276,31 @@ class RoboTwinEnv(BaseEnv):
         from envs.utils.create_actor import UnStableError
 
         last_exc: Exception | None = None
-        for bump in range(20):
+        attempts = []
+        self._initialization_steps_total = 0
+        started = time.monotonic()
+        for bump in range(20 if self.allow_seed_substitution else 1):
             try_seed = seed + bump
             done = False
             # transient asset/scene construction failures happen under heavy
             # concurrent startup (observed: create_actor returning None) —
             # retry the same seed once before treating it as fatal
             for attempt in range(2):
-                self.task = self._task_cls()
+                self.task = self._new_task()
                 args = deepcopy(self._base_args)
                 try:
                     self.task.setup_demo(now_ep_num=try_seed, seed=try_seed, is_test=True, **args)
+                    attempts.append({"seed": try_seed, "attempt": attempt, "success": True})
                     done = True
                     break
                 except UnStableError as exc:
+                    attempts.append({"seed": try_seed, "attempt": attempt, "error": type(exc).__name__})
                     last_exc = exc
                     self._close_task()
                     print(f"[robotwin] seed {try_seed} unstable, trying {try_seed + 1}", flush=True)
                     break
                 except Exception as exc:
+                    attempts.append({"seed": try_seed, "attempt": attempt, "error": type(exc).__name__})
                     last_exc = exc
                     self._close_task()
                     if attempt == 0:
@@ -311,13 +320,27 @@ class RoboTwinEnv(BaseEnv):
         # play_once assigns (e.g. self.arm_tag), and the second setup rebuilds
         # a fresh scene for the policy. Mirror it exactly — without this,
         # some tasks' check_success raises forever and can never pass.
+        expert_error = None
+        before_expert = self._initialization_steps_total
         try:
             self.task.play_once()
-        except Exception:
-            pass  # expert motion may fail; the attributes are set early
+        except Exception as exc:
+            expert_error = type(exc).__name__ + ": " + str(exc)
+        expert_plan_success = bool(getattr(self.task, "plan_success", False))
+        expert_steps = self._initialization_steps_total - before_expert
         args = deepcopy(self._base_args)
+        args["eval_mode"] = getattr(self, "evaluation_mode", False)
         self.task.setup_demo(now_ep_num=try_seed, seed=try_seed, is_test=True, **args)
         self.actual_seed = try_seed
+        self.initialization = {
+            "requested_seed": seed, "effective_seed": try_seed, "attempts": attempts,
+            "seed_substitution_allowed": self.allow_seed_substitution,
+            "expert_prepass": True, "expert_error": expert_error,
+            "expert_plan_success": expert_plan_success,
+            "physics_steps": self._initialization_steps_total,
+            "expert_physics_steps": expert_steps,
+            "wall_time_s": time.monotonic() - started,
+        }
         self._env_active = True
 
         # Video: motion loops call _take_picture() every save_freq sim steps;
@@ -342,8 +365,26 @@ class RoboTwinEnv(BaseEnv):
         info = {"task_prompt": self.task_name.replace("_", " ")}
         return obs, info
 
+    def _new_task(self):
+        """Count this world's native initialization without patching global classes."""
+        task = self._task_cls()
+        setup_scene = task.setup_scene
+
+        def setup_counted_scene(**kwargs):
+            setup_scene(**kwargs)
+            step = task.scene.step
+
+            def counted_step():
+                step()
+                self._initialization_steps_total += 1
+
+            task.scene.step = counted_step
+
+        task.setup_scene = setup_counted_scene
+        return task
+
     def _close_task(self) -> None:
-        if self._env_active and self.task is not None:
+        if self.task is not None:
             try:
                 self.task.close_env(clear_cache=False)
             except Exception:
@@ -3294,32 +3335,3 @@ class RoboTwinEnv(BaseEnv):
 
 
 __all__ = ["RoboTwinEnv", "list_robotwin_tasks", "ROBOTWIN_ROOT"]
-
-
-def register_capx_envs() -> None:
-    """Expose every RoboTwin task to cap-x's env registry (idempotent).
-
-    Names: ``robotwin_<task>_piper_low_level`` (mplib RRT), ``..._piper_curobo_low_level``
-    (the embodiment's default planner) and ``..._yam_low_level``.
-    """
-    import functools
-
-    from capx.envs.base import register_env
-
-    for task in list_robotwin_tasks():
-        register_env(
-            f"robotwin_{task}_piper_low_level", functools.partial(RoboTwinEnv, task_name=task)
-        )
-        register_env(
-            f"robotwin_{task}_piper_curobo_low_level",
-            functools.partial(RoboTwinEnv, task_name=task, planner=None),
-        )
-        register_env(
-            f"robotwin_{task}_yam_low_level",
-            functools.partial(
-                RoboTwinEnv, task_name=task, embodiment=["yam", "yam", 0.6], planner=None
-            ),
-        )
-
-
-register_capx_envs()

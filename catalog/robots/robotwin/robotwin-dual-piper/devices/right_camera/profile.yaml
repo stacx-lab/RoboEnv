@@ -1,0 +1,74 @@
+name: right_camera
+type: rgbd
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  color:
+    width: 320
+    height: 240
+    fps: null
+    pixel_format: rgb8
+    image_format: png
+    projection:
+      model: pinhole
+      fx: 358.6421955291472
+      fy: 358.6421955291472
+      cx: 160.0
+      cy: 120.0
+      skew: 0
+    distortion:
+      model: none
+    fov:
+      horizontal_deg: 48.08577917723934
+      vertical_deg: 36.999906218335575
+  depth:
+    registration: color
+    width: 320
+    height: 240
+    fps: null
+    pixel_format: uint16
+    image_format: pgm16_be
+    quantity: z
+    scale_m_per_unit: 0.001
+    invalid_value: 0
+    valid_range_m:
+      min: 0.001
+      max: 65.535
+    reliable_range_m: ???
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mount:
+    parent: right_arm
+    parent_frame: flange
+    translation_m:
+    - -0.055000117542192285
+    - 0.03199979797350343
+    - 0.038000000000000006
+    rotation_xyzw:
+    - -0.16089617789831398
+    - 0.16089558689473782
+    - -0.6885570227041813
+    - 0.6885595519199964
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    camera: right_camera
+  driver:
+    entry: driver.py
+    interpreter: python3
+    persistent: true
+    actions:
+    - load
+    - unload
+    - status
+    - read
+meta:
+  created_at: '2026-09-09T00:00:00Z'
+  updated_at: '2026-09-09T00:00:00Z'

@@ -1,0 +1,9 @@
+{
+  "origin": "project-reference",
+  "official": false,
+  "replay_verified": false,
+  "retired": true,
+  "action_abstraction": "cartesian-primitives",
+  "reason": "Historical primitive controller retained for source provenance. The default native device task requires a separately validated typed controller.",
+  "program_sha256": "c95f4e945af2be987ccd27d41424a4240f56bcdbc6630e9403ddf2d1716c43e3"
+}
