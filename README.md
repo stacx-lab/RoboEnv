@@ -62,7 +62,7 @@ Run `roboenv prepare libero` and `roboenv launch libero/bowl-onto-plate`.
 Its absolute joint control is explicitly a practice protocol, not the published OSC
 benchmark action space. `tools/accept_libero.py --out OUTPUT` runs native device,
 transport, Kinex recording and fresh-process replay gates without model calls;
-task-solving acceptance uses Kinex's `examples/simulator-acceptance/libero.json`.
+task scheduling uses RoboEnv's [Kinex Harbor integration](docs/simulator-kinex-testing.md).
 
 The checked-in LIBERO tasks are `bowl-onto-plate` (grasp/place),
 `close-top-drawer` (close drawer), `bowl-into-bottom-drawer` (place the bowl,
@@ -133,9 +133,8 @@ bash tools/check.sh
 
 Tests use shared fresh-worker fixtures for device, transport, and lifecycle
 checks. CLI replay and verifier coverage exercise the real worker rather than a
-second fake server. Historical recipe checks are consolidated in
-`tests/test_recipe_evidence.py`; test helpers live outside test modules so tests
-do not import one another. The default check still runs the complete CPU suite.
+second fake server. Recipe and installation checks live in `tests/test_setup.py`; test helpers live
+outside test modules so tests do not import one another. The default check still runs the complete CPU suite.
 
 The SDK is organized by responsibility:
 
