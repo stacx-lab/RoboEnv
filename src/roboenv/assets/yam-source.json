@@ -1,0 +1,55 @@
+{
+  "schema": "roboenv/yam-source/1",
+  "repository": "https://github.com/i2rt-robotics/i2rt",
+  "revision": "5b72c47239bd056d0fa6c1a39edeb0537c89443c",
+  "files": {
+    "LICENSE": {
+      "git_blob_sha1": "89d5ec310495d20a13bf27a322801883902b1eee",
+      "bytes": 1073
+    },
+    "i2rt/robot_models/arm/yam/v1/assets/base.stl": {
+      "git_blob_sha1": "955c80407cc613de411584fd5112d128392134fe",
+      "bytes": 437784
+    },
+    "i2rt/robot_models/arm/yam/v1/assets/gripper.stl": {
+      "git_blob_sha1": "821244197fb53802aaaff358d700dd210657954b",
+      "bytes": 379584
+    },
+    "i2rt/robot_models/arm/yam/v1/assets/link1.stl": {
+      "git_blob_sha1": "7ec0bfe6cee11485899d69271443bf38d7f06c8c",
+      "bytes": 308684
+    },
+    "i2rt/robot_models/arm/yam/v1/assets/link2.stl": {
+      "git_blob_sha1": "9db155790271a19ac05031065ef046b0355422f5",
+      "bytes": 1495784
+    },
+    "i2rt/robot_models/arm/yam/v1/assets/link3.stl": {
+      "git_blob_sha1": "acf2253c075418a68f5c5cc3672778bbb3afc18a",
+      "bytes": 1507584
+    },
+    "i2rt/robot_models/arm/yam/v1/assets/link4.stl": {
+      "git_blob_sha1": "df1219d87ac93a959fbc27d6ed194020c8bea8c2",
+      "bytes": 185484
+    },
+    "i2rt/robot_models/arm/yam/v1/assets/link5.stl": {
+      "git_blob_sha1": "a8e934f5ec92a811855fae04adbc43412c93f401",
+      "bytes": 56884
+    },
+    "i2rt/robot_models/arm/yam/v1/assets/tip_left.stl": {
+      "git_blob_sha1": "ad6a45d5742d58f1979a2352fb762dbafe36973e",
+      "bytes": 1555584
+    },
+    "i2rt/robot_models/arm/yam/v1/assets/tip_right.stl": {
+      "git_blob_sha1": "35df2ee25167299b9eee1c76f7a36ce91525b82b",
+      "bytes": 1555484
+    },
+    "i2rt/robot_models/arm/yam/v1/yam.urdf": {
+      "git_blob_sha1": "019a9b945e6fa4f31812cb2621fe026c8ee618b7",
+      "bytes": 9128
+    },
+    "i2rt/robot_models/station/yam_station_linear_4310_d405/yam_station_linear_4310_d405.urdf": {
+      "git_blob_sha1": "1fc4783eb446906b9349e803d4eea7d40e29c940",
+      "bytes": 22977
+    }
+  }
+}

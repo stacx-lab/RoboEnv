@@ -1,8 +1,11 @@
 id: robodojo/general-pickup
 backend: robodojo
 backend_task: robodojo.general_pickup
-robot: robodojo-arx-x5
+robot: robodojo/robodojo-arx-x5
 instruction: Complete the episode's pickup instruction (read the scene)
 seed: 0
-budget_mode: official
-backend_kwargs: {"task_name":"general_pickup","max_steps":240000,"respect_task_step_lim":false}
+budget_mode: practice
+backend_kwargs:
+  task_name: general_pickup
+  realtime: false
+action_abstraction: devices

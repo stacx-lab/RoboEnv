@@ -1,21 +1,16 @@
-"""RoboDojo (Isaac Sim 5.1) low-level env for CaP-X.
+"""Source-backed RoboDojo EvalEnv lifecycle and retained primitive operations.
 
-RoboDojo ships as an *eval-only* benchmark whose intended integration point is a
-websocket policy server (XPolicyLab): the simulator streams camera images +
-proprioception and expects per-step end-effector actions. That contract does not
-fit a code-writing agent, which needs object poses and planned motions.
+The typed device backend subclasses this owner-side wrapper and sends absolute
+joint targets through the native EvalEnv control cadence. The injected client
+avoids a policy server dependency. Public bindings expose sensors and measured
+robot telemetry; scene state and the native evaluator remain private.
 
-So this wrapper drives RoboDojo **in-process** instead: it builds the same
-`EvalEnv` that `src/eval_client/main.py` builds, stubs out the websocket client,
-and then reaches directly into the two managers that already hold what an agent
-needs — `scene_manager.layout_manager` for privileged object state and
-`robot_manager` + cuRobo for motion.
-
-Requires the RoboDojo conda env (Isaac Sim 5.1, Python 3.11) and an RTX-class
-GPU; see docs. Nothing here is imported unless a RoboDojo config asks for it.
+Primitive planning methods are retained for explicit legacy callers. They are
+not registered on the default device interface. Preparation uses the isolated
+Isaac Sim 5.1 recipe and pinned RoboDojo sources; no cap-x package is required.
 """
 
-# Moved from third_party/cap-x/capx/envs/simulators/robodojo.py on 2026-08-26 (refactor P2); cap-x keeps a shim.
+# Historical origin: third_party/cap-x/capx/envs/simulators/robodojo.py, 2026-08-26.
 
 from __future__ import annotations
 
@@ -25,9 +20,9 @@ from collections.abc import Mapping
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import numpy as np
-from capx.envs.base import BaseEnv
 
 # --------------------------------------------------------------------------
 # RoboDojo checkout + Isaac boot (both are process-global and one-shot)
@@ -47,14 +42,13 @@ def _boot_isaac(headless: bool = True, enable_cameras: bool = True):
 
     if not os.path.isdir(ROBODOJO_ROOT):
         raise RuntimeError(f"RoboDojo checkout not found at {ROBODOJO_ROOT}; set $ROBODOJO_ROOT")
-    # order matters: both trees ship a top-level `utils` package, and the
-    # LAST insert(0) wins — RoboDojo root must shadow XPolicyLab, not the
-    # other way around (XPolicyLab/utils lacks load_object_metadata etc.)
-    for p in (os.path.join(ROBODOJO_ROOT, "XPolicyLab"), ROBODOJO_ROOT):
-        if p in sys.path:
-            sys.path.remove(p)
-        sys.path.insert(0, p)
-    os.environ.setdefault("ROBODOJO_RUN_ID", "capx")
+    # The native EvalEnv accepts an injected client; no policy checkout is needed.
+    if ROBODOJO_ROOT in sys.path:
+        sys.path.remove(ROBODOJO_ROOT)
+    sys.path.insert(0, ROBODOJO_ROOT)
+    # EvalEnv uses this ID for resume state and temporary video cleanup. Distinct
+    # workers must not reuse another world's native output directory.
+    os.environ.setdefault("ROBODOJO_RUN_ID", f"roboenv-{uuid4().hex}")
 
     import argparse
 
@@ -108,13 +102,13 @@ class _NoopModelClient:
 # --------------------------------------------------------------------------
 
 
-class RoboDojoEnv(BaseEnv):
+class RoboDojoEnv:
     """One RoboDojo task, driven in-process.
 
     Args:
         task_name: e.g. "pack_objects_into_box" (see list_robodojo_tasks()).
         seed: layout seed; RoboDojo replays saved layouts, so this selects a scene.
-        env_cfg_type: env_cfg/<name>.yml stem; only "arx_x5" ships today.
+        env_cfg_type: env_cfg/<name>.yml stem, such as "arx_x5" or "yam".
         max_steps: sim-step budget; falls back to the task's own `step_lim`.
     """
 
@@ -134,7 +128,6 @@ class RoboDojoEnv(BaseEnv):
         api_exclude: tuple = (),
         **_ignored: Any,
     ) -> None:
-        super().__init__()
         self.privileged = privileged
         # names the API layer should NOT expose this run (tool-ablation
         # experiments, e.g. hide get_gripper_state to test blind discovery)
@@ -150,7 +143,7 @@ class RoboDojoEnv(BaseEnv):
         self._env = None
         self._sim_step_count = 0
 
-        # video capture (mirrors the other CaP-X simulators)
+        # Video capture for explicitly selected legacy callers.
         self._record_frames = False
         self._frame_buffer: list[np.ndarray] = []
         self._wrist_frame_buffer: list[np.ndarray] = []
@@ -188,19 +181,19 @@ class RoboDojoEnv(BaseEnv):
         eval_cfg["num_envs"] = 1
         eval_cfg["device_id"] = 0
         eval_cfg["eval_batch"] = False
-        eval_cfg["policy_name"] = "capx"
+        eval_cfg["policy_name"] = "roboenv"
         eval_cfg["additional_info"] = ""
         eval_cfg["seed"] = seed
         eval_cfg["physx_monitor_enabled"] = False
 
         deploy_cfg = {
-            "policy_name": "capx",
+            "policy_name": "roboenv",
             "port": 0,
             "host": "localhost",
             "protocol": "ws",
             "policy_server_url": "ws://localhost:0",
             "evaluation_id": os.environ["ROBODOJO_RUN_ID"],
-            "trial_id": f"{self.task_name}-capx",
+            "trial_id": f"{self.task_name}-{os.environ['ROBODOJO_RUN_ID']}",
             "action_case_id": f"{self.task_name}_case",
             "repeat_index": None,
         }
@@ -252,7 +245,7 @@ class RoboDojoEnv(BaseEnv):
     # ------------------------------------------------------------- gym surface
 
     def _layout_id_for(self, seed: int) -> int:
-        """Map a CaP-X trial seed onto one of the task's saved layout ids."""
+        """Map a trial seed onto one of the task's saved native layout ids."""
         sm = self._env.seed_manager
         ids = list(getattr(sm, "seed_list", None) or sorted(getattr(sm, "seed_info", {}).keys()))
         if not ids:
@@ -1630,8 +1623,8 @@ class RoboDojoEnv(BaseEnv):
 
         self._vla_client = WsModelClient(
             url=f"ws://127.0.0.1:{port}",
-            evaluation_id=f"capx-{self.task_name}",
-            trial_id=f"{self.task_name}-capx",
+            evaluation_id=f"roboenv-{self.task_name}",
+            trial_id=f"{self.task_name}-roboenv",
             action_case_id=f"{self.task_name}_case",
         )
         return self._vla_client

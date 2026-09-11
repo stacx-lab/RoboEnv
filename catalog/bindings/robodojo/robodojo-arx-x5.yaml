@@ -1,0 +1,28 @@
+schema_version: roboenv/bindings/1
+backend: robodojo
+embodiment: arx_x5
+devices:
+  head_camera:
+    binding: robodojo.device/1
+    entity: head_camera
+  left_arm:
+    binding: robodojo.device/1
+    entity: left_arm
+  left_camera:
+    binding: robodojo.device/1
+    entity: left_camera
+  left_gripper:
+    binding: robodojo.device/1
+    entity: left_gripper
+  right_arm:
+    binding: robodojo.device/1
+    entity: right_arm
+  right_camera:
+    binding: robodojo.device/1
+    entity: right_camera
+  right_gripper:
+    binding: robodojo.device/1
+    entity: right_gripper
+  world:
+    binding: robodojo.device/1
+    entity: world

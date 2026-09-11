@@ -1,0 +1,19 @@
+# Source-backed EvalEnv, including its native planners and support-arm callbacks.
+isaacsim[all,extscache]==5.1.0.0
+torch==2.7.0+cu128
+torchvision==0.22.0+cu128
+numpy==1.26.0
+scipy==1.15.3
+warp-lang==1.11.0
+setuptools==80.9.0
+huggingface-hub
+h5py
+transforms3d
+open3d
+msgpack-numpy
+omegaconf
+opencv-python<4.12
+-e third_party/RoboDojo/third_party/IsaacLab/source/isaaclab
+-e third_party/RoboDojo/third_party/IsaacLab/source/isaaclab_assets
+-e third_party/RoboDojo/third_party/IsaacLab/source/isaaclab_tasks
+-e third_party/RoboDojo/third_party/curobo
