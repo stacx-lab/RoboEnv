@@ -49,7 +49,9 @@ def handle(action, args):
                 seed = arm.project(remote("read", {})["positions"])
             return {"ok": True, **arm.ik(args["pose"], seed)}
         if action == "write":
-            value = arm.command(args)
+            value = arm.command({key: value for key, value in args.items() if key != "step"})
+            if "step" in args:
+                value["step"] = args["step"]
             data = remote(action, value)
             if data.get("accepted") is not True:
                 raise ValueError("write did not acknowledge acceptance")
