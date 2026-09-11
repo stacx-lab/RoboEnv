@@ -1,8 +1,0 @@
-# The ALOHA-AgileX parallel gripper (assets/embodiments/aloha-agilex/config.yml).
-kind: gripper
-id: aloha_agilex_parallel
-type: parallel
-gripper_scale: [-0.01, 0.045]   # config.yml; the span a fraction normalises over
-max_opening_m: 0.055            # the span of gripper_scale
-bias: 0.12
-command_kind: fraction

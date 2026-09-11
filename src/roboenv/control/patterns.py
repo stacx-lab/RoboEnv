@@ -12,21 +12,9 @@ thirty, and so the campaign can compare patterns instead of re-implementing them
 ``vla_run`` call, which is what makes a program replay (``roboenv/vla/runner.py``).  A
 500-frame call is therefore one sampling chain; five 100-frame calls are five chains,
 each restarted from the same key but started from a *different observation* — so the
-action sequences genuinely differ.  **A chunk boundary restarts the plan.**  That is a
-gift when the plan was going nowhere and a disaster when it was working, and both were
-measured on 2026-08-28:
-
-* LIBERO, short horizons and one leg — chunking at 100 flips 6 of 13 one-shot failures
-  to wins (spatial_6, spatial_8, goal_5, 10_5, 10_6, 90_30), 11 of 13 on LIBERO-PRO, and
-  costs 2-4x fewer simulator steps on tasks one shot already won.
-* RoboCasa composites, one long transport — ``MoveToCounter`` certifies at a single
-  ``vla_run(900)`` and scores **0.0** when the same 900 frames are spent as six calls of
-  150, the object travelling 2.393 m cumulatively without ever settling.
-
-So: chunk when you expect to lose, or when the win is a short reach the policy either
-finds or does not.  Do not chunk a transport that has to converge.  ``vla-chunked`` is
-also not a safe *screen* on RoboCasa for the same reason — it can report a failure the
-one-shot call would not have.
+action sequences differ. A chunk boundary restarts the plan; the appropriate
+chunk size depends on the task. These helpers do not imply a validated
+success-rate improvement for the current simulator recipes.
 
 They take the tools as arguments — a solution program has them as globals, a test has an
 adapter — so nothing here imports a simulator::

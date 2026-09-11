@@ -1,6 +1,0 @@
-# RoboTwin's RealSense-style camera.  Descriptive only on these rigs: the planner
-# API attaches no image tool, so nothing can be queried through a counted call.
-kind: camera
-id: robotwin_d435
-resolution: [320, 240]
-image_convention: rgb_hwc_uint8

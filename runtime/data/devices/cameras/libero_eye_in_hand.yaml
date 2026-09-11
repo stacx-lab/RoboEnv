@@ -1,5 +1,0 @@
-# LIBERO's wrist camera.
-kind: camera
-id: libero_eye_in_hand
-resolution: [128, 128]
-image_convention: rgb_hwc_uint8

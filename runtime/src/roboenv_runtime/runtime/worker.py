@@ -72,7 +72,6 @@ from roboenv_runtime.runtime.world import WorldSession
 
 __all__ = ["SimWorker", "WorkerRPCError", "WorkerUnixServer", "handle_mapping", "main"]
 
-# Rewritten from codex_dojo_alltasks/harness/sim_worker.py on 2026-08-26 (refactor P3).
 
 log = logging.getLogger(__name__)
 

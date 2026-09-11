@@ -2,33 +2,6 @@
   "schema": "roboenv/source-notices/1",
   "scope": "Source notice inventory only; not asset, checkpoint, binary, or redistribution approval.",
   "sources": {
-    "capx": {
-      "revision": "53e9966d7a8e2fa7494676772bccc35280f5c0ed",
-      "notices": [
-        {
-          "path": "LICENSE",
-          "sha256": "ad82ce2e6eb6e594af189655ae2f1592d0c91649d2745ad715c65850126cc6cc"
-        }
-      ]
-    },
-    "libero_pro": {
-      "revision": "47aaa8038930bcdc84ab9ea2867e2ffc8039ab4a",
-      "notices": [
-        {
-          "path": "LICENSE",
-          "sha256": "e2885fd30a08381b799c4a33385522b23d637b4051b8f9a7f9f2519944b68ff6"
-        }
-      ]
-    },
-    "libero_robosuite": {
-      "revision": "a498b087d4bc5a3981e3d27030d09bc537a537f3",
-      "notices": [
-        {
-          "path": "LICENSE",
-          "sha256": "177978cbece0a4c454c2aaec5b3f145b39270814874c43109da9e829c39d9cba"
-        }
-      ]
-    },
     "robocasa": {
       "revision": "4f8a2980def75a55dff96b990745b83540425f09",
       "notices": [

@@ -73,7 +73,7 @@ jobs:
           scanners: secret
           format: json
           output: .cache/source-scan.json
-          skip-dirs: .git,.cache,.venv,third_party/cap-x,third_party/RoboDojo,third_party/RoboTwin,third_party/BEHAVIOR-1K,third_party/robocasa,third_party/robosuite,build,generated,benchmarks,deployments/local
+          skip-dirs: .git,.cache,.venv,third_party/RoboDojo,third_party/RoboTwin,third_party/BEHAVIOR-1K,third_party/robocasa,third_party/robosuite,build,generated,benchmarks,deployments/local
           exit-code: "0"
           cache: false
       - name: Enforce scanner results; never upload raw finding snippets

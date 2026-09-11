@@ -77,7 +77,7 @@ def test_every_source_and_patch_is_pinned_and_public():
             )
     assert set(selected_sources(lock, ["robocasa"])) == {"robocasa", "robosuite"}
     assert set(selected_sources(lock, ["libero"])) == {"libero"}
-    assert "libero_pro" not in selected_sources(lock, ["robotwin"])
+    assert set(selected_sources(lock, ["robotwin"])) == {"robotwin"}
     with pytest.raises(ValueError, match="unknown"):
         selected_sources(lock, ["not-a-backend"])
 

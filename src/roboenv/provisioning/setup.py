@@ -345,7 +345,6 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
         environment.pop(name, None)
     environment.update(
         ROBOENV_ROOT=str(project),
-        CAPX_ROOT=str(project / "third_party/cap-x"),
         ROBOTWIN_ROOT=str(project / "third_party/RoboTwin"),
         ROBODOJO_ROOT=str(project / "third_party/RoboDojo"),
         LIBERO_CONFIG_PATH=str(private / "config/libero"),

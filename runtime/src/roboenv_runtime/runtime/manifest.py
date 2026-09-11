@@ -6,10 +6,6 @@ subdirectories the supervisor and worker expect, copies the task definition
 in as evidence, and writes ``manifest.json`` — what was run, with which
 package files (hashed), on which host — so ``result.json`` can later be
 derived offline by :mod:`roboenv_runtime.runtime.finalize`.
-
-Rewritten from ``codex_dojo_alltasks/harness/run_manifest.py`` (2026-08-26):
-the task matrix and campaign boundary became the task definition and the
-package hashes.
 """
 
 from __future__ import annotations

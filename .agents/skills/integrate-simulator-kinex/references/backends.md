@@ -44,7 +44,7 @@ scope. Remove primitive invocation and scene truth from the default device path.
   `catalog/robots/robotwin/robotwin-dual-piper` / `robotwin-aloha-agilex` if still present.
   Confirm the intended upstream edition; RoboTwin and RoboTwin2.0-Plus are not
   interchangeable source or benchmark identities.
-- The default typed route must use the pinned RoboTwin source without cap-x.
+- The default typed route must use the pinned RoboTwin source directly.
   Trace where the native SAPIEN world actually lives and how calls are counted.
   A pose planner may
   execute many steps; wrapping it as `write` does not provide the single-interval
@@ -68,7 +68,7 @@ scope. Remove primitive invocation and scene truth from the default device path.
   robot measurements. Add the portable driver and camera resources missing from
   the old profiles; FK/IK stays local to Kinex.
 - Audit `robotwin-devices.in`, `robotwin-devices-resolved.txt`, source pins and
-  actual import origins; installation or runtime must not require cap-x. The
+  actual import origins against the selected benchmark source. The
   historical API-call-budget reference is not a typed-control benchmark result.
   Record physics frequency, action decimation and horizon; retain the original
   task predicate and label any changed control/budget condition.
@@ -82,7 +82,7 @@ scope. Remove primitive invocation and scene truth from the default device path.
 - Inspect `adapters/robodojo/{adapter,devices,rig,backend}.py`, retained legacy
   callers, and the selected upstream environment, robot, camera and task
   configuration. The typed catalogs include ARX-X5 and YAM; their default route
-  uses source-backed `EvalEnv` with an injected client and no cap-x dependency.
+  uses source-backed `EvalEnv` with an injected client.
 - Match catalog selection to actual native creation parameters. In the baseline,
   YAM requires `env_cfg_type=yam`; changing only the robot ID is insufficient.
   Resolve single/dual-arm devices and aliases against the selected native inventory.

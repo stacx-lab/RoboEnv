@@ -255,8 +255,6 @@ def main():
         shutil.copytree(
             descriptions, context / "runtime-data/.cache/robot_descriptions", symlinks=True
         )
-    for folder in (WORKSPACE / "runtime/data").iterdir():
-        shutil.copytree(folder, context / "runtime-data" / folder.name, dirs_exist_ok=True)
     for name in ("Dockerfile", "relocate.py", "nvidia_icd.json", "10_nvidia.json"):
         shutil.copy2(WORKSPACE / "runtime/packaging" / name, context / name)
     (context / "wheels").mkdir()

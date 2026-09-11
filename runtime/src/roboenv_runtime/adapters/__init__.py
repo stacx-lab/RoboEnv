@@ -13,7 +13,7 @@ name                    simulator                              embodiment
 ``fakeshell``           in-memory toy world (tests, demos)     general
 ``robodojo``            RoboDojo on Isaac Sim                  arx_x5 / yam
 ``robotwin``            RoboTwin 2.0 on SAPIEN                 piper / yam
-``libero``              LIBERO-PRO on MuJoCo/robosuite         panda
+``libero``              Official LIBERO on MuJoCo/robosuite         panda
 ``robocasa``            RoboCasa365 on MuJoCo/robosuite        panda_omron
 ``behavior``            BEHAVIOR-1K on OmniGibson/Isaac Sim    r1pro
 ======================  =====================================  ============

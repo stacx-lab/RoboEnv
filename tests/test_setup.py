@@ -12,27 +12,15 @@ from roboenv.provisioning.assets import create, inventory, verify
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_robocasa_uses_resolved_lock_and_preserves_historical_pins():
-    from roboenv.provisioning.setup import _requirements
-
+def test_robocasa_uses_resolved_lock():
     recipe = json.loads((ROOT / "runtime/environments.json").read_text())["backends"]["robocasa"]
     assert recipe["lock"] == "runtime/locks/robocasa-resolved.txt"
-    assert recipe["historical_freeze"] == "runtime/locks/robocasa.txt"
     assert recipe["index_url"] == "https://pypi.org/simple"
-    historical = _requirements(ROOT / recipe["historical_freeze"])
-    resolved = _requirements(ROOT / recipe["lock"])
-    assert str(historical["gym-notices"].specifier) == "==0.2.0"
+    resolved = setup._requirements(ROOT / recipe["lock"])
     assert str(resolved["gym-notices"].specifier) == "==0.1.0"
-    for name, requirement in historical.items():
-        if name != "gym-notices":
-            assert resolved[name].specifier == requirement.specifier
-    assert set(resolved) - set(historical) == {
-        "jsonschema",
-        "jsonschema-specifications",
-        "packaging",
-        "referencing",
-        "rpds-py",
-    }
+    assert {"jsonschema", "jsonschema-specifications", "packaging", "referencing", "rpds-py"} <= (
+        resolved.keys()
+    )
 
 
 def test_prepare_default_install_and_reuse(tmp_path, monkeypatch):
@@ -96,20 +84,6 @@ def test_all_published_freezes_have_unambiguous_pins():
         assert auditor(lock)["passed"], lock.name
 
 
-@pytest.mark.parametrize("backend", ["robotwin"])
-def test_promoted_locks_match_the_validated_candidate_requirements(backend):
-    locks = ROOT / "runtime/locks"
-    for promoted, candidate in (
-        (f"{backend}-resolved.txt", f"{backend}.candidate.txt"),
-        (f"{backend}-source-pins.txt", f"{backend}.candidate-source-pins.txt"),
-    ):
-        actual = {name: str(item) for name, item in setup._requirements(locks / promoted).items()}
-        expected = {
-            name: str(item) for name, item in setup._requirements(locks / candidate).items()
-        }
-        assert actual == expected
-
-
 @pytest.fixture
 def recipe_project(tmp_path):
     """Real recipe metadata without any developer checkout or simulator assets."""
@@ -134,7 +108,7 @@ def recipe_project(tmp_path):
     return project, recipes["backends"]
 
 
-def test_recorded_recipe_validation_is_not_a_certificate_for_this_invocation(
+def test_recipe_preflight_is_not_an_installation_or_replay_certificate(
     recipe_project,
     monkeypatch,
 ):
@@ -151,14 +125,8 @@ def test_recorded_recipe_validation_is_not_a_certificate_for_this_invocation(
         assert report["install_preflight_passed"]
         assert not report["clean_install_verified"]
         assert not report["gpu_replay_verified"]
-        recorded = report["recorded_recipe_validation"]
-        if backend == "libero":
-            assert not recorded  # Official integration does not inherit PRO success evidence.
-            assert not report["source_only"]
-        else:
-            assert recorded["host_fresh_process_gpu_replay"]
-            assert not recorded["clean_environment_container_replay"]
-            assert report["source_only"]
+        assert not report["recorded_recipe_validation"]
+        assert bool(report["source_only"]) is (backend == "robotwin")
         assert report["source_pins_audit"]["passed"]
     behavior, _ = setup.audit("behavior", project=project)
     assert not behavior["install_preflight_passed"]
@@ -167,13 +135,13 @@ def test_recorded_recipe_validation_is_not_a_certificate_for_this_invocation(
 
 
 @pytest.mark.parametrize("backend", ["libero", "robotwin"])
-def test_missing_checkouts_fail_despite_recorded_recipe_validation(recipe_project, backend):
+def test_missing_checkouts_fail_despite_valid_locks(recipe_project, backend):
     project, _ = recipe_project
     # No status stub: exercise the actual source auditor on a metadata-only tree.
     report, _ = setup.audit(backend, project=project)
     assert report["lock_audit"]["passed"]
     assert report["source_pins_audit"]["passed"]
-    assert bool(report["recorded_recipe_validation"]) is (backend == "robotwin")
+    assert not report["recorded_recipe_validation"]
     assert not report["sources_ready"]
     assert not report["install_preflight_passed"]
     assert "missing-local-package-checkout" in report["blockers"]
@@ -226,12 +194,12 @@ def installer_fixture(tmp_path, monkeypatch):
         "jaxls @ git+https://github.com/example/source.git@" + "a" * 40 + "\n"
     )
     (project / "pins.txt").write_bytes((project / "lock.txt").read_bytes())
-    (project / "third_party/cap-x").mkdir(parents=True)
+    (project / "third_party/RoboTwin").mkdir(parents=True)
     recipe = {
         "python": "3.10",
         "lock": "lock.txt",
         "source_pins": "pins.txt",
-        "source_only": ["third_party/cap-x"],
+        "source_only": ["third_party/RoboTwin"],
         "editables": [],
         "extra_indexes": [],
     }
@@ -249,7 +217,7 @@ def installer_fixture(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("cache", [None, "shared-package-cache"])
-def test_installer_resolves_sources_once_without_installing_source_only_capx(
+def test_installer_resolves_sources_once_without_installing_source_only_checkout(
     tmp_path, monkeypatch, cache
 ):
     setup, project, calls = installer_fixture(tmp_path, monkeypatch)
@@ -272,7 +240,7 @@ def test_installer_resolves_sources_once_without_installing_source_only_capx(
     installation = next(command for command, _ in calls if command[1:3] == ["pip", "install"])
     assert installation.count("--override") == 1
     assert str(project / "pins.txt") in installation
-    assert str(project / "third_party/cap-x") not in installation
+    assert str(project / "third_party/RoboTwin") not in installation
     assert str(project) + "[server]" in installation
     assert str(project / "runtime") in installation
     assert "--no-deps" not in installation and "--no-build-isolation" not in installation

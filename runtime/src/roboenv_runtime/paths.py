@@ -10,14 +10,11 @@ Environment variables (all optional):
 ``ROBOENV_ROOT``
     Repository root.  Default: the first ancestor of this package that holds a
     ``pyproject.toml``; failing that, the current working directory.
-``ROBOENV_RUNS`` / ``ROBOENV_SKILLS`` / ``ROBOENV_SOLUTIONS`` / ``ROBOENV_TASKS``
-    Override the ``runs/``, ``skills/knowledge/``, ``skills/solutions/`` and ``tasks/``
-    data directories.
-``CAPX_ROOT``
-    A cap-x checkout.  Default: ``<root>/third_party/cap-x``.
+``ROBOENV_RUNS`` / ``ROBOENV_TASKS``
+    Override the run and task data directories.
 ``ROBODOJO_ROOT`` / ``ROBOTWIN_ROOT``
     The RoboDojo checkout and the RoboTwin checkout.  Defaults:
-    ``<root>/third_party/RoboDojo`` (falling back to the pre-refactor ``<root>/RoboDojo``)
+    ``<root>/third_party/RoboDojo``
     and ``<root>/third_party/RoboTwin``.
 """
 
@@ -27,12 +24,10 @@ import os
 from pathlib import Path
 
 __all__ = [
-    "capx_root",
     "repo_root",
     "robodojo_root",
     "robotwin_root",
     "runs_root",
-    "skills_root",
     "tasks_root",
 ]
 
@@ -62,16 +57,6 @@ def runs_root() -> Path:
     return _env_path("ROBOENV_RUNS") or repo_root() / "runs"
 
 
-def skills_root() -> Path:
-    """Root of the knowledge-skill store (``shared/`` and ``tasks/`` below it)."""
-    return _env_path("ROBOENV_SKILLS") or repo_root() / "skills" / "knowledge"
-
-
-def solutions_root() -> Path:
-    """Root of the distilled solutions (``<task_id>/solution.py`` + its certificate)."""
-    return _env_path("ROBOENV_SOLUTIONS") or repo_root() / "skills" / "solutions"
-
-
 def tasks_root() -> Path:
     """Root of the task definitions (``<simulator>/<task>.yaml``)."""
     override = _env_path("ROBOENV_TASKS")
@@ -81,26 +66,12 @@ def tasks_root() -> Path:
     return native if native.is_dir() else repo_root() / "tasks"
 
 
-def capx_root() -> Path:
-    """A cap-x checkout (the submodule by default)."""
-    override = _env_path("CAPX_ROOT")
-    if override is not None:
-        return override
-    candidate = repo_root() / "third_party" / "cap-x"
-    if candidate.exists():
-        return candidate
-    # historical location, kept as a fallback for pre-refactor checkouts
-    return repo_root() / "cap-x"
-
-
 def robodojo_root() -> Path:
     """The RoboDojo benchmark checkout (submodule ``third_party/RoboDojo``)."""
     override = _env_path("ROBODOJO_ROOT")
     if override:
         return override
-    candidate = repo_root() / "third_party" / "RoboDojo"
-    legacy = repo_root() / "RoboDojo"
-    return candidate if candidate.exists() or not legacy.exists() else legacy
+    return repo_root() / "third_party" / "RoboDojo"
 
 
 def robotwin_root() -> Path:

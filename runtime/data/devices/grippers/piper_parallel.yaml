@@ -1,7 +1,0 @@
-# The Piper's two-finger parallel gripper.
-kind: gripper
-id: piper_parallel
-type: parallel
-max_opening_m: 0.08          # nominal; a measured value on a rig is a fact
-finger_links: [link7, link8]
-command_kind: fraction       # 0.0 = fully closed, 1.0 = fully open (not a position, not a sign)

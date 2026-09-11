@@ -1,4 +1,4 @@
-# Source-backed SAPIEN/mplib device runtime. No policy server or cap-x stack.
+# Source-backed SAPIEN/mplib device runtime. No policy server dependencies.
 # Native point-cloud FPS and cuRobo policy planning are outside this device recipe.
 torch==2.4.1+cpu
 numpy==1.26.4

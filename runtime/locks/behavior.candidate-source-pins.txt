@@ -1,5 +1,0 @@
-# Immutable identities observed in installed PEP 610 metadata.
-# Pin source identity only; do not override numeric dependency requirements.
-# OmniGibson currently requests a mutable lerobot release/b1k source.
-lerobot @ git+https://github.com/wensi-ai/lerobot@436812bd8ee39b768c645c248c91f1330834e687
-nvidia-curobo @ git+https://github.com/StanfordVL/curobo@78612f45cef52c3fa0298de243a54cd7ca614414

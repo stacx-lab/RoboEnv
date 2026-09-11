@@ -7,8 +7,6 @@ private Unix socket.  A request deadline kills only the process group created
 by this supervisor; no process discovery or broad cleanup is performed.
 """
 
-# Adapted from codex_dojo_alltasks/harness/supervisor.py on 2026-08-26 (refactor P3):
-# worker module, socket root and environment variables generalised; otherwise verbatim.
 
 from __future__ import annotations
 

@@ -1,9 +1,6 @@
 [submodule "behavior"]
 	path = third_party/BEHAVIOR-1K
 	url = https://github.com/StanfordVL/BEHAVIOR-1K.git
-[submodule "capx"]
-	path = third_party/cap-x
-	url = https://github.com/capgym/cap-x.git
 [submodule "robodojo"]
 	path = third_party/RoboDojo
 	url = https://github.com/RoboDojo-Benchmark/RoboDojo.git

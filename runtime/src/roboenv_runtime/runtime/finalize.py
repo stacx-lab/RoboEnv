@@ -7,7 +7,6 @@ anything when the evidence is inconsistent (no submit, a mutating call after
 submit, a budget that regressed, an official run over its cap ...).
 """
 
-# Adapted from codex_dojo_alltasks/harness/finalize_run.py on 2026-08-26 (refactor P3).
 
 from __future__ import annotations
 
