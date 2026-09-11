@@ -21,7 +21,9 @@ def handle(action, args):
             raise ValueError(f"{action} takes no arguments")
         profile = settings()
         if action == "write":
-            value = command(profile, args)
+            value = command(profile, {key: value for key, value in args.items() if key != "step"})
+            if "step" in args:
+                value["step"] = args["step"]
             if "native_speed" in value:
                 raise ValueError("RoboCasa does not support speedFraction")
             return {"ok": True, **remote(action, value)}
