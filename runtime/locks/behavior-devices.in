@@ -1,0 +1,12 @@
+# Core native device workflow. Dataset writing and remote policy evaluation are
+# separate optional OmniGibson extras in behavior-optional-workflows.patch.
+isaacsim[all,extscache]==5.1.0.0
+torch==2.7.0+cu128
+torchvision==0.22.0+cu128
+numpy==1.26.0
+Pillow==11.3.0
+packaging==23.0
+websockets==12.0
+setuptools==80.9.0
+-e third_party/BEHAVIOR-1K/bddl3
+-e third_party/BEHAVIOR-1K/OmniGibson

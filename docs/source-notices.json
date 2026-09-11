@@ -92,7 +92,7 @@
       ]
     },
     "behavior": {
-      "revision": "22d19cd2f99d6ae15dd0fb62e90363410cdd3260",
+      "revision": "e008fcb7b2c52cc3c1209287babedd9018dc3202",
       "notices": [
         {
           "path": "OmniGibson/LICENSE",
