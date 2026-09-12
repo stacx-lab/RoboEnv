@@ -1,35 +1,28 @@
 # Release engineering
 
-The initial repository snapshot is a private source preview at stacx-lab/RoboEnv,
-with the core license intentionally undeclared. This is not an open-source
-licensed release, a package release, or permission to redistribute dependencies.
-Source publication authorization does not choose a license.
-
-The repository has release checks, not an automatic publisher. No workflow uploads
-packages to an index or simulator images to a registry. The manual candidate
-workflow builds evidence; publication remains a separate maintainer decision.
+The core license is not yet declared, so strict package release remains blocked.
+The repository provides release checks and candidate artifacts; publication
+requires a separate maintainer decision. No workflow automatically publishes
+packages or simulator images.
 
 ## Local checks and the license gate
 
     bash tools/bootstrap.sh
     bash tools/check.sh
-    .venv/bin/roboenv sources sync
+    .venv/bin/python tools/clean_install.py --wheels build/wheels \
+      --out .cache/clean-install-receipt.json
+    .venv/bin/roboenv sources sync --backends BACKEND
     .venv/bin/python tools/release_preflight.py \
       --verify-upstreams --wheels build/wheels \
       --output build/release/preflight.json
 
-To prepare the explicitly authorized private, history-free source preview:
-
-    .venv/bin/python tools/prepare_source_preview.py
-
-The tool creates a new snapshot below the local cache and prints its relative
-location. It includes a SOURCE_MANIFEST.json with per-file hashes and the six
-top-level Git submodule entries. It omits Git history, caches, environments,
-bulk/generated tasks, build outputs and experiment evidence. It never runs Git
-initialization, commits, repository creation or push. An existing --out directory
-is rejected rather than overwritten. Rebuild the snapshot after any source change.
-The source-preview preflight mode permits an undeclared license only for this
-private preview; the default strict package gate remains blocked.
+Initialize the selected backends needed for the candidate; strict upstream
+verification requires every locked source to be available and match its patches.
+The clean-install check creates a temporary environment, installs both wheels
+with normal dependency resolution, and checks dependencies, import origins,
+CLI entry points and the real Harbor task loader outside the checkout. It needs
+an accessible package index or, with `--offline`, a populated uv cache. Receipts
+record wheel hashes; raw installation diagnostics stay private.
 
 The default mode is strict: any error or release blocker returns nonzero. It checks
 package/module versions, SDK/runtime dependency alignment, long descriptions,
@@ -38,9 +31,9 @@ every wheel RECORD checksum, payload/source agreement, known privacy patterns an
 obvious credential signatures.
 Malformed inputs fail without printing private filesystem locations.
 
-For ordinary development, --mode development allows unresolved release-only
-prerequisites while still failing implementation errors. Always inspect the
-packaging_ready field; development success never means a release is approved.
+For ordinary development, `--mode development` allows unresolved release-only
+prerequisites while still failing implementation errors. Inspect `packaging_ready`;
+development or `source-preview` success is not package-release approval.
 
 The core license is deliberately unresolved. Authorized maintainers must select it,
 place the approved full text in LICENSE and runtime/LICENSE, and declare the same
@@ -69,13 +62,6 @@ as evidence for changed binaries. Keep successes and failures in the release not
 
 ## CI policy
 
-Dependabot automatic updates and pull requests are paused at the owner's request;
-there is no active dependabot.yml configuration. Repository vulnerability-alert
-settings are separate and are not disabled by removing this configuration.
-Re-enabling automation requires an explicit maintainer decision and a reviewed
-low-volume policy. Simulator dependency changes still require normal resolution,
-source-identity and replay checks.
-
 CPU and Python compatibility jobs run on unprivileged hosted runners without
 submodules or simulator assets. Source discovery has a separate scheduled/manual
 job and uses selective public pins. The manual candidate job additionally creates
@@ -84,14 +70,16 @@ It does not turn an unsuccessful preflight into a passing release.
 
 Top-level actions use immutable commit pins, checkouts do not retain credentials,
 and default token permissions are read-only. Scanner tools have explicit versions.
-Dependency changes are reviewed manually; review tool transitive downloads and action changes.
+Dependency changes are reviewed manually; there is no active Dependabot configuration.
+Review tool transitive downloads and action changes.
 These choices follow [GitHub's secure-use guidance](https://docs.github.com/en/actions/reference/security/secure-use).
 An action pin does not by itself make every transitive download reproducible.
 
 Never run untrusted pull-request code on a long-lived GPU runner. GPU automation
 needs a disposable runner, trusted/ref-reviewed input, read-only depots, exclusive
 resource allocation and reviewed evidence retention. Configure that infrastructure
-before enabling a GPU schedule; the repository does not invent a working runner.
+before enabling a GPU schedule. See [GPU validation](gpu-validation.md#trusted-manual-gpu-ci)
+for runner configuration.
 
 ## Candidate artifacts and promotion
 

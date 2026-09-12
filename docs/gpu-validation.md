@@ -9,19 +9,19 @@ Oracle programs are explicitly project-authored, not official benchmark experts.
 
 After building the SDK wheel and preparing an immutable-image deployment map:
 
-```bash
+```sh
 .venv/bin/python tools/validate_simulators.py \
   --deployments deployments/local/map.json \
   --sdk-wheel build/wheels/roboenv-0.2.0-py3-none-any.whl \
-  --backends robocasa --modes reference --seeds 0 \
+  --backends robocasa --modes probe --seeds 0 \
   --out .cache/validation-plan
 ```
 
 No Docker or GPU command runs during preparation. Generated task directories are
 checked by Harbor's actual loader, contain the ordinary environment and verifier,
 and use the existing task generator and taskset runner. Inspect `receipt.json`
-and `taskset/`. Preparing without a backend selection covers the six small
-reference examples across RoboCasa, RoboTwin, and RoboDojo at seed 0.
+and `taskset/`. Select backends and modes explicitly. `--modes reference` requires
+a supplied `solution.py`; the checked-in references are the two RoboCasa examples.
 
 Execution requires another new output directory; existing evidence is never
 overwritten. Select the permitted GPU using `ROBOENV_GPU` as for any Roboenv task:
@@ -36,18 +36,18 @@ overwritten. Select the permitted GPU using `ROBOENV_GPU` as for any Roboenv tas
 ```
 
 Trials run sequentially with no automatic retry. A nonzero result must be
-investigated, not silently retried until a convenient success appears. Historical
-example programs are tested as supplied; portability to other seeds is not assumed.
+investigated, not silently retried until a convenient success appears. Reference
+programs are tested as supplied; portability to other seeds is not assumed.
 
 ## Read-only device probes
 
 Use `--modes probe` for boot, registry and device-read checks without motion. By
-default this exercises each selected backend's default robot binding plans:
-LIBERO Panda, RoboCasa Panda/Omron, RoboTwin Piper and ALOHA-AgileX, RoboDojo ARX X5
-and YAM. `--robots` restricts that list. YAM explicitly selects `env_cfg_type=yam`;
-changing only the robot descriptor is not sufficient.
+default this exercises supported rigs with matching selected tasks: scene-specific
+LIBERO Panda, RoboCasa Panda/Omron, RoboTwin Piper and ALOHA-AgileX, and RoboDojo
+ARX-X5 and YAM. `--robots` restricts that list using catalog-relative paths such as
+`robodojo/robodojo-yam`. YAM selects `env_cfg_type: yam` and `layout_config: arx_x5`.
 
-The seventh plan, BEHAVIOR R1Pro, requires an **additional explicit task source**:
+BEHAVIOR R1Pro requires an **additional explicit task source**:
 
 ```bash
 .venv/bin/python tools/validate_simulators.py \
@@ -92,6 +92,37 @@ Only allowlisted fields enter `receipt.json`; raw Harbor logs, errors, local
 deployment locations and simulator observations remain private. Do not upload
 the complete output tree. Preserve its journal locally when investigating a
 failure; the public receipt records its hash.
+
+## Native device checks
+
+Native tools use prepared simulator interpreters and assets. Select the tool for
+the backend and use its `--help` for task, rig, clock and output arguments:
+
+| Tool | Scope |
+|---|---|
+| `tools/accept_libero.py` | LIBERO device, transport, recording and fresh-process replay gates without model calls |
+| `tools/check_native_robotwin.py`, `tools/check_native_robodojo.py`, `tools/check_native_behavior.py` | Backend-specific native device conformance |
+| `tools/check_native_clock.py` | Worker clock progress, motion, terminal freeze and independent replay |
+| `tools/check_native_transport.py` | Concurrent episodes, deduplication, lost replies, public/owner separation and endpoint reuse |
+| `tools/replay_native_devices.py` | Fresh-process replay of matching RoboTwin, RoboDojo or BEHAVIOR owner records |
+
+Transport checks select an RGB/RGB-D camera from the live inventory; `--camera`
+overrides it. `--seeds FIRST SECOND` selects native layouts for RoboTwin and
+RoboDojo. BEHAVIOR also needs distinct `--instances FIRST SECOND`; seeds alone
+do not select different presampled activity instances. The check rejects
+effectively identical loaded states.
+
+For a single GPU on an Isaac host, use `CUDA_VISIBLE_DEVICES` and leave
+`OMNIGIBSON_GPU_ID` unset so Kit and PhysX can select the masked device. Verify the
+actual renderer/physics device in native logs. A source or import check does not
+establish GPU readiness.
+
+Record the effective task, rig, clock, initialization, source/artifact identities
+and commands with each result. Preserve failed attempts. CPU/schema checks,
+native motion, recording, task success and command replay are separate evidence.
+For real Kinex sessions and frozen controllers, use
+[Kinex Harbor integration](../integrations/kinex/README.md); for manual recording,
+use [local Kinex use](kinex-local.md).
 
 ## Trusted manual GPU CI
 

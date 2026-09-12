@@ -9,8 +9,7 @@ physics, walking or balance performance.
 
 RoboEnv exposes one free-base Go2 as a device service. Kinex commands absolute
 joint positions through native DC motor control. This is a posture demonstration,
-not a walking policy or an upstream locomotion benchmark. G1 is deferred in
-[plan.md](../plan.md).
+not a walking policy or an upstream locomotion benchmark.
 
 ## Prepare and launch
 
@@ -25,15 +24,12 @@ Launch streams simulator logs to the terminal and also saves them under the run'
 before starting Kit, accepting NVIDIA's Omniverse license agreement without an
 interactive prompt.
 
-The source lock pins Isaac Lab's current default branch at
-`99f1423e5d4a26216c0eedeb2aa78099a8c3a7d1` (3.0 beta2), paired with Isaac Sim
-6.0.1.0 and Python 3.12. Simulation packages live in an isolated interpreter.
-A checksum-tracked source metadata patch relaxes Isaac Lab’s test-only coverage
-pin to accept the version required by Isaac Sim. The complete dependency lock
-and editable-package installation recipe have been resolved together in a dry run;
-that is not a completed simulator installation.
-Installation requires the NVIDIA package index; Go2 USD assets are downloaded and
-checksum-verified separately. No source discovery or SDK import starts Kit.
+The source revision and package versions are pinned in
+[upstreams.lock.json](../upstreams.lock.json) and
+[runtime/environments.json](../runtime/environments.json). Simulation packages
+live in an isolated interpreter. Installation requires the NVIDIA package index;
+Go2 USD assets are downloaded and checksum-verified separately. Source discovery
+and SDK imports do not start Kit.
 
 Use an RTX-capable GPU and compatible Vulkan driver. NVIDIA lists H100/A100 as
 unsupported for Isaac Sim rendering. CPU catalog checks do not validate native
