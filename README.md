@@ -62,7 +62,7 @@ Run `roboenv prepare libero` and `roboenv launch libero/bowl-onto-plate`.
 Its absolute joint control is explicitly a practice protocol, not the published OSC
 benchmark action space. `tools/accept_libero.py --out OUTPUT` runs native device,
 transport, Kinex recording and fresh-process replay gates without model calls;
-task scheduling uses RoboEnv's [Kinex Harbor integration](docs/simulator-kinex-testing.md).
+task scheduling uses RoboEnv's [Kinex Harbor integration](integrations/kinex/README.md).
 
 The checked-in LIBERO tasks are `bowl-onto-plate` (grasp/place),
 `close-top-drawer` (close drawer), `bowl-into-bottom-drawer` (place the bowl,
@@ -156,16 +156,20 @@ reuse shared implementations through an explicit binding index.
 contains pinned submodules and recorded patches. Generated output and local
 environments stay outside Git.
 
-See [simulator integration](docs/simulator-integration.md) for adapter, service,
-and device catalog authoring, and [RoboCasa](docs/robocasa.md) for the reference rig.
-The [repository skills](docs/skills.md) separate end-to-end integration from
-[running Kinex test jobs](docs/simulator-kinex-testing.md) on an existing backend.
-[Installation evidence](docs/installation-reference.md) and
-[GPU validation](docs/gpu-validation.md) describe tested coverage.
+## Documentation
+
+| Guide | Purpose |
+|---|---|
+| [Setup](docs/setup.md) | Installation, assets, local launch and device access |
+| [Simulator integration](docs/simulator-integration.md) | Adapter, binding and portable catalog authoring |
+| [RoboCasa](docs/robocasa.md) / [Isaac Lab](docs/isaaclab.md) | Backend-specific devices and control semantics |
+| [Local Kinex use](docs/kinex-local.md) | Workspace setup, recording and video playback |
+| [Harbor tasks](docs/harbor-tasks.md) | Deployment, task generation and execution |
+| [Kinex Harbor integration](integrations/kinex/README.md) | Agent packaging, controller development and frozen trials |
+| [Simulator validation](docs/gpu-validation.md) | Native checks, receipts and replay boundaries |
+| [Release engineering](docs/releasing.md) | Packaging, installation checks and publication gates |
+| [Third-party notices](docs/third-party-notices.md) | Locked source notices and checksums |
 
 This is pre-release software. CPU and format checks do not certify GPU replay
 or benchmark success. Packages and simulator images are not automatically
 published; see [release rules](docs/releasing.md).
-
-For a populated Kinex workspace, TUI recording, and MP4 playback, follow
-[the local test plan](docs/kinex-local.md).

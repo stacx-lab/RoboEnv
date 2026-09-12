@@ -7,8 +7,9 @@ bash tools/bootstrap.sh
 source .venv/bin/activate
 ```
 
-This installs the CLI into the development virtual environment. Activate it in
-each new shell, or use `.venv/bin/roboenv` directly.
+This installs the CLI into a Python 3.12 development environment. Activate it in
+each new shell, or use `.venv/bin/roboenv` directly. Simulator dependencies use
+separate interpreters defined in [runtime/environments.json](../runtime/environments.json).
 
 ## Prepare a simulator
 
@@ -24,9 +25,7 @@ Progress is printed to stderr as each stage starts and finishes, with elapsed-ti
 updates every 15 seconds during long stages. Installation output stays in the
 private log whose path is printed before installation; use `tail -f LOG_PATH`
 to follow its details. `--json` keeps stdout machine-readable.
-No manual source sync, wheel build, clean-install verification, or separate
-doctor command is required. Each simulator runs in its own interpreter; the SDK
-does not import simulator dependencies. This may download many GB.
+The SDK does not import simulator dependencies. Preparation may download many GB.
 
 ## Optional setup controls
 
@@ -49,8 +48,7 @@ For RoboCasa, `roboenv prepare robocasa` downloads the kitchen textures, fixture
 and objects listed by the pinned upstream (about 10 GB) automatically. Progress
 is reported on stderr; completed bundles have local content receipts and are
 reused after verification. If a download fails, rerun the same command; the
-interpreter and completed bundles are preserved. This also works for interpreters
-prepared before automatic asset downloads were added. Asset verification does
+interpreter and completed bundles are preserved. Asset verification does
 not certify simulator boot or GPU replay.
 
 RoboTwin preparation verifies the pinned upstream archives and preserves existing
@@ -67,14 +65,8 @@ the installed Isaac Lab importer. Once the user has accepted NVIDIA's applicable
 Isaac Sim license, preparation recognizes `OMNI_KIT_ACCEPT_EULA=YES` and performs
 that conversion, recording the source and output hashes. Without that explicit
 acceptance, it reports the remaining conversion requirement. Existing conversions
-are verified before reuse. The current conversion uses convex decomposition for
-the two YAM fingers; a single hull fills their concave shape and can eject a
-gripped object. Upgrading a verified older conversion retains its complete USD
-tree and receipt under `native-usd-history/` before publishing the new layers.
-Quiesce native jobs before preparing or upgrading their asset depot. Changed
-collision geometry requires new native, Kinex and replay evidence. Conformance
-checks both loaded finger contact and unsupported dynamic retention followed by
-release. Conversion and asset checks alone do not establish motion or task success.
+are verified before reuse. Quiesce native jobs before preparing or upgrading their
+asset depot; changed collision geometry requires new native and replay validation.
 
 BEHAVIOR preparation acquires the pinned robot assets, encrypted scene/object
 bundle and 2026 challenge instances after explicit acceptance is supplied through
@@ -87,8 +79,9 @@ licenses or download model checkpoints. `doctor` reports recipe
 and source blockers and whether an interpreter has been registered; it does not
 certify GPU, asset, or task readiness. Add `--json` for automation.
 
-For explicit wheels, mixed package inputs, dependency recipes, asset manifests,
-and historical evidence, see [installation reference](installation-reference.md).
+YAM practice tasks use `env_cfg_type: yam` with `layout_config: arx_x5`, matching
+the published ARX-X5 scene layouts. These are adapted practice tasks. An installed
+private YAM layout collection can select `layout_config: yam` instead.
 
 ## Start a task
 
@@ -124,8 +117,9 @@ roboenv devices --endpoint http://127.0.0.1:8123
 
 With one ready local run, discovery selects it. With several, specify
 `--endpoint`. `ROBOENV_ENDPOINT` also selects an HTTP service; `ROBOENV_SOCKET`
-selects the existing Unix transport used by Harbor. HTTP binds to loopback only.
-Remote networking and remote image-file transfer are not provided by this listener.
+selects the owner-side Unix transport. HTTP binds to loopback by default; use
+`--host 0.0.0.0` for an isolated container network. Camera files are downloaded
+through episode-scoped HTTP artifact routes.
 
 ```python
 import roboenv
@@ -135,20 +129,18 @@ print(env.devices())
 print(env.device("left_arm").read())
 ```
 
-`roboenv.launch(task="TASK_ID")` returns an owner context manager. Launch
-accepts `port=8123` or defaults to automatic port assignment. The endpoint is
-available as `env.record["endpoint"]`. Concurrent runs use separate ports. After
-a run ends, its port can be reused and a fresh client can connect at the same URL.
-Context exit stops the
-environment; `connect` only creates a client. Devices support
-`read`, `write`, `stop`, `ik`, and `fk` only when their live descriptors advertise
-them. Results retain `data`, budget, and execution evidence. Unsupported
-kinematics or calibration are not synthesized.
+Python owners use `with roboenv.launch(task="TASK_ID", port=8123) as run:` and
+connect to `run.endpoint`. Context exit stops the world; closing an attached
+client only releases client resources. Devices expose the operations declared by
+their live descriptors and return device data directly. Budgets and execution
+receipts remain in owner evidence. Exported manipulator drivers provide local
+FK/IK; the service does not synthesize unsupported operations.
 
 Run definitions, device exports, and logs remain in the project's ignored cache.
-Exported local drivers carry a connection file, so they work outside the source
-directory with the SDK installed. These local connection files are not portable
-Harbor task inputs.
+Exported local drivers carry a connection file. Copy complete device directories
+into the agent workspace; their dependencies are described in
+[local Kinex use](kinex-local.md). These episode-specific connection files are
+not portable Harbor task inputs.
 
 ## Export to Harbor
 
@@ -167,63 +159,56 @@ configuration. Image and asset preparation are described in
 
 RoboTwin and RoboDojo tasks expose typed devices and do not ship primitive
 reference solutions.
-Use `tools/validate_simulators.py --modes probe` for device connectivity checks;
-Kinex controller development and frozen task acceptance use RoboEnv's
-[standard Harbor task integration](simulator-kinex-testing.md).
+See [simulator validation](gpu-validation.md) for native checks and
+[Kinex Harbor integration](../integrations/kinex/README.md) for controller
+development and frozen trials.
 
-`tools/check_native_transport.py` exercises two concurrent native episodes,
-request deduplication, lost-reply recovery, public/owner separation and endpoint
-reuse. It discovers an RGB or RGB-D camera from the live inventory; `--camera`
-selects a specific sensor. `--seeds FIRST SECOND` selects the two native layouts
-for RoboTwin and RoboDojo. For BEHAVIOR, also supply `--instances FIRST SECOND`
-with distinct activity instance IDs: changing random seeds does not select a
-different presampled activity instance. The checker compares the loaded native
-states and rejects a pair that is effectively identical. It requires prepared
-native environments and assets; passing its planning tests alone does not certify
-BEHAVIOR or RoboDojo execution.
+## Advanced installation and assets
 
-The published RoboDojo layout archive currently contains ARX-X5 scene layouts.
-Generated YAM practice tasks explicitly set `env_cfg_type: yam` and
-`layout_config: arx_x5`: the native YAM robot operates on those unchanged object
-and fixture layouts. Receipts record both settings and the embodiment adaptation;
-these tasks are not an official YAM benchmark collection. A private YAM layout
-collection can instead select `layout_config: yam` when installed.
+Sources and managed patches are pinned in [upstreams.lock.json](../upstreams.lock.json).
+`roboenv sources status --backends BACKEND` checks their exact revisions and tracked
+contents without changing the working tree. Recipes and dependency locks are in
+`runtime/environments.json` and `runtime/locks/`.
 
-For a single GPU on an Isaac host, select the physical device with
-`CUDA_VISIBLE_DEVICES` and leave `OMNIGIBSON_GPU_ID` unset so Kit can select the
-matching renderer and PhysX can use logical CUDA device 0. A physical index passed
-as a logical index after masking can prevent startup. Verify the actual selected
-device in native logs; source or import checks do not establish GPU readiness.
-
-For development verification run `bash tools/check.sh`. CPU checks, container
-boot, device conformance, benchmark success, and fresh-process replay are
-separate results.
-
-
-## Local cache and disk usage
-
-`.cache/` contains several kinds of local data:
-
-- `pytest/`: temporary test fixtures and copied workspaces. Pytest removes passing
-  test directories and retains failed-test artifacts from up to three runs.
-  An explicit `--basetemp` overrides pytest’s automatic retention.
-- `roboenv/runs/`: simulation logs, recordings, and evidence. Keep these until you
-  have reviewed or archived the runs; they are not automatically deleted.
-- `roboenv/installations/` and `roboenv/assets/`: interpreter registration and
-  asset verification receipts. Keep them with the installed simulator assets.
-- Simulator asset folders, setup logs, schema dependencies, and build diagnostics.
-
-Install commands honor `UV_CACHE_DIR` and otherwise use uv’s shared default cache,
-so each RoboEnv checkout does not retain its own large set of package downloads.
-Older checkouts may still contain `.cache/uv`. To prune its disposable downloaded
-wheel entries while retaining expensive source builds:
+For explicit package inputs, use the low-level installer after source sync:
 
 ```sh
-du -h --max-depth=1 .cache
-uv cache prune --ci --cache-dir .cache/uv
+roboenv sources sync --backends libero
+python -m roboenv.provisioning.setup libero
+python -m roboenv.provisioning.setup libero \
+  --install --prefix .venv-sim/libero-wheels --wheels build/wheels
 ```
 
-Pruning uses uv’s cache locking and leaves installed environments in place. Packages
-removed from the cache may need downloading again for a future installation. Do
-not delete all of `.cache/`: run evidence, asset files, and registrations also live
-there. Actual simulator interpreters are separate under `.venv-sim/` by default.
+Without `--install` this only inspects the recipe. Installation requires a new
+prefix, uses normal dependency resolution, verifies dependencies and import origins,
+and registers the interpreter for launch. It does not acquire assets; use `prepare`
+for that step. With no package arguments it uses this checkout's SDK and runtime.
+`--sdk PATH --runtime PATH` selects source directories or individual wheels and
+cannot be combined with `--wheels`. `--project` selects another checkout;
+`ROBOENV_ROOT` identifies the source root when running its simulator elsewhere.
+See [release checks](releasing.md) for independent wheel installation.
+
+To inventory independently acquired data-only assets:
+
+```sh
+python -m roboenv.provisioning.assets create "$ASSET_DEPOT" \
+  --asset-id example-assets --source-url "$ASSET_SOURCE_URL" \
+  --source-revision "$ASSET_VERSION" --license-url "$ASSET_LICENSE_URL" \
+  --out deployments/local/example-assets.json
+python -m roboenv.provisioning.assets verify "$ASSET_DEPOT" \
+  deployments/local/example-assets.json
+```
+
+Use actual upstream provenance and a new receipt outside the depot. Verification
+reads all contents and checks relative paths, sizes, hashes and internal symlinks;
+keep the depot quiescent. Content verification does not establish redistribution
+rights or native execution. Image interpreter/depot options are described in
+[Harbor tasks](harbor-tasks.md).
+
+## Local storage
+
+Keep `.cache/roboenv/runs/` logs and recordings, installation/asset receipts,
+simulator assets and failed setup diagnostics until reviewed or archived. `.cache/`
+is not wholly disposable. Interpreters default to `.venv-sim/`; package downloads
+use uv's shared cache or `UV_CACHE_DIR`. Asset depots selected with
+`ROBOENV_ASSET_CACHE` must remain accessible through their source-checkout links.

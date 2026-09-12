@@ -107,8 +107,8 @@ roboenv launch robocasa/pick-place-microwave --sync
 Without either flag, launch uses the task's `backend_kwargs.realtime`. Checked-in
 and discovered RoboCasa tasks explicitly set `realtime: true`. Python owners can
 pass `realtime=True` or `realtime=False` to `roboenv.launch`; `None` uses the task
-setting. Clock selection currently supports RoboCasa only; other simulators reject
-an explicit override.
+setting. Clock override support is backend-specific; unsupported overrides fail
+explicitly.
 
 To change the task default before launch:
 
@@ -180,19 +180,19 @@ A custom task's `device_bindings` replaces the complete default selection. Logic
 names, profiles, and mounts must match the published device directories.
 The standard map binds logical `base` to native entity `base`; custom logical names
 are supported. Renaming updates the profile, connection target, stop scope, and
-dependent mounts. The public whole-robot composite device has been removed; native
-controller composition remains internal to the world.
+dependent mounts. Native controller composition remains internal to the world;
+public devices expose their individual typed operations.
 
 `config.camera` selects an existing sensor, which must also be enabled through
 `backend_kwargs.camera_names`. A profile does not create a camera.
 
-Profiles target Kinex commit `5beca17` and its strict per-type schemas. Access
+Profiles use Kinex's strict per-type schemas. Access
 uses typed `access.connection` and explicit driver actions. Manipulators store home
 positions by joint name, optional speed capability (`null` here), feedback channels,
 and stop scope. Gripper command and measured finger dimensions are independent;
 unsupported sensors and aperture conversion are not invented. World has no access
 or extrinsics. Required unknown facts use `???`; optional unavailable values use
-`null` according to each schema. Old body/profile formats have no compatibility path.
+`null` according to each schema.
 
 ## Portable drivers and local kinematics
 

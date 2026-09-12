@@ -2,16 +2,13 @@
 
 Add a simulator by connecting its native devices to one RoboEnv world and shipping
 a reusable device catalog. Follow [DESIGN.md](../DESIGN.md); [RoboCasa](robocasa.md)
-is the reference implementation. Existing primitive bridges are not the interface
-for new integrations.
+is the reference implementation.
 
-For coding-agent workflows, use
-[integrate-simulator-kinex](../.agents/skills/integrate-simulator-kinex/SKILL.md).
-It owns source/recipe/native-device implementation and continues into
-[test-simulator-kinex](../.agents/skills/test-simulator-kinex/SKILL.md) for real job
-acceptance in the same authorized task. For an existing integration that only
-needs a test job, start with the testing skill. See [skill layout](skills.md) and
-[job modes and evidence](simulator-kinex-testing.md).
+Coding-agent workflows are defined in
+[integrate-simulator-kinex](../.agents/skills/integrate-simulator-kinex/SKILL.md)
+for implementation and
+[test-simulator-kinex](../.agents/skills/test-simulator-kinex/SKILL.md) for acceptance.
+See [Kinex Harbor integration](../integrations/kinex/README.md) for job commands.
 
 ## Choose the scope
 
@@ -150,18 +147,20 @@ and geometry, not a solver RPC. Local computation must not mutate live state.
 ## 4. Build a static, portable catalog
 
 ```text
-catalog/robots/ROBOT/
+catalog/robots/SIMULATOR/ROBOT/
   workspace.yaml
   devices/NAME/profile.yaml
   devices/NAME/driver.py       # except world and fixed base
-  devices/NAME/_roboenv.py     # transport support for RoboCasa typed drivers
-catalog/bindings/ROBOT.yaml
+  devices/NAME/_roboenv.py     # shared portable transport
+catalog/bindings/SIMULATOR/ROBOT.yaml
 catalog/tasks/SIMULATOR/TASK/task.yaml
 ```
 
 The robot directory contains only `workspace.yaml` and `devices/`, ready to copy to
 a harness. Keep binding plans outside it, generators in `tools/`, and explanations
 and source receipts in `docs/`. Launch consumes the catalog without modifying it.
+Task `robot` fields use `SIMULATOR/ROBOT` relative catalog paths; robot identity
+IDs remain flat. Binding paths mirror the simulator namespaces.
 
 | Profile field | Content |
 |---|---|
@@ -175,7 +174,7 @@ Use the actual Kinex schemas and required-action definitions to validate exports
 Kinex’s type templates live in `builtin/device/templates/<type>/`; schemas and
 required actions live in `src/calibration/` and `src/device/interface.ts`. Validate
 against these actual definitions in development, without adding Kinex to the
-simulator worker’s dependencies. RoboCasa targets commit `5beca17`.
+simulator worker’s dependencies.
 
 - Manipulators own `kinematics.model` (including joint order/limits), `kinematics.ik`,
   named `home`, `control.speed`, `feedback`, and `stop` behavior/affected devices.
@@ -246,7 +245,7 @@ devices:
     profile: devices/base/profile.yaml
 ```
 
-Use `catalog/bindings/ROBOT.yaml` for defaults. Task `device_bindings` is a complete
+Use `catalog/bindings/SIMULATOR/ROBOT.yaml` for defaults. Task `device_bindings` is a complete
 replacement, not a patch. Publish exactly the selected profiles and drivers.
 Sensor configuration must also enable those sensors in the backend.
 
@@ -327,32 +326,19 @@ Run `bash tools/check.sh` after adding positive and negative tests for:
 - Retry uncertainty, duplicate requests, parallel episodes, and replacement-episode rejection.
 - Public/owner separation, cached-result restrictions, and cleanup after partial startup.
 
-Report CPU/config checks, GPU boot, device checks, task success, and fresh-process
-replay separately. A recording or successful Harbor load proves none of the latter.
-Integration completion requires the working native/agent path and diagnosed,
-truthful outcomes; it does not require a difficult task to succeed. Use real
-session messages, device events, videos and matched command replay to distinguish
-controller/perception failures from integration defects. Minimum task success
-rates and frozen held-out trials belong to separately requested task-performance
-acceptance. See [Kinex integration testing](simulator-kinex-testing.md).
-GPU/model runs require explicit scope; preserve prior evidence. Use
-[Kinex local testing](kinex-local.md) for copied workspaces and recording.
+Report CPU/config checks, native boot, device checks, task success and fresh-process
+replay separately. Integration acceptance establishes the working native/agent path;
+task-performance acceptance sets separate success-rate and held-out requirements.
+Use sessions, device events, video and replay to diagnose failures. Preserve prior
+evidence and keep GPU/model runs within the authorized scope. See
+[simulator validation](gpu-validation.md) for check tools and
+[local Kinex use](kinex-local.md) for workspace setup and recording.
 
-### Native rig organization and clocks
-
-RoboTwin and RoboDojo keep their complete rigs under
-`catalog/robots/robotwin/robotwin-*` and `catalog/robots/robodojo/robodojo-*`.
-Owner binding paths mirror those namespaces under `catalog/bindings/`. Robot
-identity IDs remain flat; task `robot` fields are relative catalog paths.
+### Native clocks
 
 RoboTwin, RoboDojo and BEHAVIOR share native target validation, atomic write groups,
 owner recording and adapter lifecycle. RoboDojo and BEHAVIOR advance realtime
 physics on the worker's creating thread. BEHAVIOR accepts `--realtime` and `--sync`;
 its base execution profile follows the selected clock without changing geometry.
-`tools/check_native_clock.py` checks real worker progress, motion, terminal freeze
-and independent replay; direct adapter checks alone cannot establish worker behavior.
-
-Image preparation reads interpreter defaults and optional `shm_size` /
-`start_period` from `catalog/deployments/BACKEND.yaml`. These are build defaults,
-not ready deployment receipts: a built image digest and verified independent
-asset mounts are still required.
+Validate clocks through the real worker as described in
+[simulator validation](gpu-validation.md#native-device-checks).

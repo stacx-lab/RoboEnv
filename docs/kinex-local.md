@@ -1,4 +1,4 @@
-# Local RoboCasa + Kinex test plan
+# Local RoboCasa and Kinex
 
 The checked-in `catalog/robots/robocasa/robocasa-panda-omron` directory is already ready
 to copy into Kinex. It contains a fixed robot manifest and eight devices:
@@ -151,7 +151,7 @@ These show wall-clock samples, not a
 frame-perfect simulation replay. The TUI controls recording; these artifacts
 provide visual playback. No new visualization server is required.
 
-## Acceptance and follow-up
+## Verification
 
 | Check | Required evidence |
 |---|---|

@@ -82,7 +82,7 @@ the user has authorized finite time/round limits instead.
 
 Inspect the selected RoboEnv checkout before assuming
 `src/roboenv/harbor/kinex.py` and `integrations/kinex/` exist in RoboEnv.
-Use the standard Harbor task/job path in `docs/simulator-kinex-testing.md`;
+Use the standard Harbor task/job path in `integrations/kinex/README.md`;
 Kinex no longer owns external campaign scheduling scripts.
 Inspect the current files and `--help`, including all imports and bridges.
 Historical scripts may inform implementation, but are not a portable runtime
