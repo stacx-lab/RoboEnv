@@ -238,7 +238,7 @@ assert 'isaaclab' not in sys.modules and 'torch' not in sys.modules
 def test_go2_catalog_and_kinex_schema(tmp_path):
     task = resolve_task("isaaclab/go2-posture", project=ROOT)
     body = yaml.safe_load((task.robot / "devices/body/profile.yaml").read_text())
-    assert [j["name"] for j in body["intrinsics"]["joints"]] == list(JOINTS)
+    assert [j["name"] for j in body["intrinsics"]["kinematics"]["model"]["joints"]] == list(JOINTS)
     assert body["type"] == "legged"
     assert [body["intrinsics"]["home"][name] for name in JOINTS] == facts()["home"]
     assert body["extrinsics"]["frames"] == list(FEET)
@@ -601,7 +601,7 @@ def test_native_imu_read_preserves_specific_force_and_unsupported_channels():
 
 
 @pytest.mark.parametrize("entity,section,path,value", [
-    ("body", "intrinsics", ("joints", 0, "limits", "max"), 9),
+    ("body", "intrinsics", ("kinematics", "model", "joints", 0, "limits", "max"), 9),
     ("body", "intrinsics", ("home", JOINTS[0]), 1),
     ("body", "intrinsics", ("legs", 0, "foot_frame"), "FR_foot"),
     ("body", "intrinsics", ("feedback", "velocities"), 1),
@@ -703,3 +703,33 @@ def test_camera_acquisition_is_cached_without_stepping_and_has_paired_timestamps
     env.steps += 1
     assert env.read_camera(tmp_path)["sample_time_s"] == .08
     assert len(renders) == 2
+
+
+def test_go2_zero_joint_fk_matches_usd_link_transforms(monkeypatch):
+    """Independent CPU oracle: authored rigid link transforms at zero joint angles."""
+    pytest.importorskip("pxr.Usd")
+    from pxr import Usd, UsdGeom
+    from roboenv.provisioning.isaaclab_assets import verify_assets
+
+    library = ROOT.parent / "kinex/python"
+    if not (library / "kinex/legged.py").is_file():
+        pytest.skip("Requires sibling Kinex kinematics")
+    monkeypatch.syspath_prepend(str(library))
+    from kinex.legged import Legged
+
+    profile = yaml.safe_load((
+        ROOT / "catalog/robots/isaaclab/isaaclab-go2/devices/body/profile.yaml"
+    ).read_text())
+    stage = Usd.Stage.Open(str(verify_assets(ROOT) / "go2.usd"))
+    transforms = UsdGeom.XformCache()
+    base = transforms.GetLocalToWorldTransform(stage.GetPrimAtPath("/go2_description/base"))
+    poses = Legged(profile).forward([0]*12)
+    for foot, pose in zip(FEET, poses, strict=True):
+        foot_world = transforms.GetLocalToWorldTransform(
+            stage.GetPrimAtPath(f"/go2_description/{foot}")
+        )
+        relative = foot_world * base.GetInverse()
+        assert np.allclose(pose["position"], relative.ExtractTranslation(), atol=1e-6)
+        q = relative.ExtractRotationQuat().GetNormalized()
+        expected = [*q.GetImaginary(), q.GetReal()]
+        assert np.allclose(rotation(pose["orientation"]), rotation(expected), atol=1e-6)

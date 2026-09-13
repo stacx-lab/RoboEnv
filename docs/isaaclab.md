@@ -3,7 +3,7 @@
 Isaac Lab is not officially supported by RoboEnv. This integration is an
 experimental prototype; the setup and device descriptions below do not establish
 simulator validation or benchmark support. The Go2 catalog uses Kinex's `legged`
-device contract for `body`, with separate
+device contract for `body`, with device-owned multi-chain FK/IK and separate
 RGB-D, IMU and foot-contact devices. CPU schema checks do not establish native
 physics, walking or balance performance.
 
@@ -79,7 +79,7 @@ the corresponding `parent_frame`; world/object poses are owner-only.
 
 The profile generator reads the actual USD joint limits and IMU mount on CPU,
 and reads initialization defaults from the pinned upstream configuration AST.
-It does not approximate the simulated model with a different URDF. Its explicit
+It extracts body-to-foot chains from USD physics joint frames and axes, including fixed joints. The generated multi_chain model owns the ordered joint definitions; there is no intrinsics.joints field. It does not approximate the simulated model with a different URDF. Its explicit
 camera configuration is shared with runtime. Native initialization checks the
 joint layout, limits, and home configuration against generated facts.
 
@@ -122,7 +122,24 @@ check. CPU tests and rendered replay are reported separately.
 
 ## Controller and arm composition
 
-The device accepts joint positions, not velocity or walking commands. Controllers
+The device accepts joint positions, not velocity or walking commands. Exported Kinex drivers also provide local `fk({joints}) -> {pose}` and `ik({pose,seed?}) -> {joints}` without stepping or changing native targets; the public environment service continues to expose its basic actions only.
+
+Legged `pose` is a complete array in FL/FR/RL/RR order. Every entry is
+`{position:[x,y,z],orientation:null|[qx,qy,qz,qw]}` relative to body. Null orientation
+requests position-only IK. All feet are required; FK returns full orientations.
+IK uses measured joints once when seed is omitted and verifies its result with FK.
+The profile declares `control.speed:null`; speedFraction is unsupported.
+
+`servo_to({device:"body",pose:[...]})` passes the target to this driver's IK, then
+runs the same joint-arrival loop used for arms. Its only alternative input is
+`joints`; there is no feet option. Convert frames and TCP offsets before calling;
+frame/end_effector and Cartesian-tolerance tool parameters are not supported.
+Joint arrival does not imply foot clearance, fixed body attitude or balance.
+
+The model extraction receipt is `isaaclab-kinematics.provenance.json`; it is CPU
+evidence, not native validation. The native test separately compares FK against
+measured body-relative feet and exercises the exported driver with servo_to.
+ Controllers
 own policy inference and support behavior. `stop` holds measured joint positions;
 it does not certify support while an arm operates. An independently controlled
 arm mounts to `body` through its own calibrated `extrinsics.mount`; the body has
