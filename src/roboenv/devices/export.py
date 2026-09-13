@@ -100,7 +100,8 @@ def export_devices(profiles, directory, connection):
             profile.pop("extrinsics", None)
         if descriptor["type"] != "world":
             actions = [key for key, value in descriptor["actions"].items() if value["supported"]]
-            if descriptor["type"] == "manipulator" and descriptor["intrinsics"].get("kinematics"):
+            if (descriptor["type"] in {"manipulator", "legged"}
+                    and descriptor["intrinsics"].get("kinematics")):
                 actions += [action for action in ("fk", "ik") if action not in actions]
             profile["access"] = driver_access(
                 descriptor["type"], name, actions, connection["endpoint"],

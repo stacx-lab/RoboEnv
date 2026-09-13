@@ -24,7 +24,7 @@ from roboenv_runtime.adapters.isaaclab.profiles import (  # noqa: E402
     DEVICE_NAMES,
     device_profiles,
 )
-from roboenv_runtime.adapters.isaaclab.rig import JOINTS  # noqa: E402
+from roboenv_runtime.adapters.isaaclab.rig import FEET, JOINTS  # noqa: E402
 
 META = {"created_at": "2026-09-07T00:00:00Z", "updated_at": "2026-09-07T00:00:00Z"}
 
@@ -33,6 +33,7 @@ META = {"created_at": "2026-09-07T00:00:00Z", "updated_at": "2026-09-07T00:00:00
 def extract(project):
     import re
 
+    from isaaclab_kinematics import extract_chains
     from pxr import Usd, UsdGeom, UsdPhysics
 
     root = verify_assets(project)
@@ -78,6 +79,7 @@ def extract(project):
         "home": home,
         "posture": posture,
         "imu_position": imu_position,
+        "chains": extract_chains(stage, JOINTS, FEET),
     }, source
 
 
@@ -93,7 +95,7 @@ def generate(out, model):
         if profile["type"] != "world":
             actions = ["read", "load", "unload", "status"]
             if profile["type"] == "legged":
-                actions += ["write", "stop"]
+                actions += ["write", "stop", "fk", "ik"]
             profile["access"] = driver_access(profile["type"], name, actions,
                                               "http://127.0.0.1:8123", timeout_s=30)
             write_driver(directory, profile["type"])
@@ -158,6 +160,9 @@ def main():
             ]["revision"],
             "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
             "generator_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "kinematics_generator_sha256": hashlib.sha256(
+                (ROOT / "tools/isaaclab_kinematics.py").read_bytes()
+            ).hexdigest(),
             "rig_sha256": hashlib.sha256(
                 (ROOT / "runtime/src/roboenv_runtime/adapters/isaaclab/rig.py").read_bytes()
             ).hexdigest(),
@@ -166,7 +171,8 @@ def main():
             ).hexdigest(),
             "assets": json.loads((ROOT / "src/roboenv/assets/isaaclab-go2.json").read_text()),
             "method": (
-                "CPU USD joint limits and rigid IMU mount; literal upstream initialization; "
+                "CPU USD joint frames, axes, limits, foot chains and rigid IMU mount; "
+                "literal upstream initialization; "
                 "explicit synthetic camera mount"
             ),
             "gpu_validated": False,
