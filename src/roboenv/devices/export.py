@@ -11,7 +11,7 @@ DRIVERS = {
     "rgb": "camera-client.py", "rgbd": "camera-client.py",
     "end_effector": "gripper-client.py", "base": "base-client.py",
     "manipulator": "manipulator-client.py", "force_torque": "sensor-client.py",
-    "imu": "sensor-client.py", "legged": "legged-client.py",
+    "imu": "sensor-client.py",
 }
 PORTABLE_TYPES = frozenset(DRIVERS)
 
@@ -100,12 +100,15 @@ def export_devices(profiles, directory, connection):
             profile.pop("extrinsics", None)
         if descriptor["type"] != "world":
             actions = [key for key, value in descriptor["actions"].items() if value["supported"]]
-            if (descriptor["type"] in {"manipulator", "legged"}
+            if (descriptor["type"] == "manipulator"
                     and descriptor["intrinsics"].get("kinematics")):
                 actions += [action for action in ("fk", "ik") if action not in actions]
             profile["access"] = driver_access(
                 descriptor["type"], name, actions, connection["endpoint"],
             )
+            group = descriptor.get("execution", {}).get("group")
+            if group:
+                profile["access"]["driver"]["execution_group"] = group
             write_driver(destination, descriptor["type"])
             (destination / "connection.json").write_text(json.dumps(connection) + "\n")
         (destination / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))

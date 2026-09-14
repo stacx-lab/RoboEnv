@@ -6,26 +6,36 @@ intrinsics:
   calibrated_at: null
   mobility: mobile
   control:
-    frame: body
-    components:
-    - axis: vx
-      units: normalized
-      bounds:
-        min: -1
-        max: 1
-    - axis: vy
-      units: normalized
-      bounds:
-        min: -1
-        max: 1
-    - axis: wz
-      units: normalized
-      bounds:
-        min: -1
-        max: 1
+    mode: motion
+    body_frame: base
+    modes:
+      drive:
+        velocity:
+          frame: body
+          components:
+          - axis: vx
+            units: normalized
+            bounds:
+              min: -1
+              max: 1
+          - axis: vy
+            units: normalized
+            bounds:
+              min: -1
+              max: 1
+          - axis: wz
+            units: normalized
+            bounds:
+              min: -1
+              max: 1
+        posture: null
     execution:
       mode: realtime
       command_timeout_s: null
+  stop:
+    behavior: halt
+    affected_devices:
+    - base
   feedback:
     pose_frame: world
     velocity_frame: body

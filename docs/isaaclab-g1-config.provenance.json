@@ -1,0 +1,14 @@
+{
+  "source_revision": "99f1423e5d4a26216c0eedeb2aa78099a8c3a7d1",
+  "source_files": {
+    "source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/pick_place/locomanipulation_g1_env_cfg.py": "fe160608f02ba3c407379db42254d9f946974f68cdff946c543bd042b2373e66",
+    "source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/pick_place/mdp/actions.py": "00b36f9de894dd764c551f5f5eed759e8af57a4e5888592aed5de0fe67bbb83b",
+    "source/isaaclab_tasks/isaaclab_tasks/manager_based/locomanipulation/pick_place/configs/agile_locomotion_observation_cfg.py": "1595c7405af541e719bede089ac74c494bd08cda637d0e5ec45f7956da2a5577",
+    "source/isaaclab_assets/isaaclab_assets/robots/unitree.py": "a2e14426d635a082cbca8033b1e91cc68637e832dc3d453bc7d3c287a1eb2835"
+  },
+  "asset_manifest_sha256": "d02f11c08db1a7f081737734809b8a3cd7e86179e9698f677d78403485c10c56",
+  "generator_sha256": "58963e8a2e08f1d87b675c8224299922354bfa0ed819f68496295145545a2dea",
+  "kinematics_generator_sha256": "fd42778bccd1353a0442e59ddfb9551e19fc2654fde0e0e797298df74d9b3889",
+  "method": "CPU USD joint chains, limits and wrist-to-palm mounts; configured RGB-D rig",
+  "gpu_validated": false
+}

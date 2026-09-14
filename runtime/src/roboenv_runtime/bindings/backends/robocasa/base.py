@@ -8,19 +8,33 @@ def intrinsics(world, pose_frame="world"):
     if not world.realtime:
         execution = {"mode": "stepped", "interval_s": 1.0 / world.env.control_freq}
     return {
-        "source": "introspected", "method": "introspection", "calibrated_at": None,
+        "source": "introspected",
+        "method": "introspection",
+        "calibrated_at": None,
         "mobility": "mobile",
         "control": {
-            "frame": "body",
-            "components": [
-                {"axis": axis, "units": "normalized", "bounds": {"min": -1, "max": 1}}
-                for axis in ("vx", "vy", "wz")
-            ],
+            "mode": "motion",
+            "body_frame": "base",
+            "modes": {
+                "drive": {
+                    "velocity": {
+                        "frame": "body",
+                        "components": [
+                            {"axis": axis, "units": "normalized", "bounds": {"min": -1, "max": 1}}
+                            for axis in ("vx", "vy", "wz")
+                        ],
+                    },
+                    "posture": None,
+                }
+            },
             "execution": execution,
         },
+        "stop": {"behavior": "halt", "affected_devices": ["base"]},
         "feedback": {
-            "pose_frame": pose_frame, "velocity_frame": "body",
-            "velocity_components": ["vx", "vy", "wz"], "clock": "simulation",
+            "pose_frame": pose_frame,
+            "velocity_frame": "body",
+            "velocity_components": ["vx", "vy", "wz"],
+            "clock": "simulation",
         },
     }
 
@@ -39,5 +53,6 @@ def reading(model, data, body):
             "rotation_xyzw": [*quat[1:].tolist(), float(quat[0])],
         },
         "velocities": spatial[[3, 4, 2]].tolist(),
-        "faults": [], "sample_time_s": float(data.time),
+        "faults": [],
+        "sample_time_s": float(data.time),
     }
