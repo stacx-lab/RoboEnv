@@ -35,11 +35,11 @@ def add_commands(commands):
             clock = parser.add_mutually_exclusive_group()
             clock.add_argument(
                 "--realtime", dest="realtime", action="store_true",
-                help="Run continuous physics (RoboCasa)",
+                help="Run wall-clock-paced physics on a supported backend",
             )
             clock.add_argument(
                 "--sync", dest="realtime", action="store_false",
-                help="Advance one control interval per write (RoboCasa)",
+                help="Advance one control interval per write on a supported backend",
             )
             parser.set_defaults(realtime=None)
             parser.add_argument("--host", default="127.0.0.1")

@@ -56,7 +56,8 @@ def check(root, temporary):
             goal = arm.goal_qpos.copy()
             start = native._step_count
             # An unrelated device write must preserve the arm's target.
-            call("base", "write", target=[0.1, 0, 0])
+            call("base", "write", mode="drive", velocity={"vx": 0.1, "vy": 0, "wz": 0},
+                 posture={"height": 0.7, "pitch": 0.2})
         wait_frames(worker, start + 6)
         with worker.world.lock:
             np.testing.assert_allclose(arm.goal_qpos, goal, atol=1e-12)
@@ -124,7 +125,11 @@ def check_synchronous(root, temporary):
             ("base", [0.1, 0, 0]),
             ("torso", [0.1]),
         ], start=1):
-            result = call(device, "write", target=target)
+            args = {"target": target}
+            if device == "base":
+                args = {"mode": "drive", "velocity":
+                        dict(zip(("vx", "vy", "wz"), target, strict=True))}
+            result = call(device, "write", **args)
             assert result == {"accepted": True}
             assert native._step_count == frame
             np.testing.assert_allclose(native._robot.part_controllers["right"].goal_qpos, goal)

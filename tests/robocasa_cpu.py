@@ -284,11 +284,17 @@ def check(root, temporary):
             target = (list(service.describe(name)["intrinsics"]["home"].values())
                       if name in ("arm", "torso") else [0.1] * size)
             if name in {"gripper", "base"}:
-                local(name, "write", {"target": target})
+                command = {"target": target}
+                if name == "base":
+                    command = {"mode": "drive", "velocity":
+                               dict(zip(("vx", "vy", "wz"), target, strict=True))}
+                local(name, "write", command)
             else:
                 call(name, "write", {"target": target})
             assert native._step_count == before + 1
             expected_stop = {"stopped": True}
+            if name == "base":
+                expected_stop.update(behavior="halt", affected_devices=[name])
             if name in {"arm", "torso", "gripper"}:
                 expected_stop.update(behavior="hold", affected_devices=[name])
             stopped = local(name, "stop", {}) if name == "gripper" else call(name, "stop")
@@ -398,7 +404,7 @@ def check(root, temporary):
         # A later base command preserves the previous gripper command.
         call("gripper", "write", {"target": [1]})
         fingers = native._robot.gripper["right"].current_action.copy()
-        call("base", "write", {"target": [0, 0, 0]})
+        call("base", "write", {"mode": "drive", "velocity": {"vx": 0, "vy": 0, "wz": 0}})
         increment = np.array([-1, 1]) * native._robot.gripper["right"].speed
         np.testing.assert_allclose(native._robot.gripper["right"].current_action,
                                    np.clip(fingers + increment, -1, 1))

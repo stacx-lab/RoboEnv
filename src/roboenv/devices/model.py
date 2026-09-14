@@ -103,6 +103,7 @@ class BoundDevice:
         validation="implementation-present; not hardware-probed",
         binding=None,
         on_close=None,
+        execution_group=None,
     ):
         self.definition = copy.deepcopy(definition)
         self.actions = dict(actions)
@@ -115,6 +116,7 @@ class BoundDevice:
         self.implementation, self.validation = implementation, validation
         self.binding, self._on_close = copy.deepcopy(binding), on_close
         self._closed = False
+        self.execution_group = execution_group
 
     def describe(self):
         definition = self.definition
@@ -139,7 +141,10 @@ class BoundDevice:
                 }
                 for name, action in self.actions.items()
             },
-            "execution": {"mode": "synchronous", "interruptible": False},
+            "execution": {
+                "mode": "synchronous", "interruptible": False,
+                **({"group": self.execution_group} if self.execution_group else {}),
+            },
             "implementation": self.implementation,
             "validation": self.validation,
         }

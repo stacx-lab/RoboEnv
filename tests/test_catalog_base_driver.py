@@ -27,7 +27,9 @@ def base(monkeypatch):
         if action == "read":
             return {
                 "pose": {"translation_m": [1, 2, 3], "rotation_xyzw": [0, 0, 0, 1]},
-                "velocities": [0.1, 0.2, 0.3], "faults": [], "sample_time_s": 1.25,
+                "velocities": [0.1, 0.2, 0.3],
+                "faults": [],
+                "sample_time_s": 1.25,
             }
         if action == "stop":
             return {"stopped": True}
@@ -39,8 +41,10 @@ def base(monkeypatch):
 
 def test_base_keeps_normalized_commands_and_measured_physical_readings(base):
     module, calls = base
-    assert module.handle("write", {"target": [0.3, 0, -0.1]})["accepted"]
-    assert calls == [("write", {"target": [0.3, 0, -0.1]})]
+    assert module.handle("write", {"mode": "drive", "velocity": {"vx": 0.3, "vy": 0, "wz": -0.1}})[
+        "accepted"
+    ]
+    assert calls == [("write", {"mode": "drive", "velocity": {"vx": 0.3, "vy": 0, "wz": -0.1}})]
     measured = module.handle("read", {})
     assert measured["ok"] and measured["velocities"] == [0.1, 0.2, 0.3]
     assert measured["pose"]["translation_m"] == [1, 2, 3]
@@ -53,13 +57,54 @@ def test_base_keeps_normalized_commands_and_measured_physical_readings(base):
 
 def test_base_rejects_bad_commands_before_transport(base):
     module, calls = base
-    for args in ({"target": [2, 0, 0]}, {"target": [0]}, {"target": [True, 0, 0]},
-                 {"target": [float("nan"), 0, 0]},
-                 {"target": [0, 0, 0], "speedFraction": 0.1}):
+    for args in (
+        {"mode": "unsupported", "velocity": {"vx": 0, "vy": 0, "wz": 0}},
+        {"mode": "drive", "velocity": {"vx": 2, "vy": 0, "wz": 0}},
+        {"mode": "drive", "velocity": {"vx": 0, "vy": 0}},
+        {"mode": "drive", "velocity": {"vx": 0, "vy": 0, "wz": 0}, "posture": {"pitch": True}},
+        {
+            "mode": "drive",
+            "velocity": {"vx": 0, "vy": 0, "wz": 0},
+            "posture": {"pitch": float("nan")},
+        },
+        {"mode": "drive", "velocity": {"vx": 0, "vy": 0, "wz": 0}, "posture": {"typo": 0}},
+        {"target": [2, 0, 0]},
+        {"target": [0]},
+        {"target": [True, 0, 0]},
+        {"target": [float("nan"), 0, 0]},
+        {"target": [0, 0, 0], "speedFraction": 0.1},
+    ):
         assert not module.handle("write", args)["ok"]
     assert not module.handle("ik", {})["ok"]
     assert not module.handle("stop", {"target": []})["ok"]
     assert calls == []
+
+
+def test_wheels_ignore_posture_before_transport(base):
+    module, calls = base
+    velocity = {"vx": 0.1, "vy": 0, "wz": 0}
+    assert module.handle(
+        "write",
+        {
+            "mode": "drive",
+            "velocity": velocity,
+            "posture": {
+                "height": 0.7,
+                "roll": 0.1,
+                "pitch": -0.2,
+                "yaw": 0.3,
+            },
+        },
+    )["ok"]
+    assert calls == [("write", {"mode": "drive", "velocity": velocity})]
+
+
+def test_stop_and_unload_do_not_require_control_metadata(base, monkeypatch):
+    module, calls = base
+    monkeypatch.setattr(module, "settings", lambda: {"intrinsics": {"control": "???"}})
+    assert module.handle("stop", {})["stopped"]
+    assert module.handle("unload", {})["ok"]
+    assert calls == [("stop", {}), ("stop", {}), ("unload", {})]
 
 
 def test_base_rejects_malformed_measurements_and_failed_stop(base, monkeypatch):
@@ -73,7 +118,13 @@ def test_catalog_base_is_minimal_and_adapter_matches_export_asset():
     profile = yaml.safe_load((BASE / "profile.yaml").read_text())
     assert profile["type"] == "base"
     assert set(profile["intrinsics"]) == {
-        "source", "method", "calibrated_at", "mobility", "control", "feedback",
+        "source",
+        "method",
+        "calibrated_at",
+        "mobility",
+        "control",
+        "feedback",
+        "stop",
     }
     assert "mount" not in profile["extrinsics"]
     assert profile["access"]["connection"]["device"] == "base"

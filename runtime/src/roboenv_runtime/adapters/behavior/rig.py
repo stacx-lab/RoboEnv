@@ -48,18 +48,35 @@ def describe(robot, interval, *, realtime=False):
             "calibrated_at": None,
             "mobility": "mobile",
             "control": {
-                "frame": "body",
-                "components": [
-                    {"axis": axis, "units": units, "bounds": {"min": -bound, "max": bound}}
-                    for axis, units, bound in (
-                        ("vx", "m/s", 0.5),
-                        ("vy", "m/s", 0.5),
-                        ("wz", "rad/s", 1.0),
-                    )
-                ],
-                "execution": ({"mode": "realtime", "command_timeout_s": None} if realtime
-                              else {"mode": "stepped", "interval_s": interval}),
+                "mode": "motion",
+                "body_frame": "base",
+                "modes": {
+                    "drive": {
+                        "velocity": {
+                            "frame": "body",
+                            "components": [
+                                {
+                                    "axis": axis,
+                                    "units": units,
+                                    "bounds": {"min": -bound, "max": bound},
+                                }
+                                for axis, units, bound in (
+                                    ("vx", "m/s", 0.5),
+                                    ("vy", "m/s", 0.5),
+                                    ("wz", "rad/s", 1.0),
+                                )
+                            ],
+                        },
+                        "posture": None,
+                    }
+                },
+                "execution": (
+                    {"mode": "realtime", "command_timeout_s": None}
+                    if realtime
+                    else {"mode": "stepped", "interval_s": interval}
+                ),
             },
+            "stop": {"behavior": "halt", "affected_devices": ["base"]},
             "feedback": {
                 "pose_frame": "world",
                 "velocity_frame": "body",

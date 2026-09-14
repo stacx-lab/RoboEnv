@@ -107,10 +107,18 @@ Neither mode imposes a simulation horizon.
 Task-solving controllers belong in the agent harness. See [RoboCasa](docs/robocasa.md)
 for action spaces, task-specific device selection, and validation coverage.
 
-Isaac Lab is experimental and is not officially supported by RoboEnv. Its
-`isaaclab/go2-posture` prototype provides native Go2 joint control with RGB-D,
-IMU, and foot contacts, using synchronous stepping. See
-[Isaac Lab setup and devices](docs/isaaclab.md); [G1 follow-up](plan.md) is deferred.
+Isaac Lab is experimental and not officially supported. Its G1 practice interface
+uses a named locomotion-mode base (velocity plus posture), independent waist/arm joint control, hands and
+RGB-D cameras. The old Go2 joint-posture demo has been removed; no Go2 locomotion
+policy is supplied. See [Isaac Lab setup and devices](docs/isaaclab.md). CPU checks
+do not establish native replay or balance.
+
+G1 defaults to synchronous stepping; `roboenv launch isaaclab/g1-pick-place --realtime`
+enables best-effort wall-clock stepping on the native owner thread. Base commands
+expire to standing after 0.5 seconds by default. Use matching realtime profiles
+when preparing a Kinex workspace; see the Isaac Lab guide. Realtime G1 has no
+episode time horizon; synchronous runs retain the upstream limit. Success and
+non-timeout termination conditions remain active.
 
 ## Export a Harbor task
 

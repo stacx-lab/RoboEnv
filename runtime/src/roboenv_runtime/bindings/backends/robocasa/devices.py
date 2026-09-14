@@ -78,7 +78,7 @@ def bind(spec, root, context):
                     "status": ["loaded"],
                     "write": ["accepted"],
                     "stop": (["stopped", "behavior", "affected_devices"]
-                             if entity in {"arm", "torso", "gripper"} else ["stopped"]),
+                             if entity in PARTS else ["stopped"]),
                     "read": (
                         ["file", "width", "height", "sample_time_s"]
                         + (["depth_file", "depth_width", "depth_height", "depth_sample_time_s"] if definition.type == "rgbd" else [])
@@ -104,6 +104,7 @@ def bind(spec, root, context):
         size = split[1] - split[0]
         if entity == "base":
             intrinsics = base_intrinsics(world, (context.devices or {}).get("world", "world"))
+            intrinsics["stop"]["affected_devices"] = [definition.name]
         if entity == "gripper":
             intrinsics = gripper_intrinsics(robot, sim, joints)
             intrinsics["stop"]["affected_devices"] = [definition.name]
@@ -135,7 +136,7 @@ def bind(spec, root, context):
         if entity in {"arm", "torso"}:
             limits = [joint["limits"] for joint in intrinsics["kinematics"]["model"]["joints"]]
         elif entity == "base":
-            limits = [component["bounds"] for component in intrinsics["control"]["components"]]
+            limits = [component["bounds"] for component in intrinsics["control"]["modes"]["drive"]["velocity"]["components"]]
         else:
             limits = [{"min": -1, "max": 1}]
         if size != len(limits):
@@ -163,17 +164,21 @@ def bind(spec, root, context):
             world.step({part: command})
             return {"accepted": True}
 
+        def write_base(**args):
+            from roboenv.devices.base import command
+            value = command(intrinsics["control"], args)
+            return write([value["velocity"][axis] for axis in ("vx", "vy", "wz")])
+
         def stop():
             world.stop_part(part)
-            if entity in {"arm", "torso", "gripper"}:
-                return {"stopped": True, **intrinsics["stop"]}
-            return {"stopped": True}
+            return {"stopped": True, **intrinsics["stop"]}
 
         register("read", read)
+        from roboenv.devices.base import command_schema
         register(
             "write",
-            write,
-            arguments({"target": array(size)}, ["target"]),
+            write_base if entity == "base" else write,
+            command_schema(intrinsics["control"]) if entity == "base" else arguments({"target": array(size)}, ["target"]),
             mutation=True,
         )
         register("stop", stop, mutation=True)

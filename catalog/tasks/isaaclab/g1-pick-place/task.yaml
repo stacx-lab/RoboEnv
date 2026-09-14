@@ -1,0 +1,13 @@
+id: isaaclab/g1-pick-place
+backend: isaaclab
+backend_task: isaaclab.g1-pick-place
+robot: isaaclab/isaaclab-g1
+seed: 0
+instruction: Pick up and place the steering wheel using the G1 humanoid.
+budget_mode: official
+action_abstraction: devices
+backend_kwargs:
+  task_name: g1-pick-place
+  realtime: false
+  command_timeout_s: null
+  asset_manifest: .cache/isaaclab/g1/assets.json

@@ -386,8 +386,8 @@ def test_clock_override_reaches_runtime_without_catalog_edits(realtime):
 
 def test_clock_validation_precedes_launch_effects(monkeypatch):
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: pytest.fail("unexpected process"))
-    with pytest.raises(ValueError, match="Clock selection is not supported"):
-        launch("isaaclab/go2-posture", project=ROOT, realtime=True)
+    with pytest.raises(ValueError, match="realtime must be a boolean"):
+        launch("isaaclab/g1-pick-place", project=ROOT, realtime="true")
     with pytest.raises(ValueError, match="boolean"):
         launch("robocasa/pick-place-microwave", project=ROOT, realtime="false")
     task = asdict(resolve_task("robocasa/pick-place-microwave", project=ROOT).task)

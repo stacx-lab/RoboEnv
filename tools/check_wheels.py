@@ -11,10 +11,16 @@ for wheel in wheels:
     with zipfile.ZipFile(wheel) as package:
         names = package.namelist()
         distribution = wheel.name.split("-")[0]
+        required = (
+            "roboenv/assets/isaaclab-g1.json"
+            if distribution == "roboenv"
+            else "roboenv_runtime/adapters/isaaclab/g1.json"
+        )
+        if required not in names:
+            raise SystemExit(f"G1 resource missing from wheel: {required}")
         source = Path("src") if distribution == "roboenv" else Path("runtime/src")
         expected = {
-            path.relative_to(source).as_posix()
-            for path in (source / distribution).rglob("*.py")
+            path.relative_to(source).as_posix() for path in (source / distribution).rglob("*.py")
         }
         actual = {name for name in names if name.endswith(".py")}
         if actual != expected:

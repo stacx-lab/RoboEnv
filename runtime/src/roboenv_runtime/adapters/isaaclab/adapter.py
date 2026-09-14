@@ -1,20 +1,26 @@
-"""Go2 device demonstration, with environment-owned clock and verdict."""
+"""G1 device interface with environment-owned clock and verdict."""
 
 from roboenv_runtime.core.adapter import AdapterBase, register_adapter
 from roboenv_runtime.core.types import Budget, ScoreReport
-from .rig import CONTROL_DT, JOINTS
-from .task import HOLD_INTERVALS, MAX_INTERVALS
 
 
 @register_adapter
 class IsaacLabAdapter(AdapterBase):
     name = "isaaclab"
-    embodiment = "go2"
+    embodiment = "g1"
+    realtime_on_main_thread = True
 
     def __init__(self, **kwargs):
-        from .backend import IsaacLabEnv
+        from .g1 import G1Env
 
-        self._env = IsaacLabEnv(**kwargs)
+        self._env = G1Env(**kwargs)
+
+    @property
+    def realtime_interval(self):
+        return self._env.control_interval if self._env.realtime else None
+
+    def realtime_tick(self):
+        self._env.control.tick()
 
     def reset(self, seed):
         self._env.reset(seed)
@@ -23,16 +29,22 @@ class IsaacLabAdapter(AdapterBase):
         self._env.close()
 
     def goal(self):
-        target = dict(zip(JOINTS, self._env.model["posture"], strict=True))
-        return (f"Reach and hold the Go2 posture {target} in radians "
-                f"for {HOLD_INTERVALS * CONTROL_DT:g} simulated seconds.")
+        return (
+            "Pick up and place the steering wheel using the G1 humanoid. "
+            "Component joint control is a practice interface; the upstream task verdict "
+            "is preserved. Realtime runs have no time horizon; synchronous runs retain "
+            "the upstream horizon."
+        )
 
     def score(self):
-        completed = self._env.held >= HOLD_INTERVALS
-        return ScoreReport(reward=float(completed), raw_score=float(completed), completed=completed)
+        return ScoreReport(
+            reward=float(self._env.completed),
+            raw_score=float(self._env.completed),
+            completed=self._env.completed,
+        )
 
     def budget(self):
-        return Budget(used=self._env.steps, max=MAX_INTERVALS, unit="action_frames")
+        return Budget(used=self._env.steps, max=self._env.max_steps, unit="action_frames")
 
     def observe(self):
         return {"budget": self.budget().as_dict()}
