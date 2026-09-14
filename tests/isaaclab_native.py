@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import roboenv
+import yaml
 from roboenv.client import Client
 
 
@@ -27,7 +28,7 @@ with roboenv.launch(task="isaaclab/go2-posture", interpreter=sys.executable, pro
             q + (0.1 if i % 3 == 1 else -0.2 if i % 3 == 2 else 0)
             for i, q in enumerate(
                 body.profile["intrinsics"]["home"][j["name"]]
-                for j in body.profile["intrinsics"]["joints"]
+                for j in body.profile["intrinsics"]["kinematics"]["model"]["joints"]
             )
         ]
         for _ in range(150):
@@ -36,6 +37,23 @@ with roboenv.launch(task="isaaclab/go2-posture", interpreter=sys.executable, pro
         assert max(abs(a - b) for a, b in zip(state["positions"], target, strict=True)) < 0.05
         stamp = state["sample_time_s"]
         assert abs(stamp - 3.0) < 1e-8
+        kinex_root = root.parent / "kinex"
+        workspace = out / "kinex"
+        config = workspace / ".kinex"
+        copied_body = config / "devices/body"
+        robot = root / "catalog/robots/isaaclab/isaaclab-go2"
+        shutil.copytree(robot / "devices/body", copied_body)
+        shutil.copyfile(robot / "workspace.yaml", config / "workspace.yaml")
+        profile_file = copied_body / "profile.yaml"
+        profile = yaml.safe_load(profile_file.read_text())
+        profile["access"]["driver"]["interpreter"] = sys.executable
+        profile_file.write_text(yaml.safe_dump(profile, sort_keys=False))
+        subprocess.run(
+            ["bun", str(root / "tests/isaaclab_kinex_smoke.ts"), str(kinex_root),
+             str(workspace), str(out / "kinematics-servo.json")],
+            env={**os.environ, "ROBOENV_ENDPOINT": run.endpoint}, check=True, timeout=180,
+        )
+        stamp = body.read()["sample_time_s"]
         env.device("imu").read()
         env.device("contact_fl_foot").read()
         camera = env.device("camera_front").read()

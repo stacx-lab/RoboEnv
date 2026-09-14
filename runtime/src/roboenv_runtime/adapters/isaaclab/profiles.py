@@ -32,15 +32,20 @@ def device_profiles(model, names=None):
         "type": "legged",
         "intrinsics": {
             **MEASURED,
-            "joints": joints,
+            "kinematics": {
+                "model": {"format": "multi_chain", "joints": joints, "chains": model["chains"]},
+                "ik": {"backend": "numerical", "method": "damped_least_squares",
+                       "position_tolerance_m": .0001, "rotation_tolerance_rad": .001,
+                       "max_iterations": 200, "damping": .01},
+            },
             "home": dict(zip(JOINTS, model["home"], strict=True)),
             "legs": [
                 {"name": foot.removesuffix("_foot"), "joints": list(JOINTS[i * 3:i * 3 + 3]),
                  "foot_frame": foot} for i, foot in enumerate(FEET)
             ],
-            "control": {"mode": "joint_position",
+            "control": {"mode": "joint_position", "speed": None,
                         "execution": {"mode": "stepped", "interval_s": CONTROL_DT}},
-            "feedback": {"velocities": True, "efforts": False, "pose_frame": None,
+            "feedback": {"pose_source": "driver", "velocities": True, "efforts": False, "pose_frame": None,
                          "velocity_frame": None, "velocity_components": [], "clock": "simulation"},
             "stop": {"behavior": "hold", "affected_devices": [body]},
         },

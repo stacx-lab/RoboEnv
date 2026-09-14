@@ -21,7 +21,8 @@ def legged(monkeypatch):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     profile = yaml.safe_load((BODY / "profile.yaml").read_text())
-    positions = [profile["intrinsics"]["home"][j["name"]] for j in profile["intrinsics"]["joints"]]
+    joints = profile["intrinsics"]["kinematics"]["model"]["joints"]
+    positions = [profile["intrinsics"]["home"][j["name"]] for j in joints]
     calls = []
 
     def remote(action, args):
@@ -89,3 +90,66 @@ def test_legged_unload_does_not_hide_failed_stop(legged, monkeypatch):
     monkeypatch.setattr(module, "remote", reject)
     assert not module.handle("unload", {})["ok"]
     assert calls == ["stop"]
+
+
+def test_legged_local_fk_ik_roundtrip_and_no_transport_with_seed(legged):
+    module, home, calls = legged
+    target = [q + (.04 if i % 3 == 1 else -.08 if i % 3 == 2 else 0)
+              for i, q in enumerate(home)]
+    fk = module.handle("fk", {"joints": target})
+    assert fk["ok"] and len(fk["pose"]) == 4
+    pose = [{**entry, "orientation": None} for entry in fk["pose"]]
+    solved = module.handle("ik", {"pose": pose, "seed": home})
+    assert solved["ok"], solved
+    actual = module.handle("fk", {"joints": solved["joints"]})["pose"]
+    import numpy as np
+    assert np.allclose([p["position"] for p in actual], [p["position"] for p in pose], atol=.0001)
+    assert calls == []
+    assert module.handle("ik", {"pose": pose})["ok"]
+    assert calls == [("read", {})]
+
+
+def test_legged_ik_rejects_missing_feet_and_impossible_target_without_write(legged):
+    module, home, calls = legged
+    pose = module.handle("fk", {"joints": home})["pose"]
+    assert not module.handle("ik", {"pose": pose[:3], "seed": home})["ok"]
+    impossible = [{"position": [9, 9, 9], "orientation": None} for _ in range(4)]
+    assert not module.handle("ik", {"pose": impossible, "seed": home})["ok"]
+    assert calls == []
+
+
+def test_legged_dynamic_export_advertises_local_kinematics(tmp_path):
+    from roboenv.devices.export import export_devices
+
+    profile = yaml.safe_load((BODY / "profile.yaml").read_text())
+    profile["actions"] = {action: {"supported": True}
+                          for action in ("read", "write", "stop", "load", "unload", "status")}
+    export_devices([profile], tmp_path, {"endpoint": "http://127.0.0.1:8123"})
+    exported = yaml.safe_load((tmp_path / "body/profile.yaml").read_text())
+    assert {"fk", "ik"} <= set(exported["access"]["driver"]["actions"])
+    assert (tmp_path / "body/driver.py").read_bytes() == (BODY / "driver.py").read_bytes()
+
+
+def test_go2_nonzero_fk_matches_analytic_leg_geometry(legged):
+    """Independent Go2 geometry: abduction X, then two pitch Y joints."""
+    import math
+
+    import numpy as np
+
+    module, home, _ = legged
+    rng = np.random.default_rng(7)
+    for _ in range(8):
+        joints = (np.asarray(home) + rng.uniform(-.15, .15, 12)).tolist()
+        poses = module.handle("fk", {"joints": joints})["pose"]
+        for i, pose in enumerate(poses):
+            hip, thigh, calf = joints[i*3:i*3+3]
+            side = 1 if i % 2 == 0 else -1
+            front = 1 if i < 2 else -1
+            # Pinned USD offsets and link lengths, in metres.
+            x = -.213*(math.sin(thigh) + math.sin(thigh + calf))
+            y = side*.0955
+            z = -.213*(math.cos(thigh) + math.cos(thigh + calf))
+            expected = [front*.1934 + x,
+                        side*.0465 + math.cos(hip)*y - math.sin(hip)*z,
+                        math.sin(hip)*y + math.cos(hip)*z]
+            assert np.allclose(pose["position"], expected, atol=1e-6)
