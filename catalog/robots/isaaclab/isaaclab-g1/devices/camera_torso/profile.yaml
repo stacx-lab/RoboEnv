@@ -1,0 +1,74 @@
+name: camera_torso
+loaded: false
+type: rgbd
+intrinsics:
+  source: default
+  method: manual
+  calibrated_at: null
+  color:
+    width: 512
+    height: 512
+    fps: null
+    pixel_format: rgb8
+    image_format: png
+    projection:
+      model: pinhole
+      fx: 214.80950558138773
+      fy: 214.80950558138773
+      cx: 256.0
+      cy: 256.0
+      skew: 0
+    distortion:
+      model: none
+  depth:
+    registration: color
+    width: 512
+    height: 512
+    fps: null
+    pixel_format: uint16
+    image_format: pgm16_be
+    quantity: z
+    scale_m_per_unit: 0.001
+    invalid_value: 0
+    valid_range_m:
+      min: 0.001
+      max: 65.535
+    reliable_range_m:
+      min: 0.05
+      max: 20.0
+extrinsics:
+  source: default
+  method: manual
+  calibrated_at: null
+  mount:
+    parent: waist
+    parent_frame: flange
+    translation_m:
+    - 0.12
+    - 0
+    - 0.32
+    rotation_xyzw:
+    - 0.62721137512625
+    - -0.62721137512625
+    - 0.32650557562197696
+    - -0.32650557562197696
+meta:
+  created_at: '2026-09-13T00:00:00Z'
+  updated_at: '2026-09-13T00:00:00Z'
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    camera: camera_torso
+  driver:
+    entry: driver.py
+    interpreter: python3
+    persistent: true
+    actions:
+    - read
+    - load
+    - unload
+    - status

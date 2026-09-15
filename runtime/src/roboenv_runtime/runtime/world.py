@@ -109,8 +109,15 @@ class WorldSession:
         with self.lock:
             if self._closed:
                 raise RuntimeError("world is closed")
+            active_main_clock = self.main_thread_clock and self._interval is not None
+            if active_main_clock and threading.get_ident() != self._owner_thread:
+                raise RuntimeError("native reset must run on its creating thread")
             self.native.reset(seed)
             self.epoch += 1
+            if active_main_clock:
+                self.failure = None
+                self._halt.clear()
+                self._deadline = time.monotonic() + self._interval
 
     def close(self):
         self.stop_clock()

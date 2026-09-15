@@ -1,0 +1,57 @@
+name: g1_motion
+kind: controller
+description: >-
+  G1 workspace example: retain waist/hand postures and compose body commands with
+  independent arm IK in one synchronized loop. Wrist goals carry a reference frame.
+  Does not plan paths, optimize waist posture, or certify balance/grasp success.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    body:
+      type: object
+      additionalProperties: false
+      required: [mode, velocity, posture]
+      properties:
+        mode: {const: locomotion}
+        velocity:
+          type: object
+          required: [vx, vy, wz]
+          additionalProperties: false
+          properties:
+            vx: {type: number}
+            vy: {type: number}
+            wz: {type: number}
+        posture:
+          type: object
+          required: [height]
+          additionalProperties: false
+          properties:
+            height: {type: number}
+            roll: {type: number}
+            pitch: {type: number}
+            yaw: {type: number}
+      description: Base motion command; defaults to zero velocity at nominal pelvis height.
+    steps: {type: integer, minimum: 1, maximum: 1000, default: 50}
+    rate_hz:
+      type: number
+      exclusiveMinimum: 0
+      maximum: 50
+      default: 20
+      description: Realtime polling/update rate cap; ignored in synchronous mode. Refresh base commands before their timeout.
+    goals:
+      type: object
+      additionalProperties:
+        type: object
+        additionalProperties: false
+        required: [frame, pose]
+        properties:
+          frame: {type: string}
+          pose:
+            type: array
+            items: {type: number}
+            minItems: 7
+            maxItems: 7
+            description: wrist position and unit xyzw quaternion in frame.
+devices: [base, manipulator, end_effector]
+timeout_s: 110

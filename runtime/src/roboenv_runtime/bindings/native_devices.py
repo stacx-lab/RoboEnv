@@ -7,16 +7,25 @@ from dataclasses import replace
 from pathlib import Path
 
 from roboenv.devices.model import Action, BoundDevice
+from roboenv.devices.base import command as base_command, command_schema
 
 from roboenv_runtime.adapters.robocasa.depth import write_depth
 from roboenv_runtime.bindings.backends.libero.devices import same_facts
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
 STEP = {
-    "type": "object", "additionalProperties": False, "required": ["id", "devices"],
-    "properties": {"id": {"type": "integer", "minimum": 0}, "devices": {
-        "type": "array", "minItems": 2, "uniqueItems": True, "items": {"type": "string"},
-    }},
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["id", "devices"],
+    "properties": {
+        "id": {"type": "integer", "minimum": 0},
+        "devices": {
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": True,
+            "items": {"type": "string"},
+        },
+    },
 }
 
 
@@ -43,19 +52,28 @@ def bind(spec, root, context):
             mount["parent_frame"] = mount["parent"]
     for key in ("intrinsics", "extrinsics"):
         if getattr(definition, key).get("source") == "introspected" and not same_facts(
-            getattr(definition, key), facts.get(key, {}),
+            getattr(definition, key),
+            facts.get(key, {}),
         ):
             raise ValueError(f"Catalog {key} differ from the native rig")
-    definition = replace(definition, intrinsics=facts["intrinsics"],
-                         extrinsics=facts.get("extrinsics", {}),
-                         control_mode=facts.get("control_mode"))
+    definition = replace(
+        definition,
+        intrinsics=facts["intrinsics"],
+        extrinsics=facts.get("extrinsics", {}),
+        control_mode=facts.get("control_mode"),
+    )
     actions = {}
 
     def register(name, function, schema=EMPTY, *, mutation=False, required=()):
         actions[name] = Action(
             lambda args, execution: execution.perform(
-                "binding." + name, args, lambda: function(**args), mutating=mutation,
-            ), schema, output_schema={"type": "object", "required": list(required)},
+                "binding." + name,
+                args,
+                lambda: function(**args),
+                mutating=mutation,
+            ),
+            schema,
+            output_schema={"type": "object", "required": list(required)},
         )
 
     if definition.type == "world":
@@ -65,6 +83,7 @@ def bind(spec, root, context):
     register("status", lambda: {"loaded": True}, required=("loaded",))
 
     if definition.type in {"rgb", "rgbd"}:
+
         def read():
             from roboenv_runtime.runtime.worker import write_png
 
@@ -74,21 +93,32 @@ def bind(spec, root, context):
             directory.mkdir(parents=True, exist_ok=True)
             path = directory / f"{uuid.uuid4().hex}.png"
             height, width, _ = write_png(path, rgb)
-            result = {"file": str(path), "height": height, "width": width,
-                      "sample_time_s": acquired}
+            result = {
+                "file": str(path),
+                "height": height,
+                "width": width,
+                "sample_time_s": acquired,
+            }
             if definition.type == "rgbd":
                 depth_path = path.with_suffix(".pgm")
                 if depth.shape != rgb.shape[:2]:
                     raise ValueError("Native RGB and depth dimensions disagree")
                 write_depth(depth_path, depth)
-                result.update(depth_file=str(depth_path), depth_height=height,
-                              depth_width=width, depth_sample_time_s=acquired)
+                result.update(
+                    depth_file=str(depth_path),
+                    depth_height=height,
+                    depth_width=width,
+                    depth_sample_time_s=acquired,
+                )
             return result
 
         register("read", read, required=("file", "height", "width", "sample_time_s"))
     else:
-        register("read", lambda: world.device_read(spec.entity),
-                 required=("velocities",) if definition.type == "base" else ("positions", "velocities"))
+        register(
+            "read",
+            lambda: world.device_read(spec.entity),
+            required=("velocities",) if definition.type == "base" else ("positions", "velocities"),
+        )
         size = len(world.control.limits[spec.entity])
 
         def write(target, step=None):
@@ -99,16 +129,46 @@ def bind(spec, root, context):
 
         def stop():
             result = world.device_stop(spec.entity)
-            return {**result, "affected_devices": [definition.name]}
+            return {
+                **result,
+                **facts["intrinsics"].get("stop", {}),
+                "affected_devices": [definition.name],
+            }
 
-        register("write", write, {
-            "type": "object", "additionalProperties": False, "required": ["target"],
-            "properties": {"target": {"type": "array", "minItems": size, "maxItems": size,
-                                      "items": {"type": "number"}}, "step": STEP},
-        }, mutation=True, required=("accepted",))
+        def write_base(step=None, **args):
+            value = base_command(facts["intrinsics"]["control"], args)
+            return write([value["velocity"][axis] for axis in ("vx", "vy", "wz")], step)
+
+        register(
+            "write",
+            write,
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["target"],
+                "properties": {
+                    "target": {
+                        "type": "array",
+                        "minItems": size,
+                        "maxItems": size,
+                        "items": {"type": "number"},
+                    },
+                    "step": STEP,
+                },
+            },
+            mutation=True,
+            required=("accepted",),
+        )
+        if definition.type == "base":
+            schema = command_schema(facts["intrinsics"]["control"])
+            for variant in schema["oneOf"]:
+                variant["properties"]["step"] = STEP
+            register("write", write_base, schema, mutation=True, required=("accepted",))
         register("stop", stop, mutation=True, required=("stopped", "behavior", "affected_devices"))
     return BoundDevice(
-        definition, actions, implementation=f"{context.backend}-native-device",
+        definition,
+        actions,
+        implementation=f"{context.backend}-native-device",
         validation="Native inventory checked; task acceptance is separate",
         binding={"id": spec.binding, "entity": spec.entity},
     )

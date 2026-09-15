@@ -1,0 +1,29 @@
+{
+  "open": {
+    "left_hand_index_0_joint": 0.0,
+    "left_hand_index_1_joint": 0.0,
+    "left_hand_middle_0_joint": 0.0,
+    "left_hand_middle_1_joint": 0.0,
+    "left_hand_thumb_0_joint": 0.0,
+    "left_hand_thumb_1_joint": 0.0,
+    "left_hand_thumb_2_joint": 0.0
+  },
+  "power": {
+    "left_hand_index_0_joint": -1.0,
+    "left_hand_index_1_joint": -1.0,
+    "left_hand_middle_0_joint": -1.0,
+    "left_hand_middle_1_joint": -1.0,
+    "left_hand_thumb_0_joint": -0.0,
+    "left_hand_thumb_1_joint": 0.4,
+    "left_hand_thumb_2_joint": 0.7
+  },
+  "pinch": {
+    "left_hand_index_0_joint": -1.0,
+    "left_hand_index_1_joint": -1.0,
+    "left_hand_middle_0_joint": -0.0,
+    "left_hand_middle_1_joint": -0.0,
+    "left_hand_thumb_0_joint": -0.5,
+    "left_hand_thumb_1_joint": 0.4,
+    "left_hand_thumb_2_joint": 0.7
+  }
+}

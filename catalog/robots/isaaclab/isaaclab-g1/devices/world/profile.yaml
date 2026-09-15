@@ -1,0 +1,9 @@
+name: world
+loaded: false
+type: world
+intrinsics:
+  bounds: null
+  surfaces: []
+meta:
+  created_at: '2026-09-13T00:00:00Z'
+  updated_at: '2026-09-13T00:00:00Z'

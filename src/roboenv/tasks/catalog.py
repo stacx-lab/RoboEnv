@@ -17,7 +17,7 @@ from roboenv.tasks.model import DEVICE_BACKENDS, Task
 
 BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab")
 ROBOTS = {
-    "isaaclab": "isaaclab/isaaclab-go2",
+    "isaaclab": "isaaclab/isaaclab-g1",
     "libero": "libero/libero-panda-tabletop",
     "robocasa": "robocasa/robocasa-panda-omron",
     "robotwin": "robotwin/robotwin-dual-piper",
@@ -234,8 +234,8 @@ def _behavior(root, issues):
 
 
 def _isaaclab(root, issues):
-    source = root / "catalog/tasks/isaaclab/go2-posture/task.yaml"
-    yield Task.load(source), source
+    for source in sorted((root / "catalog/tasks/isaaclab").glob("*/task.yaml")):
+        yield Task.load(source), source
 
 
 DISCOVERERS = {
