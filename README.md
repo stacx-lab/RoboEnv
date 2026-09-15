@@ -120,6 +120,13 @@ when preparing a Kinex workspace; see the Isaac Lab guide. Realtime G1 has no
 episode time horizon; synchronous runs retain the upstream limit. Success and
 non-timeout termination conditions remain active.
 
+SIMPLE adds G1 loco-manipulation through its decoupled task family: a metric base
+velocity and height/torso-posture interface backed by GR00T WBC for legs and waist, arm/hand
+joint control and local Kinex IK. Start with `roboenv prepare simple` and
+`roboenv launch simple/g1-xmove-pick`. Three representative tasks and synchronous or
+realtime clocks are available. See [SIMPLE setup and device semantics](docs/simple.md)
+for the experimental protocol, rendering requirements and no-model validation tools.
+
 ## Export a Harbor task
 
 With a [prepared native deployment](docs/harbor-tasks.md):

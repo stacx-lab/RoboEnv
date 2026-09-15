@@ -1,0 +1,7 @@
+{
+  "schema": "roboenv/simple-config/1",
+  "robot_sha256": "8d120ef823a27c96eae88aec07796e224615afe0f289a5a3ab4eaf6c3cf72c91",
+  "facts_sha256": "5d7687130c053a726883306cdf78bbe021eeecb09bd7c4b0d51cd2e6be263199",
+  "asset_pin_sha256": "962d8f69a994c1bf813521cb2f2df85051ae8f0d6c631523bab820a5389cc5fe",
+  "source_lock_sha256": "19e346e4072ab4cc6e13eb9848141096bc2e06858988b1aa6e4fb33a35416f62"
+}

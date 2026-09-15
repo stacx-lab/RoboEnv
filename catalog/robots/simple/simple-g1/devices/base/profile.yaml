@@ -1,0 +1,107 @@
+name: base
+loaded: false
+type: base
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mobility: mobile
+  control:
+    mode: motion
+    body_frame: pelvis
+    modes:
+      locomotion:
+        velocity:
+          frame: body
+          components:
+          - axis: vx
+            units: m/s
+            bounds:
+              min: -0.5
+              max: 0.5
+          - axis: vy
+            units: m/s
+            bounds:
+              min: -0.5
+              max: 0.5
+          - axis: wz
+            units: rad/s
+            bounds:
+              min: -1.0
+              max: 1.0
+        posture:
+          reference: ground
+          components:
+          - axis: height
+            units: m
+            bounds:
+              min: 0.2
+              max: 0.74
+            default: 0.74
+          - axis: roll
+            units: rad
+            default: 0.0
+            bounds:
+              min: -0.52
+              max: 0.52
+          - axis: pitch
+            units: rad
+            default: 0.0
+            bounds:
+              min: -0.52
+              max: 0.52
+          - axis: yaw
+            units: rad
+            default: 0.0
+            bounds:
+              min: -2.618
+              max: 2.618
+    execution:
+      mode: stepped
+      interval_s: 0.02
+  feedback:
+    pose_frame: world
+    velocity_frame: base
+    velocity_components:
+    - vx
+    - vy
+    - vz
+    - wx
+    - wy
+    - wz
+    clock: simulation
+  stop:
+    behavior: stand
+    affected_devices:
+    - base
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  frames:
+  - torso
+meta:
+  created_at: '2026-09-14T00:00:00Z'
+  updated_at: '2026-09-14T00:00:00Z'
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: base
+  driver:
+    entry: driver.py
+    interpreter: python3
+    persistent: true
+    actions:
+    - read
+    - load
+    - unload
+    - status
+    - write
+    - stop
+    - batch_write
+    - snapshot
+    execution_group: base

@@ -53,6 +53,7 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None):
             "robodojo",
             "behavior",
             "isaaclab",
+            "simple",
         }
         if not selectable:
             raise ValueError(f"Clock selection is not supported for {task.backend}")
@@ -63,7 +64,9 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None):
     if not (robot / "workspace.yaml").is_file():
         raise ValueError(f"Robot {task.robot!r} is missing from the selected catalog")
     bindings = BindingPlan.load(robot, backend=task.backend, devices=task.device_bindings)
-    if task.backend in {"behavior", "isaaclab"} and task.backend_kwargs.get("realtime", False):
+    if task.backend in {"behavior", "isaaclab", "simple"} and task.backend_kwargs.get(
+        "realtime", False
+    ):
         # Execution mode is an episode setting, while geometry stays in the catalog.
         devices = []
         for spec in bindings.devices:
@@ -73,7 +76,7 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None):
                     "mode": "realtime",
                     "command_timeout_s": (
                         task.backend_kwargs.get("command_timeout_s", 0.5)
-                        if task.backend == "isaaclab"
+                        if task.backend in {"isaaclab", "simple"}
                         else None
                     ),
                 }

@@ -1,0 +1,28 @@
+schema_version: roboenv/bindings/1
+backend: simple
+embodiment: g1
+devices:
+  base:
+    binding: simple.device/1
+    entity: base
+  left_arm:
+    binding: simple.device/1
+    entity: left_arm
+  right_arm:
+    binding: simple.device/1
+    entity: right_arm
+  left_hand:
+    binding: simple.device/1
+    entity: left_hand
+  right_hand:
+    binding: simple.device/1
+    entity: right_hand
+  world:
+    binding: simple.device/1
+    entity: world
+  camera_head_left:
+    binding: simple.device/1
+    entity: camera_head_left
+  camera_head_right:
+    binding: simple.device/1
+    entity: camera_head_right

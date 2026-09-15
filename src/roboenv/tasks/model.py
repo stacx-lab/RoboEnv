@@ -7,7 +7,10 @@ from pathlib import Path
 
 from roboenv.validation import json_value, yaml_load
 
-DEVICE_BACKENDS = frozenset({"libero", "robocasa", "isaaclab", "robotwin", "robodojo", "behavior"})
+DEVICE_BACKENDS = frozenset(
+    {"libero", "robocasa", "isaaclab", "robotwin", "robodojo", "behavior", "simple"}
+)
+
 
 @dataclass(frozen=True)
 class Task:

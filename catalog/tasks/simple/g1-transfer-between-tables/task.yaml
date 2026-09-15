@@ -1,0 +1,15 @@
+id: simple/g1-transfer-between-tables
+backend: simple
+backend_task: simple.G1WholebodyLocomotionPickBetweenTablesTeleop-v0
+robot: simple/simple-g1
+instruction: A task where the G1 robot must pick up an object between two tables.
+backend_kwargs:
+  env_id: simple/G1WholebodyLocomotionPickBetweenTablesTeleop-v0
+  realtime: false
+  sim_mode: mujoco_isaac
+  dr_level: 0
+  command_timeout_s: 0.5
+seed: 0
+budget_mode: practice
+action_abstraction: devices
+device_bindings: null

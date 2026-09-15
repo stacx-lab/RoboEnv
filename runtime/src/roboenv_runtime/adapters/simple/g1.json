@@ -1,0 +1,1128 @@
+{
+  "parts": {
+    "waist": {
+      "base": "pelvis",
+      "tip": "torso_link",
+      "chain": [
+        {
+          "origin": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 0,
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            -0.0039635,
+            0.0,
+            0.035,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 1,
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.0,
+            0.0,
+            0.019,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 2,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        }
+      ],
+      "joints": [
+        {
+          "name": "waist_yaw_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -2.618,
+            "max": 2.618
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "waist_roll_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -0.52,
+            "max": 0.52
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "waist_pitch_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -0.52,
+            "max": 0.52
+          },
+          "max_velocity": null,
+          "max_effort": null
+        }
+      ],
+      "home": {
+        "waist_yaw_joint": 0.0,
+        "waist_roll_joint": 0.0,
+        "waist_pitch_joint": 0.0
+      }
+    },
+    "left_arm": {
+      "base": "torso_link",
+      "tip": "left_wrist_yaw_link",
+      "chain": [
+        {
+          "origin": [
+            0.0039563,
+            0.10022,
+            0.23778,
+            0.13920101962535997,
+            1.387220195578278e-05,
+            -9.868681391343435e-05,
+            0.9902641396131312
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 0,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.0,
+            0.038,
+            -0.013831,
+            -0.13917203079821713,
+            0.0,
+            0.0,
+            0.9902682191424201
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 1,
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.0,
+            0.00624,
+            -0.1032,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 2,
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.015783,
+            0.0,
+            -0.080518,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 3,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.1,
+            0.00188791,
+            -0.01,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 4,
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.038,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 5,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.046,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 6,
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        }
+      ],
+      "joints": [
+        {
+          "name": "left_shoulder_pitch_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -3.0892,
+            "max": 2.6704
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_shoulder_roll_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.5882,
+            "max": 2.2515
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_shoulder_yaw_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -2.618,
+            "max": 2.618
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_elbow_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.0472,
+            "max": 2.0944
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_wrist_roll_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.97222,
+            "max": 1.97222
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_wrist_pitch_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.61443,
+            "max": 1.61443
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_wrist_yaw_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.61443,
+            "max": 1.61443
+          },
+          "max_velocity": null,
+          "max_effort": null
+        }
+      ],
+      "home": {
+        "left_shoulder_pitch_joint": 0.0,
+        "left_shoulder_roll_joint": 0.0,
+        "left_shoulder_yaw_joint": 0.0,
+        "left_elbow_joint": 0.0,
+        "left_wrist_roll_joint": 0.0,
+        "left_wrist_pitch_joint": 0.0,
+        "left_wrist_yaw_joint": 0.0
+      }
+    },
+    "right_arm": {
+      "base": "torso_link",
+      "tip": "right_wrist_yaw_link",
+      "chain": [
+        {
+          "origin": [
+            0.0039563,
+            -0.10021,
+            0.23778,
+            -0.13920101962535997,
+            1.387220195578278e-05,
+            9.868681391343435e-05,
+            0.9902641396131312
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 0,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.0,
+            -0.038,
+            -0.013831,
+            0.13917203079821713,
+            0.0,
+            0.0,
+            0.9902682191424201
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 1,
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.0,
+            -0.00624,
+            -0.1032,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 2,
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.015783,
+            0.0,
+            -0.080518,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 3,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.1,
+            -0.00188791,
+            -0.01,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 4,
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.038,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 5,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.046,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 6,
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        }
+      ],
+      "joints": [
+        {
+          "name": "right_shoulder_pitch_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -3.0892,
+            "max": 2.6704
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_shoulder_roll_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -2.2515,
+            "max": 1.5882
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_shoulder_yaw_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -2.618,
+            "max": 2.618
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_elbow_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.0472,
+            "max": 2.0944
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_wrist_roll_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.97222,
+            "max": 1.97222
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_wrist_pitch_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.61443,
+            "max": 1.61443
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_wrist_yaw_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.61443,
+            "max": 1.61443
+          },
+          "max_velocity": null,
+          "max_effort": null
+        }
+      ],
+      "home": {
+        "right_shoulder_pitch_joint": 0.0,
+        "right_shoulder_roll_joint": 0.0,
+        "right_shoulder_yaw_joint": 0.0,
+        "right_elbow_joint": 0.0,
+        "right_wrist_roll_joint": 0.0,
+        "right_wrist_pitch_joint": 0.0,
+        "right_wrist_yaw_joint": 0.0
+      }
+    },
+    "left_hand": {
+      "base": "left_wrist_yaw_link",
+      "tip": "left_wrist_yaw_link",
+      "mount": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "joints": [
+        {
+          "name": "left_hand_thumb_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.0472,
+            "max": 1.0472
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_thumb_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -0.724312,
+            "max": 1.0472
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_thumb_2_joint",
+          "type": "revolute",
+          "limits": {
+            "min": 0.0,
+            "max": 1.74533
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_index_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.5708,
+            "max": 0.0
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_index_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.74533,
+            "max": 0.0
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_middle_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.5708,
+            "max": 0.0
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_middle_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.74533,
+            "max": 0.0
+          },
+          "max_velocity": null,
+          "max_effort": null
+        }
+      ],
+      "home": {
+        "left_hand_thumb_0_joint": 0.0,
+        "left_hand_thumb_1_joint": 0.0,
+        "left_hand_thumb_2_joint": 0.0,
+        "left_hand_index_0_joint": 0.0,
+        "left_hand_index_1_joint": 0.0,
+        "left_hand_middle_0_joint": 0.0,
+        "left_hand_middle_1_joint": 0.0
+      }
+    },
+    "right_hand": {
+      "base": "right_wrist_yaw_link",
+      "tip": "right_wrist_yaw_link",
+      "mount": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "joints": [
+        {
+          "name": "right_hand_thumb_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.0472,
+            "max": 1.0472
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_thumb_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.0472,
+            "max": 0.724312
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_thumb_2_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.74533,
+            "max": 0.0
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_index_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": 0.0,
+            "max": 1.5708
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_index_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": 0.0,
+            "max": 1.74533
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_middle_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": 0.0,
+            "max": 1.5708
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_middle_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": 0.0,
+            "max": 1.74533
+          },
+          "max_velocity": null,
+          "max_effort": null
+        }
+      ],
+      "home": {
+        "right_hand_thumb_0_joint": 0.0,
+        "right_hand_thumb_1_joint": 0.0,
+        "right_hand_thumb_2_joint": 0.0,
+        "right_hand_index_0_joint": 0.0,
+        "right_hand_index_1_joint": 0.0,
+        "right_hand_middle_0_joint": 0.0,
+        "right_hand_middle_1_joint": 0.0
+      }
+    }
+  },
+  "cameras": {
+    "camera_head_left": {
+      "native": "head_stereo_left",
+      "width": 640,
+      "height": 360,
+      "projection": {
+        "model": "pinhole",
+        "fx": 224.06641222710715,
+        "fy": 224.06641222710715,
+        "cx": 320.0,
+        "cy": 180.0,
+        "skew": 0
+      },
+      "mount": {
+        "parent": "waist",
+        "parent_frame": "flange",
+        "translation_m": [
+          0.05762354,
+          0.01752999,
+          0.42987020000000004
+        ],
+        "rotation_xyzw": [
+          -0.6592535482923223,
+          0.6592535482923225,
+          -0.25570443692666456,
+          0.25570443692666456
+        ]
+      }
+    },
+    "camera_head_right": {
+      "native": "head_stereo_right",
+      "width": 640,
+      "height": 360,
+      "projection": {
+        "model": "pinhole",
+        "fx": 224.06641222710715,
+        "fy": 224.06641222710715,
+        "cx": 320.0,
+        "cy": 180.0,
+        "skew": 0
+      },
+      "mount": {
+        "parent": "waist",
+        "parent_frame": "flange",
+        "translation_m": [
+          0.05762354,
+          -0.03247001000000001,
+          0.42987020000000004
+        ],
+        "rotation_xyzw": [
+          -0.6592535482923223,
+          0.6592535482923225,
+          -0.25570443692666456,
+          0.25570443692666456
+        ]
+      }
+    }
+  },
+  "robot_sha256": "8d120ef823a27c96eae88aec07796e224615afe0f289a5a3ab4eaf6c3cf72c91",
+  "control": {
+    "mode": "motion",
+    "body_frame": "pelvis",
+    "modes": {
+      "locomotion": {
+        "velocity": {
+          "frame": "body",
+          "components": [
+            {
+              "axis": "vx",
+              "units": "m/s",
+              "bounds": {
+                "min": -0.5,
+                "max": 0.5
+              }
+            },
+            {
+              "axis": "vy",
+              "units": "m/s",
+              "bounds": {
+                "min": -0.5,
+                "max": 0.5
+              }
+            },
+            {
+              "axis": "wz",
+              "units": "rad/s",
+              "bounds": {
+                "min": -1.0,
+                "max": 1.0
+              }
+            }
+          ]
+        },
+        "posture": {
+          "reference": "ground",
+          "components": [
+            {
+              "axis": "height",
+              "units": "m",
+              "bounds": {
+                "min": 0.2,
+                "max": 0.74
+              },
+              "default": 0.74
+            },
+            {
+              "axis": "roll",
+              "units": "rad",
+              "default": 0.0,
+              "bounds": {
+                "min": -0.52,
+                "max": 0.52
+              }
+            },
+            {
+              "axis": "pitch",
+              "units": "rad",
+              "default": 0.0,
+              "bounds": {
+                "min": -0.52,
+                "max": 0.52
+              }
+            },
+            {
+              "axis": "yaw",
+              "units": "rad",
+              "default": 0.0,
+              "bounds": {
+                "min": -2.618,
+                "max": 2.618
+              }
+            }
+          ]
+        }
+      }
+    },
+    "execution": {
+      "mode": "stepped",
+      "interval_s": 0.02
+    }
+  }
+}

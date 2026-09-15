@@ -216,8 +216,16 @@ def sync(project=None, backends=None):
         if not (checkout / ".git").exists():
             if item.get("parent"):
                 parent = root / lock["sources"][item["parent"]]["path"]
+                relative = str(checkout.relative_to(parent))
+                registrations = git(parent, "config", "-f", ".gitmodules", "--get-regexp",
+                                    r"submodule\..*\.path").splitlines()
+                keys = [line.split()[0].removesuffix(".path") for line in registrations
+                        if line.split(maxsplit=1)[1] == relative]
+                if len(keys) != 1:
+                    raise ValueError(f"Expected one parent submodule registration for {name}")
                 git(
                     parent,
+                    "-c", keys[0] + ".url=" + item["url"],
                     "submodule",
                     "update",
                     "--init",

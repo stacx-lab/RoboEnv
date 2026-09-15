@@ -244,8 +244,8 @@ def launch(
 ):
     """Start a task in its isolated interpreter; return after device readiness.
 
-    realtime=None preserves the task clock. RoboCasa accepts either override;
-    Isaac Lab accepts False only.
+    realtime=None preserves the task clock. Supported device backends accept
+    explicit synchronous or realtime overrides.
     Backend assets must already be prepared. No installation or download occurs.
     All run definitions and logs are retained under the selected project's cache.
     """

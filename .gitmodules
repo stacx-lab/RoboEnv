@@ -20,3 +20,6 @@
 [submodule "libero"]
 	path = third_party/LIBERO
 	url = https://github.com/Lifelong-Robot-Learning/LIBERO.git
+[submodule "simple"]
+	path = third_party/SIMPLE
+	url = https://github.com/physical-superintelligence-lab/SIMPLE.git
