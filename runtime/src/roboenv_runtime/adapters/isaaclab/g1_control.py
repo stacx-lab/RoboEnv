@@ -3,7 +3,7 @@
 import math
 import time
 
-from roboenv.devices.base import command as base_command
+from roboenv.devices.velocity import command as base_command
 
 from .g1_profiles import NAMES, profiles
 
@@ -60,7 +60,6 @@ class Control:
             else control["execution"]
         )
         self.profiles = profiles({**model, "control": {**control, "execution": execution}})
-        self.sequence = 0
         self.targets = {"base": [0, 0, 0, height]}
         for name in NAMES[1:]:
             part = model["parts"][name]
@@ -91,47 +90,20 @@ class Control:
                 raise ValueError("Target exceeds limits")
         return list(target)
 
-    def snapshot(self, devices):
-        if (
-            not isinstance(devices, list)
-            or not devices
-            or len(set(devices)) != len(devices)
-            or any(name not in NAMES for name in devices)
-        ):
-            raise ValueError("Snapshot needs distinct known devices")
-        stamp = self.native.sample_time_s
-        states = {name: self.native.read_device(name) for name in devices}
-        if any(state.get("sample_time_s") != stamp for state in states.values()):
-            raise ValueError("Native snapshot timestamps differ")
-        return {"sequence": self.sequence, "sample_time_s": stamp, "states": states}
-
-    def batch_write(self, commands):
+    def write(self, name, args):
         self.native.require_active()
-        if not isinstance(commands, list) or not commands:
-            raise ValueError("Batch needs commands")
-        updates = {}
-        for entry in commands:
-            if not isinstance(entry, dict) or set(entry) != {"device", "args"}:
-                raise ValueError("Batch entries require device and args")
-            name = entry["device"]
-            if name in updates:
-                raise ValueError("Duplicate device")
-            updates[name] = self.validate(name, entry["args"])
-        combined = {**self.targets, **updates}
+        target = self.validate(name, args)
+        combined = {**self.targets, name: target}
         if not self.realtime:
             self.native.advance(combined)
         self.targets = combined
-        if self.realtime and "base" in updates:
+        if self.realtime and name == "base":
             self.base_deadline = (
                 time.monotonic() + self.command_timeout_s
                 if self.command_timeout_s is not None
                 else None
             )
-        self.sequence += 1
-        return {"accepted": True, **self.snapshot(list(updates))}
-
-    def write(self, name, args):
-        return self.batch_write([{"device": name, "args": args}])
+        return {"accepted": True}
 
     def tick(self):
         """One owner-clock interval; never step a terminal episode."""
@@ -152,5 +124,4 @@ class Control:
         self.targets[name] = list(value)
         if name == "base":
             self.base_deadline = None
-        self.sequence += 1
         return {"stopped": True, **self.profiles[name]["intrinsics"]["stop"]}

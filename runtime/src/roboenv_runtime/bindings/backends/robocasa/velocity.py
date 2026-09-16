@@ -11,7 +11,6 @@ def intrinsics(world, pose_frame="world"):
         "source": "introspected",
         "method": "introspection",
         "calibrated_at": None,
-        "mobility": "mobile",
         "control": {
             "mode": "motion",
             "body_frame": "base",
@@ -56,3 +55,43 @@ def reading(model, data, body):
         "faults": [],
         "sample_time_s": float(data.time),
     }
+
+
+def bind(spec, root, context):
+    from roboenv.devices.velocity import command, command_schema
+
+    from .common import action, finish
+
+    definition = spec.definition(root)
+    if definition.type != "velocity" or spec.config != {"part": "base"}:
+        raise ValueError("velocity binding requires type velocity and native base part")
+    world = context.native._env
+    robot, sim = world._robot, world.sim
+    model, data = sim.model._model, sim.data._data
+    controller = robot.part_controllers["base"]
+    if getattr(controller, "name", None) != "JOINT_VELOCITY":
+        raise ValueError("velocity binding requires a native JOINT_VELOCITY controller")
+    body = sim.model.body_name2id(robot.robot_model.base.root_body)
+    facts = intrinsics(world, (context.devices or {}).get("world", "world"))
+    facts["stop"]["affected_devices"] = [definition.name]
+
+    def write(**args):
+        value = command(facts["control"], args)
+        world.step({"base": [value["velocity"][axis] for axis in ("vx", "vy", "wz")]})
+        return {"accepted": True}
+
+    def stop():
+        world.stop_part("base")
+        return {"stopped": True, **facts["stop"]}
+
+    return finish(
+        spec,
+        definition,
+        context,
+        facts,
+        {
+            "read": action("read", lambda: reading(model, data, body)),
+            "write": action("write", write, command_schema(facts["control"]), mutating=True),
+            "stop": action("stop", stop, mutating=True),
+        },
+    )

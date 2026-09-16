@@ -8,9 +8,14 @@ from pathlib import Path
 import yaml
 
 DRIVERS = {
-    "rgb": "camera-client.py", "rgbd": "camera-client.py",
-    "end_effector": "gripper-client.py", "base": "base-client.py",
-    "manipulator": "manipulator-client.py", "force_torque": "sensor-client.py",
+    "rgb": "camera-client.py",
+    "rgbd": "camera-client.py",
+    "gripper": "gripper-client.py",
+    "velocity": "velocity-client.py",
+    "joint": "joint-client.py",
+    "dexterous_hand": "joint-client.py",
+    "suction": "gripper-client.py",
+    "force_torque": "sensor-client.py",
     "imu": "sensor-client.py",
 }
 PORTABLE_TYPES = frozenset(DRIVERS)
@@ -42,8 +47,11 @@ def driver_resources(directory):
     for name in names:
         relative = Path(name)
         if (
-            not name or relative.is_absolute() or ".." in relative.parts
-            or str(relative) != name or relative.suffix not in {".py", ".json", ".urdf"}
+            not name
+            or relative.is_absolute()
+            or ".." in relative.parts
+            or str(relative) != name
+            or relative.suffix not in {".py", ".json", ".urdf"}
             or relative.name in {"connection.json", "owner-record.json", "verdict.json"}
             or any(part.startswith(".") for part in relative.parts)
         ):
@@ -60,19 +68,30 @@ def driver_resources(directory):
 
 
 def driver_access(kind, name, actions, endpoint, *, timeout_s=None):
-    driver = {"entry": "driver.py", "interpreter": "python3",
-              "persistent": True, "actions": actions}
+    driver = {
+        "entry": "driver.py",
+        "persistent": True,
+        "actions": actions,
+    }
     if timeout_s is not None:
         driver["timeout_s"] = timeout_s
     if kind in DRIVERS:
         return {
-            "source": "user", "method": "unknown", "calibrated_at": None,
-            "connection": {"kind": "url", "url": endpoint,
-                           "camera" if kind in {"rgb", "rgbd"} else "device": name},
+            "source": "user",
+            "method": "unknown",
+            "calibrated_at": None,
+            "connection": {
+                "kind": "url",
+                "url": endpoint,
+                "camera" if kind in {"rgb", "rgbd"} else "device": name,
+            },
             "driver": driver,
         }
-    return {"source": "user", "connection": {"kind": "url", "url": endpoint, "device": name},
-            "driver": driver}
+    return {
+        "source": "user",
+        "connection": {"kind": "url", "url": endpoint, "device": name},
+        "driver": driver,
+    }
 
 
 def write_driver(directory, kind):
@@ -100,15 +119,18 @@ def export_devices(profiles, directory, connection):
             profile.pop("extrinsics", None)
         if descriptor["type"] != "world":
             actions = [key for key, value in descriptor["actions"].items() if value["supported"]]
-            if (descriptor["type"] == "manipulator"
-                    and descriptor["intrinsics"].get("kinematics")):
-                actions += [action for action in ("fk", "ik") if action not in actions]
+            if descriptor["type"] == "joint" and descriptor["intrinsics"].get("kinematics"):
+                actions += [
+                    action
+                    for action in ("fk", "ik")
+                    if descriptor["intrinsics"]["kinematics"].get(action) and action not in actions
+                ]
             profile["access"] = driver_access(
-                descriptor["type"], name, actions, connection["endpoint"],
+                descriptor["type"],
+                name,
+                actions,
+                connection["endpoint"],
             )
-            group = descriptor.get("execution", {}).get("group")
-            if group:
-                profile["access"]["driver"]["execution_group"] = group
             write_driver(destination, descriptor["type"])
             (destination / "connection.json").write_text(json.dumps(connection) + "\n")
         (destination / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))

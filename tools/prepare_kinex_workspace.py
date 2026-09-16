@@ -36,7 +36,7 @@ def prepare(task, destination, *, project=None, catalog=None, realtime=None):
         (staging / "instruction.md").write_text(resolved.task.instruction + "\n")
         (staging / "AGENTS.md").write_text(
             "# Robot workspace\n\nRead instruction.md for the current episode's public task.\n\n"
-            "Use the declared device interfaces and camera observations. Manipulator writes "
+            "Use the declared device interfaces and camera observations. JointDevice writes "
             "accept absolute joint positions; acceptance does not imply arrival. "
             "Stop holds a device. The environment owner controls the episode lifecycle.\n"
         )

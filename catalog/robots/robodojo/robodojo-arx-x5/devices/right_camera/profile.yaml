@@ -48,7 +48,6 @@ access:
     camera: right_camera
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
     - load

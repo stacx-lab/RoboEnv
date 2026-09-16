@@ -44,11 +44,11 @@ export ROBOENV_ENDPOINT=http://127.0.0.1:8123
 ```
 
 Use a working Kinex installation with its TUI dependencies already installed
-(see the sibling README). Exported profiles invoke `python3`. Remote device access
+(see the sibling README). Exported profiles use Kinex's workspace Python. Remote device access
 uses standard-library transport in the adjacent `_roboenv.py`; profile loading needs
 PyYAML and typed actuator operations need Kinex’s Python helpers. Kinex supplies
 its Python library to drivers; for direct shell calls, set
-`PYTHONPATH="$kinex_repo/python${PYTHONPATH:+:$PYTHONPATH}"`.
+`export PYTHONPATH="$kinex_repo/python${PYTHONPATH:+:$PYTHONPATH}"`.
 The agent environment does not need RoboEnv or simulator dependencies.
 Drivers use `persistent: true`: Kinex starts `driver.py --serve` once and reuses
 its configuration, kinematics model, and HTTP connection. `/reload <device>`
@@ -67,11 +67,20 @@ Video export requires `ffmpeg`; the keyframe script requires Pillow.
 Confirm `devices/` exists and contains arm, base, torso, gripper, camera_left, camera_right,
 camera_wrist, and world for this example. There is no public composite robot device.
 The task instruction is available through `roboenv.connect(ROBOENV_ENDPOINT).task`.
+For these direct calls before starting Kinex, prepare the fresh workspace's uv
+project explicitly (Kinex creates a missing manifest when executing Python):
+
+```sh
+uv init --bare
+uv add numpy scipy pillow pyyaml opencv-python-headless
+export PYTHONPATH="$kinex_repo/python${PYTHONPATH:+:$PYTHONPATH}"
+```
+
 Check the driver without starting a model request:
 
 ```sh
-python3 .kinex/devices/arm/driver.py status '{}'
-python3 .kinex/devices/camera_left/driver.py read '{}'
+uv run python .kinex/devices/arm/driver.py status '{}'
+uv run python .kinex/devices/camera_left/driver.py read '{}'
 ```
 
 Expect `ok: true`; camera output must include an existing local RGB PNG `file`
@@ -100,14 +109,14 @@ Kinex uses its supported stills sampler. Requested Hz is a target; inspect
 effective rates and skipped samples. Reads do not request physics steps. Realtime simulation continues during recording;
 synchronous mode advances only on writes.
 
-With the recording running, use a separate terminal with the same activated
-venv and copied workspace. Read the current joint configuration and send it as an absolute hold target:
+With the recording running, use a separate terminal with the same copied workspace, `ROBOENV_ENDPOINT`, and
+`PYTHONPATH`. Read the current joint configuration and send it as an absolute hold target:
 
 ```sh
-target=$(python3 .kinex/devices/arm/driver.py read '{}' | python3 -c \
+target=$(uv run python .kinex/devices/arm/driver.py read '{}' | uv run python -c \
   'import json,sys; r=json.load(sys.stdin); assert r["ok"], r; print(json.dumps({"target":r["positions"]}))')
-python3 .kinex/devices/arm/driver.py write "$target"
-python3 .kinex/devices/arm/driver.py stop '{}'
+uv run python .kinex/devices/arm/driver.py write "$target"
+uv run python .kinex/devices/arm/driver.py stop '{}'
 ```
 
 The target contains seven absolute joint positions in radians, in the profile’s
@@ -140,8 +149,8 @@ After leaving the TUI, in terminal B:
 
 ```sh
 recording_dir="$trial_workspace/.kinex/recordings/RECORDING_ID"
-python3 "$kinex_repo/builtin/skill/reflect/scripts/keyframes.py" "$recording_dir" --device camera_left
-python3 "$kinex_repo/builtin/skill/reflect/scripts/video.py" "$recording_dir" --device camera_left
+uv run python "$kinex_repo/builtin/skill/reflect/scripts/keyframes.py" "$recording_dir" --device camera_left
+uv run python "$kinex_repo/builtin/skill/reflect/scripts/video.py" "$recording_dir" --device camera_left
 ```
 
 Replace `RECORDING_ID` with the stream ID from `/record status` (not a separate

@@ -62,7 +62,6 @@ access:
     camera: camera_2
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
     - load

@@ -1,197 +1,208 @@
 name: arm
-type: manipulator
+type: joint
 intrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
+  model:
+    format: serial_chain
+    joints:
+    - name: robot0_joint1
+      type: revolute
+      limits:
+        min: -2.8973
+        max: 2.8973
+      max_velocity: null
+      max_effort: null
+    - name: robot0_joint2
+      type: revolute
+      limits:
+        min: -1.7628
+        max: 1.7628
+      max_velocity: null
+      max_effort: null
+    - name: robot0_joint3
+      type: revolute
+      limits:
+        min: -2.8973
+        max: 2.8973
+      max_velocity: null
+      max_effort: null
+    - name: robot0_joint4
+      type: revolute
+      limits:
+        min: -3.0718
+        max: -0.0698
+      max_velocity: null
+      max_effort: null
+    - name: robot0_joint5
+      type: revolute
+      limits:
+        min: -2.8973
+        max: 2.8973
+      max_velocity: null
+      max_effort: null
+    - name: robot0_joint6
+      type: revolute
+      limits:
+        min: -0.0175
+        max: 3.7525
+      max_velocity: null
+      max_effort: null
+    - name: robot0_joint7
+      type: revolute
+      limits:
+        min: -2.8973
+        max: 2.8973
+      max_velocity: null
+      max_effort: null
+    chain:
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.333
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 0
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - -0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 1
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - -0.316
+      - 0.0
+      - 0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 2
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0825
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 3
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - -0.0825
+      - 0.384
+      - 0.0
+      - -0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 4
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 5
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.088
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      - 0.0
+      - 0.0
+      - 0.707106781187
+      joint: 6
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.1065
+      - 0.0
+      - 0.0
+      - -0.382910983543
+      - 0.923785244893
   kinematics:
-    model:
-      format: serial_chain
-      joints:
-      - name: robot0_joint1
-        type: revolute
-        limits:
-          min: -2.8973
-          max: 2.8973
-        max_velocity: null
-        max_effort: null
-      - name: robot0_joint2
-        type: revolute
-        limits:
-          min: -1.7628
-          max: 1.7628
-        max_velocity: null
-        max_effort: null
-      - name: robot0_joint3
-        type: revolute
-        limits:
-          min: -2.8973
-          max: 2.8973
-        max_velocity: null
-        max_effort: null
-      - name: robot0_joint4
-        type: revolute
-        limits:
-          min: -3.0718
-          max: -0.0698
-        max_velocity: null
-        max_effort: null
-      - name: robot0_joint5
-        type: revolute
-        limits:
-          min: -2.8973
-          max: 2.8973
-        max_velocity: null
-        max_effort: null
-      - name: robot0_joint6
-        type: revolute
-        limits:
-          min: -0.0175
-          max: 3.7525
-        max_velocity: null
-        max_effort: null
-      - name: robot0_joint7
-        type: revolute
-        limits:
-          min: -2.8973
-          max: 2.8973
-        max_velocity: null
-        max_effort: null
-      chain:
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.333
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 0
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.0
-        - -0.707106781187
-        - 0.0
-        - 0.0
-        - 0.707106781187
-        joint: 1
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.0
-        - -0.316
-        - 0.0
-        - 0.707106781187
-        - 0.0
-        - 0.0
-        - 0.707106781187
-        joint: 2
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.0825
-        - 0.0
-        - 0.0
-        - 0.707106781187
-        - 0.0
-        - 0.0
-        - 0.707106781187
-        joint: 3
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - -0.0825
-        - 0.384
-        - 0.0
-        - -0.707106781187
-        - 0.0
-        - 0.0
-        - 0.707106781187
-        joint: 4
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.707106781187
-        - 0.0
-        - 0.0
-        - 0.707106781187
-        joint: 5
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.088
-        - 0.0
-        - 0.0
-        - 0.707106781187
-        - 0.0
-        - 0.0
-        - 0.707106781187
-        joint: 6
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.1065
-        - 0.0
-        - 0.0
-        - -0.382910983543
-        - 0.923785244893
+    frame: flange
+    fk: numerical
+    feedback: driver
+    frame_to_reported:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
     ik:
       backend: numerical
       method: damped_least_squares
@@ -208,30 +219,28 @@ intrinsics:
     robot0_joint6: 2.74159265359
     robot0_joint7: 0.785398163397
   control:
+    mode: position
     speed: null
+    execution:
+      mode: realtime
+      command_timeout_s: null
   feedback:
     velocities: true
     efforts: false
-    pose_source: driver
-    flange_to_reported:
-    - 0
-    - 0
-    - 0
-    - 0
-    - 0
-    - 0
-    - 1
+    clock: simulation
   stop:
     behavior: hold
     affected_devices:
     - arm
+  frames:
+    flange: null
 extrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
   mount:
     parent: torso
-    parent_frame: flange
+    parent_frame: top
     translation_m:
     - 0
     - 0
@@ -254,14 +263,13 @@ access:
     device: arm
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
-    - load
-    - unload
-    - status
     - read
     - write
     - stop
+    - load
+    - unload
+    - status
     - fk
     - ik

@@ -6,27 +6,14 @@ import uuid
 from dataclasses import replace
 from pathlib import Path
 
+from roboenv.devices.velocity import command as velocity_command
+from roboenv.devices.velocity import command_schema
 from roboenv.devices.model import Action, BoundDevice
-from roboenv.devices.base import command as base_command, command_schema
 
 from roboenv_runtime.adapters.robocasa.depth import write_depth
 from roboenv_runtime.bindings.backends.libero.devices import same_facts
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
-STEP = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["id", "devices"],
-    "properties": {
-        "id": {"type": "integer", "minimum": 0},
-        "devices": {
-            "type": "array",
-            "minItems": 2,
-            "uniqueItems": True,
-            "items": {"type": "string"},
-        },
-    },
-}
 
 
 def bind(spec, root, context):
@@ -41,6 +28,11 @@ def bind(spec, root, context):
     facts = copy.deepcopy(world.device_facts[spec.entity])
     if facts["type"] != definition.type:
         raise ValueError("Device type differs from native entity")
+    for key in ("intrinsics", "extrinsics"):
+        if getattr(definition, key).get("source") == "introspected" and (
+            not same_facts(getattr(definition, key), facts.get(key, {}))
+        ):
+            raise ValueError(f"Catalog {key} differ from the native rig")
     names = context.devices or {}
     if "stop" in facts["intrinsics"]:
         facts["intrinsics"]["stop"]["affected_devices"] = [definition.name]
@@ -50,27 +42,15 @@ def bind(spec, root, context):
         mount["parent"] = names.get(parent, parent)
         if mount["parent_frame"] == parent:
             mount["parent_frame"] = mount["parent"]
-    for key in ("intrinsics", "extrinsics"):
-        if getattr(definition, key).get("source") == "introspected" and not same_facts(
-            getattr(definition, key),
-            facts.get(key, {}),
-        ):
-            raise ValueError(f"Catalog {key} differ from the native rig")
     definition = replace(
-        definition,
-        intrinsics=facts["intrinsics"],
-        extrinsics=facts.get("extrinsics", {}),
-        control_mode=facts.get("control_mode"),
+        definition, intrinsics=facts["intrinsics"], extrinsics=facts.get("extrinsics", {})
     )
     actions = {}
 
     def register(name, function, schema=EMPTY, *, mutation=False, required=()):
         actions[name] = Action(
             lambda args, execution: execution.perform(
-                "binding." + name,
-                args,
-                lambda: function(**args),
-                mutating=mutation,
+                "binding." + name, args, lambda: function(**args), mutating=mutation
             ),
             schema,
             output_schema={"type": "object", "required": list(required)},
@@ -81,7 +61,6 @@ def bind(spec, root, context):
     register("load", lambda: {"loaded": True}, required=("loaded",))
     register("unload", lambda: {"unloaded": True}, required=("unloaded",))
     register("status", lambda: {"loaded": True}, required=("loaded",))
-
     if definition.type in {"rgb", "rgbd"}:
 
         def read():
@@ -117,15 +96,18 @@ def bind(spec, root, context):
         register(
             "read",
             lambda: world.device_read(spec.entity),
-            required=("velocities",) if definition.type == "base" else ("positions", "velocities"),
+            required=("velocities",)
+            if definition.type == "velocity"
+            else ("positions", "velocities"),
         )
         size = len(world.control.limits[spec.entity])
 
-        def write(target, step=None):
-            if step is not None:
-                inverse = {name: entity for entity, name in names.items()}
-                step = {**step, "devices": [inverse.get(name, name) for name in step["devices"]]}
-            return world.device_write(spec.entity, target, step)
+        def write(**args):
+            target = args.get("target")
+            if definition.type == "velocity":
+                value = velocity_command(facts["intrinsics"]["control"], args)
+                target = [value["velocity"][axis] for axis in ("vx", "vy", "wz")]
+            return world.device_write(spec.entity, target)
 
         def stop():
             result = world.device_stop(spec.entity)
@@ -135,35 +117,22 @@ def bind(spec, root, context):
                 "affected_devices": [definition.name],
             }
 
-        def write_base(step=None, **args):
-            value = base_command(facts["intrinsics"]["control"], args)
-            return write([value["velocity"][axis] for axis in ("vx", "vy", "wz")], step)
-
-        register(
-            "write",
-            write,
-            {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["target"],
-                "properties": {
-                    "target": {
-                        "type": "array",
-                        "minItems": size,
-                        "maxItems": size,
-                        "items": {"type": "number"},
-                    },
-                    "step": STEP,
+        schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["target"],
+            "properties": {
+                "target": {
+                    "type": "array",
+                    "minItems": size,
+                    "maxItems": size,
+                    "items": {"type": "number"},
                 },
             },
-            mutation=True,
-            required=("accepted",),
-        )
-        if definition.type == "base":
+        }
+        if definition.type == "velocity":
             schema = command_schema(facts["intrinsics"]["control"])
-            for variant in schema["oneOf"]:
-                variant["properties"]["step"] = STEP
-            register("write", write_base, schema, mutation=True, required=("accepted",))
+        register("write", write, schema, mutation=True, required=("accepted",))
         register("stop", stop, mutation=True, required=("stopped", "behavior", "affected_devices"))
     return BoundDevice(
         definition,

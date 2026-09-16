@@ -56,7 +56,7 @@ def replay(record, *, out=None):
         # Reproduce the recorded control frames explicitly. This changes only
         # who schedules the same native interval; it never restores final state.
         native.control.realtime = True
-        for index, event in enumerate(record["commands"]):
+        for event in record["commands"]:
             frame = event["frame"]
             if type(frame) is not int or frame < native.control.frame or frame > final_frame:
                 raise ValueError("Replay commands are not in native-frame order")
@@ -66,9 +66,8 @@ def replay(record, *, out=None):
                 commands = event["commands"]
                 if not isinstance(commands, dict) or not commands:
                     raise ValueError("Empty native write group")
-                step = None if len(commands) == 1 else {"id": index, "devices": list(commands)}
                 for name, target in commands.items():
-                    native.device_write(name, target, step)
+                    native.device_write(name, target)
             elif event["op"] == "stop" and set(event) == {"frame", "op", "device"}:
                 native.device_stop(event["device"])
             else:

@@ -43,13 +43,13 @@ def require(condition, message):
 
 def interval(world, commands):
     frame = world.control.frame
-    step = {"id": frame + 100, "devices": list(commands)} if len(commands) > 1 else None
     for name, target in commands.items():
-        world.device_write(name, target, step)
+        world.device_write(name, target)
     if world.realtime:
         require(world.control.frame == frame, "Realtime writes advanced physics")
         world.control.tick()
-    require(world.control.frame == frame + 1, "Expected exactly one control interval")
+    expected = 1 if world.realtime else len(commands)
+    require(world.control.frame == frame + expected, "Unexpected control interval count")
 
 
 def mount_transform(fact):
@@ -163,8 +163,7 @@ def contacts(world, out):
         fingers = ("link7", "link8") if world.embodiment == "arx_x5" else ("tip_left", "tip_right")
         links = key.root_physx_view.link_paths[0]
         finger_paths = {
-            path: path.rsplit("/", 1)[-1]
-            for path in links if path.rsplit("/", 1)[-1] in fingers
+            path: path.rsplit("/", 1)[-1] for path in links if path.rsplit("/", 1)[-1] in fingers
         }
         require(set(finger_paths.values()) == set(fingers), f"Missing native fingers: {links}")
         stage = get_current_stage()
@@ -184,9 +183,11 @@ def contacts(world, out):
             "initial_open": world.device_read(name),
             "native_gripper_config": {"move": robot.gripper_move, "scale": robot.gripper_scale},
             "finger_poses_in_flange": {
-                finger: matrix_pose(np.linalg.inv(ee) @ pose_matrix(
-                    manager.get_link_pose(robot, finger, [0], is_relative=False)[0]
-                )) for finger in fingers
+                finger: matrix_pose(
+                    np.linalg.inv(ee)
+                    @ pose_matrix(manager.get_link_pose(robot, finger, [0], is_relative=False)[0])
+                )
+                for finger in fingers
             },
             "fixture_pose_in_flange": list(offset),
         }
@@ -258,8 +259,10 @@ def contacts(world, out):
                 held.append(np.asarray(fixture.get_world_pose()[0]).tolist())
             displacement = float(np.max(np.linalg.norm(np.asarray(held) - clamped, axis=1)))
             report[name].update(
-                fixture_mass_kg=0.02, fixture_size_m=0.024,
-                clamped_position=clamped.tolist(), unsupported_positions=held,
+                fixture_mass_kg=0.02,
+                fixture_size_m=0.024,
+                clamped_position=clamped.tolist(),
+                unsupported_positions=held,
                 unsupported_displacement_m=displacement,
             )
             (out / f"{name}-contact.json").write_text(json.dumps(report[name], indent=2) + "\n")
@@ -297,7 +300,7 @@ def contacts(world, out):
 
 
 def check(world, out, report):
-    from kinex.manipulator import Manipulator
+    from kinex.joints import JointDevice
     from kinex.motion import pose_error
 
     report.update(
@@ -306,7 +309,7 @@ def check(world, out, report):
         initial_state_sha256=digest(world.initial_state),
         implementation=world.implementation_identity,
     )
-    models = {name: Manipulator({"name": name, **world.device_facts[name]}) for name in ARMS}
+    models = {name: JointDevice({"name": name, **world.device_facts[name]}) for name in ARMS}
     before, frame = world.owner_state(), world.control.frame
     for name in CAMERAS:
         for _ in range(2):
@@ -316,7 +319,9 @@ def check(world, out, report):
     for name, model in models.items():
         reading = world.device_read(name)
         q = model.project(reading["positions"])
-        fk_error = pose_error(model.fk(reading["positions"])["pose"], reading["flange_pose"])
+        fk_error = pose_error(
+            model.fk(reading["positions"])["pose"], reading["frame_poses"]["flange"]
+        )
         target_q = q.copy()
         target_q[0] += 0.03
         target = model.fk(model.project(target_q))["pose"]
@@ -349,9 +354,7 @@ def check(world, out, report):
                 low, high = bounds
                 margin = min(0.05, (high - low) / 4)
                 goals[name][index] = min(high - margin, max(low + margin, goals[name][index]))
-    state = copy.deepcopy(
-        (world.owner_state(), world.control.targets, world.control.pending, world.control.commands)
-    )
+    state = copy.deepcopy((world.owner_state(), world.control.targets, world.control.commands))
     for target in ([float("nan")] * 6, [float("inf")] * 6, [0.0], [True] * 6, [1e9] * 6):
         try:
             world.device_write("left_arm", target)
@@ -363,22 +366,12 @@ def check(world, out, report):
             (
                 world.owner_state(),
                 world.control.targets,
-                world.control.pending,
                 world.control.commands,
             )
             == state,
             "Malformed target caused effects",
         )
-    step = {"id": 1, "devices": list(ARMS)}
-    world.device_write("left_arm", goals["left_arm"], step)
-    require(
-        world.control.frame == frame and world.owner_state() == before, "Partial atomic effects"
-    )
-    world.device_write("right_arm", goals["right_arm"], step)
-    if world.realtime:
-        require(world.control.frame == frame, "Realtime atomic write advanced physics")
-        world.control.tick()
-    require(world.control.frame == frame + 1, "Atomic writes did not compose one interval")
+    interval(world, goals)
     for _ in range(49):
         interval(world, goals)
     report["motion"] = {}
@@ -404,7 +397,9 @@ def check(world, out, report):
         == world.control.frame * world.native_interval,
         "Native control decimation mismatch",
     )
-    report["checks"].update(invalid_zero_effects=True, atomic_interval=True, measured_arrival=True)
+    report["checks"].update(
+        invalid_zero_effects=True, per_device_intervals=True, measured_arrival=True
+    )
     peer, frame = copy.deepcopy(world.control.targets["right_arm"]), world.control.frame
     world.device_stop("left_arm")
     held = world.device_read("left_arm")["positions"]
@@ -463,7 +458,10 @@ def main():
     world = None
     try:
         world = RoboDojoDevices(
-            "stack_bowls", args.embodiment, max_steps=500, realtime=args.realtime,
+            "stack_bowls",
+            args.embodiment,
+            max_steps=500,
+            realtime=args.realtime,
             layout_config=args.layout_config,
         )
         world.reset(seed=args.seed)

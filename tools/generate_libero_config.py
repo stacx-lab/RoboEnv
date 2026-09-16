@@ -16,7 +16,7 @@ from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.export import export_devices
 from roboenv.tasks.libero import ROBOTS
-from roboenv_runtime.adapters.libero.config import ensure_libero_config
+from roboenv_runtime.adapters.libero.config import CAMERA_SIZE, ensure_libero_config
 from roboenv_runtime.bindings import default_registry
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -121,8 +121,8 @@ def descriptors(problem):
             (root / "bindings.yaml").write_text(yaml.safe_dump(plan))
             for name, entry in plan["devices"].items():
                 type_ = {
-                    "arm": "manipulator",
-                    "gripper": "end_effector",
+                    "arm": "joint",
+                    "gripper": "gripper",
                     "camera": "rgb",
                     "world": "world",
                 }[entry["entity"]]
@@ -134,7 +134,7 @@ def descriptors(problem):
                 sim=sim,
                 _render=True,
                 _camera_names=("agentview", "robot0_eye_in_hand"),
-                _camera_size=(128, 128),
+                _camera_size=CAMERA_SIZE,
             )
             context = BindingContext("libero", "panda", SimpleNamespace(_env=native))
             parsed = BindingPlan.load(root, backend="libero")
@@ -204,7 +204,7 @@ def generate(out, provenance=None):
             ROOT / "runtime/src/roboenv_runtime/bindings/backends/libero/devices.py",
             ROOT / "runtime/src/roboenv_runtime/adapters/robocasa/geometry.py",
             ROOT / "src/roboenv/assets/_roboenv.py",
-            ROOT / "src/roboenv/assets/manipulator-client.py",
+            ROOT / "src/roboenv/assets/joint-client.py",
             ROOT / "src/roboenv/assets/gripper-client.py",
             ROOT / "src/roboenv/assets/camera-client.py",
         ]
@@ -235,7 +235,7 @@ def generate(out, provenance=None):
                     "sources": hashes,
                     "method": "CPU native model assembly; no task objects, sampling, "
                     "renderer, or physics",
-                    "camera_size": [128, 128],
+                    "camera_size": list(CAMERA_SIZE),
                     "control_frequency_hz": 20,
                     "robots": ROBOTS,
                     "robosuite_version": robosuite.__version__,

@@ -27,12 +27,19 @@ def check(root, temporary):
     native.realtime = True
     native.horizon = native.env.horizon = 2
     native._max_steps = 1  # Legacy overrides must not cap realtime testing.
-    worker = SimWorker(adapter, task_id="cpu-realtime", seed=7, run_dir=temporary,
-                       device_root=root / "catalog/robots/robocasa/robocasa-panda-omron")
+    worker = SimWorker(
+        adapter,
+        task_id="cpu-realtime",
+        seed=7,
+        run_dir=temporary,
+        device_root=root / "catalog/robots/robocasa/robocasa-panda-omron",
+    )
     try:
+
         def call(device, action, **args):
-            return worker.dispatch("devices.call", {"device": device, "action": action,
-                                                    "args": args})["data"]
+            return worker.dispatch(
+                "devices.call", {"device": device, "action": action, "args": args}
+            )["data"]
 
         with worker.world.lock:
             # Drop the free cube, then issue no request while physics runs.
@@ -56,8 +63,7 @@ def check(root, temporary):
             goal = arm.goal_qpos.copy()
             start = native._step_count
             # An unrelated device write must preserve the arm's target.
-            call("base", "write", mode="drive", velocity={"vx": 0.1, "vy": 0, "wz": 0},
-                 posture={"height": 0.7, "pitch": 0.2})
+            call("base", "write", mode="drive", velocity={"vx": 0.1, "vy": 0, "wz": 0})
         wait_frames(worker, start + 6)
         with worker.world.lock:
             np.testing.assert_allclose(arm.goal_qpos, goal, atol=1e-12)
@@ -78,6 +84,7 @@ def check(root, temporary):
             np.testing.assert_allclose(native._robot.part_controllers["base"].goal_qvel, 0)
             # Invalid command has no side effect on a previously accepted goal.
             from roboenv_runtime.runtime.worker import WorkerRPCError
+
             try:
                 call("arm", "write", target=[100] * 7)
             except WorkerRPCError:
@@ -100,12 +107,19 @@ def check_synchronous(root, temporary):
     native = adapter._env
     native.horizon = native.env.horizon = 2
     native._max_steps = 1
-    worker = SimWorker(adapter, task_id="cpu-synchronous", seed=7, run_dir=temporary,
-                       device_root=root / "catalog/robots/robocasa/robocasa-panda-omron")
+    worker = SimWorker(
+        adapter,
+        task_id="cpu-synchronous",
+        seed=7,
+        run_dir=temporary,
+        device_root=root / "catalog/robots/robocasa/robocasa-panda-omron",
+    )
     try:
+
         def call(device, action, **args):
-            return worker.dispatch("devices.call", {"device": device, "action": action,
-                                                    "args": args})["data"]
+            return worker.dispatch(
+                "devices.call", {"device": device, "action": action, "args": args}
+            )["data"]
 
         assert worker.world._thread is None
         profile = worker.dispatch("devices.describe", {"device": "arm"})
@@ -119,16 +133,21 @@ def check_synchronous(root, temporary):
         assert native._step_count == 0
         goal = list(profile["intrinsics"]["home"].values())
         goal[0] += 0.1
-        for frame, (device, target) in enumerate([
-            ("arm", goal),
-            ("gripper", [1]),
-            ("base", [0.1, 0, 0]),
-            ("torso", [0.1]),
-        ], start=1):
+        for frame, (device, target) in enumerate(
+            [
+                ("arm", goal),
+                ("gripper", [1]),
+                ("base", [0.1, 0, 0]),
+                ("torso", [0.1]),
+            ],
+            start=1,
+        ):
             args = {"target": target}
             if device == "base":
-                args = {"mode": "drive", "velocity":
-                        dict(zip(("vx", "vy", "wz"), target, strict=True))}
+                args = {
+                    "mode": "drive",
+                    "velocity": dict(zip(("vx", "vy", "wz"), target, strict=True)),
+                }
             result = call(device, "write", **args)
             assert result == {"accepted": True}
             assert native._step_count == frame

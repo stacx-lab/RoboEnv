@@ -12,7 +12,7 @@ import { Session } from "../../src/session/index.ts"
 import { createRunner } from "../../src/session/runner.ts"
 import { createBus } from "../../src/bus/index.ts"
 import { toResponsesBody } from "../../src/provider/openai.ts"
-import { pythonEnvironment } from "../../src/python/environment.ts"
+import { preparePython, pythonEnvironment } from "../../src/python/environment.ts"
 import { ConfigPaths } from "../../src/config/paths.ts"
 import { Global } from "../../src/global.ts"
 import { observeProvider } from "./provider-evidence.ts"
@@ -32,6 +32,12 @@ const Input = z.strictObject({
 })
 
 async function main() {
+  if (process.argv[2] === "--prepare-python") {
+    const directory = process.argv[3]
+    if (!directory) throw new Error("Workspace directory is required")
+    await preparePython(directory)
+    return
+  }
   if (process.argv[2] === "--help") {
     console.log("bun integrations/roboenv/run.ts RUN.json\nRun inside the packaged Kinex tree with public per-episode devices.")
     return
@@ -41,8 +47,7 @@ async function main() {
   if (await Bun.file(input.output).exists()) throw new Error("Preserve existing receipts; select a fresh output")
   if (input.mode === "develop" && (!input.prompt || !input.model)) throw new Error("Development needs an authorized exact model and prompt")
   if (input.mode === "no-model" && (input.model || input.prompt)) throw new Error("No-model execution cannot contain model instructions")
-  if (!(await pythonEnvironment(directory)).ready || !(await Bun.file(path.join(directory, ".kinex/python/uv.lock")).exists()))
-    throw new Error("Run kinex python before activation; the Python lock is mandatory")
+  await preparePython(directory)
   const devices = await CalibrationStore.listDevices(directory)
   if (!devices.length || devices.some((device) => device.type === "model")) throw new Error("Require native devices without undeclared model services")
   if (devices.some((device) => !device.loaded)) throw new Error("Prepare loaded device profiles before freezing")

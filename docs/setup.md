@@ -133,7 +133,7 @@ Python owners use `with roboenv.launch(task="TASK_ID", port=8123) as run:` and
 connect to `run.endpoint`. Context exit stops the world; closing an attached
 client only releases client resources. Devices expose the operations declared by
 their live descriptors and return device data directly. Budgets and execution
-receipts remain in owner evidence. Exported manipulator drivers provide local
+receipts remain in owner evidence. Exported joint drivers provide local
 FK/IK; the service does not synthesize unsupported operations.
 
 Run definitions, device exports, and logs remain in the project's ignored cache.

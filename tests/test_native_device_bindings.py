@@ -43,9 +43,7 @@ def service(tmp_path, *, embodiment="piper"):
             "extrinsics": definition.extrinsics,
         }
     world = SimpleNamespace(embodiment=embodiment, device_facts=facts, steps=0)
-    actuator_names = [
-        name for name, fact in facts.items() if fact["type"] in {"manipulator", "end_effector"}
-    ]
+    actuator_names = [name for name, fact in facts.items() if fact["type"] in {"joint", "gripper"}]
     targets = {name: [0.0] * (6 if name.endswith("arm") else 1) for name in actuator_names}
 
     def advance():
@@ -83,43 +81,93 @@ def test_public_world_has_no_truth_or_mutation_shortcuts(tmp_path):
         wire.close()
 
 
-def test_atomic_transport_and_read_stop_invariance(tmp_path):
+def test_independent_writes_and_read_stop_invariance(tmp_path):
     wire, world, *_ = service(tmp_path)
 
     def call(device, action, args=None):
         return wire.call({"device": device, "action": action, "args": args or {}})
 
     try:
-        group = {"id": 0, "devices": ["left_arm", "right_arm"]}
-        call("left_arm", "write", {"target": [0.1] * 6, "step": group})
-        assert world.steps == 0
-        with pytest.raises(DeviceError):
-            call("right_arm", "write", {"target": [float("nan")] * 6, "step": group})
-        assert world.steps == 0
-        call("right_arm", "write", {"target": [0.2] * 6, "step": group})
+        call("left_arm", "write", {"target": [0.1] * 6})
         assert world.steps == 1
+        with pytest.raises(DeviceError):
+            call("right_arm", "write", {"target": [float("nan")] * 6})
+        assert world.steps == 1
+        call("right_arm", "write", {"target": [0.2] * 6})
+        assert world.steps == 2
         for action in ("load", "read", "status", "stop", "unload"):
             call("left_arm", action)
         call("head_camera", "read")
-        assert world.steps == 1
+        assert world.steps == 2
         assert len(list((tmp_path / "captures").glob("*.png"))) == 1
     finally:
         wire.close()
 
 
-def test_rig_mismatch_and_aliases_fail_before_effects(tmp_path):
+def test_native_aliases_are_allowed_and_rig_mismatches_fail_before_effects(tmp_path):
     with pytest.raises(ValueError, match="embodiment"):
         service(tmp_path, embodiment="aloha_agilex")
     wire, world, plan, root, context = service(tmp_path)
     try:
-        alias = replace(plan.devices[0], name="alias")
+        alias = replace(next(s for s in plan.devices if s.entity == "left_arm"), name="alias")
         duplicate = replace(plan, devices=(*plan.devices, alias))
-        with pytest.raises(ValueError, match="alias"):
-            default_registry().assemble(duplicate, root, context)
+        aliases = default_registry().assemble(duplicate, root, context)
+        try:
+            assert aliases.describe("alias")["intrinsics"]["stop"]["affected_devices"] == ["alias"]
+        finally:
+            aliases.close()
         world.device_facts = copy.deepcopy(world.device_facts)
         world.device_facts["left_arm"]["intrinsics"]["home"]["joint1"] = 0.123
         with pytest.raises(ValueError, match="Catalog intrinsics"):
             default_registry().assemble(plan, root, context)
         assert world.steps == 0
+    finally:
+        wire.close()
+
+
+def test_behavior_velocity_binding_accepts_named_commands_without_joint_feedback(tmp_path):
+    root = ROOT / "catalog/robots/behavior/behavior-r1pro"
+    plan = BindingPlan.load(root, backend="behavior")
+    spec = next(s for s in plan.devices if s.name == "base")
+    definition = spec.definition(root)
+    world = SimpleNamespace(
+        embodiment="r1pro",
+        device_facts={
+            "base": {
+                "type": "velocity",
+                "intrinsics": definition.intrinsics,
+                "extrinsics": definition.extrinsics,
+            }
+        },
+        control=SimpleNamespace(limits={"base": [(-0.5, 0.5), (-0.5, 0.5), (-1, 1)]}),
+        device_read=lambda name: {"velocities": [0, 0, 0]},
+    )
+    writes = []
+
+    def write(name, target):
+        writes.append((name, target))
+        return {"accepted": True}
+
+    world.device_write = write
+    wire = default_registry().assemble(
+        replace(plan, devices=(spec,)),
+        root,
+        BindingContext("behavior", "r1pro", SimpleNamespace(_env=world, run_dir=tmp_path)),
+    )
+    try:
+        assert wire.call({"device": "base", "action": "read", "args": {}})["data"] == {
+            "velocities": [0, 0, 0]
+        }
+        command = {"mode": "drive", "velocity": {"vx": 0.1, "vy": 0, "wz": -0.2}}
+        wire.call({"device": "base", "action": "write", "args": command})
+        assert writes == [("base", [0.1, 0, -0.2])]
+        for args in (
+            {"target": [0, 0, 0]},
+            {**command, "posture": {"height": 0.7}},
+            {**command, "step": {"id": 0}},
+        ):
+            with pytest.raises(DeviceError):
+                wire.call({"device": "base", "action": "write", "args": args})
+        assert len(writes) == 1
     finally:
         wire.close()

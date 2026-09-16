@@ -149,7 +149,7 @@ class BehaviorDevices(BehaviorBackend):
                     raise ValueError("Gripper has no finite physical joint range")
                 limits[name], targets[name] = [(0.0, 1.0)], self._measured_target(name)
             else:
-                joints = self.device_facts[name]["intrinsics"]["kinematics"]["model"]["joints"]
+                joints = self.device_facts[name]["intrinsics"]["model"]["joints"]
                 limits[name] = [
                     (joint["limits"]["min"], joint["limits"]["max"]) for joint in joints
                 ]
@@ -238,8 +238,8 @@ class BehaviorDevices(BehaviorBackend):
         self._native_success = self._native_success or bool(self.goal_report()["success"])
         self._native_done = bool(terminated or truncated)
 
-    def device_write(self, name, target, step=None):
-        return self.control.write(name, target, step)
+    def device_write(self, name, target):
+        return self.control.write(name, target)
 
     def _release_holds(self, devices):
         for name in devices:
@@ -273,10 +273,14 @@ class BehaviorDevices(BehaviorBackend):
         }
         if name in self.rig_frames:
             frame = self.rig_frames[name]
-            result["flange_pose"] = matrix_pose(
-                np.linalg.inv(pose(self.robot.links[frame["base"]]))
-                @ pose(self.robot.links[frame["flange"]])
-            )
+            result["frame_poses"] = {
+                "flange": matrix_pose(
+                    np.linalg.inv(pose(self.robot.links[frame["base"]]))
+                    @ pose(self.robot.links[frame["flange"]])
+                )
+            }
+        if name.endswith("_gripper"):
+            result.update(group["gripper"].read(result["positions"]))
         return result
 
     def device_image(self, name):

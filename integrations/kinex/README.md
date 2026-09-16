@@ -53,7 +53,8 @@ generated default is one attempt, serial execution and no retries. Seeds, clocks
 and native initialization belong to generated tasks. Regenerate when they change.
 
 The agent prepares `/app/workspace` from public device profiles/drivers and creates
-a locked Python environment with `kinex python`. Initial dependency resolution
+a standard uv project (`pyproject.toml`, `uv.lock`, `.venv`). The bridge synchronizes
+its dependencies before execution. Initial dependency resolution
 requires network access or a populated cache. The default main image supplies
 Python, venv/pip and ffmpeg; custom images need ffmpeg with libx264 and ffv1.
 Simulator assets and interpreters belong to the separate native deployment.

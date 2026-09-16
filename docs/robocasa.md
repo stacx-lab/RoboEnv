@@ -52,8 +52,8 @@ profiles. See [Kinex local testing](kinex-local.md).
 lifecycle, instruction, native success checking, budget, and owner evidence to the
 shared worker. Its [backend](../runtime/src/roboenv_runtime/adapters/robocasa/backend.py)
 creates one `robosuite` environment and configures its controllers. The
-[native binding](../runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py)
-attaches selected devices to that environment through `robocasa.device/1`.
+[binding factories](../runtime/src/roboenv_runtime/bindings/backends/robocasa/__init__.py)
+attach selected joint, velocity, gripper, camera and world endpoints to that environment.
 The shared `WorldSession` schedules realtime ticks and serializes them with device
 operations and finalization. Drivers neither own physics nor start another world.
 
@@ -71,15 +71,15 @@ these do not reset or close the world.
 
 | Device | Type | Service read / write |
 |---|---|---|
-| `arm` | `manipulator` | Seven joint positions/velocities and flange pose; seven absolute joint targets in radians |
-| `torso` | `manipulator` | Lift state and flange pose; one absolute target in metres |
-| `base` | Mobile `base` | World pose and measured chassis-origin twist; normalized body-frame `vx`, `vy`, `wz` commands |
-| `gripper` | `end_effector` | Finger joint state; one signed command in `[-1,1]`, positive closes |
+| `arm` | `joint` | Seven joint positions/velocities and flange pose; seven absolute joint targets in radians |
+| `torso` | `joint` | Lift state and top pose; one absolute target in metres |
+| `base` | `velocity` | World pose and measured chassis-origin twist; normalized body-frame `vx`, `vy`, `wz` commands |
+| `gripper` | `gripper` | Finger joint state; one signed command in `[-1,1]`, positive closes |
 | `camera_left`, `camera_right`, `camera_wrist` | `rgbd` | Aligned RGB and metric depth files; no write |
 | `world` | `world` | Profile only; reference frame and open workspace bounds |
 
 Actuators implement `write` and `stop`. Arm/torso targets follow
-`intrinsics.kinematics.model.joints` order and replace the active goal. Repeated targets continue
+`intrinsics.model.joints` order and replace the active goal. Repeated targets continue
 motion without restarting interpolation. Their native joint-position controllers
 use torque control. Base and gripper commands persist until replaced or stopped;
 writing one device preserves all other goals.
@@ -123,8 +123,8 @@ backend_kwargs:
 | Realtime | Return after accepting the goal; background physics continues while the agent thinks. |
 | Synchronous | Update the goal, advance the whole world by one native control interval, then return and pause. |
 
-The service owns the control period, normally 0.05 simulated seconds. Manipulator
-profiles carry no execution clock. The base declares `control.execution`: realtime
+The service owns the control period, normally 0.05 simulated seconds. Joint and
+velocity devices declare `intrinsics.control.execution`: realtime
 with `command_timeout_s: null` (retain commands until replaced/stopped), or stepped
 with `interval_s: 0.05` in a live synchronous export. The static catalog describes
 the default realtime mode. Reads, recording, status, local IK/FK, and stop
@@ -205,7 +205,7 @@ the profile or episode connection. Configuration, HTTP connections, and local
 kinematics models are reused within the process.
 
 Arm/torso drivers additionally implement `fk(joints)` and `ik(pose, seed?)` using
-`kinex.manipulator` and `intrinsics.kinematics.model`, a serial chain with an
+`kinex.joints` and `intrinsics.model`, a serial chain with an
 explicit numerical IK configuration. Base and gripper adapters also use Kinex’s
 typed command/feedback validators. Kinex supplies its Python
 library on the driver's PYTHONPATH; parsing profiles requires PyYAML. The simulator
@@ -254,16 +254,16 @@ The mobile `base` omits a static `extrinsics.mount` and declares
 edge. Measured base velocities are at the chassis origin in body coordinates, in
 m/s and rad/s; they are not normalized commands or raw generalized joint velocity.
 
-The torso remains a one-joint manipulator because Kinex represents its live
-base-to-flange transform. The arm and left/right cameras mount on `torso:flange`;
-the gripper and wrist camera mount on `arm:flange`. The gripper mount is its rigid
-flange-to-TCP offset. The torso base mounts rigidly on `base`; arm and torso each
-supply a measured base-to-flange transform.
+The torso is a one-joint endpoint with a declared `top` frame. The arm and
+left/right cameras mount on `torso:top`; the gripper and wrist camera mount on
+`arm:flange`. Both frames are declared as null in `intrinsics.frames`; `read.frame_poses`
+supplies their measured transforms relative to the
+canonical device frame. Names such as top/flange are declared, never implicit.
 
 | Camera | Native sensor | Vertical FOV | Rigid parent |
 |---|---|---:|---|
-| Left | `robot0_agentview_left` | 60° | Torso flange |
-| Right | `robot0_agentview_right` | 60° | Torso flange |
+| Left | `robot0_agentview_left` | 60° | Torso top |
+| Right | `robot0_agentview_right` | 60° | Torso top |
 | Wrist | `robot0_eye_in_hand` | 75° | Arm flange |
 
 All three output 256×256 images with principal point `(128,128)` and no camera
@@ -313,3 +313,14 @@ Camera transport tests use synthetic pixels. Kitchen boot, rendered calibration,
 task success, and fresh-process replay require separate evidence. See
 [Kinex local testing](kinex-local.md), [Harbor tasks](harbor-tasks.md), and
 [simulator integration](simulator-integration.md) for those workflows.
+
+
+## Control contracts and assembly
+
+Owner bindings are explicit: `robocasa.joint/1` (configured native arm/lift part),
+`robocasa.velocity/1`, `robocasa.gripper/1`, `robocasa.camera/1`, and `robocasa.world/1`.
+They share one world and expose individual read/write/stop operations.
+Kinex devices() submits mixed reads and writes concurrently. Each write in a stepped
+world advances its own interval; realtime writes replace that device's goal. Native
+world access remains serialized. The operator ensures enabled devices do not overlap;
+there is no group coordinator or automatic controller switching.

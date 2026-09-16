@@ -1,17 +1,12 @@
 name: left_hand
 loaded: false
-type: end_effector
+type: dexterous_hand
 intrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
-  stop:
-    behavior: hold
-    affected_devices:
-    - left_hand
-  tool_type: dexterous_hand
-  control:
-    mode: joint_position
+  model:
+    format: joints
     joints:
     - name: left_hand_index_0_joint
       type: revolute
@@ -62,27 +57,30 @@ intrinsics:
         max: 1.745329118836275
       max_velocity: null
       max_effort: null
+  kinematics: null
+  home:
+    left_hand_index_0_joint: 0.0
+    left_hand_index_1_joint: 0.0
+    left_hand_middle_0_joint: 0.0
+    left_hand_middle_1_joint: 0.0
+    left_hand_thumb_0_joint: 0.0
+    left_hand_thumb_1_joint: 0.0
+    left_hand_thumb_2_joint: 0.0
+  control:
+    mode: position
     speed: null
+    execution:
+      mode: stepped
+      interval_s: 0.02
   feedback:
-    positions:
-    - name: left_hand_index_0_joint
-      units: rad
-    - name: left_hand_index_1_joint
-      units: rad
-    - name: left_hand_middle_0_joint
-      units: rad
-    - name: left_hand_middle_1_joint
-      units: rad
-    - name: left_hand_thumb_0_joint
-      units: rad
-    - name: left_hand_thumb_1_joint
-      units: rad
-    - name: left_hand_thumb_2_joint
-      units: rad
     velocities: true
-    sensors: []
+    efforts: false
     clock: simulation
-    aperture_model: null
+  stop:
+    behavior: hold
+    affected_devices:
+    - left_hand
+  frames: {}
 extrinsics:
   source: introspected
   method: introspection
@@ -112,7 +110,6 @@ access:
     device: left_hand
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
     - read
@@ -121,4 +118,3 @@ access:
     - status
     - write
     - stop
-    execution_group: base

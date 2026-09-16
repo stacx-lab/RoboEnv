@@ -27,7 +27,12 @@ def pose_matrix(pose):
 
 class RoboDojoDevices(RoboDojoEnv):
     def __init__(
-        self, task_name, env_cfg_type="arx_x5", *, realtime=False, max_steps=None,
+        self,
+        task_name,
+        env_cfg_type="arx_x5",
+        *,
+        realtime=False,
+        max_steps=None,
         layout_config=None,
     ):
         if type(realtime) is not bool:
@@ -116,7 +121,7 @@ class RoboDojoDevices(RoboDojoEnv):
             if robot.type != "target":
                 raise ValueError("This task requires a separate rig for its native support arm")
             key = manager.robot_key[manager.robot_list.index(robot)]
-            names = self.device_facts[side + "_arm"]["intrinsics"]["kinematics"]["model"]["joints"]
+            names = self.device_facts[side + "_arm"]["intrinsics"]["model"]["joints"]
             if list(robot.arm_joints_name) != [joint["name"] for joint in names]:
                 raise ValueError("Native arm joint order differs from source rig")
             native_limits = np.asarray(values(key.data.joint_pos_limits[0]))[
@@ -247,8 +252,8 @@ class RoboDojoDevices(RoboDojoEnv):
         if self.physics_steps - before != self.native_interval:
             raise RuntimeError("Native control cadence changed; acceptance must be revalidated")
 
-    def device_write(self, name, target, step=None):
-        return self.control.write(name, target, step)
+    def device_write(self, name, target):
+        return self.control.write(name, target)
 
     def device_stop(self, name):
         if name.endswith("_gripper"):
@@ -272,7 +277,9 @@ class RoboDojoDevices(RoboDojoEnv):
             manager = self._env.robot_manager
             base = pose_matrix(manager.get_link_pose(robot, frames["base"], [0])[0])
             flange = pose_matrix(manager.get_link_pose(robot, frames["flange"], [0])[0])
-            result["flange_pose"] = matrix_pose(np.linalg.inv(base) @ flange)
+            result["frame_poses"] = {"flange": matrix_pose(np.linalg.inv(base) @ flange)}
+        if name.endswith("_gripper"):
+            result.update(self.rig_frames[name.removesuffix("_gripper")]["gripper"].read(result["positions"]))
         return result
 
     def _camera(self, name):

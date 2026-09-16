@@ -5,23 +5,23 @@ intrinsics:
   method: introspection
   calibrated_at: null
   color:
-    width: 128
-    height: 128
+    width: 256
+    height: 256
     fps: null
     pixel_format: rgb8
     image_format: png
     projection:
       model: pinhole
-      fx: 154.509667991878
-      fy: 154.509667991878
-      cx: 64.0
-      cy: 64.0
+      fx: 309.019335983756
+      fy: 309.019335983756
+      cx: 128.0
+      cy: 128.0
       skew: 0
     distortion:
       model: none
     fov:
-      horizontal_deg: 44.999425744206
-      vertical_deg: 44.999425744206
+      horizontal_deg: 44.999856434482
+      vertical_deg: 44.999856434482
 extrinsics:
   source: introspected
   method: introspection
@@ -51,7 +51,6 @@ access:
     camera: camera
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
     - load

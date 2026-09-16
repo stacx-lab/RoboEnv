@@ -91,16 +91,19 @@ def check(root, temporary):
     renderer._render = True
     renderer._camera_names = DEFAULT_CAMERAS
     renderer._camera_size = (2, 2)
-    renderer.env = SimpleNamespace(sim=SimpleNamespace(
-        render=render,
-        model=SimpleNamespace(stat=SimpleNamespace(extent=2),
-                              vis=SimpleNamespace(map=SimpleNamespace(znear=0.05, zfar=5))),
-    ))
+    renderer.env = SimpleNamespace(
+        sim=SimpleNamespace(
+            render=render,
+            model=SimpleNamespace(
+                stat=SimpleNamespace(extent=2),
+                vis=SimpleNamespace(map=SimpleNamespace(znear=0.05, zfar=5)),
+            ),
+        )
+    )
     rgb, depth = renderer.render_rgbd(DEFAULT_CAMERAS[0])
     np.testing.assert_array_equal(rgb, pixels[::-1])
     np.testing.assert_allclose(depth, [[0.1 / (1 - 0.9 * 0.99), 0], [0.1, 0.1 / 0.505]])
-    assert renders == [{"camera_name": DEFAULT_CAMERAS[0], "height": 2, "width": 2,
-                        "depth": True}]
+    assert renders == [{"camera_name": DEFAULT_CAMERAS[0], "height": 2, "width": 2, "depth": True}]
     try:
         renderer.render_rgbd("not-enabled")
     except ValueError:
@@ -111,8 +114,7 @@ def check(root, temporary):
     write_depth(depth_path, [[1.234, 0, np.nan, np.inf, -1, 65.536, 65.535]])
     header, encoded = depth_path.read_bytes().split(b"65535\n", 1)
     assert header == b"P5\n7 1\n"
-    np.testing.assert_array_equal(np.frombuffer(encoded, dtype=">u2"),
-                                  [1234, 0, 0, 0, 0, 0, 65535])
+    np.testing.assert_array_equal(np.frombuffer(encoded, dtype=">u2"), [1234, 0, 0, 0, 0, 0, 65535])
     try:
         write_depth(depth_path, [1, 2])
     except ValueError:
@@ -162,11 +164,13 @@ def check(root, temporary):
         import runpy
 
         sys.path.insert(0, str(temporary / "devices/arm"))
-        drivers = {name: runpy.run_path(str(temporary / "devices" / name / "driver.py"))
-                   for name in ("arm", "torso", "gripper", "base")}
+        drivers = {
+            name: runpy.run_path(str(temporary / "devices" / name / "driver.py"))
+            for name in ("arm", "torso", "gripper", "base")
+        }
         for name, driver in drivers.items():
-            driver["handle"].__globals__["remote"] = (
-                lambda action, args, name=name: call(name, action, args)
+            driver["handle"].__globals__["remote"] = lambda action, args, name=name: call(
+                name, action, args
             )
             for action in ("fk", "ik"):
                 assert action not in service.describe(name)["actions"]
@@ -181,18 +185,20 @@ def check(root, temporary):
         assert "mount" not in service.describe("base")["extrinsics"]
         assert "needs_calibration" not in service.describe("base")["extrinsics"]
         base_facts = service.describe("base")["intrinsics"]
-        assert service.describe("base")["type"] == "base"
+        assert service.describe("base")["type"] == "velocity"
         assert base_facts["control"]["execution"] == {"mode": "stepped", "interval_s": 0.05}
         assert base_facts["feedback"]["pose_frame"] == "world"
         # Measured velocity is the chassis-origin twist in body coordinates,
         # including the yaw-joint offset, rather than raw generalized qvel.
         import mujoco
+
         model, data = native.sim.model._model, native.sim.data._data
         base_controller = native._robot.part_controllers["base"]
         addresses = model.jnt_dofadr[base_controller.joint_index]
         saved_position = data.qpos.copy()
         saved_velocity = data.qvel.copy()
         from roboenv_runtime.adapters.robocasa.base import native_command
+
         yaw_address = model.jnt_qposadr[base_controller.joint_index[-1]]
         body_id = native.sim.model.body_name2id(native._robot.robot_model.base.root_body)
         for yaw in (0.7, -1.2):
@@ -240,8 +246,10 @@ def check(root, temporary):
         assert Path(image["depth_file"]).read_bytes().startswith(b"P5\n12 8\n65535\n")
         assert service.describe("camera_left")["type"] == "rgbd"
         assert native._step_count == before
-        depths = [Path(call(name, "read")["depth_file"]).read_bytes()
-                  for name in ("camera_left", "camera_right", "camera_wrist")]
+        depths = [
+            Path(call(name, "read")["depth_file"]).read_bytes()
+            for name in ("camera_left", "camera_right", "camera_wrist")
+        ]
         assert len(set(depths)) == 3
         assert native._step_count == before
         images = [
@@ -255,7 +263,8 @@ def check(root, temporary):
             native._camera_names = names
             try:
                 default_registry().assemble(
-                    replace(plan, devices=(camera_spec,)), robot,
+                    replace(plan, devices=(camera_spec,)),
+                    robot,
                     BindingContext("robocasa", "panda_omron", adapter),
                 )
             except ValueError as exc:
@@ -263,17 +272,39 @@ def check(root, temporary):
             else:
                 raise AssertionError("Disabled camera accepted")
         native._camera_names = DEFAULT_CAMERAS
+        # Without a torso endpoint, lift-mounted cameras use the arm's canonical frame.
+        subset = default_registry().assemble(
+            replace(
+                plan, devices=tuple(s for s in plan.devices if s.name in {"arm", "camera_left"})
+            ),
+            robot,
+            BindingContext("robocasa", "panda_omron", adapter),
+        )
+        try:
+            mount = subset.describe("camera_left")["extrinsics"]["mount"]
+            assert mount["parent"] == mount["parent_frame"] == "arm"
+        finally:
+            subset.close()
         assert "scene" not in {p["name"] for p in service.inventory()["devices"]}
         for name in ("arm", "base", "torso", "gripper"):
             state = local(name, "read", {}) if name in {"gripper", "base"} else call(name, "read")
             assert set(state) >= {"velocities", "faults"}
             if name != "base":
                 assert "positions" in state
-            size = (1 if name == "gripper" else 3 if name == "base"
-                    else len(service.describe(name)["intrinsics"]["kinematics"]["model"]["joints"]))
+            size = (
+                1
+                if name == "gripper"
+                else 3
+                if name == "base"
+                else len(service.describe(name)["intrinsics"]["model"]["joints"])
+            )
             before = native._step_count
-            for target in ([0.0] * (size + 1), [100.0] * size, [float("nan")] * size,
-                           [True] * size):
+            for target in (
+                [0.0] * (size + 1),
+                [100.0] * size,
+                [float("nan")] * size,
+                [True] * size,
+            ):
                 try:
                     call(name, "write", {"target": target})
                 except DeviceError:
@@ -281,13 +312,18 @@ def check(root, temporary):
                 else:
                     raise AssertionError("Invalid target accepted")
             assert native._step_count == before
-            target = (list(service.describe(name)["intrinsics"]["home"].values())
-                      if name in ("arm", "torso") else [0.1] * size)
+            target = (
+                list(service.describe(name)["intrinsics"]["home"].values())
+                if name in ("arm", "torso")
+                else [0.1] * size
+            )
             if name in {"gripper", "base"}:
                 command = {"target": target}
                 if name == "base":
-                    command = {"mode": "drive", "velocity":
-                               dict(zip(("vx", "vy", "wz"), target, strict=True))}
+                    command = {
+                        "mode": "drive",
+                        "velocity": dict(zip(("vx", "vy", "wz"), target, strict=True)),
+                    }
                 local(name, "write", command)
             else:
                 call(name, "write", {"target": target})
@@ -303,11 +339,14 @@ def check(root, temporary):
             if name in ("arm", "torso"):
                 facts = service.describe(name)["intrinsics"]
                 assert facts["source"] == "introspected"
-                expected_home = (native._robot.init_qpos if name == "arm"
-                                 else native._robot.robot_model.init_torso_qpos)
+                expected_home = (
+                    native._robot.init_qpos
+                    if name == "arm"
+                    else native._robot.robot_model.init_torso_qpos
+                )
                 np.testing.assert_allclose(list(facts["home"].values()), expected_home)
                 assert facts["control"]["speed"] is None
-                model_joints = facts["kinematics"]["model"]["joints"]
+                model_joints = facts["model"]["joints"]
                 assert all(j["max_velocity"] is None for j in model_joints)
                 controller = native._robot.part_controllers["right" if name == "arm" else "torso"]
                 indices = np.asarray(controller.joint_index)
@@ -323,7 +362,9 @@ def check(root, temporary):
                 live = native.sim.data._data
                 snapshot = (live.qpos.copy(), live.qvel.copy(), live.ctrl.copy(), live.time)
                 current = local(name, "fk", {"joints": state["positions"]})["pose"]
-                np.testing.assert_allclose(current, state["flange_pose"], atol=1e-8)
+                np.testing.assert_allclose(
+                    current, state["frame_poses"][facts["kinematics"]["frame"]], atol=1e-8
+                )
                 alternate = list(state["positions"])
                 alternate[0] += 0.015
                 target = local(name, "fk", {"joints": alternate})["pose"]
@@ -344,10 +385,12 @@ def check(root, temporary):
                     np.testing.assert_array_equal(measured, saved)
                 assert live.time == snapshot[3]
                 invalid = list(state["positions"])
-                invalid[0] = facts["kinematics"]["model"]["joints"][0]["limits"]["max"] + 1
-                for action, args in (("fk", {"joints": invalid}),
-                                     ("ik", {"pose": current, "seed": invalid}),
-                                     ("ik", {"pose": [0, 0, 0, 0, 0, 0, 0]})):
+                invalid[0] = facts["model"]["joints"][0]["limits"]["max"] + 1
+                for action, args in (
+                    ("fk", {"joints": invalid}),
+                    ("ik", {"pose": current, "seed": invalid}),
+                    ("ik", {"pose": [0, 0, 0, 0, 0, 0, 0]}),
+                ):
                     try:
                         local(name, action, args)
                     except ValueError:
@@ -370,7 +413,9 @@ def check(root, temporary):
                         saved = (live.qpos.copy(), live.qvel.copy(), live.ctrl.copy(), live.time)
                         reading = call(name, "read")
                         np.testing.assert_array_equal(reading["positions"], measured)
-                        assert np.isfinite(reading["flange_pose"]).all()
+                        assert np.isfinite(
+                            reading["frame_poses"][facts["kinematics"]["frame"]]
+                        ).all()
                         solved = local(name, "ik", {"pose": target})["joints"]
                         np.testing.assert_allclose(solved, bounded, atol=1e-10)
                         for actual, previous in zip(
@@ -406,8 +451,9 @@ def check(root, temporary):
         fingers = native._robot.gripper["right"].current_action.copy()
         call("base", "write", {"mode": "drive", "velocity": {"vx": 0, "vy": 0, "wz": 0}})
         increment = np.array([-1, 1]) * native._robot.gripper["right"].speed
-        np.testing.assert_allclose(native._robot.gripper["right"].current_action,
-                                   np.clip(fingers + increment, -1, 1))
+        np.testing.assert_allclose(
+            native._robot.gripper["right"].current_action, np.clip(fingers + increment, -1, 1)
+        )
         for action in ("pick", "move", "invoke", "policy_run"):
             try:
                 call("arm", action)
@@ -418,25 +464,34 @@ def check(root, temporary):
         import yaml
 
         # Every generated reference follows task-local logical names.
-        renamed_plan = replace(plan, devices=tuple(
-            replace(spec, name="test_" + spec.name) for spec in plan.devices
-        ))
+        renamed_plan = replace(
+            plan, devices=tuple(replace(spec, name="test_" + spec.name) for spec in plan.devices)
+        )
         renamed = default_registry().assemble(
             renamed_plan, robot, BindingContext("robocasa", "panda_omron", adapter)
         )
         try:
             feedback = renamed.describe("test_base")["intrinsics"]["feedback"]
             assert feedback["pose_frame"] == "test_world"
-            for child, parent in (("torso", "base"), ("arm", "torso"), ("gripper", "arm"),
-                                  ("camera_left", "torso"), ("camera_wrist", "arm")):
+            for child, parent in (
+                ("torso", "base"),
+                ("arm", "torso"),
+                ("gripper", "arm"),
+                ("camera_left", "torso"),
+                ("camera_wrist", "arm"),
+            ):
                 mount = renamed.describe("test_" + child)["extrinsics"]["mount"]
                 assert mount["parent"] == "test_" + parent
             for name in ("arm", "torso", "gripper"):
                 result = renamed.call({"device": "test_" + name, "action": "stop", "args": {}})
                 assert result["data"]["affected_devices"] == ["test_" + name]
-            export_devices(renamed.inventory()["devices"], temporary / "renamed", {
-                "endpoint": "http://127.0.0.1:8123",
-            })
+            export_devices(
+                renamed.inventory()["devices"],
+                temporary / "renamed",
+                {
+                    "endpoint": "http://127.0.0.1:8123",
+                },
+            )
             for spec in renamed_plan.devices:
                 path = temporary / "renamed" / spec.name / "profile.yaml"
                 profile = yaml.safe_load(path.read_text())
@@ -460,7 +515,7 @@ def check(root, temporary):
                 BindingContext("robocasa", "panda_omron", adapter),
             )
         except ValueError as exc:
-            assert "Unknown RoboCasa device entity: robot" in str(exc)
+            assert "unknown registered binding" in str(exc)
         else:
             raise AssertionError("Competing composite and part controls accepted")
         print(

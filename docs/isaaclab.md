@@ -28,7 +28,7 @@ The 512×512 RGB-D cameras expose registered optical-Z depth: the torso camera
 moves with the waist, while the scene camera is fixed in world coordinates.
 They add observation views to the practice interface without altering the upstream
 success rule. Camera reads are read-only, cached per control step and never advance
-physics. The six-device control snapshot remains separate from image reads.
+physics. Image and actuator reads use individual device calls.
 
 After preparing the Isaac Lab interpreter and its task dependencies:
 
@@ -125,20 +125,14 @@ the upstream horizon applies only in synchronous mode.
 Upper-body Pink control is replaced by explicit joint targets with gravity
 compensation. Reaching a terminal state prevents further motion until reset.
 
-All six devices share `base` as their execution-group coordinator. In synchronous mode, a write
-retains every other target and advances 20 ms. `batch_write` validates all targets
-before advancing exactly once. `snapshot` and stop do not advance physics. Stops
-hold measured arm/hand/waist positions and request zero lower-body velocity at the
-retained height. This requests standing; it does not certify balance.
+Each device exposes read/write/stop. A synchronous write retains every other
+target and advances 20 ms; reads and stops do not advance physics. Kinex devices()
+can mix concurrent reads and writes, returning individual results in input order.
+It does not promise atomic updates or identical acquisition times. The operator
+ensures enabled devices do not overlap.
 
-Kinex uses `devices([{device: name, action: "read"}, ...], synchronized=True)`
-for consistent reads and the same helper with all-write entries for a coordinated
-goal update (one control interval in synchronous mode). Mixed read/write batches are rejected; there is no separate Kinex
-`snapshot()` helper or `multi_act` tool. The underlying service still exposes
-`base.snapshot` and `base.batch_write`.
-
-The optional `integrations/kinex/g1-motion/` example shows how to combine consistent snapshots,
-moving frame conversion, independent arm IK and synchronized writes. It holds the
+The optional `integrations/kinex/g1-motion/` example shows how to combine device observations,
+moving frame conversion, independent arm IK and concurrent writes. It holds the
 waist and initial hand posture, follows optional frame-qualified wrist goals, and
 uses an explicit iteration budget. In realtime it caps polling at `rate_hz`
 (default 20), skips writes on repeated samples, and measures errors from fresh

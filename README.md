@@ -107,6 +107,11 @@ Neither mode imposes a simulation horizon.
 Task-solving controllers belong in the agent harness. See [RoboCasa](docs/robocasa.md)
 for action spaces, task-specific device selection, and validation coverage.
 
+All scalar grippers in RoboCasa, LIBERO, RoboTwin, RoboDojo and BEHAVIOR expose
+TCP descriptions, approach/closing axes, moving contact frames and physical
+aperture feedback. Mesh contact patches keep rectangular dimensions unset.
+See [gripper geometry](docs/grippers.md) for frame conventions and source validation.
+
 Isaac Lab is experimental and not officially supported. Its G1 practice interface
 uses a named locomotion-mode base (velocity plus posture), independent waist/arm joint control, hands and
 RGB-D cameras. The old Go2 joint-posture demo has been removed; no Go2 locomotion

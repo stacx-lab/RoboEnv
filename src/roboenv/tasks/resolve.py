@@ -67,8 +67,8 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None):
         # Execution mode is an episode setting, while geometry stays in the catalog.
         devices = []
         for spec in bindings.devices:
-            if spec.entity == "base":
-                intrinsics = spec.resolved_profile(robot)["intrinsics"]
+            intrinsics = spec.resolved_profile(robot)["intrinsics"]
+            if isinstance(intrinsics.get("control"), dict) and "execution" in intrinsics["control"]:
                 intrinsics["control"]["execution"] = {
                     "mode": "realtime",
                     "command_timeout_s": (
