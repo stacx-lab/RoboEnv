@@ -1,0 +1,227 @@
+[
+  {
+    "model": "piper",
+    "flange": "link6",
+    "names": [
+      "joint7",
+      "joint8"
+    ],
+    "urdf": "<robot name=\"piper\"><joint name=\"joint7\" type=\"prismatic\">\n    <origin xyz=\"0 0 0.13503\" rpy=\"1.5708 0 3.1415926\" />\n    <parent link=\"link6\" />\n    <child link=\"link7\" />\n    <axis xyz=\"0 0 -1\" />\n    <limit lower=\"0\" upper=\"0.04\" effort=\"10\" velocity=\"1\" />\n  </joint>\n  <joint name=\"joint8\" type=\"prismatic\">\n    <origin xyz=\"0 0 0.13503\" rpy=\"-1.5708 0 3.1415926\" />\n    <parent link=\"link6\" />\n    <child link=\"link8\" />\n    <axis xyz=\"0 0 -1\" />\n    <limit lower=\"0\" upper=\"0.04\" effort=\"10\" velocity=\"1\" />\n  </joint>\n<link name=\"link6\" /><link name=\"link7\" /><link name=\"link8\" /></robot>",
+    "triangles": [
+      [
+        [
+          -0.01171513088,
+          -0.000642921485,
+          -6e-12
+        ],
+        [
+          0.011715132743,
+          -0.000642924337,
+          -6e-12
+        ],
+        [
+          0.009999998845,
+          0.00496814074,
+          -6e-12
+        ]
+      ],
+      [
+        [
+          -0.01172098238,
+          0.000665795757,
+          -2.5e-11
+        ],
+        [
+          0.009999998845,
+          -0.00496814074,
+          -2.5e-11
+        ],
+        [
+          0.011720977724,
+          0.000665792497,
+          -2.5e-11
+        ]
+      ]
+    ]
+  },
+  {
+    "model": "aloha",
+    "flange": "fl_link6",
+    "names": [
+      "fl_joint7",
+      "fl_joint8"
+    ],
+    "urdf": "<robot name=\"aloha\"><joint name=\"fl_joint7\" type=\"prismatic\">\n        <origin xyz=\"0.08457 0.024493 -0.00010349\" rpy=\"0 0 0\" />\n        <parent link=\"fl_link6\" />\n        <child link=\"fl_link7\" />\n        <axis xyz=\"0 1 0\" />\n        <limit lower=\"0\" upper=\"0.04765\" effort=\"100\" velocity=\"1000\" />\n    </joint>\n    <joint name=\"fl_joint8\" type=\"prismatic\">\n        <origin xyz=\"0.08457 -0.024496 -0.00010354\" rpy=\"0 0 0\" />\n        <parent link=\"fl_link6\" />\n        <child link=\"fl_link8\" />\n        <axis xyz=\"0 -1 0\" />\n        <limit lower=\"0\" upper=\"0.04765\" effort=\"100\" velocity=\"1000\" />\n    </joint>\n    \n    <link name=\"fl_link6\" /><link name=\"fl_link7\" /><link name=\"fl_link8\" /></robot>",
+    "triangles": [
+      [
+        [
+          0.056000001729,
+          -0.024494417012,
+          -0.010360768996
+        ],
+        [
+          0.071000002325,
+          -0.024494417012,
+          0.005103516858
+        ],
+        [
+          0.056000001729,
+          -0.024494417012,
+          0.007967153564
+        ]
+      ],
+      [
+        [
+          0.056000001729,
+          0.024494417012,
+          0.007967153564
+        ],
+        [
+          0.071000002325,
+          0.024494417012,
+          -0.004896482453
+        ],
+        [
+          0.056000001729,
+          0.024494417012,
+          -0.010360768065
+        ]
+      ]
+    ]
+  },
+  {
+    "model": "x5",
+    "flange": "link6",
+    "names": [
+      "joint7",
+      "joint8"
+    ],
+    "urdf": "<robot name=\"x5\"><joint name=\"joint7\" type=\"prismatic\">\n    <origin xyz=\"0.08657 0.024896 -0.0002436\" rpy=\"0 0 0\" />\n    <parent link=\"link6\" />\n    <child link=\"link7\" />\n    <axis xyz=\"0 1 0\" />\n    <limit lower=\"0\" upper=\"0.044\" effort=\"100\" velocity=\"1000\" />\n  </joint>\n  <joint name=\"joint8\" type=\"prismatic\">\n    <origin xyz=\"0.08657 -0.0249 -0.00024366\" rpy=\"0 0 0\" />\n    <parent link=\"link6\" />\n    <child link=\"link8\" />\n    <axis xyz=\"0 -1 0\" />\n    <limit lower=\"0\" upper=\"0.044\" effort=\"100\" velocity=\"1000\" />\n  </joint>\n<link name=\"link6\" /><link name=\"link7\" /><link name=\"link8\" /></robot>",
+    "triangles": [
+      [
+        [
+          0.056000001729,
+          -0.024494417012,
+          -0.010360768996
+        ],
+        [
+          0.071000002325,
+          -0.024494417012,
+          0.005103516858
+        ],
+        [
+          0.056000001729,
+          -0.024494417012,
+          0.007967153564
+        ]
+      ],
+      [
+        [
+          0.056000001729,
+          0.024494417012,
+          0.007967153564
+        ],
+        [
+          0.071000002325,
+          0.024494417012,
+          -0.004896482453
+        ],
+        [
+          0.056000001729,
+          0.024494417012,
+          -0.010360768065
+        ]
+      ]
+    ]
+  },
+  {
+    "model": "yam",
+    "flange": "gripper",
+    "names": [
+      "joint7",
+      "joint8"
+    ],
+    "urdf": "<robot name=\"yam\"><joint name=\"joint7\" type=\"prismatic\">\n        <origin xyz=\"-0.0239931 0.0445119 -0.0566829\" rpy=\"1.02229e-14 4.71845e-16 1.68314e-15\" />\n        <axis xyz=\"6.86541e-15 1 0\" />\n        <parent link=\"gripper\" />\n        <child link=\"tip_left\" />\n        <limit effort=\"1\" velocity=\"1\" lower=\"-0.04695\" upper=\"4.60927e-15\" />\n    </joint>\n    <joint name=\"joint8\" type=\"prismatic\">\n        <origin xyz=\"0.0239931 -0.0445119 -0.0566829\" rpy=\"9.6084e-15 -2.77556e-16 -3.77189e-15\" />\n        <axis xyz=\"-6.86541e-15 -1 0\" />\n        <parent link=\"gripper\" />\n        <child link=\"tip_right\" />\n        <limit effort=\"1\" velocity=\"1\" lower=\"-0.04695\" upper=\"0\" />\n    </joint>\n<link name=\"gripper\" /><link name=\"tip_left\" /><link name=\"tip_right\" /></robot>",
+    "triangles": [
+      [
+        [
+          0.023993210432,
+          -0.044542981742,
+          -0.076108504884
+        ],
+        [
+          0.028941930768,
+          -0.044542981742,
+          -0.089659605972
+        ],
+        [
+          0.019044489165,
+          -0.044542981742,
+          -0.089659605972
+        ]
+      ],
+      [
+        [
+          -0.028941920835,
+          0.04454300003,
+          -0.089659605972
+        ],
+        [
+          -0.019044479232,
+          0.04454300003,
+          -0.089659605972
+        ],
+        [
+          -0.023993199568,
+          0.04454300003,
+          -0.076108504884
+        ]
+      ]
+    ]
+  },
+  {
+    "model": "r1pro",
+    "flange": "left_arm_link7",
+    "names": [
+      "left_gripper_finger_joint1",
+      "left_gripper_finger_joint2"
+    ],
+    "urdf": "<robot name=\"r1pro\"><joint name=\"left_gripper_finger_joint1\" type=\"prismatic\">\n        <origin xyz=\"-8.8709E-05 0.013453 -0.03689\" rpy=\"0 0 0\" />\n        <parent link=\"left_gripper_link\" />\n        <child link=\"left_gripper_finger_link1\" />\n        <axis xyz=\"0 1 0\" />\n        <limit lower=\"0\" upper=\"0.05\" effort=\"100\" velocity=\"0.25\" />\n    </joint>\n    <joint name=\"left_gripper_joint\" type=\"fixed\">\n        <origin xyz=\"-0.0295 0 -0.16065\" rpy=\"0 0 0\" />\n        <parent link=\"left_arm_link7\" />\n        <child link=\"left_gripper_link\" />\n        <axis xyz=\"0 0 0\" />\n    </joint>\n    <joint name=\"left_gripper_finger_joint2\" type=\"prismatic\">\n        <origin xyz=\"8.9046E-05 -0.013453 -0.03689\" rpy=\"0 0 0\" />\n        <parent link=\"left_gripper_link\" />\n        <child link=\"left_gripper_finger_link2\" />\n        <axis xyz=\"0 -1 0\" />\n        <limit lower=\"0\" upper=\"0.05\" effort=\"100\" velocity=\"0.25\" />\n    </joint>\n    <link name=\"left_arm_link7\" /><link name=\"left_gripper_finger_link1\" /><link name=\"left_gripper_finger_link2\" /><link name=\"left_gripper_link\" /></robot>",
+    "triangles": [
+      [
+        [
+          -0.008755737576,
+          -0.014365081758,
+          0.009304279526
+        ],
+        [
+          -0.000344050528,
+          -0.014299456884,
+          -0.040357824274
+        ],
+        [
+          0.010370393831,
+          -0.014215778067,
+          0.009301873294
+        ]
+      ],
+      [
+        [
+          0.005667805165,
+          0.014340698481,
+          -0.022307867963
+        ],
+        [
+          -0.002853221004,
+          0.014271702281,
+          -0.03877421418
+        ],
+        [
+          -0.010973133878,
+          0.014213590399,
+          0.028322944588
+        ]
+      ]
+    ]
+  }
+]

@@ -8,9 +8,9 @@ def default_registry():
 
     registry = BindingRegistry()
     registry.register("fakeshell.puck/1", bind_puck)
-    from .backends.robocasa.devices import bind
+    from .backends.robocasa import register
 
-    registry.register("robocasa.device/1", bind)
+    register(registry)
     from .backends.isaaclab.g1 import bind as bind_isaaclab
 
     registry.register("isaaclab.device/1", bind_isaaclab)

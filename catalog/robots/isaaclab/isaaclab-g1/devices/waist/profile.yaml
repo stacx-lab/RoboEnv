@@ -1,118 +1,116 @@
 name: waist
 loaded: false
-type: manipulator
+type: joint
 intrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
-  stop:
-    behavior: hold
-    affected_devices:
-    - waist
+  model:
+    format: serial_chain
+    joints:
+    - name: waist_yaw_joint
+      type: revolute
+      limits:
+        min: -2.6180000032620017
+        max: 2.6180000032620017
+      max_velocity: null
+      max_effort: null
+    - name: waist_roll_joint
+      type: revolute
+      limits:
+        min: -0.5199999461487339
+        max: 0.5199999461487339
+      max_velocity: null
+      max_effort: null
+    - name: waist_pitch_joint
+      type: revolute
+      limits:
+        min: -0.5199999461487339
+        max: 0.5199999461487339
+      max_velocity: null
+      max_effort: null
+    chain:
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 0
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0
+      - 0
+      - 0
+      reference: 0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - -0.0
+      - -0.0
+      - -0.0
+      - 1.0
+    - origin:
+      - -0.003963499795645475
+      - 0.0
+      - 0.04399999976158142
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 1
+      axis:
+      - 1.0
+      - 0.0
+      - 0.0
+      anchor:
+      - 0
+      - 0
+      - 0
+      reference: 0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - -0.0
+      - -0.0
+      - -0.0
+      - 1.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 2
+      axis:
+      - 0.0
+      - 1.0
+      - 0.0
+      anchor:
+      - 0
+      - 0
+      - 0
+      reference: 0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - -0.0
+      - -0.0
+      - -0.0
+      - 1.0
   kinematics:
-    model:
-      format: serial_chain
-      joints:
-      - name: waist_yaw_joint
-        type: revolute
-        limits:
-          min: -2.6180000032620017
-          max: 2.6180000032620017
-        max_velocity: null
-        max_effort: null
-      - name: waist_roll_joint
-        type: revolute
-        limits:
-          min: -0.5199999461487339
-          max: 0.5199999461487339
-        max_velocity: null
-        max_effort: null
-      - name: waist_pitch_joint
-        type: revolute
-        limits:
-          min: -0.5199999461487339
-          max: 0.5199999461487339
-        max_velocity: null
-        max_effort: null
-      chain:
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 0
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0
-        - 0
-        - 0
-        reference: 0
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.0
-        - -0.0
-        - -0.0
-        - -0.0
-        - 1.0
-      - origin:
-        - -0.003963499795645475
-        - 0.0
-        - 0.04399999976158142
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 1
-        axis:
-        - 1.0
-        - 0.0
-        - 0.0
-        anchor:
-        - 0
-        - 0
-        - 0
-        reference: 0
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.0
-        - -0.0
-        - -0.0
-        - -0.0
-        - 1.0
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 2
-        axis:
-        - 0.0
-        - 1.0
-        - 0.0
-        anchor:
-        - 0
-        - 0
-        - 0
-        reference: 0
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.0
-        - -0.0
-        - -0.0
-        - -0.0
-        - 1.0
+    frame: flange
+    fk: numerical
     ik:
       backend: numerical
       method: damped_least_squares
@@ -120,17 +118,8 @@ intrinsics:
       rotation_tolerance_rad: 0.01
       max_iterations: 200
       damping: 0.01
-  home:
-    waist_yaw_joint: 0.0
-    waist_roll_joint: 0.0
-    waist_pitch_joint: 0.0
-  control:
-    speed: null
-  feedback:
-    velocities: true
-    efforts: false
-    pose_source: driver
-    flange_to_reported:
+    feedback: driver
+    frame_to_reported:
     - 0
     - 0
     - 0
@@ -138,6 +127,26 @@ intrinsics:
     - 0
     - 0
     - 1
+  home:
+    waist_yaw_joint: 0.0
+    waist_roll_joint: 0.0
+    waist_pitch_joint: 0.0
+  control:
+    mode: position
+    speed: null
+    execution:
+      mode: stepped
+      interval_s: 0.02
+  feedback:
+    velocities: true
+    efforts: false
+    clock: simulation
+  stop:
+    behavior: hold
+    affected_devices:
+    - waist
+  frames:
+    flange: null
 extrinsics:
   source: introspected
   method: introspection
@@ -167,7 +176,6 @@ access:
     device: waist
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
     - read
@@ -178,4 +186,3 @@ access:
     - stop
     - ik
     - fk
-    execution_group: base

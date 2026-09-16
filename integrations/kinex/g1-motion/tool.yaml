@@ -2,7 +2,7 @@ name: g1_motion
 kind: controller
 description: >-
   G1 workspace example: retain waist/hand postures and compose body commands with
-  independent arm IK in one synchronized loop. Wrist goals carry a reference frame.
+  independent arm IK in one loop of concurrent device calls. Wrist goals carry a reference frame.
   Does not plan paths, optimize waist posture, or certify balance/grasp success.
 parameters:
   type: object
@@ -53,5 +53,5 @@ parameters:
             minItems: 7
             maxItems: 7
             description: wrist position and unit xyzw quaternion in frame.
-devices: [base, manipulator, end_effector]
+devices: [velocity, joint, dexterous_hand]
 timeout_s: 110

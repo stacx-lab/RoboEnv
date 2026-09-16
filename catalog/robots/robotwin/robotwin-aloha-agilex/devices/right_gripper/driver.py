@@ -15,15 +15,13 @@ def handle(action, args):
     if action not in {"read", "write", "stop", "load", "unload", "status"}:
         return {"ok": False, "error": f"Unsupported end-effector action: {action}"}
     try:
-        from kinex.end_effector import command, reading, stopped
+        from kinex.scalar_control import command, reading, stopped
 
         if action != "write" and args:
             raise ValueError(f"{action} takes no arguments")
         profile = settings()
         if action == "write":
-            value = command(profile, {key: value for key, value in args.items() if key != "step"})
-            if "step" in args:
-                value["step"] = args["step"]
+            value = command(profile, args)
             if "native_speed" in value:
                 raise ValueError("RoboCasa does not support speedFraction")
             return {"ok": True, **remote(action, value)}

@@ -67,7 +67,7 @@ class RoboTwinDevices(RoboTwinEnv):
         for side in ("left", "right"):
             entity = getattr(self.task.robot, side + "_entity")
             arm = side + "_arm"
-            description = self.device_facts[arm]["intrinsics"]["kinematics"]["model"]
+            description = self.device_facts[arm]["intrinsics"]["model"]
             native_joints = getattr(self.task.robot, side + "_arm_joints")
             if [joint.get_name() for joint in native_joints] != [
                 j["name"] for j in description["joints"]
@@ -162,8 +162,8 @@ class RoboTwinDevices(RoboTwinEnv):
             self._native_success = bool(self.task.check_success()) or self._native_success
         self.task.take_action_cnt = self.control.frame + 1
 
-    def device_write(self, name, target, step=None):
-        return self.control.write(name, target, step)
+    def device_write(self, name, target):
+        return self.control.write(name, target)
 
     def _release_holds(self, devices):
         for name in devices:
@@ -182,8 +182,8 @@ class RoboTwinDevices(RoboTwinEnv):
 
     def device_read(self, name):
         if name not in self.device_facts or self.device_facts[name]["type"] not in {
-            "manipulator",
-            "end_effector",
+            "joint",
+            "gripper",
         }:
             raise ValueError("Unknown native actuator")
         side = name.split("_", 1)[0]
@@ -206,7 +206,9 @@ class RoboTwinDevices(RoboTwinEnv):
             frames = self.rig_frames[side]
             base = entity.find_link_by_name(frames["base"]).get_pose()
             flange = entity.find_link_by_name(frames["flange"]).get_pose()
-            result.update(efforts=[], flange_pose=pose(base.inv() * flange))
+            result.update(efforts=[], frame_poses={"flange": pose(base.inv() * flange)})
+        if gripper:
+            result.update(self.rig_frames[side]["gripper"].read(result["positions"]))
         return result
 
     def _camera(self, name):

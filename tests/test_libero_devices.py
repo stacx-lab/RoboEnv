@@ -20,6 +20,14 @@ def require(condition, message):
         pytest.skip(message)
 
 
+@pytest.mark.parametrize("size", [(128, 128), (256, 128), (512, 512)])
+def test_camera_size_must_match_catalog(size):
+    from roboenv_runtime.adapters.libero.backend import LiberoEnv
+
+    with pytest.raises(ValueError, match="catalogs require camera_size"):
+        LiberoEnv(camera_size=size)
+
+
 def interpreter():
     value = os.environ.get("ROBOENV_LIBERO_TEST_PYTHON")
     require(value and Path(value).is_file(), "Requires prepared official LIBERO interpreter")
@@ -65,12 +73,18 @@ def test_official_registry_and_assets_are_complete():
         for suite in ("libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90")
     ] == [10, 10, 10, 10, 90]
     assert {p.parent.name for p in (ROOT / "catalog/tasks/libero").glob("*/task.yaml")} == {
-        "bowl-onto-plate", "close-top-drawer", "bowl-into-bottom-drawer",
-        "mug-into-microwave", "drawer-and-bowl",
+        "bowl-onto-plate",
+        "close-top-drawer",
+        "bowl-into-bottom-drawer",
+        "mug-into-microwave",
+        "drawer-and-bowl",
     }
     for task in (
-        "bowl-onto-plate", "close-top-drawer", "bowl-into-bottom-drawer",
-        "mug-into-microwave", "drawer-and-bowl",
+        "bowl-onto-plate",
+        "close-top-drawer",
+        "bowl-into-bottom-drawer",
+        "mug-into-microwave",
+        "drawer-and-bowl",
     ):
         resolved = resolve_task("libero/" + task, project=ROOT)
         assert resolved.task.action_abstraction == "devices"
@@ -148,22 +162,34 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
                 assert not path.with_name("driver.py").exists()
             else:
                 assert profile["access"]["driver"]["persistent"] is True
-                assert path.with_name("driver.py").read_bytes() == (
-                    ROOT / "src/roboenv/assets" / DRIVERS[profile["type"]]
-                ).read_bytes()
+                assert (
+                    path.with_name("driver.py").read_bytes()
+                    == (ROOT / "src/roboenv/assets" / DRIVERS[profile["type"]]).read_bytes()
+                )
                 assert path.with_name("_roboenv.py").read_bytes() == transport
-            if profile["type"] == "manipulator":
-                assert len(profile["intrinsics"]["kinematics"]["model"]["joints"]) == 7
+            if profile["type"] == "joint":
+                assert len(profile["intrinsics"]["model"]["joints"]) == 7
                 assert profile["intrinsics"]["control"]["speed"] is None
             if profile["type"] == "rgb":
-                assert profile["intrinsics"]["color"]["width"] == 128
+                color = profile["intrinsics"]["color"]
+                assert (color["width"], color["height"]) == (256, 256)
+                focal = {
+                    "camera": 309.019335983756,
+                    "camera_wrist": 166.812847723674,
+                }[profile["name"]]
+                assert color["projection"]["fx"] == pytest.approx(focal)
+                assert color["projection"]["fy"] == pytest.approx(focal)
+                assert color["projection"]["cx"] == 128
+                assert color["projection"]["cy"] == 128
         assert "simulator" not in str(
             yaml.safe_load((root / "devices/arm/profile.yaml").read_text())["access"]
         )
     kinex_root = Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex"))
     bun = shutil.which(os.environ.get("BUN", "bun"))
-    require(bun and (kinex_root / "node_modules/zod").exists(),
-            "Kinex schema integration requires prepared Kinex and Bun")
+    require(
+        bun and (kinex_root / "node_modules/zod").exists(),
+        "Kinex schema integration requires prepared Kinex and Bun",
+    )
     payload = tmp_path / "profiles.json"
     payload.write_text(json.dumps(profiles))
     workspace = tmp_path / "workspace"
@@ -172,7 +198,7 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
         [
             bun,
             "-e",
-            "const {Device} = await import('./src/calibration/schema.ts'); "
+            "const {Device} = await import('./src/device/profile/schema.ts'); "
             "const {missingActions} = await import('./src/device/interface.ts'); "
             "for (const p of JSON.parse(await Bun.file(process.argv[1]).text())) { "
             "const d = Device.parse(p); "
@@ -204,7 +230,8 @@ def test_static_generation_is_deterministic(tmp_path):
         expected = {
             path.relative_to(ROOT / "catalog")
             for subtree in ("robots/libero", "bindings/libero")
-            for path in (ROOT / "catalog" / subtree).rglob("*") if path.is_file()
+            for path in (ROOT / "catalog" / subtree).rglob("*")
+            if path.is_file()
         }
         actual = {p.relative_to(destination) for p in destination.rglob("*") if p.is_file()}
         assert actual == expected

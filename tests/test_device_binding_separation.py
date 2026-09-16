@@ -272,7 +272,9 @@ def test_native_read_context_refuses_effectful_backend_operation(robot):
 
 @pytest.mark.parametrize("reference", ["toy-puck", "fakeshell/toy-puck"])
 def test_task_export_freezes_explicit_bindings_and_only_selected_client_devices(
-    robot, tmp_path, reference,
+    robot,
+    tmp_path,
+    reference,
 ):
     catalog = tmp_path / "catalog"
     target = catalog / "robots" / reference
@@ -348,7 +350,7 @@ def test_native_binding_over_real_socket_preserves_wire_and_dedup(device_service
     client, _, _ = device_service
     descriptor = client.device("controller").describe()
     assert descriptor["implementation"] == "native-entity-binding"
-    assert descriptor["control_mode"] == "position-1d"
+    assert descriptor["type"] == "other"
     args = {"target": [0.3]}
     first = client.device("controller").call("write", args, request_id="native-write")
     assert client.device("controller").call("write", args, request_id="native-write") == first

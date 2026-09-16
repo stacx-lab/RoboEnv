@@ -151,27 +151,26 @@ mount alone does not make privileged data safe to expose.
 | Type | Required basic driver operations |
 |---|---|
 | Sensors, including `rgb` and `rgbd` | `read`, `load`, `unload`, `status` |
-| Mobile `body`, `end_effector` | Above, plus `write`, `stop` |
-| `manipulator` | Above, plus `ik`, `fk` |
+| `velocity`, `gripper`, `suction` | Above, plus `write`, `stop` |
+| `joint`, `dexterous_hand` | Above, plus `write`, `stop` and declared optional `ik`, `fk` |
 | `world` | No driver; profile only |
 | Passive/specialized types | Their actual Kinex type contract |
 
-Use Kinex's schema and required-action definitions. A manipulator without working
-kinematics is not conformant merely because its driver lists `ik` and `fk`.
+Use Kinex's schema and required-action definitions. Joint-only devices need no solver. Advertised FK/IK must actually work.
 Unsupported actions fail explicitly. Do not pad devices with unrelated methods.
 
 - `read` samples a sensor or actuator without advancing physics. Actuator state
-  includes positions, velocities, and faults. Manipulator `flange_pose` is expressed
-  in its own base frame, in metres and quaternion xyzw.
+  includes positions, velocities, and faults. Declared `frame_poses` are expressed
+  in the canonical device frame, in metres and quaternion xyzw.
 - `write` accepts a bounded target in the declared device action space. Profiles
   define component order, units, limits, control mode, scaling, and command duration.
-  Manipulators accept absolute joint positions in chain order (rad/m); newer targets
+  Joint devices accept absolute joint positions in model order (rad/m); newer targets
   replace older ones, and repeated targets do not restart interpolation.
 - `stop` implements the declared servo stop/hold behavior. In RoboCasa's synchronous
   stepped service, an in-flight interval finishes before stop; stop resets the goal
   without another step. This is not a physical emergency-stop guarantee.
 - `fk(joints)` and `ik(pose, seed=...)` convert joint and flange-pose representations
-  locally in the manipulator driver using static profile geometry and Kinex
+  locally in the joint driver using static profile geometry and Kinex
   utilities. RoboCasa does not expose simulator IK/FK RPCs. An omitted seed requires
   only a joint-state read; solving never alters live state. Exported drivers use
   standalone transport and do not require the RoboEnv SDK in the agent environment.
@@ -184,20 +183,20 @@ requires registered metric depth and calibration, not an unrelated second image.
 
 Device boundaries must support correct frame composition. Static profiles contain
 rigid transforms; moving transforms come from declared robot-state measurements.
-Kinex currently treats a manipulator as base plus live flange, and a body as one
-frame. Therefore RoboCasa keeps its lift as `torso`, a one-joint manipulator, rather
-than merging it into `body` without support for the additional moving frame.
+Device names identify canonical frames; named moving and fixed frames are explicit.
+RoboCasa's lift is a joint endpoint with frame `top`, and its arm declares `flange`.
+Mounted descendants refer to these names without type-specific frame traversal.
 
 The standard RoboCasa devices are:
 
 | Name | Role |
 |---|---|
-| `body` | Omron planar mobile base |
-| `torso` | Vertical lift; live flange carries the arm and external cameras |
+| `base` | Omron planar mobile base |
+| `torso` | Vertical lift; live top frame carries the arm and external cameras |
 | `arm` | Seven-joint Panda with absolute joint-position control |
 | `gripper` | Panda parallel gripper |
-| `camera_left`, `camera_right` | Two third-person RGB views, mounted on the lift |
-| `camera_wrist` | RGB view mounted on the arm flange |
+| `camera_left`, `camera_right` | Two third-person RGB-D views, mounted on the lift |
+| `camera_wrist` | RGB-D view mounted on the arm flange |
 | `world` | Root frame, without scene ground truth |
 
 ## One world, one execution authority
@@ -212,8 +211,8 @@ controller tools do not branch on realtime versus synchronous execution.
 
 Where a backend needs a joint action vector, compose it before one native step.
 Do not turn one command into separately stepped actuator writes. If simultaneous
-control needs a composite device, define its basic vector explicitly and reject
-overlapping command ownership. That is a device contract, not a task-solving macro.
+control needs a composite device, define its basic vector explicitly. The operator
+ensures that commanded devices do not overlap.
 
 All transports share the same serialization, identity, and durable motion outcomes.
 A timeout does not establish that no motion occurred. Do not blindly resend an
@@ -262,3 +261,12 @@ or passing CPU tests.
 See [RoboCasa and its catalog](docs/robocasa.md),
 [local Kinex recording](docs/kinex-local.md), and
 [Harbor task generation](docs/harbor-tasks.md) for concrete workflows.
+
+
+## Concurrent device control
+
+Devices expose individual read/write/stop operations. Kinex's devices() helper can
+submit mixed calls concurrently and returns per-call results in request order.
+The operator selects non-overlapping devices. The world lock protects native state,
+and each stepped write advances its own interval while retaining other targets.
+Control/observation types remain independent of robot morphology.

@@ -116,17 +116,16 @@ def test_base_rejects_malformed_measurements_and_failed_stop(base, monkeypatch):
 
 def test_catalog_base_is_minimal_and_adapter_matches_export_asset():
     profile = yaml.safe_load((BASE / "profile.yaml").read_text())
-    assert profile["type"] == "base"
+    assert profile["type"] == "velocity"
     assert set(profile["intrinsics"]) == {
         "source",
         "method",
         "calibrated_at",
-        "mobility",
         "control",
         "feedback",
         "stop",
     }
     assert "mount" not in profile["extrinsics"]
     assert profile["access"]["connection"]["device"] == "base"
-    asset = ROOT / "src/roboenv/assets/base-client.py"
+    asset = ROOT / "src/roboenv/assets/velocity-client.py"
     assert (BASE / "driver.py").read_bytes() == asset.read_bytes()

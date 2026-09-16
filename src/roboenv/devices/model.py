@@ -29,7 +29,6 @@ class DeviceDefinition:
     type: str
     intrinsics: dict = field(default_factory=dict)
     extrinsics: dict = field(default_factory=dict)
-    control_mode: str | None = None
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not re.fullmatch(
@@ -38,8 +37,6 @@ class DeviceDefinition:
             raise ValueError("device name must be one nonempty logical name")
         if not isinstance(self.type, str) or not self.type:
             raise ValueError("device type must be a nonempty string")
-        if self.control_mode is not None and not isinstance(self.control_mode, str):
-            raise ValueError("control_mode must be a string or None")
         for name in ("intrinsics", "extrinsics"):
             value = getattr(self, name)
             if not isinstance(value, dict):
@@ -103,7 +100,6 @@ class BoundDevice:
         validation="implementation-present; not hardware-probed",
         binding=None,
         on_close=None,
-        execution_group=None,
     ):
         self.definition = copy.deepcopy(definition)
         self.actions = dict(actions)
@@ -116,7 +112,6 @@ class BoundDevice:
         self.implementation, self.validation = implementation, validation
         self.binding, self._on_close = copy.deepcopy(binding), on_close
         self._closed = False
-        self.execution_group = execution_group
 
     def describe(self):
         definition = self.definition
@@ -126,7 +121,6 @@ class BoundDevice:
             "type": definition.type,
             "intrinsics": copy.deepcopy(definition.intrinsics),
             "extrinsics": copy.deepcopy(definition.extrinsics),
-            "control_mode": definition.control_mode,
             "actions": {
                 name: {
                     "supported": action.handler is not None,
@@ -142,8 +136,8 @@ class BoundDevice:
                 for name, action in self.actions.items()
             },
             "execution": {
-                "mode": "synchronous", "interruptible": False,
-                **({"group": self.execution_group} if self.execution_group else {}),
+                "mode": "synchronous",
+                "interruptible": False,
             },
             "implementation": self.implementation,
             "validation": self.validation,

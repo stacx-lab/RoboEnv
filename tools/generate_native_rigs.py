@@ -15,20 +15,39 @@ def write_rig(root, robot, backend, embodiment, facts):
     robot_path = f"{backend}/{robot}"
     directory = catalog / "robots" / robot_path
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / "workspace.yaml").write_text(yaml.safe_dump({
-        "identity": {"source": "user", "id": robot, "name": robot, "platform": "sim",
-                     "kind": "mobile" if backend == "behavior" else "other", "model": robot},
-        "sim": {"source": "user", "simulator": backend},
-        "devices": {"source": "user"},
-        "safety": {"source": "user", "max_cartesian_velocity": None,
-                   "max_joint_velocity": None, "keep_out_zones": [],
-                   "notes": "Native joint limits and collisions apply. Stop holds its device. "
-                            "Coordinated writes may share step: {id: N, devices: [...]}; "
-                            "all participants must submit once before that step executes."},
-        "meta": {"created_at": TIMESTAMP, "updated_at": TIMESTAMP},
-    }, sort_keys=False))
-    bindings = {"schema_version": "roboenv/bindings/1", "backend": backend,
-                "embodiment": embodiment, "devices": {}}
+    (directory / "workspace.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "identity": {
+                    "source": "user",
+                    "id": robot,
+                    "name": robot,
+                    "platform": "sim",
+                    "kind": "mobile" if backend == "behavior" else "other",
+                    "model": robot,
+                },
+                "sim": {"source": "user", "simulator": backend},
+                "devices": {"source": "user"},
+                "safety": {
+                    "source": "user",
+                    "max_cartesian_velocity": None,
+                    "max_joint_velocity": None,
+                    "keep_out_zones": [],
+                    "notes": "Native joint limits and collisions apply. Stop holds its device. "
+                    "Coordinated writes may share step: {id: N, devices: [...]}; "
+                    "all participants must submit once before that step executes.",
+                },
+                "meta": {"created_at": TIMESTAMP, "updated_at": TIMESTAMP},
+            },
+            sort_keys=False,
+        )
+    )
+    bindings = {
+        "schema_version": "roboenv/bindings/1",
+        "backend": backend,
+        "embodiment": embodiment,
+        "devices": {},
+    }
     for name, native in sorted(facts.items()):
         kind = native["type"]
         device = directory / "devices" / name
@@ -39,7 +58,7 @@ def write_rig(root, robot, backend, embodiment, facts):
             actions = ["load", "unload", "status", "read"]
             if kind not in {"rgb", "rgbd", "imu", "force_torque"}:
                 actions += ["write", "stop"]
-            if kind == "manipulator":
+            if kind == "joint":
                 actions += ["fk", "ik"]
             profile["access"] = driver_access(kind, name, actions, "http://127.0.0.1:8123")
             write_driver(device, kind)
@@ -54,8 +73,10 @@ def write_rig(root, robot, backend, embodiment, facts):
 def generate_robotwin(project, catalog, *, assets=None):
     from roboenv_runtime.adapters.robotwin.rig import describe
 
-    for embodiment, robot in (("piper", "robotwin-dual-piper"),
-                              ("aloha_agilex", "robotwin-aloha-agilex")):
+    for embodiment, robot in (
+        ("piper", "robotwin-dual-piper"),
+        ("aloha_agilex", "robotwin-aloha-agilex"),
+    ):
         facts, _, _ = describe(Path(project) / "third_party/RoboTwin", embodiment, assets=assets)
         write_rig(catalog, robot, "robotwin", embodiment, facts)
 
@@ -89,5 +110,6 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--assets", type=Path)
     args = parser.parse_args()
-    {"robotwin": generate_robotwin, "robodojo": generate_robodojo,
-     "behavior": generate_behavior}[args.backend](ROOT, args.out, assets=args.assets)
+    {"robotwin": generate_robotwin, "robodojo": generate_robodojo, "behavior": generate_behavior}[
+        args.backend
+    ](ROOT, args.out, assets=args.assets)

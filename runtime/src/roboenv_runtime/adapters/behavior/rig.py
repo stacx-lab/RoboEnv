@@ -5,10 +5,11 @@ from pathlib import Path
 
 import numpy as np
 
+from roboenv_runtime.adapters.gripper_geometry import ParallelGripper
+
 from roboenv_runtime.adapters.urdf_geometry import (
     fixed_transform,
-    gripper_intrinsics,
-    manipulator_intrinsics,
+    joint_intrinsics,
     matrix_pose,
     mount,
     serial_chain,
@@ -40,13 +41,10 @@ def describe(robot, interval, *, realtime=False):
         }
     }
     facts["base"] = {
-        "type": "base",
-        "control_mode": "velocity",
         "intrinsics": {
             "source": "introspected",
             "method": "introspection",
             "calibrated_at": None,
-            "mobility": "mobile",
             "control": {
                 "mode": "motion",
                 "body_frame": "base",
@@ -70,11 +68,9 @@ def describe(robot, interval, *, realtime=False):
                         "posture": None,
                     }
                 },
-                "execution": (
-                    {"mode": "realtime", "command_timeout_s": None}
-                    if realtime
-                    else {"mode": "stepped", "interval_s": interval}
-                ),
+                "execution": {"mode": "realtime", "command_timeout_s": None}
+                if realtime
+                else {"mode": "stepped", "interval_s": interval},
             },
             "stop": {"behavior": "halt", "affected_devices": ["base"]},
             "feedback": {
@@ -85,6 +81,7 @@ def describe(robot, interval, *, realtime=False):
             },
         },
         "extrinsics": {"source": "introspected"},
+        "type": "velocity",
     }
     groups = {}
     frames = {"base": {"flange": robot.base_footprint_link_name}}
@@ -105,23 +102,21 @@ def describe(robot, interval, *, realtime=False):
         }.get(group, group)
         groups[name] = {"controller": group, "indices": indices, "names": names}
         if group.startswith("gripper_"):
-            arm = group.removeprefix("gripper_") + "_arm"
-            facts[name] = {
-                "type": "end_effector",
-                "control_mode": "gripper_position",
-                "intrinsics": gripper_intrinsics(names, name),
-                "extrinsics": mount(arm, [0, 0, 0, 0, 0, 0, 1], "flange"),
-            }
             continue
         chain, base, flange = serial_chain(urdf, names)
         home = array(robot.reset_joint_pos)[indices].tolist()
         facts[name] = {
-            "type": "manipulator",
-            "control_mode": "joint_position",
-            "intrinsics": manipulator_intrinsics(chain, home, name),
+            "intrinsics": joint_intrinsics(chain, home, name),
+            "type": "joint",
         }
         frames[name] = {"base": base, "flange": flange}
-    # Attach each independently controlled chain to the nearest fixed ancestor.
+    for name, group in groups.items():
+        if not name.endswith("_gripper"):
+            continue
+        arm = name.removesuffix("_gripper") + "_arm"
+        geometry = ParallelGripper(urdf, group["names"], frames[arm]["flange"], "r1pro")
+        group["gripper"] = geometry
+        facts[name] = geometry.device(name, arm)
     for name, frame in frames.items():
         if name == "base":
             continue
@@ -164,13 +159,11 @@ def describe(robot, interval, *, realtime=False):
             matches.append((parent, transform @ local @ np.diag([1.0, -1.0, -1.0, 1.0])))
         if len(matches) != 1:
             raise ValueError(
-                f"Camera crosses an undeclared moving chain: {sensor_name}, "
-                f"link={link_name}, parents={[parent for parent, _ in matches]}, "
-                f"frames={frames}, urdf={urdf.name}"
+                f"Camera crosses an undeclared moving chain: {sensor_name}, link={link_name}, parents={[parent for parent, _ in matches]}, frames={frames}, urdf={urdf.name}"
             )
         parent, transform = matches[0]
         name = "camera_" + str(len(cameras))
-        width, height = sensor.image_width, sensor.image_height
+        width, height = (sensor.image_width, sensor.image_height)
         k = array(sensor.intrinsic_matrix)
         calibration = intrinsics(
             width, height, np.rad2deg(2 * np.arctan(height / (2 * k[1, 1]))), True
@@ -178,7 +171,6 @@ def describe(robot, interval, *, realtime=False):
         calibration["color"]["projection"].update(
             fx=float(k[0, 0]), fy=float(k[1, 1]), cx=float(k[0, 2]), cy=float(k[1, 2])
         )
-        # Valid encoding range is known; empirical sensor reliability is not.
         calibration["depth"]["reliable_range_m"] = "???"
         facts[name] = {
             "type": "rgbd",
@@ -190,6 +182,9 @@ def describe(robot, interval, *, realtime=False):
         cameras[name] = sensor_name
     if not cameras:
         raise ValueError("R1Pro has no RGB and metric-depth robot cameras")
+    for value in facts.values():
+        if value["type"] == "joint":
+            value["intrinsics"]["frames"] = {value["intrinsics"]["kinematics"]["frame"]: None}
     return (
         facts,
         groups,

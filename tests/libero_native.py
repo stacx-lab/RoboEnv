@@ -29,7 +29,7 @@ CASES = [
 
 def probe(suite, task, init, directory, render=False):
     sys.path.insert(0, str(Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")) / "python"))
-    from kinex.manipulator import Manipulator
+    from kinex.joints import JointDevice
 
     adapter = LiberoAdapter(
         suite, task, init_state_index=init, realtime=False, enable_render=render
@@ -51,9 +51,9 @@ def probe(suite, task, init, directory, render=False):
 
         initial = call("arm", "read")
         assert adapter.budget().used == 5
-        model = Manipulator({"name": "arm", "type": "manipulator",
-                             "intrinsics": service.describe("arm")["intrinsics"]})
-        # Strict FK checks at measured state and varied poses, using the actual MuJoCo model.
+        model = JointDevice(
+            {"name": "arm", "intrinsics": service.describe("arm")["intrinsics"], "type": "joint"}
+        )
         state = world.sim.get_state()
         fk_errors = []
         for shift in (0, 0.02, -0.015):
@@ -61,16 +61,16 @@ def probe(suite, task, init, directory, render=False):
             q[[0, 2, 4]] += shift
             world.sim.data.qpos[world._robot._ref_joint_pos_indexes] = q
             world.sim.forward()
-            actual = call("arm", "read")["flange_pose"]
+            actual = call("arm", "read")["frame_poses"]["flange"]
             expected = model.fk(q.tolist())["pose"]
             fk_errors.append(float(np.max(np.abs(np.array(actual[:3]) - expected[:3]))))
-            assert fk_errors[-1] < 1e-9
-            assert abs(np.dot(actual[3:], expected[3:])) > 1 - 1e-9
+            assert fk_errors[-1] < 1e-09
+            assert abs(np.dot(actual[3:], expected[3:])) > 1 - 1e-09
         world.sim.set_state(state)
         world.sim.forward()
         q = initial["positions"]
         answer = model.ik(model.fk(q)["pose"], seed=q)["joints"]
-        assert np.allclose(answer, q, atol=1e-4)
+        assert np.allclose(answer, q, atol=0.0001)
         before = world.sim.get_state().flatten().copy()
         before_goal = world._robot.controller.goal_qpos.copy()
         for target in ([0] * 6, [True] * 7, [float("nan")] * 7, [float("inf")] * 7, [100] * 7):
@@ -84,7 +84,6 @@ def probe(suite, task, init, directory, render=False):
             assert np.array_equal(world._robot.controller.goal_qpos, before_goal)
         goal = np.array(q)
         goal[[0, 2, 4]] += [0.1, -0.02, 0.02]
-        # Realtime acceptance itself must not integrate or teleport.
         world.realtime = True
         assert call("arm", "write", target=goal.tolist()) == {"accepted": True}
         assert np.array_equal(world.sim.get_state().flatten(), before)
@@ -96,7 +95,6 @@ def probe(suite, task, init, directory, render=False):
         measured = call("arm", "read")
         error = float(np.max(np.abs(np.array(measured["positions"]) - goal)))
         assert error < 0.01, (suite, task, error)
-        # Gripper commands never replace the arm goal; stop holds measured fingers.
         call("gripper", "write", target=[1])
         for _ in range(20):
             world.tick()
@@ -130,7 +128,7 @@ def probe(suite, task, init, directory, render=False):
             for camera in ("camera", "camera_wrist"):
                 budget = adapter.budget().used
                 result = call(camera, "read")
-                assert (result["width"], result["height"]) == (128, 128)
+                assert (result["width"], result["height"]) == (256, 256)
                 assert Path(result["file"]).read_bytes().startswith(b"\x89PNG")
                 assert adapter.budget().used == budget
                 frames[camera] = result["file"]
@@ -138,7 +136,6 @@ def probe(suite, task, init, directory, render=False):
         used = adapter.budget().used
         call("arm", "write", target=q)
         assert adapter.budget().used == used + 1
-        # Native controller hook is restored even when native step raises.
         previous = world.env.step
         world.env.step = lambda action: (_ for _ in ()).throw(RuntimeError("probe"))
         try:

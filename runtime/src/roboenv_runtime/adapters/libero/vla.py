@@ -33,8 +33,10 @@ class LiberoPolicyHooks:
         if native.realtime or self._saved is not None or self.steps_left() <= 0:
             raise RuntimeError("Policy rollout is active, realtime, or out of budget")
         native._joint_controller()
-        config = {**robot.controller_config,
-                  **load_controller_config(default_controller="OSC_POSE")}
+        config = {
+            **robot.controller_config,
+            **load_controller_config(default_controller="OSC_POSE"),
+        }
         controller = controller_factory("OSC_POSE", config)
         self._saved = robot.controller, robot.controller_config, robot.recent_actions
         robot.controller, robot.controller_config = controller, config
@@ -64,7 +66,7 @@ class LiberoPolicyHooks:
             raise ValueError("Policy cameras must be enabled in the native episode")
         size = int(obs.get("render_size", 256))
         image = native.sim.render(camera_name=name, width=size, height=size)
-        image = np.asarray(image)[::IMAGE_CONVENTION_MAPPING[macros.IMAGE_CONVENTION]]
+        image = np.asarray(image)[:: IMAGE_CONVENTION_MAPPING[macros.IMAGE_CONVENTION]]
         if obs.get("rotate180", True):
             image = rotate180(image)
         size = int(obs.get("resize", 224))
@@ -76,11 +78,13 @@ class LiberoPolicyHooks:
         return {
             "observation/image": self._camera(cameras["base"]),
             "observation/wrist_image": self._camera(cameras["wrist"]),
-            "observation/state": np.concatenate([
-                np.asarray(obs["robot0_eef_pos"]).reshape(3),
-                quat_xyzw_to_axisangle(obs["robot0_eef_quat"]),
-                np.asarray(obs["robot0_gripper_qpos"]).reshape(2),
-            ]),
+            "observation/state": np.concatenate(
+                [
+                    np.asarray(obs["robot0_eef_pos"]).reshape(3),
+                    quat_xyzw_to_axisangle(obs["robot0_eef_quat"]),
+                    np.asarray(obs["robot0_gripper_qpos"]).reshape(2),
+                ]
+            ),
             "prompt": self.instruction,
         }
 
@@ -88,16 +92,19 @@ class LiberoPolicyHooks:
         if self._saved is None or self.native.realtime:
             raise RuntimeError("Begin an exclusive synchronous policy rollout first")
         action = np.asarray(action)
-        if (action.shape != (7,) or action.dtype.kind not in "iuf"
-                or not np.isfinite(action).all()):
+        if action.shape != (7,) or action.dtype.kind not in "iuf" or not np.isfinite(action).all():
             raise ValueError("Policy action must contain seven finite numbers")
         if self.steps_left() <= 0:
             raise RuntimeError("LIBERO action frame budget exhausted")
         # Preserve robosuite's native OSC scaling/clipping, including the gripper.
         action = action.astype(float)
-        self.native.command_log.append({
-            "frame": self.native._step_count, "op": "policy_step", "action": action.tolist(),
-        })
+        self.native.command_log.append(
+            {
+                "frame": self.native._step_count,
+                "op": "policy_step",
+                "action": action.tolist(),
+            }
+        )
         self.native._advance(action)
 
     def steps_left(self):
@@ -107,4 +114,4 @@ class LiberoPolicyHooks:
     def poses(self):
         # Proprioception for the generic progress report; no scene truth goes to the policy.
         robot, sim = self.native._robot, self.native.sim
-        return {"end_effector": sim.data.site_xpos[robot.eef_site_id].copy()}
+        return {"gripper": sim.data.site_xpos[robot.eef_site_id].copy()}

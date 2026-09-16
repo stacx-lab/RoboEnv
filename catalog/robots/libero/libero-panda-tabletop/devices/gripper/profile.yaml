@@ -1,11 +1,12 @@
 name: gripper
-type: end_effector
+type: gripper
 intrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
-  tool_type: parallel_gripper
-  aperture_m: null
+  aperture_m:
+    min: 0.0
+    max: 0.079
   control:
     mode: direction
     open_target: -1
@@ -20,11 +21,42 @@ intrinsics:
     velocities: true
     sensors: []
     clock: simulation
-    aperture_model: null
+    aperture_model:
+      model: affine
+      coefficients:
+      - 1.0
+      - -1.0
+      offset_m: -0.001
   stop:
     behavior: hold
     affected_devices:
     - gripper
+  frames:
+    left_pad: null
+    right_pad: null
+  geometry:
+    description: TCP is grip_site, 97 mm from the flange. Parallel jaws; contact frames
+      locate the inner pad surfaces. Contact +Z points toward the object; local XY
+      bounds describe each pad, not collision clearance.
+    approach_axis:
+    - 0
+    - 0
+    - 1
+    closing_axis:
+    - 1.0
+    - 0.0
+    - 0.0
+    contacts:
+      left_pad:
+        frame: left_pad
+        size_m:
+        - 0.016
+        - 0.016
+      right_pad:
+        frame: right_pad
+        size_m:
+        - 0.016
+        - 0.016
 extrinsics:
   source: introspected
   method: introspection
@@ -54,7 +86,6 @@ access:
     device: gripper
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
     - load

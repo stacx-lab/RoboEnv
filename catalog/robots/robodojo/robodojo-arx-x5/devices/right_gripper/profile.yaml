@@ -1,11 +1,12 @@
 name: right_gripper
-type: end_effector
+type: gripper
 intrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
-  tool_type: parallel_gripper
-  aperture_m: null
+  aperture_m:
+    min: 0.0008071659760000016
+    max: 0.088807165976
   control:
     mode: position
     units: normalized
@@ -25,11 +26,41 @@ intrinsics:
     velocities: true
     sensors: []
     clock: simulation
-    aperture_model: null
+    aperture_model:
+      model: affine
+      coefficients:
+      - 1.0
+      - 1.0
+      offset_m: 0.0008071659760000016
   stop:
     behavior: hold
     affected_devices:
     - right_gripper
+  frames:
+    pad_1: null
+    pad_2: null
+  geometry:
+    description: TCP is the midpoint of the source contact centers at zero finger
+      displacement, with axes inherited from the arm flange. Parallel sliding fingers;
+      pad_1 and pad_2 follow feedback position channels 1 and 2. Contact +Z points
+      into the jaws. Aperture is the projected separation of these contact centers,
+      clamped at zero; it is not collision clearance. Mesh patches have no assumed
+      rectangular size.
+    approach_axis:
+    - 1.0
+    - 0.0
+    - 0.0
+    closing_axis:
+    - -0.0
+    - -1.0
+    - -0.0
+    contacts:
+      pad_1:
+        frame: pad_1
+        size_m: null
+      pad_2:
+        frame: pad_2
+        size_m: null
 extrinsics:
   source: introspected
   method: introspection
@@ -38,14 +69,14 @@ extrinsics:
     parent: right_arm
     parent_frame: flange
     translation_m:
-    - 0
-    - 0
-    - 0
+    - 0.15006999999999998
+    - -1.9999999999985307e-06
+    - -0.0014399999999999999
     rotation_xyzw:
-    - 0
-    - 0
-    - 0
-    - 1
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
 access:
   source: user
   method: unknown
@@ -56,7 +87,6 @@ access:
     device: right_gripper
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
     - load

@@ -28,13 +28,12 @@ def matrix_pose(value):
     if (
         value.shape != (4, 4)
         or not np.isfinite(value).all()
-        or not np.allclose(value[3], [0, 0, 0, 1], atol=1e-7, rtol=0)
-        or not np.allclose(value[:3, :3].T @ value[:3, :3], np.eye(3), atol=1e-6, rtol=0)
-        or not np.isclose(np.linalg.det(value[:3, :3]), 1, atol=1e-6, rtol=0)
+        or (not np.allclose(value[3], [0, 0, 0, 1], atol=1e-07, rtol=0))
+        or (not np.allclose(value[:3, :3].T @ value[:3, :3], np.eye(3), atol=1e-06, rtol=0))
+        or (not np.isclose(np.linalg.det(value[:3, :3]), 1, atol=1e-06, rtol=0))
     ):
         raise ValueError("Expected a finite rigid transform with a proper rotation")
     r = np.asarray(value, dtype=float)[:3, :3]
-    # The symmetric quaternion eigenproblem also handles rotations near pi.
     k = np.array(
         [
             [r[0, 0] - r[1, 1] - r[2, 2], r[0, 1] + r[1, 0], r[0, 2] + r[2, 0], r[2, 1] - r[1, 2]],
@@ -53,7 +52,7 @@ def matrix_pose(value):
 def fixed_transform(path, base, child):
     nodes = ET.parse(path).getroot().findall("joint")
     by_child = {joint.find("child").attrib["link"]: joint for joint in nodes}
-    result, visited = np.eye(4), set()
+    result, visited = (np.eye(4), set())
     while child != base:
         if child in visited or child not in by_child:
             raise ValueError("No fixed URDF path between these frames")
@@ -72,11 +71,11 @@ def origin(joint):
         return list(IDENTITY)
     xyz = [float(v) for v in element.get("xyz", "0 0 0").split()]
     rpy = [float(v) for v in element.get("rpy", "0 0 0").split()]
-    if len(xyz) != 3 or len(rpy) != 3 or not all(math.isfinite(v) for v in xyz + rpy):
+    if len(xyz) != 3 or len(rpy) != 3 or (not all(math.isfinite(v) for v in xyz + rpy)):
         raise ValueError("URDF origin requires finite xyz and rpy triples")
     roll, pitch, yaw = [v / 2 for v in rpy]
-    cr, cp, cy = math.cos(roll), math.cos(pitch), math.cos(yaw)
-    sr, sp, sy = math.sin(roll), math.sin(pitch), math.sin(yaw)
+    cr, cp, cy = (math.cos(roll), math.cos(pitch), math.cos(yaw))
+    sr, sp, sy = (math.sin(roll), math.sin(pitch), math.sin(yaw))
     return xyz + [
         sr * cp * cy - cr * sp * sy,
         cr * sp * cy + sr * cp * sy,
@@ -89,11 +88,11 @@ def serial_chain(path, names, *, base=None, flange=None):
     root = ET.parse(path).getroot()
     nodes = {joint.attrib["name"]: joint for joint in root.findall("joint")}
     if not names or len(set(names)) != len(names) or any(name not in nodes for name in names):
-        raise ValueError("Manipulator requires distinct declared URDF joints")
+        raise ValueError("JointDevice requires distinct declared URDF joints")
     base = base or nodes[names[0]].find("parent").attrib["link"]
     flange = flange or nodes[names[-1]].find("child").attrib["link"]
     by_child = {joint.find("child").attrib["link"]: joint for joint in nodes.values()}
-    route, seen, current = [], set(), flange
+    route, seen, current = ([], set(), flange)
     while current != base:
         if current in seen or current not in by_child:
             raise ValueError("URDF flange is not descended from the selected base")
@@ -105,7 +104,7 @@ def serial_chain(path, names, *, base=None, flange=None):
     moving = [joint.attrib["name"] for joint in route if joint.attrib["type"] != "fixed"]
     if moving != list(names):
         raise ValueError("URDF chain contains unselected joints or a different joint order")
-    joints, chain = [], []
+    joints, chain = ([], [])
     for joint in route:
         link = {"origin": origin(joint)}
         kind = joint.attrib["type"]
@@ -114,17 +113,14 @@ def serial_chain(path, names, *, base=None, flange=None):
                 kind not in {"revolute", "continuous", "prismatic"}
                 or joint.find("mimic") is not None
             ):
-                raise ValueError("Manipulator requires independent scalar URDF joints")
+                raise ValueError("JointDevice requires independent scalar URDF joints")
             limit = joint.find("limit")
             if limit is None and kind != "continuous":
                 raise ValueError("Bounded URDF joint is missing limits")
             bounds = (
                 None
                 if kind == "continuous"
-                else {
-                    "min": float(limit.attrib["lower"]),
-                    "max": float(limit.attrib["upper"]),
-                }
+                else {"min": float(limit.attrib["lower"]), "max": float(limit.attrib["upper"])}
             )
             if bounds and (
                 not all(math.isfinite(v) for v in bounds.values())
@@ -162,18 +158,30 @@ def serial_chain(path, names, *, base=None, flange=None):
                 }
             )
         chain.append(link)
-    return {"format": "serial_chain", "joints": joints, "chain": chain}, base, flange
+    return ({"format": "serial_chain", "joints": joints, "chain": chain}, base, flange)
 
 
-def manipulator_intrinsics(model, home, name):
+def joint_intrinsics(model, home, name):
     if len(home) != len(model["joints"]):
         raise ValueError("Home configuration differs from the robot joint order")
     return {
         "source": "introspected",
         "method": "introspection",
         "calibrated_at": None,
+        "home": {
+            joint["name"]: float(value) for joint, value in zip(model["joints"], home, strict=True)
+        },
+        "control": {
+            "speed": None,
+            "mode": "position",
+            "execution": {"mode": "realtime", "command_timeout_s": None},
+        },
+        "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
+        "stop": {"behavior": "hold", "affected_devices": [name]},
+        "model": model,
         "kinematics": {
-            "model": model,
+            "frame": "flange",
+            "fk": "numerical",
             "ik": {
                 "backend": "numerical",
                 "method": "damped_least_squares",
@@ -182,18 +190,9 @@ def manipulator_intrinsics(model, home, name):
                 "max_iterations": 200,
                 "damping": 0.01,
             },
+            "feedback": "driver",
+            "frame_to_reported": list(IDENTITY),
         },
-        "home": {
-            joint["name"]: float(value) for joint, value in zip(model["joints"], home, strict=True)
-        },
-        "control": {"speed": None},
-        "feedback": {
-            "velocities": True,
-            "efforts": False,
-            "pose_source": "driver",
-            "flange_to_reported": list(IDENTITY),
-        },
-        "stop": {"behavior": "hold", "affected_devices": [name]},
     }
 
 
@@ -216,7 +215,6 @@ def gripper_intrinsics(names, name, *, units="m", bounds=(0, 1), open_target=1, 
         "source": "introspected",
         "method": "introspection",
         "calibrated_at": None,
-        "tool_type": "parallel_gripper",
         "aperture_m": None,
         "control": {
             "mode": "position",

@@ -82,7 +82,7 @@ class BindingSpec:
         config, overrides = value.get("config", {}), value.get("overrides", {})
         if not isinstance(config, dict) or not isinstance(overrides, dict):
             raise ValueError("binding config and overrides must be objects")
-        if set(overrides) - {"intrinsics", "extrinsics", "control_mode"}:
+        if set(overrides) - {"intrinsics", "extrinsics"}:
             raise ValueError("overrides may only change device parameters, mounts and control mode")
         json_value([config, overrides])
         return cls(
@@ -107,8 +107,6 @@ class BindingSpec:
                 if not isinstance(self.overrides[section], dict):
                     raise ValueError(f"{section} override must be an object")
                 value[section] = _merge(value.get(section, {}), self.overrides[section])
-        if "control_mode" in self.overrides:
-            value.setdefault("access", {})["control_mode"] = self.overrides["control_mode"]
         return value
 
     def definition(self, root):
@@ -118,7 +116,6 @@ class BindingSpec:
             profile.get("type", "other"),
             profile.get("intrinsics", {}),
             profile.get("extrinsics", {}),
-            profile.get("access", {}).get("control_mode"),
         )
 
     def as_dict(self):

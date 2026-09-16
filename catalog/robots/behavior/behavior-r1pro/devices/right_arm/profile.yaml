@@ -1,189 +1,12 @@
 name: right_arm
-type: manipulator
+type: joint
 intrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
   kinematics:
-    model:
-      format: serial_chain
-      joints:
-      - name: right_arm_joint1
-        type: revolute
-        limits:
-          min: -4.4506
-          max: 1.309
-        max_velocity: 7.1209
-        max_effort: 55.0
-      - name: right_arm_joint2
-        type: revolute
-        limits:
-          min: -3.1416
-          max: 0.1745
-        max_velocity: 7.1209
-        max_effort: 55.0
-      - name: right_arm_joint3
-        type: revolute
-        limits:
-          min: -2.356196
-          max: 2.356196
-        max_velocity: 8.3776
-        max_effort: 25.0
-      - name: right_arm_joint4
-        type: revolute
-        limits:
-          min: -2.0944
-          max: 0.3491
-        max_velocity: 8.3776
-        max_effort: 25.0
-      - name: right_arm_joint5
-        type: revolute
-        limits:
-          min: -2.356196
-          max: 2.356196
-        max_velocity: 10.472
-        max_effort: 18.0
-      - name: right_arm_joint6
-        type: revolute
-        limits:
-          min: -1.047198
-          max: 1.047198
-        max_velocity: 10.472
-        max_effort: 18.0
-      - name: right_arm_joint7
-        type: revolute
-        limits:
-          min: -1.5708
-          max: 1.5708
-        max_velocity: 10.472
-        max_effort: 18.0
-      chain:
-      - origin:
-        - 0.0
-        - -0.0735
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 0
-        axis:
-        - 0.0
-        - 1.0
-        - 0.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.023988
-        - -0.081265
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 1
-        axis:
-        - 1.0
-        - 0.0
-        - 0.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - -0.023988
-        - 0.0
-        - -0.1155
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 2
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.0
-        - 0.035058
-        - -0.1945
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 3
-        axis:
-        - 0.0
-        - 1.0
-        - 0.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.0
-        - -0.035058
-        - -0.095
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 4
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.0
-        - 0.028001
-        - -0.16305
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 5
-        axis:
-        - 0.0
-        - 1.0
-        - 0.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.0295
-        - -0.028001
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 6
-        axis:
-        - 1.0
-        - 0.0
-        - 0.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
+    frame: flange
+    fk: numerical
     ik:
       backend: numerical
       method: damped_least_squares
@@ -191,6 +14,15 @@ intrinsics:
       rotation_tolerance_rad: 0.001
       max_iterations: 200
       damping: 0.01
+    feedback: driver
+    frame_to_reported:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
   home:
     right_arm_joint1: 0.0
     right_arm_joint2: -1.5700000524520874
@@ -201,22 +33,199 @@ intrinsics:
     right_arm_joint7: 0.0
   control:
     speed: null
+    mode: position
+    execution:
+      mode: realtime
+      command_timeout_s: null
   feedback:
     velocities: true
     efforts: false
-    pose_source: driver
-    flange_to_reported:
-    - 0.0
-    - 0.0
-    - 0.0
-    - 0.0
-    - 0.0
-    - 0.0
-    - 1.0
+    clock: simulation
   stop:
     behavior: hold
     affected_devices:
     - right_arm
+  model:
+    format: serial_chain
+    joints:
+    - name: right_arm_joint1
+      type: revolute
+      limits:
+        min: -4.4506
+        max: 1.309
+      max_velocity: 7.1209
+      max_effort: 55.0
+    - name: right_arm_joint2
+      type: revolute
+      limits:
+        min: -3.1416
+        max: 0.1745
+      max_velocity: 7.1209
+      max_effort: 55.0
+    - name: right_arm_joint3
+      type: revolute
+      limits:
+        min: -2.356196
+        max: 2.356196
+      max_velocity: 8.3776
+      max_effort: 25.0
+    - name: right_arm_joint4
+      type: revolute
+      limits:
+        min: -2.0944
+        max: 0.3491
+      max_velocity: 8.3776
+      max_effort: 25.0
+    - name: right_arm_joint5
+      type: revolute
+      limits:
+        min: -2.356196
+        max: 2.356196
+      max_velocity: 10.472
+      max_effort: 18.0
+    - name: right_arm_joint6
+      type: revolute
+      limits:
+        min: -1.047198
+        max: 1.047198
+      max_velocity: 10.472
+      max_effort: 18.0
+    - name: right_arm_joint7
+      type: revolute
+      limits:
+        min: -1.5708
+        max: 1.5708
+      max_velocity: 10.472
+      max_effort: 18.0
+    chain:
+    - origin:
+      - 0.0
+      - -0.0735
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 0
+      axis:
+      - 0.0
+      - 1.0
+      - 0.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.023988
+      - -0.081265
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 1
+      axis:
+      - 1.0
+      - 0.0
+      - 0.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - -0.023988
+      - 0.0
+      - -0.1155
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 2
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.035058
+      - -0.1945
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 3
+      axis:
+      - 0.0
+      - 1.0
+      - 0.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - -0.035058
+      - -0.095
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 4
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.028001
+      - -0.16305
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 5
+      axis:
+      - 0.0
+      - 1.0
+      - 0.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0295
+      - -0.028001
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 6
+      axis:
+      - 1.0
+      - 0.0
+      - 0.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+  frames:
+    flange: null
 extrinsics:
   source: introspected
   method: introspection
@@ -243,7 +252,6 @@ access:
     device: right_arm
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
     - load

@@ -13,7 +13,7 @@ GRIPPER = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices/gripper"
 @pytest.fixture
 def gripper(monkeypatch):
     library = ROOT.parent / "kinex/python"
-    if not (library / "kinex/end_effector.py").is_file():
+    if not (library / "kinex/scalar_control.py").is_file():
         pytest.skip("Requires the Kinex Python library used by exported drivers")
     monkeypatch.syspath_prepend(str(library))
     monkeypatch.syspath_prepend(str(GRIPPER))
@@ -46,7 +46,7 @@ def test_gripper_has_one_signed_command_and_two_measured_channels(gripper):
     result = module.handle("read", {})
     assert result["ok"], result
     assert result["positions"] == [0.02, -0.02]
-    assert result["sample_time_s"] == 1.25 and result["aperture_m"] is None
+    assert result["sample_time_s"] == 1.25 and result["aperture_m"] == pytest.approx(0.039)
     assert module.handle("stop", {}) == {
         "ok": True,
         "stopped": True,

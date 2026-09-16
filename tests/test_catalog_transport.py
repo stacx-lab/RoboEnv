@@ -17,13 +17,17 @@ def transport(tmp_path, monkeypatch):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     wire = module.Transport(tmp_path / "renamed-directory/driver.py")
-    monkeypatch.setattr(wire, "settings", lambda: {
-        "type": "manipulator",
-        "access": {"connection": {"url": "http://test:8123", "device": "remote_arm"}},
-    })
+    monkeypatch.setattr(
+        wire,
+        "settings",
+        lambda: {
+            "access": {"connection": {"url": "http://test:8123", "device": "remote_arm"}},
+            "type": "joint",
+        },
+    )
     for key in ("ROBOENV_ENDPOINT", "ROBOENV_SOCKET", "ROBOENV_SESSION", "ROBOENV_GENERATION"):
         monkeypatch.delenv(key, raising=False)
-    return module, wire
+    return (module, wire)
 
 
 @pytest.mark.parametrize("failure", ["disconnect", "request_id", "generation"])
@@ -38,11 +42,15 @@ def test_mutating_request_is_never_retried_after_uncertain_response(transport, f
         request = json.loads(body)
         requests.append(request)
         assert request["args"]["device"] == "remote_arm"
-        assert all(request[key] == value for key, value in identity.items())
+        assert all((request[key] == value for key, value in identity.items()))
         if failure == "disconnect":
             raise ConnectionResetError("response lost")
-        response = {**identity, "request_id": request["request_id"], "ok": True,
-                    "result": {"data": {"accepted": True}}}
+        response = {
+            **identity,
+            "request_id": request["request_id"],
+            "ok": True,
+            "result": {"data": {"accepted": True}},
+        }
         response[failure] = "different" if failure == "request_id" else 8
         return (json.dumps(response) + "\n").encode()
 

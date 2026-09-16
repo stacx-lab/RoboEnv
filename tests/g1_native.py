@@ -18,13 +18,14 @@ def main():
     env = G1Env(model_path=options.model, asset_manifest=options.assets)
     try:
         env.reset(0)
-        before = env.control.snapshot(list(NAMES))
+        before = {name: env.read_device(name) for name in NAMES}
         commands = [
             {
                 "device": name,
                 "args": (
                     {
-                        "mode": "locomotion", "velocity": {"vx": 0, "vy": 0, "wz": 0},
+                        "mode": "locomotion",
+                        "velocity": {"vx": 0, "vy": 0, "wz": 0},
                         "posture": {"height": env.control.targets[name][3]},
                     }
                     if name == "base"
@@ -33,20 +34,26 @@ def main():
             }
             for name in NAMES
         ]
-        # Invalid batches must have no effect, including their valid prefix.
-        invalid = commands + [{"device": "unknown", "args": {"target": []}}]
+        # Invalid individual commands have no effects.
         try:
-            env.control.batch_write(invalid)
+            env.control.write("unknown", {"target": []})
         except ValueError:
             pass
         else:
-            raise AssertionError("Invalid batch accepted")
-        assert env.control.snapshot(list(NAMES)) == before
-        after = env.control.batch_write(commands)
+            raise AssertionError("Invalid command accepted")
+        assert {name: env.read_device(name) for name in NAMES} == before
+        for command in commands:
+            env.control.write(command["device"], command["args"])
+        after = {name: env.read_device(name) for name in NAMES}
         period = env.model["control"]["execution"]["interval_s"]
-        assert after["sequence"] == before["sequence"] + 1
-        assert abs(after["sample_time_s"] - before["sample_time_s"] - period) < 1e-8
-        assert len({state["sample_time_s"] for state in after["states"].values()}) == 1
+        assert (
+            abs(
+                after["base"]["sample_time_s"]
+                - before["base"]["sample_time_s"]
+                - period * len(commands)
+            )
+            < 1e-8
+        )
         # A single-component write retains every other target.
         retained = {name: list(value) for name, value in env.control.targets.items()}
         env.control.write("base", commands[0]["args"])

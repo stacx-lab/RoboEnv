@@ -39,13 +39,13 @@ def require(condition, message):
 
 def interval(world, commands):
     frame = world.control.frame
-    step = {"id": frame + 100, "devices": list(commands)} if len(commands) > 1 else None
     for name, target in commands.items():
-        world.device_write(name, target, step)
+        world.device_write(name, target)
     if world.realtime:
         require(world.control.frame == frame, "Realtime writes advanced physics")
         world.control.tick()
-    require(world.control.frame == frame + 1, "Control interval did not advance exactly once")
+    expected = 1 if world.realtime else len(commands)
+    require(world.control.frame == frame + expected, "Unexpected control interval count")
 
 
 def mount_transform(fact):
@@ -175,7 +175,7 @@ def contacts(world):
 
 
 def check(world, out):
-    from kinex.manipulator import Manipulator
+    from kinex.joints import JointDevice
     from kinex.motion import pose_error
 
     report = {
@@ -186,7 +186,7 @@ def check(world, out):
         "initial_state_sha256": digest(world.initial_state),
         "implementation": world.implementation_identity,
     }
-    models = {name: Manipulator({"name": name, **world.device_facts[name]}) for name in ARMS}
+    models = {name: JointDevice({"name": name, **world.device_facts[name]}) for name in ARMS}
     before, frame = world.owner_state(), world.control.frame
     for name in CAMERAS:
         for _ in range(2):
@@ -198,7 +198,9 @@ def check(world, out):
     for name, model in models.items():
         reading = world.device_read(name)
         q = model.project(reading["positions"])
-        fk_error = pose_error(model.fk(reading["positions"])["pose"], reading["flange_pose"])
+        fk_error = pose_error(
+            model.fk(reading["positions"])["pose"], reading["frame_poses"]["flange"]
+        )
         target_q = q.copy()
         target_q[0] += 0.03
         target_q = model.project(target_q)
@@ -226,9 +228,7 @@ def check(world, out):
     origins = copy.deepcopy(goals)
     for value in goals.values():
         value[0] += 0.1
-    state = copy.deepcopy(
-        (world.owner_state(), world.control.targets, world.control.pending, world.control.commands)
-    )
+    state = copy.deepcopy((world.owner_state(), world.control.targets, world.control.commands))
     invalid = [[float("nan")] * 6, [float("inf")] * 6, [0.0], [True] * 6, [1e9] * 6]
     for target in invalid:
         try:
@@ -241,23 +241,12 @@ def check(world, out):
             (
                 world.owner_state(),
                 world.control.targets,
-                world.control.pending,
                 world.control.commands,
             )
             == state,
             "Malformed target had an effect",
         )
-    step = {"id": 1, "devices": list(ARMS)}
-    world.device_write("left_arm", goals["left_arm"], step)
-    require(
-        world.control.frame == frame and world.owner_state() == before,
-        "Partial atomic group advanced physics",
-    )
-    world.device_write("right_arm", goals["right_arm"], step)
-    if world.realtime:
-        require(world.control.frame == frame, "Realtime atomic write advanced physics")
-        world.control.tick()
-    require(world.control.frame == frame + 1, "Atomic group did not compose one interval")
+    interval(world, goals)
     for _ in range(29):
         interval(world, goals)
     report["motion"] = {}
@@ -278,7 +267,9 @@ def check(world, out):
             "velocity_rad_s": velocity,
         }
     require(world._sim_step_count == world.control.frame * 10, "Native control decimation mismatch")
-    report["checks"].update(invalid_zero_effects=True, atomic_interval=True, measured_arrival=True)
+    report["checks"].update(
+        invalid_zero_effects=True, per_device_intervals=True, measured_arrival=True
+    )
     peer = copy.deepcopy(world.control.targets["right_arm"])
     frame = world.control.frame
     world.device_stop("left_arm")

@@ -118,13 +118,9 @@ def generate(assets, out, *, facts_out=None, provenance=None):
             actions = ["read", "load", "unload", "status"]
             if value["type"] != "rgbd":
                 actions += ["write", "stop"]
-            if value["type"] == "manipulator":
+            if value["type"] == "joint":
                 actions += ["ik", "fk"]
-            if name == "base":
-                actions += ["batch_write", "snapshot"]
             profile["access"] = driver_access(value["type"], name, actions, "http://127.0.0.1:8123")
-            if value["type"] != "rgbd":
-                profile["access"]["driver"]["execution_group"] = "base"
             write_driver(directory, value["type"])
         (directory / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
         bindings[name] = {"binding": "isaaclab.device/1", "entity": name}

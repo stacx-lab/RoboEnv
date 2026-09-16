@@ -29,7 +29,7 @@ def chain(model, joints, body, base):
     bodies = []
     while body != base:
         if body == 0:
-            raise ValueError("Manipulator base must be an ancestor of its flange")
+            raise ValueError("JointDevice base must be an ancestor of its flange")
         bodies.append(body)
         body = int(model.body_parentid[body])
     indexes = {int(j): i for i, j in enumerate(joints)}
@@ -40,9 +40,15 @@ def chain(model, joints, body, base):
         for j in attached:
             if j not in indexes or model.jnt_type[j] not in (2, 3):
                 raise ValueError("Device chain contains an undeclared or non-scalar joint")
-            links.append({"origin": origin, "joint": indexes[j], "axis": model.jnt_axis[j].tolist(),
-                          "anchor": model.jnt_pos[j].tolist(),
-                          "reference": float(model.qpos0[model.jnt_qposadr[j]])})
+            links.append(
+                {
+                    "origin": origin,
+                    "joint": indexes[j],
+                    "axis": model.jnt_axis[j].tolist(),
+                    "anchor": model.jnt_pos[j].tolist(),
+                    "reference": float(model.qpos0[model.jnt_qposadr[j]]),
+                }
+            )
             origin = [0, 0, 0, 0, 0, 0, 1]
         if not model.body_jntnum[body]:
             links.append({"origin": origin})

@@ -116,7 +116,7 @@ def test_policy_cannot_advertise_untracked_posture_or_other_frames():
 
 
 @pytest.mark.parametrize("realtime", [False, True])
-def test_batch_validates_before_any_effect_and_preserves_other_targets(realtime):
+def test_write_validates_before_effects_and_preserves_other_targets(realtime):
     native = Native()
     control = Control(native, model(), realtime=realtime)
     valid = {"device": "left_arm", "args": {"target": [0.4]}}
@@ -140,27 +140,27 @@ def test_batch_validates_before_any_effect_and_preserves_other_targets(realtime)
                 "posture": {"height": 0.7},
             },
         },
-        valid,
     ):
         with pytest.raises(ValueError):
-            control.batch_write([valid, invalid])
+            control.write(invalid["device"], invalid["args"])
     assert native.received == []
-    receipt = control.batch_write([valid])
-    assert receipt["sequence"] == 1
+    receipt = control.write(valid["device"], valid["args"])
+    assert receipt == {"accepted": True}
     if realtime:
         assert native.received == []
-        assert receipt["sample_time_s"] == 0
+        assert native.sample_time_s == 0
         control.tick()
     assert native.sample_time_s == 0.02
     assert native.received[0]["right_arm"] == [0]
-    assert control.snapshot(["left_arm", "right_arm"])["sequence"] == 1
+    native.read_device("left_arm")
+    native.read_device("right_arm")
     assert native.sample_time_s == 0.02
     control.write(
         "base",
         {
             "mode": "locomotion",
             "velocity": {"vx": 0.1, "vy": 0, "wz": 0},
-            "posture": {"height": 0.7, "roll": 0.1, "pitch": -0.2, "yaw": 0.3},
+            "posture": {"height": 0.7},
         },
     )
     if realtime:
@@ -192,7 +192,7 @@ def test_realtime_watchdog_retains_posture_and_only_base_writes_refresh_it(monke
         "command_timeout_s": timeout,
     }
     now[0] = 10.2
-    control.snapshot(["base"])
+    native.read_device("base")
     control.write("left_arm", {"target": [0.4]})
     with pytest.raises(ValueError):
         control.write("base", {**target, "posture": {"height": 2}})
@@ -256,13 +256,13 @@ def test_g1_realtime_uses_owner_clock_and_preserves_terminal_state(monkeypatch, 
     world.start()
     assert world.main_thread_clock and world._thread is None
     try:
-        before = native.control.snapshot(["base", "left_arm"])
+        before = native.read_device("base")
         native.control.write("left_arm", {"target": [0.4]})
         assert native.steps == 0
         now[0] = 0.021
         world.poll()
         assert adapter.budget().used == 1
-        after = native.control.snapshot(["base", "left_arm"])
+        after = native.read_device("base")
         assert after["sample_time_s"] > before["sample_time_s"]
         assert native.received[-1]["left_arm"] == [0.4]
         if early_terminal:
@@ -303,22 +303,21 @@ def test_asset_manifest_detects_changes_and_escape(tmp_path):
         load_bundle(manifest)
 
 
-def test_live_export_retains_execution_group(tmp_path):
+def test_live_export_uses_independent_device_driver(tmp_path):
     from roboenv.devices.export import export_devices
     from roboenv.devices.model import Action, BoundDevice, DeviceDefinition
 
     device = BoundDevice(
-        DeviceDefinition("base", "base"),
+        DeviceDefinition("base", "velocity"),
         {"read": Action(lambda args, context: {})},
         implementation="fixture",
-        execution_group="base",
     )
     export_devices([device.describe()], tmp_path, {"endpoint": "http://127.0.0.1:8123"})
     import yaml
 
     profile = yaml.safe_load((tmp_path / "base/profile.yaml").read_text())
-    assert profile["access"]["driver"]["execution_group"] == "base"
-    assert "kinex.base" in (tmp_path / "base/driver.py").read_text()
+    assert "execution_group" not in profile["access"]["driver"]
+    assert "kinex.velocity" in (tmp_path / "base/driver.py").read_text()
 
 
 @pytest.mark.parametrize("realtime", [False, True])

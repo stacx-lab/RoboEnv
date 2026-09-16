@@ -40,7 +40,7 @@ def reject(call, code=None):
 
 def target(client, name, offset):
     values = client.device(name).read()["data"]["positions"]
-    joints = client.device(name).describe()["intrinsics"]["kinematics"]["model"]["joints"]
+    joints = client.device(name).describe()["intrinsics"]["model"]["joints"]
     values = [
         min(j["limits"]["max"], max(j["limits"]["min"], q))
         for j, q in zip(joints, values, strict=True)
@@ -72,7 +72,8 @@ def select_cases(task, seeds=(0, 1), instances=None):
     )
     if task.backend == "behavior":
         require(
-            instances is not None and len(instances) == 2
+            instances is not None
+            and len(instances) == 2
             and all(type(value) is int and value >= 0 for value in instances)
             and instances[0] != instances[1],
             "BEHAVIOR requires two distinct explicit activity instance IDs; "
@@ -167,16 +168,16 @@ def exercise(owner, *, camera=None):
     public.device("left_arm").write(goal, request_id=identity)
     require(private.request("observe")["budget"]["used"] == 2, "Uncertain recovery repeated motion")
     left, right = target(public, "left_arm", 0.03), target(public, "right_arm", 0.05)
-    step = {"id": 0, "devices": ["left_arm", "right_arm"]}
     with ThreadPoolExecutor(max_workers=2) as pool:
         calls = [
-            pool.submit(public.device(name).write, goal, step=step)
+            pool.submit(public.device(name).write, goal)
             for name, goal in (("left_arm", left), ("right_arm", right))
         ]
         for future in calls:
             future.result()
     require(
-        private.request("observe")["budget"]["used"] == 3, "Concurrent atomic group advanced twice"
+        private.request("observe")["budget"]["used"] == 4,
+        "Each concurrent write must advance one interval",
     )
     public.device("left_arm").stop()
     public.device("right_arm").stop()
@@ -212,7 +213,7 @@ def exercise(owner, *, camera=None):
                 "read_invariance",
                 "concurrent_dedup",
                 "lost_reply_recovery",
-                "atomic_concurrency",
+                "independent_concurrency",
                 "sensor_artifacts",
             )
         },
@@ -228,8 +229,13 @@ def main():
     parser.add_argument("--timeout", type=float, default=900)
     parser.add_argument("--camera", help="Native RGB/RGBD device; default: discover from inventory")
     parser.add_argument("--seeds", type=int, nargs=2, default=(0, 1), metavar=("FIRST", "SECOND"))
-    parser.add_argument("--instances", type=int, nargs=2, metavar=("FIRST", "SECOND"),
-                        help="Required distinct BEHAVIOR activity instance IDs")
+    parser.add_argument(
+        "--instances",
+        type=int,
+        nargs=2,
+        metavar=("FIRST", "SECOND"),
+        help="Required distinct BEHAVIOR activity instance IDs",
+    )
     args = parser.parse_args()
     task = resolve_task(args.task, project=args.project).task
     cases = select_cases(task, args.seeds, args.instances)
@@ -240,9 +246,7 @@ def main():
         "passed": False,
         "task": args.task,
         "scope": "public HTTP; no adversarial filesystem isolation",
-        "cases": [
-            {"seed": case.seed, "backend_kwargs": case.backend_kwargs} for case in cases
-        ],
+        "cases": [{"seed": case.seed, "backend_kwargs": case.backend_kwargs} for case in cases],
     }
     owners = []
     try:
