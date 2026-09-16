@@ -119,6 +119,7 @@ class KinexAgent(BaseAgent):
             "KINEX_DATA_DIR": self.root + "/data",
             "UV_PYTHON_DOWNLOADS": "never",
             "UV_LINK_MODE": "copy",
+            "UV_LOCKED": "true" if self.artifact and self.mode == "no-model" else "false",
         }
 
     async def checked(self, environment, command, *, timeout):
@@ -181,8 +182,8 @@ class KinexAgent(BaseAgent):
         )
         await self.checked(
             environment,
-            f"cd {self.workspace} && {self.root}/bin/bun "
-            f"{self.root}/kinex/bin/kinex python > {output}/python.log 2>&1",
+            f"{self.root}/bin/bun {self.bridge}/run.ts --prepare-python "
+            f"{self.workspace} > {output}/python.log 2>&1",
             timeout=self.setup_timeout,
         )
         runner = {
@@ -224,7 +225,7 @@ class KinexAgent(BaseAgent):
             if self.recording:
                 await self.checked(
                     environment,
-                    f"{self.workspace}/.kinex/venv/bin/python "
+                    f"{self.workspace}/.venv/bin/python "
                     f"{self.bridge}/verify_media.py {self.workspace} "
                     f"{self.root}/runner.json {output}/media.json",
                     timeout=120,
@@ -235,7 +236,7 @@ class KinexAgent(BaseAgent):
             # Preserve agent code, recordings and sessions for review/freeze. Never export auth.
             await self.checked(
                 environment,
-                "tar --exclude=./.kinex/venv -czf "
+                "tar --exclude=./.venv -czf "
                 f"{shlex.quote(output)}/workspace.tar.gz "
                 f"-C {self.workspace} .",
                 timeout=120,

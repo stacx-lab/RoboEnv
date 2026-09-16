@@ -1,8 +1,7 @@
 name: base
 loaded: false
-type: base
+type: velocity
 intrinsics:
-  mobility: mobile
   source: introspected
   method: introspection
   calibrated_at: null
@@ -56,11 +55,11 @@ intrinsics:
     behavior: stand
     affected_devices:
     - base
+  frames: {}
 extrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
-  frames: []
 meta:
   created_at: '2026-09-13T00:00:00Z'
   updated_at: '2026-09-13T00:00:00Z'
@@ -74,7 +73,6 @@ access:
     device: base
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
     - read
@@ -83,6 +81,3 @@ access:
     - status
     - write
     - stop
-    - batch_write
-    - snapshot
-    execution_group: base

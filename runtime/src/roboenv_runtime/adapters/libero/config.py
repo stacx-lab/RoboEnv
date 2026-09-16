@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+CAMERA_SIZE = (256, 256)
+
 
 def ensure_libero_config(config_dir=None):
     # Do not import libero.libero: its module body prompts before paths exist.

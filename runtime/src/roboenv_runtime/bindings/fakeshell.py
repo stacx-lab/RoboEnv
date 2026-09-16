@@ -9,7 +9,7 @@ from roboenv_runtime.adapters.fakeshell import FakeShell
 
 
 def _number(value):
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or (not math.isfinite(value)):
         raise DeviceError("invalid_args", "position/displacement must be a finite number")
     return float(value)
 
@@ -23,16 +23,10 @@ def bind_puck(spec, root, context):
     if spec.config:
         raise ValueError("fakeshell.puck/1 has no binding-specific configuration")
     definition = spec.definition(root)
-    if definition.control_mode not in {None, "position-1d"}:
-        raise ValueError("fakeshell puck supports only position-1d control")
     action_space = [{"component": "x", "units": "m"}]
     if definition.intrinsics.get("actions", action_space) != action_space:
         raise ValueError("fakeshell puck action space is x in metres")
-    definition = replace(
-        definition,
-        control_mode="position-1d",
-        intrinsics={**definition.intrinsics, "actions": action_space},
-    )
+    definition = replace(definition, intrinsics={**definition.intrinsics, "actions": action_space})
 
     def read(args, execution):
         if args:

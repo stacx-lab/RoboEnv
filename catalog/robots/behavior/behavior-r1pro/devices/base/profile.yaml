@@ -1,10 +1,9 @@
 name: base
-type: base
+type: velocity
 intrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
-  mobility: mobile
   control:
     mode: motion
     body_frame: base
@@ -56,7 +55,6 @@ access:
     device: base
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
     - load

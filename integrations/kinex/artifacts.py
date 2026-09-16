@@ -5,7 +5,7 @@ import json
 import shutil
 from pathlib import Path
 
-CONTENT = ('.kinex/tool', '.kinex/skill', '.kinex/lib', '.kinex/python', '.kinex/kinex.json', 'AGENTS.md')
+CONTENT = ('.kinex/tool', '.kinex/skill', '.kinex/lib', 'pyproject.toml', 'uv.lock', '.kinex/kinex.json', 'AGENTS.md')
 
 
 def inventory(root, paths):
@@ -35,7 +35,7 @@ def freeze(workspace, destination, *, identity, tool, arguments):
     if destination.exists():
         raise ValueError('Frozen artifact already exists')
     manifest = inventory(source, CONTENT)
-    for required in ('.kinex/python/pyproject.toml', '.kinex/python/uv.lock'):
+    for required in ('pyproject.toml', 'uv.lock'):
         if required not in manifest:
             raise ValueError('Python environment must be locked before freezing')
     if f'.kinex/tool/{tool}/tool.yaml' not in manifest:

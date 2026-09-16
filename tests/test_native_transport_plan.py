@@ -8,8 +8,14 @@ from roboenv.tasks.model import Task
 
 
 def task(backend):
-    return Task("probe", backend, "probe", "robot", "Probe devices.",
-                backend_kwargs={"scene_model": "fixture", "realtime": True})
+    return Task(
+        "probe",
+        backend,
+        "probe",
+        "robot",
+        "Probe devices.",
+        backend_kwargs={"scene_model": "fixture", "realtime": True},
+    )
 
 
 def test_behavior_requires_distinct_instances_without_mutating_task():
@@ -37,9 +43,11 @@ def test_source_simulators_keep_explicit_seed_selection(backend):
 
 def test_camera_discovery_supports_behavior_and_rejects_non_sensor():
     tool = load_tool("check_native_transport")
-    inventory = [{"name": "left_arm", "type": "manipulator"},
-                 {"name": "camera_1", "type": "rgbd"},
-                 {"name": "camera_0", "type": "rgbd"}]
+    inventory = [
+        {"name": "left_arm", "type": "joint"},
+        {"name": "camera_1", "type": "rgbd"},
+        {"name": "camera_0", "type": "rgbd"},
+    ]
     client = SimpleNamespace(devices=lambda: {"devices": inventory})
     assert tool.camera_name(client) == "camera_0"
     assert tool.camera_name(client, "camera_1") == "camera_1"
@@ -55,11 +63,22 @@ def test_camera_discovery_supports_behavior_and_rejects_non_sensor():
 def test_transport_target_moves_away_from_a_joint_limit():
     tool = load_tool("check_native_transport")
     positions = [1.02, 0.0]
-    joints = [{"limits": {"min": -1.0, "max": 1.0}},
-              {"limits": {"min": 0.0, "max": 0.0}}]
-    descriptor = {"intrinsics": {"kinematics": {"model": {"joints": joints}}}}
-    device = SimpleNamespace(read=lambda: {"data": {"positions": positions}},
-                             describe=lambda: descriptor)
+    joints = [{"limits": {"min": -1.0, "max": 1.0}}, {"limits": {"min": 0.0, "max": 0.0}}]
+    descriptor = {
+        "intrinsics": {
+            "model": {"joints": joints},
+            "kinematics": {
+                "frame": "flange",
+                "fk": "numerical",
+                "feedback": "driver",
+                "frame_to_reported": [0, 0, 0, 0, 0, 0, 1],
+                "ik": None,
+            },
+        }
+    }
+    device = SimpleNamespace(
+        read=lambda: {"data": {"positions": positions}}, describe=lambda: descriptor
+    )
     client = SimpleNamespace(device=lambda name: device)
     assert tool.target(client, "left_arm", 0.1) == [0.9, 0.0]
     assert positions == [1.02, 0.0]

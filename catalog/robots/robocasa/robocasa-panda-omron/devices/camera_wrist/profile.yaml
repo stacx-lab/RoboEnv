@@ -65,10 +65,9 @@ access:
     camera: camera_wrist
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
+    - read
     - load
     - unload
     - status
-    - read

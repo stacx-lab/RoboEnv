@@ -33,10 +33,6 @@ class BindingRegistry:
         for spec in plan.devices:
             if spec.binding not in self._factories:
                 raise ValueError(f"unknown registered binding: {spec.binding}")
-        if plan.backend in {"robotwin", "robodojo", "behavior"}:
-            entities = [spec.entity for spec in plan.devices]
-            if len(set(entities)) != len(entities):
-                raise ValueError("Native devices cannot alias the same entity")
         context = replace(context, devices={spec.entity: spec.name for spec in plan.devices})
         devices = []
         try:

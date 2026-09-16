@@ -1,63 +1,74 @@
 name: torso
-type: manipulator
+type: joint
 intrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
+  model:
+    format: serial_chain
+    joints:
+    - name: mobilebase0_joint_torso_height
+      type: prismatic
+      limits:
+        min: 0.0
+        max: 0.34
+      max_velocity: null
+      max_effort: null
+    chain:
+    - origin:
+      - -0.05
+      - 0.0
+      - 0.5
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+    - origin:
+      - 0.05
+      - 0.0
+      - 0.2
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 0
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
   kinematics:
-    model:
-      format: serial_chain
-      joints:
-      - name: mobilebase0_joint_torso_height
-        type: prismatic
-        limits:
-          min: 0.0
-          max: 0.34
-        max_velocity: null
-        max_effort: null
-      chain:
-      - origin:
-        - -0.05
-        - 0.0
-        - 0.5
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-      - origin:
-        - 0.05
-        - 0.0
-        - 0.2
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-        joint: 0
-        axis:
-        - 0.0
-        - 0.0
-        - 1.0
-        anchor:
-        - 0.0
-        - 0.0
-        - 0.0
-        reference: 0.0
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
-      - origin:
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 0.0
-        - 1.0
+    frame: top
+    fk: numerical
+    feedback: driver
+    frame_to_reported:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
     ik:
       backend: numerical
       method: damped_least_squares
@@ -68,23 +79,21 @@ intrinsics:
   home:
     mobilebase0_joint_torso_height: 0.2
   control:
+    mode: position
     speed: null
+    execution:
+      mode: realtime
+      command_timeout_s: null
   feedback:
     velocities: true
     efforts: false
-    pose_source: driver
-    flange_to_reported:
-    - 0
-    - 0
-    - 0
-    - 0
-    - 0
-    - 0
-    - 1
+    clock: simulation
   stop:
     behavior: hold
     affected_devices:
     - torso
+  frames:
+    top: null
 extrinsics:
   source: introspected
   method: introspection
@@ -114,14 +123,13 @@ access:
     device: torso
   driver:
     entry: driver.py
-    interpreter: python3
     persistent: true
     actions:
-    - load
-    - unload
-    - status
     - read
     - write
     - stop
+    - load
+    - unload
+    - status
     - fk
     - ik

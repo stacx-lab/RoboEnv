@@ -23,13 +23,13 @@ def test_task_selects_and_renames_its_own_devices(tmp_path):
     )
     task["device_bindings"] = {
         "overview": {
-            "binding": "robocasa.device/1",
+            "binding": "robocasa.camera/1",
             "entity": "camera",
             "profile": "devices/camera_left/profile.yaml",
             "config": {"camera": "agentview"},
         },
         "world": {
-            "binding": "robocasa.device/1",
+            "binding": "robocasa.world/1",
             "entity": "world",
             "profile": "devices/world/profile.yaml",
         },
@@ -156,15 +156,15 @@ def check_kinex_profiles(tmp_path, paths):
     payload = tmp_path / "profiles.json"
     payload.write_text(json.dumps([yaml.safe_load(path.read_text()) for path in paths]))
     code = (
-        "const {Device, RobotManifest} = await import('./src/calibration/schema.ts'); "
+        "const {Device, RobotManifest} = await import('./src/device/profile/schema.ts'); "
         "RobotManifest.parse(JSON.parse(await Bun.file(process.argv[2]).text())); "
         "const {missingActions} = await import('./src/device/interface.ts'); "
         "for (const value of JSON.parse(await Bun.file(process.argv[1]).text())) { "
         "const device = Device.parse(value); "
-        "if (device.type === 'manipulator' && "
+        "if (device.type === 'joint' && "
         "(!device.intrinsics.home || "
         "Object.keys(device.intrinsics.home).length !== "
-        "device.intrinsics.kinematics.model.joints.length)) "
+        "device.intrinsics.model.joints.length)) "
         "throw new Error('Missing home joints: ' + device.name); "
         "if (missingActions(device, device.access?.driver?.actions ?? []).length) "
         "throw new Error('Missing interface actions: ' + device.name); } "
@@ -239,10 +239,14 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
     }
     assert not list(robot.rglob("connection.json"))
     assert {p.name for p in robot.iterdir()} == {"workspace.yaml", "devices"}
-    generated = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*")
-                 if p.is_file()}
-    expected = {p.relative_to(robot): p.read_bytes() for p in robot.rglob("*")
-                if p.is_file() and "__pycache__" not in p.parts}
+    generated = {
+        p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()
+    }
+    expected = {
+        p.relative_to(robot): p.read_bytes()
+        for p in robot.rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts
+    }
     assert generated == expected
     for name in ("arm", "torso", "base", "gripper"):
         actuator = yaml.safe_load((robot / "devices" / name / "profile.yaml").read_text())
@@ -250,26 +254,29 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
         assert "frequency_hz" not in actuator["access"]
     camera = yaml.safe_load((robot / "devices/camera_left/profile.yaml").read_text())
     assert camera["extrinsics"]["mount"]["parent"] == "torso"
-    assert camera["extrinsics"]["mount"]["parent_frame"] == "flange"
+    assert camera["extrinsics"]["mount"]["parent_frame"] == "top"
     for name in ("camera_left", "camera_right", "camera_wrist"):
         profile = yaml.safe_load((robot / "devices" / name / "profile.yaml").read_text())
         assert profile["type"] == "rgbd"
         assert profile["intrinsics"]["depth"]["scale_m_per_unit"] == 0.001
         assert profile["intrinsics"]["depth"]["registration"] == "color"
     body = yaml.safe_load((robot / "devices/base/profile.yaml").read_text())
-    assert body["type"] == "base"
-    assert body["intrinsics"]["mobility"] == "mobile"
+    assert body["type"] == "velocity"
     assert body["extrinsics"] == {"source": "introspected"}
     assert body["intrinsics"]["control"]["execution"] == {
-        "mode": "realtime", "command_timeout_s": None,
+        "mode": "realtime",
+        "command_timeout_s": None,
     }
     assert body["intrinsics"]["feedback"]["pose_frame"] == "world"
     torso = yaml.safe_load((robot / "devices/torso/profile.yaml").read_text())
     assert torso["extrinsics"]["mount"]["parent"] == "base"
     world = yaml.safe_load((robot / "devices/world/profile.yaml").read_text())
     assert world["intrinsics"] == {
-        "source": "default", "bounds": None, "surfaces": [],
-        "method": "unknown", "calibrated_at": None,
+        "source": "default",
+        "bounds": None,
+        "surfaces": [],
+        "method": "unknown",
+        "calibrated_at": None,
     }
     assert "access" not in world and "extrinsics" not in world
 
@@ -426,7 +433,8 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         # Keep endpoint selection through deployment environment variables.
         export_devices(
             [p for p in first.devices() if p["type"] in {"rgb", "rgbd"}],
-            copied / "devices", {"endpoint": supervisors[0].http_endpoint},
+            copied / "devices",
+            {"endpoint": supervisors[0].http_endpoint},
         )
         for connection in copied.rglob("connection.json"):
             connection.unlink()
@@ -490,12 +498,21 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
 @pytest.mark.parametrize("clock_mode", ["realtime", "synchronous"])
 def test_native_clock_modes(tmp_path, clock_mode):
     result = subprocess.run(
-        [native_interpreter(), str(ROOT / "tests/robocasa_realtime_cpu.py"),
-         str(ROOT), str(tmp_path), clock_mode],
+        [
+            native_interpreter(),
+            str(ROOT / "tests/robocasa_realtime_cpu.py"),
+            str(ROOT),
+            str(tmp_path),
+            clock_mode,
+        ],
         cwd=ROOT,
-        env={**os.environ, "PYTHONPATH": os.pathsep.join(
-            [str(ROOT / "src"), str(ROOT / "runtime/src")])},
-        capture_output=True, text=True, timeout=90,
+        env={
+            **os.environ,
+            "PYTHONPATH": os.pathsep.join([str(ROOT / "src"), str(ROOT / "runtime/src")]),
+        },
+        capture_output=True,
+        text=True,
+        timeout=90,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(result.stdout.splitlines()[-1])["passed"]
@@ -511,3 +528,36 @@ def test_task_clock_setting_reaches_runtime_adapter(realtime):
     task["backend_kwargs"]["realtime"] = realtime
     spec = TaskSpec.from_dict(task)
     assert spec.adapter_kwargs["realtime"] is realtime
+
+
+@pytest.mark.parametrize(
+    "device_type,config", [("world", {}), ("rgb", {}), ("world", {"unused": True})]
+)
+def test_world_binding_preserves_profile_geometry(tmp_path, device_type, config):
+    from roboenv.devices.bindings.registry import BindingContext, BindingRegistry
+    from roboenv.devices.bindings.spec import BindingSpec
+    from roboenv_runtime.bindings.backends.robocasa import register
+
+    intrinsics = {
+        "frames": {"fixture": [1, 0, 0, 0, 0, 0, 1]},
+        "bounds": {"min": [-2, -2, 0], "max": [2, 2, 3]},
+        "surfaces": [],
+        "source": "calibration",
+    }
+    (tmp_path / "world.yaml").write_text(
+        yaml.safe_dump({"type": device_type, "intrinsics": intrinsics})
+    )
+    spec = BindingSpec("room", "robocasa.world/1", "world", "world.yaml", config, {})
+    plan = BindingPlan("robocasa", (spec,))
+    registry = BindingRegistry()
+    register(registry)
+    context = BindingContext("robocasa", "robot", None)
+    if device_type != "world" or config:
+        with pytest.raises(ValueError, match="world binding"):
+            registry.assemble(plan, tmp_path, context)
+        return
+    service = registry.assemble(plan, tmp_path, context)
+    descriptor = service.describe("room")
+    assert descriptor["intrinsics"] == intrinsics
+    assert descriptor["actions"] == {}
+    service.close()

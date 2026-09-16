@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from roboenv.devices.base import command_schema
+from roboenv.devices.velocity import command_schema
 
 from roboenv.devices.model import Action, BoundDevice
 from .profile import validate
@@ -62,32 +62,9 @@ def bind(spec, root, context):
         },
         mutation=True,
     )
-    if spec.name == "base":
-        register(
-            "snapshot",
-            control.snapshot,
-            {
-                "type": "object",
-                "properties": {"devices": {"type": "array", "items": {"type": "string"}}},
-                "required": ["devices"],
-                "additionalProperties": False,
-            },
-        )
-        register(
-            "batch_write",
-            control.batch_write,
-            {
-                "type": "object",
-                "properties": {"commands": {"type": "array", "items": {"type": "object"}}},
-                "required": ["commands"],
-                "additionalProperties": False,
-            },
-            mutation=True,
-        )
     return BoundDevice(
         definition,
         actions,
         implementation="G1 joint-control practice interface",
         binding=spec.as_dict(),
-        execution_group="base",
     )

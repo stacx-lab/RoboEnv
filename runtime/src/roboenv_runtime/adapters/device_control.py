@@ -1,4 +1,4 @@
-"""Validated persistent targets and atomic control intervals for native backends.
+"""Validated persistent targets and per-device writes for native backends.
 
 The existing WorldSession owns serialization, scheduling and terminal freeze.
 This helper neither creates a world nor runs a thread. Backends supply native
@@ -22,8 +22,6 @@ class DeviceControl:
         self.realtime, self.exhausted = realtime, exhausted
         self.frame = 0
         self.commands = []
-        self.pending = None
-        self.last_step_id = -1
 
     def _target(self, device, target):
         if device not in self.limits:
@@ -38,43 +36,11 @@ class DeviceControl:
                 raise ValueError("Target exceeds native joint limits")
         return [float(value) for value in target]
 
-    def write(self, device, target, step=None):
+    def write(self, device, target):
         value = self._target(device, target)
         if self.exhausted():
             raise RuntimeError("Native episode budget exhausted")
-        if step is None:
-            if self.pending is not None:
-                raise ValueError("Complete or stop the pending atomic step first")
-            return self._commit({device: value})
-        if not isinstance(step, dict) or set(step) != {"id", "devices"}:
-            raise ValueError("Atomic step requires exactly id and devices")
-        identity, devices = step["id"], step["devices"]
-        if type(identity) is not int or identity <= self.last_step_id:
-            raise ValueError("Atomic step id must increase within an episode")
-        if (
-            not isinstance(devices, list) or len(devices) < 2
-            or not all(isinstance(name, str) for name in devices)
-            or len(set(devices)) != len(devices) or device not in devices
-            or set(devices) - self.limits.keys()
-        ):
-            raise ValueError("Atomic step requires distinct declared actuators including this device")
-        expected = sorted(devices)
-        if self.pending is not None and (
-            self.pending["id"] != identity or self.pending["devices"] != expected
-        ):
-            raise ValueError("Another atomic step is pending")
-        pending = copy.deepcopy(self.pending or {"id": identity, "devices": expected, "values": {}})
-        if device in pending["values"]:
-            raise ValueError("An actuator can contribute only once to an atomic step")
-        pending["values"][device] = value
-        if set(pending["values"]) != set(expected):
-            self.pending = pending
-            return {"accepted": True, "pending": True, "step_id": identity}
-        self.pending = None
-        self.last_step_id = identity
-        return {**self._commit(pending["values"]), "pending": False, "step_id": identity}
-
-    def _commit(self, commands):
+        commands = {device: value}
         if self.on_write is not None:
             self.on_write(tuple(commands))
         self.targets.update(copy.deepcopy(commands))
@@ -90,9 +56,6 @@ class DeviceControl:
             raise ValueError("Unknown stop actuator or wrong measured dimensions")
         if any(type(v) not in (int, float) or not math.isfinite(v) for v in measured_target):
             raise ValueError("Stop requires finite measured positions")
-        if self.pending is not None:
-            self.last_step_id = self.pending["id"]
-            self.pending = None
         self.targets[device] = list(measured_target)
         # Apply the hold immediately, without advancing physics or changing peers.
         self.apply(copy.deepcopy(self.targets))

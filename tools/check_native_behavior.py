@@ -71,13 +71,13 @@ def require(condition, message):
 
 def interval(world, commands):
     frame = world.control.frame
-    step = {"id": frame + 100, "devices": list(commands)} if len(commands) > 1 else None
     for name, target in commands.items():
-        world.device_write(name, target, step)
+        world.device_write(name, target)
     if world.realtime:
         require(world.control.frame == frame, "Realtime write advanced physics")
         world.control.tick()
-    require(world.control.frame == frame + 1, "Expected one native control interval")
+    expected = 1 if world.realtime else len(commands)
+    require(world.control.frame == frame + expected, "Unexpected control interval count")
 
 
 def placement(world, models, name, frame=None):
@@ -227,7 +227,7 @@ def contacts(world, out):
 
 
 def check(world, out, report):
-    from kinex.manipulator import Manipulator
+    from kinex.joints import JointDevice
     from kinex.motion import pose_error
 
     report.update(
@@ -236,7 +236,7 @@ def check(world, out, report):
         initial_state_sha256=digest(world.initial_state),
         implementation=world.implementation_identity,
     )
-    models = {name: Manipulator({"name": name, **world.device_facts[name]}) for name in CHAINS}
+    models = {name: JointDevice({"name": name, **world.device_facts[name]}) for name in CHAINS}
     report["geometry"] = {}
     before, frame = world.owner_state(), world.control.frame
     report["sensors"] = {}
@@ -246,26 +246,32 @@ def check(world, out, report):
 
         valid = np.isfinite(depth) & (depth >= DEPTH_SCALE) & (depth <= 65535 * DEPTH_SCALE)
         report["sensors"][name] = {
-            "rgb_dtype": str(rgb.dtype), "rgb_std": float(rgb.std()),
-            "valid_depth_pixels": int(valid.sum()), "depth_pixels": int(depth.size),
+            "rgb_dtype": str(rgb.dtype),
+            "rgb_std": float(rgb.std()),
+            "valid_depth_pixels": int(valid.sum()),
+            "depth_pixels": int(depth.size),
         }
         write_png(out / f"sensor-{name}.png", rgb)
         path = out / f"sensor-{name}.pgm"
         write_depth(path, depth)
-        encoded = np.frombuffer(
-            path.read_bytes().split(b"\n", 3)[3], dtype=">u2"
-        ).reshape(depth.shape)
+        encoded = np.frombuffer(path.read_bytes().split(b"\n", 3)[3], dtype=">u2").reshape(
+            depth.shape
+        )
         # Native rays missing geometry may be inf. The public metric encoding
         # must map them to the declared invalid value, not reject the whole image.
         require(
-            rgb.dtype == np.uint8 and rgb.std() > 1 and valid.any()
+            rgb.dtype == np.uint8
+            and rgb.std() > 1
+            and valid.any()
             and np.all(encoded[~valid] == 0),
             f"{name}: invalid RGBD {report['sensors'][name]}",
         )
     goals = {}
     for name, model in models.items():
         reading = world.device_read(name)
-        fk_error = pose_error(model.fk(reading["positions"])["pose"], reading["flange_pose"])
+        fk_error = pose_error(
+            model.fk(reading["positions"])["pose"], reading["frame_poses"]["flange"]
+        )
         q = model.project(reading["positions"])
         target_q = q.copy()
         target_q[0] += 0.08
@@ -289,9 +295,7 @@ def check(world, out, report):
     report["checks"]["read_and_geometry_invariance"] = True
     report["projection_initial"] = projection(world, models, out, "initial")
     before = world.owner_state()
-    state = copy.deepcopy(
-        (before, world.control.targets, world.control.pending, world.control.commands)
-    )
+    state = copy.deepcopy((before, world.control.targets, world.control.commands))
     for name in world.groups:
         size = len(world.control.targets[name])
         for target in (
@@ -311,7 +315,6 @@ def check(world, out, report):
                 (
                     world.owner_state(),
                     world.control.targets,
-                    world.control.pending,
                     world.control.commands,
                 )
                 == state,
@@ -320,18 +323,7 @@ def check(world, out, report):
     starts = {name: np.asarray(world.device_read(name)["positions"]) for name in CHAINS}
     base_start = placement(world, models, "base")
     commands = {**goals, "base": [0.05, 0.0, 0.0]}
-    step = {"id": 1, "devices": list(commands)}
-    for index, (name, target) in enumerate(commands.items()):
-        world.device_write(name, target, step)
-        if index < len(commands) - 1:
-            require(
-                world.control.frame == frame and world.owner_state() == before,
-                "Partial atomic effects",
-            )
-    if world.realtime:
-        require(world.control.frame == frame, "Atomic realtime write advanced physics")
-        world.control.tick()
-    require(world.control.frame == frame + 1, "Atomic group did not compose one interval")
+    interval(world, commands)
     for _ in range(49):
         interval(world, commands)
     report["motion"] = {}
@@ -357,7 +349,9 @@ def check(world, out, report):
         "measured": world.device_read("base"),
     }
     require(displacement > 0.025, "Base velocity command did not produce measured translation")
-    report["checks"].update(invalid_zero_effects=True, atomic_interval=True, measured_arrival=True)
+    report["checks"].update(
+        invalid_zero_effects=True, per_device_intervals=True, measured_arrival=True
+    )
     peer = copy.deepcopy(world.control.targets["right_arm"])
     frame = world.control.frame
     for name in ("left_arm", "trunk", "base"):
@@ -431,7 +425,10 @@ def main():
     world = None
     try:
         world = CalibrationWorld(
-            "turning_on_radio", "house_double_floor_lower", args.instance, max_steps=500,
+            "turning_on_radio",
+            "house_double_floor_lower",
+            args.instance,
+            max_steps=500,
             realtime=args.realtime,
         )
         world.reset(seed=args.seed)

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .config import ensure_libero_config
+from .config import CAMERA_SIZE, ensure_libero_config
 
 SUITES = ("libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90")
 DEFAULT_CAMERAS = ("agentview", "robot0_eye_in_hand")
@@ -25,7 +25,7 @@ class LiberoEnv:
         max_steps=None,
         enable_render=True,
         camera_names=DEFAULT_CAMERAS,
-        camera_size=(128, 128),
+        camera_size=CAMERA_SIZE,
     ):
         if suite_name not in SUITES:
             raise ValueError("Unsupported official LIBERO suite")
@@ -39,8 +39,8 @@ class LiberoEnv:
             raise ValueError("max_steps must exceed five initialization frames, or be null")
         if not camera_names or set(camera_names) - set(DEFAULT_CAMERAS):
             raise ValueError("Only native LIBERO RGB sensors are supported")
-        if tuple(camera_size) != (128, 128):
-            raise ValueError("Native LIBERO catalogs require 128 by 128 RGB sensors")
+        if tuple(camera_size) != CAMERA_SIZE:
+            raise ValueError(f"Native LIBERO catalogs require camera_size={CAMERA_SIZE}")
         ensure_libero_config()
         os.environ.setdefault("MUJOCO_GL", "egl")
         os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
@@ -81,8 +81,8 @@ class LiberoEnv:
                 has_renderer=False,
                 has_offscreen_renderer=enable_render,
                 camera_names=list(camera_names),
-                camera_heights=128,
-                camera_widths=128,
+                camera_heights=camera_size[0],
+                camera_widths=camera_size[1],
                 camera_depths=False,
                 ignore_done=True,
                 control_freq=20,

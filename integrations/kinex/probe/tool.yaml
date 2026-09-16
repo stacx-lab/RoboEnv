@@ -2,7 +2,7 @@ name: integration_probe
 kind: controller
 description: Read a real camera, move one native arm by a small measured amount, and stop.
 timeout_s: 150
-devices: [manipulator]
+devices: [joint]
 parameters:
   type: object
   additionalProperties: false
@@ -11,5 +11,5 @@ parameters:
     arm: {type: string}
     camera: {type: string}
 device_inputs:
-  arm: {types: [manipulator]}
+  arm: {types: [joint]}
   camera: {types: [rgb, rgbd]}

@@ -142,18 +142,12 @@ class G1Env:
             positions=self.robot.data.joint_pos.torch[0, ids].cpu().tolist(),
             velocities=self.robot.data.joint_vel.torch[0, ids].cpu().tolist(),
         )
-        if name.endswith("hand"):
-            return {
-                **state,
-                "force_n": None,
-                "object_detected": None,
-                "pressure_pa": None,
-                "aperture_m": None,
-            }
         return {
             **state,
             "efforts": [],
-            "flange_pose": relative_pose(self._pose(part["base"]), self._pose(part["tip"])),
+            "frame_poses": {}
+            if name.endswith("hand")
+            else {"flange": relative_pose(self._pose(part["base"]), self._pose(part["tip"]))},
         }
 
     def require_active(self):

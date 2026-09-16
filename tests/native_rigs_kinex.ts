@@ -3,7 +3,7 @@ import path from "node:path"
 
 const [kinexArgument, ...workspaces] = process.argv.slice(2)
 const kinexRoot = path.resolve(kinexArgument)
-const { Device, RobotManifest } = await import(path.join(kinexRoot, "src/calibration/schema.ts"))
+const { Device, RobotManifest } = await import(path.join(kinexRoot, "src/device/profile/schema.ts"))
 const { missingActions } = await import(path.join(kinexRoot, "src/device/interface.ts"))
 const { calibrationPlan } = await import(path.join(kinexRoot, "src/calibration/dag.ts"))
 const results = []

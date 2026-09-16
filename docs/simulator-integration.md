@@ -140,7 +140,7 @@ effects, reads, and finalization through the same world authority. In synchronou
 mode, route a write through the same native interval implementation. Count physical
 intervals, including idle realtime intervals, according to the declared budget.
 
-Put FK/IK in the manipulator driver. Export static geometry where needed; a serial
+Put FK/IK in the joint driver. Export static geometry where needed; a serial
 chain can use Kinex's `kinex.kinematics`. The simulator supplies measured state
 and geometry, not a solver RPC. Local computation must not mutate live state.
 
@@ -150,7 +150,7 @@ and geometry, not a solver RPC. Local computation must not mutate live state.
 catalog/robots/SIMULATOR/ROBOT/
   workspace.yaml
   devices/NAME/profile.yaml
-  devices/NAME/driver.py       # except world and fixed base
+  devices/NAME/driver.py       # except world
   devices/NAME/_roboenv.py     # shared portable transport
 catalog/bindings/SIMULATOR/ROBOT.yaml
 catalog/tasks/SIMULATOR/TASK/task.yaml
@@ -172,7 +172,7 @@ IDs remain flat. Binding paths mirror the simulator namespaces.
 
 Use the actual Kinex schemas and required-action definitions to validate exports.
 Kinex’s type templates live in `builtin/device/templates/<type>/`; schemas and
-required actions live in `src/calibration/` and `src/device/interface.ts`. Validate
+required actions live in `src/device/profile/` and `src/device/interface.ts`. Validate
 against these actual definitions in development, without adding Kinex to the
 simulator worker’s dependencies.
 
@@ -182,6 +182,10 @@ simulator worker’s dependencies.
   and measured feedback frames/clock. Fixed bases are driverless static mounts.
 - End effectors declare tool/control type, independent measured channels, stop scope,
   and any known aperture conversion. Signed gripper commands remain native commands.
+  Grippers also describe their TCP, approach/closing axes and contact frames in
+  `intrinsics.geometry`; moving frames belong in every read's `frame_poses`.
+  Derive contacts from the model, keep unknown patch dimensions explicit, and
+  validate aperture against measured joint positions. See [gripper geometry](grippers.md).
 - Cameras use `intrinsics.color` for projection/distortion/FOV and `intrinsics.depth`
   for encoding, dimensions, registration, scale, invalid values, and depth quantity.
 - World is profile-only with optional bounds/surfaces; it has no access or extrinsics.
@@ -198,7 +202,7 @@ temporary directory, record source hashes, and test deterministic output. The
 [RoboCasa generator](../tools/generate_robocasa_config.py) demonstrates this process.
 
 Mount poses use metres and quaternion xyzw. Cameras use OpenCV optical axes
-(+X right, +Y down, +Z forward); convert native conventions explicitly. A manipulator
+(+X right, +Y down, +Z forward); convert native conventions explicitly. A joint device
 provides a live base-to-flange edge. Mount moving sensors on that flange instead of
 baking the current joint position into a rigid transform. Mobile bases have no static
 world mount. `feedback.pose_frame` declares the reference for their live pose edge;
@@ -207,7 +211,7 @@ an undeclared edge is not identity.
 Provide working drivers in the catalog, with JSON arguments and one JSON result on
 stdout. Diagnostics go to stderr. Success returns `ok: true` plus data; failure
 returns `ok: false` and an error. See the
-[manipulator adapter](../src/roboenv/assets/manipulator-client.py) and shared
+[joint adapter](../src/roboenv/assets/joint-client.py) and shared
 [transport](../src/roboenv/assets/_roboenv.py). Copy the transport support file beside
 each typed driver so individual device directories remain portable.
 
@@ -215,8 +219,8 @@ each typed driver so individual device directories remain portable.
 |---|---|
 | Sensor | `read`, `load`, `unload`, `status` |
 | Actuator | Sensor actions plus `write`, `stop` |
-| Manipulator | Actuator actions plus local `ik`, `fk` |
-| World / fixed base | No driver |
+| `joint`, `dexterous_hand` | Actuator actions; optional declared local `ik`, `fk` |
+| `world` | Profile only; no driver |
 
 Drivers run in the agent environment, which may have no RoboEnv or simulator
 packages. Transport uses the standard library; typed validation and local
@@ -240,8 +244,9 @@ backend: robocasa
 embodiment: panda_omron
 devices:
   base:
-    binding: robocasa.device/1
+    binding: robocasa.velocity/1
     entity: base
+    config: {part: base}
     profile: devices/base/profile.yaml
 ```
 
@@ -336,7 +341,7 @@ evidence and keep GPU/model runs within the authorized scope. See
 
 ### Native clocks
 
-RoboTwin, RoboDojo and BEHAVIOR share native target validation, atomic write groups,
+RoboTwin, RoboDojo and BEHAVIOR share native target validation, independent writes,
 owner recording and adapter lifecycle. RoboDojo and BEHAVIOR advance realtime
 physics on the worker's creating thread. BEHAVIOR accepts `--realtime` and `--sync`;
 its base execution profile follows the selected clock without changing geometry.

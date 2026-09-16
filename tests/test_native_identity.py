@@ -17,7 +17,7 @@ def test_backend_changes_do_not_invalidate_an_independent_native_world(tmp_path)
         "roboenv_runtime/adapters/robotwin/devices.py": "robotwin_control = 1\n",
         "roboenv_runtime/adapters/robodojo/devices.py": "robodojo_control = 1\n",
         "roboenv/provisioning/behavior_assets.py": "behavior_assets = 1\n",
-        "roboenv/assets/manipulator-client.py": "shared_driver = 1\n",
+        "roboenv/assets/joint-client.py": "shared_driver = 1\n",
     }
     for name, content in files.items():
         path = tmp_path / name
@@ -32,7 +32,7 @@ def test_backend_changes_do_not_invalidate_an_independent_native_world(tmp_path)
     assert implementation_inventory("robotwin", roots=roots) == before["robotwin"]
     assert implementation_inventory("behavior", roots=roots) != before["behavior"]
     before = {name: implementation_inventory(name, roots=roots) for name in _BACKEND_PACKAGES}
-    (tmp_path / "roboenv/assets/manipulator-client.py").write_text("shared_driver = 2\n")
+    (tmp_path / "roboenv/assets/joint-client.py").write_text("shared_driver = 2\n")
     for name in _BACKEND_PACKAGES:
         assert implementation_inventory(name, roots=roots) != before[name]
     before = {name: implementation_inventory(name, roots=roots) for name in _BACKEND_PACKAGES}
