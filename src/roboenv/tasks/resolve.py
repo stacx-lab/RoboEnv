@@ -27,7 +27,8 @@ class ResolvedTask:
         }
 
 
-def resolve_task(reference, *, project=None, catalog=None, realtime=None):
+def resolve_task(reference, *, project=None, catalog=None, realtime=None,
+                 arm_gravity_compensation=None):
     catalog = Path(catalog).resolve() if catalog else project_root(project) / "catalog"
     path = Path(reference)
     if not path.is_file():
@@ -43,6 +44,18 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None):
             )
         path = matches[0]
     task = Task.load(path)
+    if arm_gravity_compensation is not None:
+        if type(arm_gravity_compensation) is not bool:
+            raise ValueError("arm_gravity_compensation must be a boolean")
+        if task.backend != "simple":
+            raise ValueError("Arm gravity compensation selection is supported only for SIMPLE")
+        task = replace(task, backend_kwargs={
+            **task.backend_kwargs, "arm_gravity_compensation": arm_gravity_compensation,
+        })
+    if task.backend == "simple":
+        task = replace(task, backend_kwargs={
+            "arm_gravity_compensation": True, **task.backend_kwargs,
+        })
     if realtime is not None:
         if type(realtime) is not bool:
             raise ValueError("realtime must be a boolean")
@@ -53,6 +66,7 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None):
             "robodojo",
             "behavior",
             "isaaclab",
+            "simple",
         }
         if not selectable:
             raise ValueError(f"Clock selection is not supported for {task.backend}")
@@ -77,6 +91,22 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None):
                         else None
                     ),
                 }
+                spec = replace(spec, overrides={**spec.overrides, "intrinsics": intrinsics})
+            devices.append(spec)
+        bindings = replace(bindings, devices=tuple(devices))
+    if task.backend == "simple":
+        devices = []
+        for spec in bindings.devices:
+            profile = spec.resolved_profile(robot)
+            intrinsics = profile["intrinsics"]
+            if "control" in intrinsics:
+                intrinsics["control"]["execution"] = (
+                    {"mode": "realtime", "command_timeout_s":
+                     task.backend_kwargs.get("command_timeout_s", 0.5)
+                     if profile["type"] == "velocity" else None}
+                    if task.backend_kwargs.get("realtime", True)
+                    else {"mode": "stepped", "interval_s": 0.02}
+                )
                 spec = replace(spec, overrides={**spec.overrides, "intrinsics": intrinsics})
             devices.append(spec)
         bindings = replace(bindings, devices=tuple(devices))

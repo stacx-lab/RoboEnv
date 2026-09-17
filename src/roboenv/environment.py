@@ -240,12 +240,15 @@ def launch(
     host="127.0.0.1",
     port=0,
     realtime=None,
+    arm_gravity_compensation=None,
     log_stream=None,
 ):
     """Start a task in its isolated interpreter; return after device readiness.
 
     realtime=None preserves the task clock. RoboCasa accepts either override;
     Isaac Lab accepts False only.
+    arm_gravity_compensation overrides the SIMPLE task setting; None preserves
+    the task value, which defaults to True. Other backends reject this override.
     Backend assets must already be prepared. No installation or download occurs.
     All run definitions and logs are retained under the selected project's cache.
     """
@@ -259,7 +262,8 @@ def launch(
 
     ipaddress.IPv4Address(host)
     root = project_root(project)
-    resolved = resolve_task(task, project=root, catalog=catalog, realtime=realtime)
+    resolved = resolve_task(task, project=root, catalog=catalog, realtime=realtime,
+                            arm_gravity_compensation=arm_gravity_compensation)
     spec = resolved.task
     if interpreter is None:
         if spec.backend == "fakeshell":

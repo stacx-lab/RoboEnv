@@ -17,7 +17,6 @@ G1 follows the catalog ownership rules in [DESIGN.md](../DESIGN.md):
 | Runtime model and validation facts | `runtime/src/roboenv_runtime/adapters/isaaclab/g1.json` |
 | Pinned asset manifest | `src/roboenv/assets/isaaclab-g1.json` |
 | CPU generation receipt | `docs/isaaclab-g1-config.provenance.json` |
-| Optional Kinex controller example | `integrations/kinex/g1-motion/` |
 
 The binding plan lists six actuators, `world`, `camera_torso` and `camera_scene`.
 All nine have profiles; actuators and cameras also have drivers. Hand postures and
@@ -131,16 +130,10 @@ can mix concurrent reads and writes, returning individual results in input order
 It does not promise atomic updates or identical acquisition times. The operator
 ensures enabled devices do not overlap.
 
-The optional `integrations/kinex/g1-motion/` example shows how to combine device observations,
-moving frame conversion, independent arm IK and concurrent writes. It holds the
-waist and initial hand posture, follows optional frame-qualified wrist goals, and
-uses an explicit iteration budget. In realtime it caps polling at `rate_hz`
-(default 20), skips writes on repeated samples, and measures errors from fresh
-pre-write feedback rather than treating acknowledgment as applied motion.
-The iteration count is not a realtime physics-step count. Existing `servo_to` remains usable for individual
-joint motion. A whole-body optimizer is not required by the device interface.
-To use the example, copy its directory into the selected Kinex workspace's
-`tool/g1-motion/`; the native integration test does this explicitly.
+Kinex can control individual arms with `servo_to` and compose independent device
+calls. The native integration check installs `tests/fixtures/device-composition/`
+only into its temporary test workspace to exercise frame conversion, arm IK,
+concurrent writes and realtime polling. This fixture is not a task-facing tool.
 The prepared environment must include the upstream task dependencies, including
 `isaaclab_teleop`. Native replay is a separate check from profile/CPU validation.
 

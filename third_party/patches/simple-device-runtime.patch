@@ -1,0 +1,221 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index 8762d41..1bd4884 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -11,7 +11,6 @@ dependencies = [
+     "isaacsim[all,extscache]==4.5.0",
+     "mujoco==3.3.6",
+     #"nvidia-curobo",
+-    "openpi-client",
+     "python-fcl>=0.7.0.8",
+     "rich>=13.9.4",
+     "torch==2.7.0",
+@@ -25,6 +24,7 @@ dependencies = [
+ ]
+ 
+ [project.optional-dependencies]
++policy = ["openpi-client"]
+ rlds = [
+     "dm-env>=1.6",
+     "envlogger[tfds]>=1.2",
+diff --git a/src/simple/engines/isaacsim.py b/src/simple/engines/isaacsim.py
+index 14fccf8..fe33087 100755
+--- a/src/simple/engines/isaacsim.py
++++ b/src/simple/engines/isaacsim.py
+@@ -15,7 +15,9 @@ import omni.kit.primitive.mesh
+ import omni.replicator.core as rep
+ import omni.usd
+ import transforms3d as t3d
+-from curobo.types.state import JointState
++from typing import TYPE_CHECKING
++if TYPE_CHECKING:
++    from curobo.types.state import JointState
+ from isaacsim.util.debug_draw import _debug_draw
+ from omni.isaac.core.objects import GroundPlane, cuboid, sphere
+ from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
+@@ -795,6 +797,7 @@ class IsaacSimSimulator(Simulator):
+         if not self.visulize_spheres:
+             return
+ 
++        from curobo.types.state import JointState
+         from curobo.types.base import TensorDeviceType
+         tensor_args = TensorDeviceType()
+ 
+diff --git a/src/simple/envs/base_dual_env.py b/src/simple/envs/base_dual_env.py
+index 1cd5c09..8f4db4e 100644
+--- a/src/simple/envs/base_dual_env.py
++++ b/src/simple/envs/base_dual_env.py
+@@ -21,7 +21,7 @@ def _preload_native_runtime() -> None:
+     # Import torch/curobo before SimulationApp startup to avoid late native loads
+     # that can trip glibc TLS assertions during SIMPLE eval.
+     import torch  # noqa: F401
+-    from curobo.types.state import JointState  # noqa: F401
++    # Device control does not invoke CuRobo; planning imports it on demand.
+ 
+ class BaseDualSim(gym.Env):
+     """
+diff --git a/src/simple/envs/sonic_loco_manip.py b/src/simple/envs/sonic_loco_manip.py
+index d0f3be3..074bfb4 100644
+--- a/src/simple/envs/sonic_loco_manip.py
++++ b/src/simple/envs/sonic_loco_manip.py
+@@ -43,7 +43,9 @@ class SonicLocoManipEnv(BaseDualSim):
+         #     self.init_renderers()
+ 
+         try:
+-            if self.sonic_config.get("INTERFACE", None):
++            if self.sonic_config.get("IN_PROCESS_WBC", False):
++                pass
++            elif self.sonic_config.get("INTERFACE", None):
+                 ChannelFactoryInitialize(self.sonic_config["DOMAIN_ID"], self.sonic_config["INTERFACE"])
+             else:
+                 ChannelFactoryInitialize(self.sonic_config["DOMAIN_ID"])
+diff --git a/src/simple/robots/aloha.py b/src/simple/robots/aloha.py
+index a499495..7dffe48 100644
+--- a/src/simple/robots/aloha.py
++++ b/src/simple/robots/aloha.py
+@@ -21,13 +21,6 @@ import numpy as np
+ from torch._tensor import Tensor
+ import transforms3d as t3d
+ 
+-try:
+-    from curobo.types.base import TensorDeviceType
+-    from curobo.types.robot import RobotConfig
+-    from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
+-    from curobo.util_file import join_path
+-except ImportError:
+-    raise RuntimeError("curobo not installed, uv pip install --groups curobo")
+ 
+ @RobotRegistry.register("aloha")
+ class Aloha(CuRoboMixin, WristCamMountable, Robot, DualArm):
+diff --git a/src/simple/robots/mixin.py b/src/simple/robots/mixin.py
+index 218bf78..1331d5d 100644
+--- a/src/simple/robots/mixin.py
++++ b/src/simple/robots/mixin.py
+@@ -14,16 +14,6 @@ import torch
+ import numpy as np
+ # from simple.mp.curobo import CuRoboPlanner
+ 
+-try:
+-    # import curobo
+-    from curobo.types.base import TensorDeviceType
+-    from curobo.types.math import Pose
+-    from curobo.wrap.reacher.ik_solver import IKSolver
+-    from curobo.types.robot import RobotConfig
+-    from curobo.util_file import join_path
+-    from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
+-except ImportError:
+-    raise RuntimeError("curobo not installed, uv pip install --groups curobo")
+ 
+ 
+ class CuRoboMixin(BatchPlannable, Controllable, Graspable, HasKinematics):
+@@ -59,6 +49,12 @@ class CuRoboMixin(BatchPlannable, Controllable, Graspable, HasKinematics):
+         @param qpos: list of joint positions
+         @return: hand_pose: (position, quaternion)
+         """
++        from curobo.types.base import TensorDeviceType
++        from curobo.types.math import Pose
++        from curobo.wrap.reacher.ik_solver import IKSolver
++        from curobo.types.robot import RobotConfig
++        from curobo.util_file import join_path
++        from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
+         if isinstance(qpos, dict):
+             qpos_list = []
+             for jname in self.kin_model.joint_names:
+@@ -79,6 +75,12 @@ class CuRoboMixin(BatchPlannable, Controllable, Graspable, HasKinematics):
+             inverse kinematics implmented by curobo
+             required by agents using (delta) eef control such as OpenVLA, Octo, etc.
+         """
++        from curobo.types.base import TensorDeviceType
++        from curobo.types.math import Pose
++        from curobo.wrap.reacher.ik_solver import IKSolver
++        from curobo.types.robot import RobotConfig
++        from curobo.util_file import join_path
++        from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
+         ik_solver = self._create_empty_world_ik_solver()
+         
+         tensor_args = TensorDeviceType()
+@@ -126,6 +128,12 @@ class CuRoboMixin(BatchPlannable, Controllable, Graspable, HasKinematics):
+         Returns:
+             position (3D np.ndarray), orientation (quaternion as 4D np.ndarray)
+         """
++        from curobo.types.base import TensorDeviceType
++        from curobo.types.math import Pose
++        from curobo.wrap.reacher.ik_solver import IKSolver
++        from curobo.types.robot import RobotConfig
++        from curobo.util_file import join_path
++        from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
+         robot = cast("Robot", self)
+         if not isinstance(joint_qpos, dict):
+             joint_qpos = dict(zip(robot.joint_names, joint_qpos))
+@@ -151,6 +159,12 @@ class CuRoboMixin(BatchPlannable, Controllable, Graspable, HasKinematics):
+         return np.concatenate(hand_pose, axis=0).tolist()
+     
+     def _get_kinematic_model(self): # TODO DO NOT PUBLIC THIS FUNCTION
++        from curobo.types.base import TensorDeviceType
++        from curobo.types.math import Pose
++        from curobo.wrap.reacher.ik_solver import IKSolver
++        from curobo.types.robot import RobotConfig
++        from curobo.util_file import join_path
++        from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
+         if self._kin_model is None:
+             robot = cast("Robot", self)
+             assert isinstance(robot.robot_cfg, dict)
+@@ -172,6 +186,12 @@ class CuRoboMixin(BatchPlannable, Controllable, Graspable, HasKinematics):
+         return self._kin_model
+     
+     def _create_empty_world_ik_solver(self): # TODO DO NOT PUBLIC THIS FUNCTION
++        from curobo.types.base import TensorDeviceType
++        from curobo.types.math import Pose
++        from curobo.wrap.reacher.ik_solver import IKSolver
++        from curobo.types.robot import RobotConfig
++        from curobo.util_file import join_path
++        from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
+         robot = cast("Robot", self)
+         if self._ik_solver is None:
+             ik_solver = IKSolver(IKSolver.load_from_robot_config(
+diff --git a/src/simple/robots/protocols.py b/src/simple/robots/protocols.py
+index 523fcac..d883afe 100644
+--- a/src/simple/robots/protocols.py
++++ b/src/simple/robots/protocols.py
+@@ -9,11 +9,6 @@ import numpy as np
+ from simple.core.controller import Controller, ControllerCfg
+ from simple.core.action import ActionCmd
+ 
+-try:
+-    from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
+-    from curobo.wrap.reacher.ik_solver import IKSolver
+-except ImportError:
+-    CUROBO = None
+ 
+ class HasDexterousHand:
+     hand_yaml: str
+diff --git a/src/simple/utils.py b/src/simple/utils.py
+index 1122a02..3c1367c 100644
+--- a/src/simple/utils.py
++++ b/src/simple/utils.py
+@@ -8,6 +8,7 @@ import re
+ import subprocess
+ import time
+ import zipfile
++from pathlib import Path
+ from collections import defaultdict
+ from contextlib import contextmanager
+ from datetime import datetime
+@@ -33,7 +34,7 @@ def get_res_dir() -> str:
+ 
+ 
+ def get_data_dir() -> str:
+-    return res.files("simple").parent.parent / "data"  # type: ignore
++    return Path(os.environ["SIMPLE_DATA_DIR"]) if "SIMPLE_DATA_DIR" in os.environ else res.files("simple").parent.parent / "data"
+ 
+ 
+ def _parse_zip_file_from_rel_path(rel_path: str) -> str:
+@@ -111,7 +112,7 @@ def resolve_data_path(
+     with as_file(data_dir / rel_path) as res_path:
+         # assert res_path.exists(), f"Data not found: {res_path}"
+         if not res_path.exists():
+-            if not auto_download:
++            if not auto_download or os.environ.get("SIMPLE_OFFLINE") == "1":
+                 raise FileNotFoundError(res_path)
+ 
+             if create_if_not_exist:

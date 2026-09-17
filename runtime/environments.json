@@ -116,6 +116,29 @@
       ],
       "asset_instructions": "docs/isaaclab.md",
       "index_strategy": "unsafe-best-match"
+    },
+    "simple": {
+      "python": "3.10",
+      "lock": "runtime/locks/simple-resolved.txt",
+      "editables": [
+        "third_party/SIMPLE",
+        "third_party/SIMPLE/third_party/decoupled_wbc",
+        "third_party/SIMPLE/third_party/gear_sonic",
+        "third_party/SIMPLE/third_party/unitree_sdk2_python"
+      ],
+      "index_url": "https://pypi.org/simple",
+      "extra_indexes": [
+        "https://pypi.nvidia.com",
+        "https://download.pytorch.org/whl/cu128"
+      ],
+      "index_strategy": "unsafe-best-match",
+      "known_blockers": [],
+      "import_probes": [
+        "simple.envs",
+        "decoupled_wbc.control.policy.wbc_policy_factory",
+        "roboenv_runtime.adapters.simple"
+      ],
+      "asset_instructions": "docs/simple.md"
     }
   }
 }

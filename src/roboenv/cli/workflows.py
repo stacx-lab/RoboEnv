@@ -42,6 +42,16 @@ def add_commands(commands):
                 help="Advance one control interval per write on a supported backend",
             )
             parser.set_defaults(realtime=None)
+            gravity = parser.add_mutually_exclusive_group()
+            gravity.add_argument(
+                "--arm-gravity-compensation", dest="arm_gravity_compensation",
+                action="store_true", help="Enable SIMPLE arm gravity feedforward (default)",
+            )
+            gravity.add_argument(
+                "--no-arm-gravity-compensation", dest="arm_gravity_compensation",
+                action="store_false", help="Disable SIMPLE arm gravity feedforward",
+            )
+            parser.set_defaults(arm_gravity_compensation=None)
             parser.add_argument("--host", default="127.0.0.1")
             parser.add_argument("--interpreter", type=Path)
             parser.add_argument("--timeout", type=float, default=900)
@@ -116,6 +126,7 @@ def execute(args):
             port=args.port,
             host=args.host,
             realtime=args.realtime,
+            arm_gravity_compensation=args.arm_gravity_compensation,
             log_stream=sys.stderr,
         )
         emit(environment.record, machine=args.json)

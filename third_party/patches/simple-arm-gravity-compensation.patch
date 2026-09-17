@@ -1,0 +1,67 @@
+diff --git a/src/simple/robots/g1_sonic.py b/src/simple/robots/g1_sonic.py
+index 74160fc..bf2bddf 100644
+--- a/src/simple/robots/g1_sonic.py
++++ b/src/simple/robots/g1_sonic.py
+@@ -248,6 +248,17 @@ class G1Sonic(CuRoboMixin,Humanoid,Robot,HeadCamMountable,HasDexterousHand):
+         self.left_hand_index = np.array(left_hand_index)
+         self.right_hand_index = np.array(right_hand_index)
+ 
++        self.arm_gravity = None
++        compensate = self.sonic_config.get("ARM_GRAVITY_COMPENSATION", False)
++        if type(compensate) is not bool:
++            raise ValueError("ARM_GRAVITY_COMPENSATION must be a boolean")
++        if compensate:
++            from simple.robots.arm_gravity import ArmGravityCompensation
++
++            self.arm_gravity = ArmGravityCompensation(
++                self.mjModel, LEFT_ARM_JOINTS + RIGHT_ARM_JOINTS, self.body_joint_index
++            )
++
+         actuators = {}
+         joints = {}
+         
+@@ -415,6 +426,8 @@ class G1Sonic(CuRoboMixin,Humanoid,Robot,HeadCamMountable,HasDexterousHand):
+                 dq_cur = self.mjData.qvel[self.body_joint_index + self.qvel_offset - 1]
+ 
+                 body_torques = kp * (target_q - q_cur) + kd * (0 - dq_cur)
++                if self.arm_gravity is not None:
++                    body_torques += self.arm_gravity(self.mjData)
+                 self.torques[self.body_joint_index - 1] = body_torques
+ 
+                 # Hand PD control (driven by trigger/grip via decoupled WBC teleop IK)
+diff --git a/src/simple/robots/arm_gravity.py b/src/simple/robots/arm_gravity.py
+new file mode 100644
+--- /dev/null
++++ b/src/simple/robots/arm_gravity.py
+@@ -0,0 +1,31 @@
++"""Gravity-only arm feedforward; scratch state never touches the live solver."""
++
++import mujoco
++import numpy as np
++
++
++class ArmGravityCompensation:
++    def __init__(self, model, arm_names, body_joint_ids):
++        self.model = model
++        self.data = mujoco.MjData(model)
++        self.forces = np.zeros(model.nv)
++        ids = [model.joint(name).id for name in arm_names]
++        if len(ids) != 14 or len(set(ids)) != 14:
++            raise ValueError("Expected fourteen distinct arm joints")
++        if any(model.jnt_type[index] != mujoco.mjtJoint.mjJNT_HINGE for index in ids):
++            raise ValueError("Arm gravity compensation requires scalar hinge joints")
++        self.dofs = model.jnt_dofadr[ids]
++        body_ids = list(body_joint_ids)
++        self.slots = [body_ids.index(index) for index in ids]
++        self.torque = np.zeros(len(body_ids))
++
++    def __call__(self, live):
++        self.data.qpos[:] = live.qpos
++        # Scratch qvel stays zero: live qfrc_bias would also cancel Coriolis and
++        # centrifugal forces. Refresh only the quantities required by mj_rne.
++        mujoco.mj_kinematics(self.model, self.data)
++        mujoco.mj_comPos(self.model, self.data)
++        mujoco.mj_comVel(self.model, self.data)
++        mujoco.mj_rne(self.model, self.data, 0, self.forces)
++        self.torque[self.slots] = self.forces[self.dofs]
++        return self.torque

@@ -7,7 +7,9 @@ from pathlib import Path
 
 from roboenv.validation import json_value, yaml_load
 
-DEVICE_BACKENDS = frozenset({"libero", "robocasa", "isaaclab", "robotwin", "robodojo", "behavior"})
+DEVICE_BACKENDS = frozenset({
+    "libero", "robocasa", "isaaclab", "robotwin", "robodojo", "behavior", "simple",
+})
 
 @dataclass(frozen=True)
 class Task:
@@ -59,6 +61,11 @@ class Task:
         json_value(task.backend_kwargs)
         if "realtime" in task.backend_kwargs and type(task.backend_kwargs["realtime"]) is not bool:
             raise ValueError("realtime must be a boolean")
+        if "arm_gravity_compensation" in task.backend_kwargs:
+            if type(task.backend_kwargs["arm_gravity_compensation"]) is not bool:
+                raise ValueError("arm_gravity_compensation must be a boolean")
+            if task.backend != "simple":
+                raise ValueError("Arm gravity compensation selection is supported only for SIMPLE")
         if task.device_bindings is not None:
             from roboenv.devices.bindings.spec import BindingSpec
 

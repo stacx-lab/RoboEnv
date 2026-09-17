@@ -477,6 +477,10 @@ def prepare(backend, *, project=None, install_to=None, progress=None):
 
 
 def _prepare_assets(backend, root, report, progress):
+    if backend == "simple":
+        from roboenv.provisioning.simple_assets import prepare_assets
+
+        return {**report, **prepare_assets(root, progress=progress)}
     if backend == "behavior":
         from roboenv.provisioning.behavior_assets import prepare_assets
 
@@ -536,7 +540,8 @@ def doctor(backend, *, project=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "backend", choices=("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab")
+        "backend",
+        choices=("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab", "simple"),
     )
     parser.add_argument(
         "--install", action="store_true", help="May download many GB; assets excluded"

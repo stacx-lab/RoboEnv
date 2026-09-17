@@ -49,7 +49,8 @@ Do not add policy registries, whole-body IK, or runtime control-mode switching n
 - Added generated base, waist, independent arms and TriHand profiles.
 - Added shared-worker target retention, snapshot and single-interval batch writes.
 - Added local asset/source verification and upstream pick/place joint-action adapter.
-- Added the Kinex g1_motion workspace example and CPU control/export tests.
+- Added a Kinex composition example and CPU control/export tests; the example is
+  now a test-only fixture under `tests/fixtures/device-composition/`.
 - Native batch/retention/stop and exported Kinex controller checks passed.
 - Native task completion remains a separate validation gate; rendering was verified
   on the available H100 with the existing RGB-D probe.
@@ -58,7 +59,7 @@ Do not add policy registries, whole-body IK, or runtime control-mode switching n
   portable task paths and checksum-pinned asset preparation.
 
 - G1 layout follows the catalog boundary: external bindings, package-owned runtime
-  facts/asset pins, docs provenance, and opt-in Kinex integration tools. Robot
+  facts/asset pins, docs provenance, and test-only Kinex composition fixtures. Robot
   directories contain only workspace.yaml and devices/.
 
 ## Unified base contract
@@ -87,7 +88,7 @@ Earlier Go2/direct-joint and multi-mode entries are historical and superseded.
 - [x] Optional main-thread world-clock stepping; synchronous mode remains the default.
 - [x] Atomic target replacement, independent physics timestamps, terminal-write rejection and no post-terminal physics.
 - [x] Owner-side base expiry to zero travel with retained height (0.5 s default, task-configurable).
-- [x] Runtime execution facts, matching Kinex workspace flags, and paced/fresh-feedback G1 controller example.
+- [x] Runtime execution facts, matching Kinex workspace flags, and paced/fresh-feedback Kinex integration fixture.
 - [ ] Native GPU pacing, camera-load, balance and fresh-process realtime replay validation.
 
 ## Uncapped G1 realtime horizon

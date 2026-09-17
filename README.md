@@ -112,6 +112,14 @@ TCP descriptions, approach/closing axes, moving contact frames and physical
 aperture feedback. Mesh contact patches keep rectangular dimensions unset.
 See [gripper geometry](docs/grippers.md) for frame conventions and source validation.
 
+SIMPLE G1 uses a `velocity` base for legs and waist, separate `joint` arms,
+`dexterous_hand` fingers, and stereo RGB cameras. Run `roboenv prepare simple`
+and `roboenv launch simple/g1-xmove-pick`. The default is realtime with Isaac
+rendering over MuJoCo physics; `--sync` enables one control interval per device
+write. See [SIMPLE setup, contracts and validation](docs/simple.md) for requirements
+and the current validation limits. The metric control interface is a practice
+protocol; native success predicates are preserved.
+
 Isaac Lab is experimental and not officially supported. Its G1 practice interface
 uses a named locomotion-mode base (velocity plus posture), independent waist/arm joint control, hands and
 RGB-D cameras. The old Go2 joint-posture demo has been removed; no Go2 locomotion
