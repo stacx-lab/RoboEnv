@@ -1,0 +1,18 @@
+identity:
+  id: g1
+  name: G1
+  kind: humanoid
+  model: Unitree G1 Dex3
+  platform: sim
+  source: introspected
+sim:
+  simulator: simple
+  source: introspected
+devices:
+  source: introspected
+safety:
+  max_cartesian_velocity: null
+  max_joint_velocity: null
+meta:
+  created_at: '2026-09-14T00:00:00Z'
+  updated_at: '2026-09-14T00:00:00Z'

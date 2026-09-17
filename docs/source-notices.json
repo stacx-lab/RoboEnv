@@ -94,6 +94,46 @@
           "sha256": "e2885fd30a08381b799c4a33385522b23d637b4051b8f9a7f9f2519944b68ff6"
         }
       ]
+    },
+    "simple": {
+      "revision": "6d10628794d9c7de4596b4f2afb2c054a637c2bc",
+      "notices": [
+        {
+          "path": "license.md",
+          "sha256": "9d9e250c9e7e509c17754287646f6f99a958aba45bbabdeadb3e3c4f76350d98"
+        }
+      ]
+    },
+    "simple_decoupled_wbc": {
+      "revision": "5b304e4d643fe89cd000068dcbba7e7519539caa",
+      "notices": [
+        {
+          "path": "sim2mujoco/resources/robots/g1/policy/NVIDIA Open Model License",
+          "sha256": "a0c4f6a35dd2c858c86069d84140052831820e78f3074a2fb758bb4156b66994"
+        }
+      ]
+    },
+    "simple_gear_sonic": {
+      "revision": "e61eeb1dec9678dcc02f97c5ac27ca6a4fe82128",
+      "notices": [
+        {
+          "path": "pyproject.toml",
+          "sha256": "c1a49d5137515bc9a6dbde3a5501c1cc9be9ee8e523138538a8eb145e4fb92cf"
+        },
+        {
+          "path": "trl/utils/rotation_conversion.py",
+          "sha256": "a2c350e42cc4e7eb906755867f1d977733d190925f22419e4b2e285ffac2bfa1"
+        }
+      ]
+    },
+    "simple_unitree_sdk2_python": {
+      "revision": "cf26ccef0e615c9509140322bec154adc391c052",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "a5d73fc4aca9074e3e6fe0b1a0ba763cf9514b2249b7390ed20fe8d53630bf25"
+        }
+      ]
     }
   }
 }

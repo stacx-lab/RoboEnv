@@ -16,8 +16,8 @@ const devices = await Promise.all(names.map(async (name) => {
 }))
 try {
   const before = Object.fromEntries(await Promise.all(devices.map(async (device) => [device.name, (await dispatchDevice(cwd, device, "read", {})).data])))
-  const tool = (await pythonTools(cwd)).tools.find((tool: { id: string }) => tool.id === "g1_motion")
-  if (!tool) throw new Error("Missing g1_motion")
+  const tool = (await pythonTools(cwd)).tools.find((tool: { id: string }) => tool.id === "device_composition_probe")
+  if (!tool) throw new Error("Missing device_composition_probe")
   const goals = Object.fromEntries(["left_arm", "right_arm"].map((name) =>
     [name, { frame: name, pose: before[name].frame_poses.flange }]))
   const result = await execute(tool, { steps: 3, goals }, {

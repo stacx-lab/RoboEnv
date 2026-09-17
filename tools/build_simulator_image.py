@@ -21,6 +21,7 @@ from roboenv.validation import yaml_load
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 SOURCES = {
+    "simple": ["third_party/SIMPLE"],
     "isaaclab": ["third_party/IsaacLab"],
     "libero": ["third_party/LIBERO"],
     "robotwin": ["third_party/RoboTwin"],
@@ -33,6 +34,7 @@ SOURCES = {
     "behavior": ["third_party/BEHAVIOR-1K"],
 }
 EXTERNAL = {
+    "simple": [".cache/simple/data"],
     "isaaclab": [".cache/isaaclab/assets"],
     "libero": [],
     "robotwin": ["third_party/RoboTwin/assets"],
@@ -250,6 +252,13 @@ def main():
             raise FileNotFoundError(f"required dependency missing: {source}")
         target = context / "runtime-data" / relative
         shutil.copytree(source, target, symlinks=True, ignore=ignore, dirs_exist_ok=True)
+    if args.backend == "simple":
+        pin = json.loads((root / "src/roboenv/assets/simple-g1.json").read_text())
+        receipts = context / "runtime-data/.cache/simple"
+        receipts.mkdir(parents=True, exist_ok=True)
+        for entry in pin["archives"]:
+            name = entry["file"] + ".json"
+            shutil.copy2(root / ".cache/simple" / name, receipts / name)
     descriptions = root / ".cache/robot_descriptions"
     if descriptions.is_dir():
         shutil.copytree(

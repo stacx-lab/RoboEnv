@@ -6,7 +6,8 @@
     "robodojo",
     "robotwin",
     "behavior",
-    "isaaclab"
+    "isaaclab",
+    "simple"
   ],
   "sources": {
     "robocasa": {
@@ -127,6 +128,57 @@
           "path": "third_party/patches/libero-namespace-packaging.patch",
           "sha256": "4b82c2465305acf5a2c067053d626a4531002fa54ce1578ab2c8b6fcd0973b47"
         }
+      ]
+    },
+    "simple": {
+      "path": "third_party/SIMPLE",
+      "url": "https://github.com/physical-superintelligence-lab/SIMPLE.git",
+      "revision": "6d10628794d9c7de4596b4f2afb2c054a637c2bc",
+      "backends": [
+        "simple"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/simple-device-runtime.patch",
+          "sha256": "dd8722de66010f07c86ad3659a5025c276ad6eaa95d60ec3b00f7c7d7edce186"
+        },
+        {
+          "path": "third_party/patches/simple-arm-gravity-compensation.patch",
+          "sha256": "be2e7f1fa1cf9f5238ea384b6599de490d394adcfc2895bb36589b80b08b9556"
+        }
+      ]
+    },
+    "simple_decoupled_wbc": {
+      "path": "third_party/SIMPLE/third_party/decoupled_wbc",
+      "parent": "simple",
+      "url": "https://github.com/songlin/decoupled_wbc.git",
+      "revision": "5b304e4d643fe89cd000068dcbba7e7519539caa",
+      "backends": [
+        "simple"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/simple-decoupled-control.patch",
+          "sha256": "da10d28951f61010f3c490b635d6e163bd1cd675e0a6b736ad47d5a948c99ca0"
+        }
+      ]
+    },
+    "simple_gear_sonic": {
+      "path": "third_party/SIMPLE/third_party/gear_sonic",
+      "parent": "simple",
+      "url": "https://github.com/songlin/gear_sonic.git",
+      "revision": "e61eeb1dec9678dcc02f97c5ac27ca6a4fe82128",
+      "backends": [
+        "simple"
+      ]
+    },
+    "simple_unitree_sdk2_python": {
+      "path": "third_party/SIMPLE/third_party/unitree_sdk2_python",
+      "parent": "simple",
+      "url": "https://github.com/songlin/unitree_sdk2_python.git",
+      "revision": "cf26ccef0e615c9509140322bec154adc391c052",
+      "backends": [
+        "simple"
       ]
     }
   }
