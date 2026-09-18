@@ -26,7 +26,7 @@ SOURCE_FILES = [
 META = {"created_at": "2026-09-13T00:00:00Z", "updated_at": "2026-09-13T00:00:00Z"}
 
 
-def generate(assets, out, *, facts_out=None, provenance=None):
+def generate(assets, out, *, facts_out=None, provenance=None, bindings_out=None):
     from g1_kinematics import extract
     from pxr import Usd
 
@@ -132,24 +132,25 @@ def generate(assets, out, *, facts_out=None, provenance=None):
                 json.dumps(
                     {
                         "schema": "roboenv/driver-resources/1",
-                        "files": ["driver.py", "_roboenv.py", "postures.json"],
+                        "files": ["driver.py", "postures.json"],
                     }
                 )
                 + "\n"
             )
-    binding = out / "bindings/isaaclab/isaaclab-g1.yaml"
-    binding.parent.mkdir(parents=True, exist_ok=True)
-    binding.write_text(
-        yaml.safe_dump(
-            {
-                "schema_version": "roboenv/bindings/1",
-                "backend": "isaaclab",
-                "embodiment": "g1",
-                "devices": bindings,
-            },
-            sort_keys=False,
+    if bindings_out is not None:
+        binding = bindings_out / "isaaclab/isaaclab-g1.yaml"
+        binding.parent.mkdir(parents=True, exist_ok=True)
+        binding.write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": "roboenv/bindings/1",
+                    "backend": "isaaclab",
+                    "embodiment": "g1",
+                    "devices": bindings,
+                },
+                sort_keys=False,
+            )
         )
-    )
     task = out / "tasks/isaaclab/g1-pick-place"
     task.mkdir(parents=True, exist_ok=True)
     (task / "task.yaml").write_text(
@@ -220,9 +221,11 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=Path, required=True, help="Generated catalog directory")
     parser.add_argument("--facts-out", type=Path, help="Optional runtime model output")
     parser.add_argument("--provenance", type=Path, help="Optional CPU generation receipt")
+    parser.add_argument("--bindings-out", type=Path, help="Separate internal binding resource root")
     options = parser.parse_args()
     print(
         generate(
-            options.assets, options.out, facts_out=options.facts_out, provenance=options.provenance
+            options.assets, options.out, facts_out=options.facts_out, provenance=options.provenance,
+            bindings_out=options.bindings_out,
         )
     )

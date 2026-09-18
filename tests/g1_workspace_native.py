@@ -1,4 +1,4 @@
-"""Explicit public G1 service and exported Kinex controller integration check."""
+"""Explicit public G1 service check using a test-only Kinex composition fixture."""
 
 import argparse
 import json
@@ -23,7 +23,9 @@ def main():
     workspace = options.out.resolve() / "workspace"
     # Refuse to overwrite a workspace that may contain user edits.
     shutil.copytree(options.catalog / "robots/isaaclab/isaaclab-g1", workspace / ".kinex")
-    shutil.copytree(root / "integrations/kinex/g1-motion", workspace / ".kinex/tool/g1-motion")
+    shutil.copytree(
+        root / "tests/fixtures/device-composition", workspace / ".kinex/tool/device-composition",
+    )
     for file in (workspace / ".kinex/devices").glob("*/profile.yaml"):
         profile = yaml.safe_load(file.read_text())
         if "access" in profile:

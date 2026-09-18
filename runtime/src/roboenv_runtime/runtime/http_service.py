@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from roboenv.devices.contract import SERVICE_OPS
 
-PUBLIC_OPS = SERVICE_OPS | {"health"}
+PUBLIC_OPS = SERVICE_OPS | {"health", "simulation.status", "simulation.stop"}
 from roboenv.validation import json_loads
 
 from .protocol import ProtocolError, Request, encode_ndjson

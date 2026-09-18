@@ -37,13 +37,17 @@ catalog/
     devices/<name>/
       profile.yaml
       driver.py          # absent for world
-  bindings/<robot-id>.yaml
   tasks/<simulator>/<task-name>/task.yaml
 ```
 
 The copyable robot directory contains only `workspace.yaml` and `devices/`.
-Simulator bindings belong outside it. Source receipts and integration notes belong
-in `docs/`; generators belong in `tools/`; test-only profiles belong in test fixtures.
+Simulator binding defaults are internal package resources under
+`src/roboenv/devices/bindings/defaults/<backend>/<robot>.yaml`, selected by backend
+and robot directory name. They are packaged with the SDK so launch and export can
+resolve them without importing simulator engines. Explicit task bindings override
+owner-bundle plans, which override built-in defaults. Source receipts and integration
+notes belong in `docs/`; generators belong in `tools/`; test-only profiles belong in
+test fixtures.
 Do not add task/session files, deployment paths, or simulator metadata to the robot
 workspace. A particular device may need local implementation resources, but those
 are not a reason to copy the simulator or its scene assets into the agent workspace.

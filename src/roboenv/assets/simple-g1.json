@@ -1,0 +1,56 @@
+{
+  "schema": "roboenv/simple-assets/1",
+  "repository": "USC-PSI-Lab/SIMPLE",
+  "revision": "1ce0fa3956706b408df2c7c0e26b0298aa7411fd",
+  "archives": [
+    {
+      "file": "assets_graspnet.zip",
+      "size": 373857478,
+      "sha256": "51f7f4a97463c3f3e9f3bf9f6d1155d362fc1662e9335cceb03a598b7fe67cb5",
+      "destination": ".",
+      "inventory_sha256": "3c273894138c668e2732b6fd5859931c848e52934eb3758b9aa861d980f35e41"
+    },
+    {
+      "file": "robots_g1.zip",
+      "size": 134402738,
+      "sha256": "304749f4882ec9445b70f34df9cd884b0fe408187a6eaf0f455ca5b68bcb98c6",
+      "destination": ".",
+      "inventory_sha256": "db1867910991f041f898f87fc44786a48e5fc6f4f48267bdd104e8f3454a7337"
+    },
+    {
+      "file": "robots_g1_sonic.zip",
+      "size": 23114187,
+      "sha256": "6c802053e1777f675068795d6100dd9c2b1e1853252ad31c0bf3c4285ef76b63",
+      "destination": ".",
+      "inventory_sha256": "6bd807708572ad6c25ac0f420b84831014f0a4da1bc29c148a20dfa9790272be"
+    },
+    {
+      "file": "scenes_hssd_107734119_175999932.zip",
+      "size": 77192209,
+      "sha256": "fd04f1c3612b249ddb43e7e420ff46a0fe625cdc6aa22cd3b6451623d44e3448",
+      "destination": ".",
+      "inventory_sha256": "adc761412643ad0f7037d3775c1ff9e023cf981270203728f249070c0930843f"
+    },
+    {
+      "file": "vMaterials_2.zip",
+      "size": 3171531177,
+      "sha256": "9e9819bdcd03dce499f45f87b8af27563d6ff6c868492cf0d6e769626921243d",
+      "destination": "vMaterials_2",
+      "inventory_sha256": "365a7d1c26a4d17f8100373851c419ef93ea3526ec60903e2bfb6c5ba3827ad1"
+    },
+    {
+      "file": "assets_objects.zip",
+      "size": 140486435,
+      "sha256": "d62b9c214ae69d56c23dff9263e26a4d90fb16a6cdd47de4597022a740d29739",
+      "destination": ".",
+      "inventory_sha256": "0c75a21f74ca9c9783dafb098411eb9edacdb4b2ceb0b9977bd13247188c3108"
+    },
+    {
+      "file": "scenes_hssd_102344022.zip",
+      "size": 389267649,
+      "sha256": "da90862e486eb3f8dff25291923be4d03023afe57ed8aae9c824f20f4fd66338",
+      "destination": ".",
+      "inventory_sha256": "91958f3a317f6440e55933e10f3f34164c9ce26c770acd7241bcd88d55317ff6"
+    }
+  ]
+}

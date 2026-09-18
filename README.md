@@ -42,9 +42,20 @@ print(env.device("arm").read())
 
 The CLI exposes the same devices: `roboenv device arm read '{}' --endpoint URL`.
 Omit `--port` to assign a free port automatically. Concurrent runs use different ports;
-`roboenv.connect()` also discovers a single ready local run. Use `--endpoint URL`
-when several environments are running. `launch` owns the environment until Ctrl-C;
-`--detach` leaves it running for `roboenv stop http://127.0.0.1:8123`.
+`roboenv.connect()` also discovers a single ready local run. Select a local
+service by port for lifecycle commands:
+
+```sh
+roboenv status --port 8123 --json
+roboenv stop --port 8123 --json
+```
+
+`--port` targets `127.0.0.1`. Use `--endpoint http://HOST:PORT` for a remote or
+container service. Either explicit selector overrides `ROBOENV_ENDPOINT` and
+selects only that service; selectors cannot be combined.
+HTTP stop requires launch with `--allow-stop`. Local owners can instead stop a
+run by ID or `run.json` path. `launch` owns the environment until Ctrl-C;
+`--detach` leaves it running until stopped.
 Python owners use `with roboenv.launch(task="TASK_ID", port=8123) as run:`
 and connect to `run.endpoint`. Use
 `--host 0.0.0.0` when serving a task across an isolated container network.
@@ -112,6 +123,14 @@ TCP descriptions, approach/closing axes, moving contact frames and physical
 aperture feedback. Mesh contact patches keep rectangular dimensions unset.
 See [gripper geometry](docs/grippers.md) for frame conventions and source validation.
 
+SIMPLE G1 uses a `velocity` base for legs and waist, separate `joint` arms,
+`dexterous_hand` fingers, and stereo RGB cameras. Run `roboenv prepare simple`
+and `roboenv launch simple/g1-xmove-pick`. The default is realtime with Isaac
+rendering over MuJoCo physics; `--sync` enables one control interval per device
+write. See [SIMPLE setup, contracts and validation](docs/simple.md) for requirements
+and the current validation limits. The metric control interface is a practice
+protocol; native success predicates are preserved.
+
 Isaac Lab is experimental and not officially supported. Its G1 practice interface
 uses a named locomotion-mode base (velocity plus posture), independent waist/arm joint control, hands and
 RGB-D cameras. The old Go2 joint-posture demo has been removed; no Go2 locomotion
@@ -165,7 +184,8 @@ src/roboenv/
 `runtime/` contains simulator adapters, workers, and scoring. Runtime device
 handlers are grouped by simulator under `bindings/backends/`; robot variants
 reuse shared implementations through an explicit binding index.
-`catalog/` holds robot facts and small task examples. `third_party/`
+`catalog/` exposes reusable robot definitions and small task examples. Native
+binding defaults are internal resources in `src/roboenv/devices/bindings/defaults/`. `third_party/`
 contains pinned submodules and recorded patches. Generated output and local
 environments stay outside Git.
 

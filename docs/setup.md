@@ -97,8 +97,15 @@ It assigns a free loopback HTTP port and prints an endpoint and directory
 containing profiles and thin drivers. Select a fixed port with `--port 8123`;
 an occupied port fails startup instead of attaching to another environment. Keep
 the command running; Ctrl-C closes the environment. Use `--detach` to leave it
-running and `roboenv stop http://127.0.0.1:8123` to close it later from the same
-project. `roboenv status http://127.0.0.1:8123` reports service health.
+running and `roboenv stop RUN_ID --project PROJECT` to close that local run later.
+For HTTP clients, select the local service with `roboenv status --port 8123 --json`
+or `roboenv stop --port 8123 --json`. The port selects `127.0.0.1`; use
+`--endpoint http://HOST:PORT` for remote or container services. HTTP stop requires
+`--allow-stop` at launch. Explicit port and endpoint selections override
+`ROBOENV_ENDPOINT`, including when other simulations are listening on different
+ports. Combining a run reference, `--port`, or `--endpoint` is rejected.
+Without a selected run or endpoint,
+status rejects ambiguous discovery and stop requires an explicit selection.
 
 An existing prepared interpreter can be selected with `--interpreter ENV/bin/python`.
 Custom tasks accept a task.yaml path and `--catalog CATALOG`. No simulator
@@ -212,3 +219,28 @@ simulator assets and failed setup diagnostics until reviewed or archived. `.cach
 is not wholly disposable. Interpreters default to `.venv-sim/`; package downloads
 use uv's shared cache or `UV_CACHE_DIR`. Asset depots selected with
 `ROBOENV_ASSET_CACHE` must remain accessible through their source-checkout links.
+
+## Reusing RoboCasa assets when packaging
+
+For orchestrators that install native Python inside an image, acquire assets
+separately in a persistent RoboEnv project:
+
+```python
+from roboenv.provisioning.sources import sync
+from roboenv.provisioning.robocasa_assets import prepare_assets
+
+sync(project, backends=("robocasa",))
+prepare_assets(project, reuse_from=previous_project, progress=print)
+```
+
+`reuse_from` is optional. Existing destination bundles are checked first. A donor
+bundle is reused only when its URL matches the pinned source and every file
+matches its receipt hash. Files are copied independently and a receipt is
+published after copying completes; donor files and interpreters stay untouched.
+Only missing or damaged bundles without a verified donor are downloaded.
+
+Package `third_party/robocasa/robocasa/models/assets` together with the JSON
+receipts in `.cache/roboenv/assets/robocasa`, preserving those project-relative
+paths. Synchronize image-local sources before copying assets into their checkout.
+Subsequent `roboenv prepare robocasa` verifies these files and skips their downloads.
+Do not include private diagnostic logs with the receipts.

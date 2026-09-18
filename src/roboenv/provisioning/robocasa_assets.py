@@ -47,8 +47,42 @@ def _valid(root, receipt, url):
     )
 
 
-def prepare_assets(project, *, progress=None):
-    """Download missing or damaged bundles; receipts are local, not GPU evidence."""
+def _reuse(parent, receipt, source_parent, source_receipt, url):
+    """Import a verified bundle; publish its receipt only after copying succeeds."""
+    if not _valid(source_parent, source_receipt, url):
+        return False
+    record = json.loads(source_receipt.read_text())
+    for item in record["files"]:
+        source, target = _target(source_parent, item["path"]), _target(parent, item["path"])
+        if target.is_file() and _digest(target) == item["sha256"]:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".asset-", delete=False) as f:
+            pending = Path(f.name)
+        try:
+            shutil.copyfile(source, pending)
+            if _digest(pending) != item["sha256"]:
+                raise ValueError("source asset changed during reuse")
+            pending.chmod(0o644)
+            pending.replace(target)
+        finally:
+            pending.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory(prefix="reuse-", dir=receipt.parent) as temporary:
+        pending = Path(temporary) / "receipt.json"
+        pending.write_text(json.dumps(record) + "\n")
+        pending.chmod(0o600)
+        pending.replace(receipt)
+    return True
+
+
+def prepare_assets(project, *, progress=None, reuse_from=None):
+    """Verify local bundles, reuse a prepared project, then download only missing bundles.
+
+    ``reuse_from`` is another RoboEnv project. Imports require matching source URLs
+    and receipt hashes; its interpreter and private state are never copied.
+    """
+    project = Path(project)
+    reuse_from = Path(reuse_from) if reuse_from else None
     assets = project / "third_party/robocasa/robocasa/models/assets"
     links = json.loads((assets / "box_links/box_links_assets.json").read_text())
     # Validate every source before causing download or filesystem effects.
@@ -69,6 +103,13 @@ def prepare_assets(project, *, progress=None):
             ready = _valid(parent, receipt, urls[key])
         if ready:
             continue
+        if reuse_from and reuse_from.resolve() != project.resolve():
+            source_assets = reuse_from / "third_party/robocasa/robocasa/models/assets"
+            source_receipt = reuse_from / ".cache/roboenv/assets/robocasa" / f"{key}.json"
+            with stage(progress, f"Reusing prepared RoboCasa assets: {key}"):
+                if _reuse(parent, receipt, (source_assets / relative).parent,
+                          source_receipt, urls[key]):
+                    continue
         with stage(progress, f"Downloading and extracting RoboCasa assets: {key}"):
             try:
                 with tempfile.TemporaryDirectory(prefix=key + "-", dir=cache) as temporary:

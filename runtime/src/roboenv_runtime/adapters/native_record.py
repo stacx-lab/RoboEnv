@@ -34,8 +34,9 @@ def asset_identity(roots):
 # These are independently owned implementations, not shared helpers. Everything
 # outside this explicit table remains shared, including registries, transport,
 # scoring, asset infrastructure, bindings and imported RoboCasa camera geometry.
-_BACKEND_PACKAGES = ("robotwin", "robodojo", "behavior")
+_BACKEND_PACKAGES = ("robotwin", "robodojo", "behavior", "simple")
 _ASSET_OWNERS = {
+    "simple_assets.py": "simple",
     "robotwin_assets.py": "robotwin",
     "robodojo_assets.py": "robodojo",
     "yam_assets.py": "robodojo",

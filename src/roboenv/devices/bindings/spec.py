@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
+from importlib.resources import files
 from pathlib import Path
 
 from roboenv.devices.model import DeviceDefinition
@@ -12,16 +13,22 @@ from roboenv.validation import json_value, yaml_load
 BINDING_CONTRACT = "roboenv/bindings/1"
 
 
-def binding_path(root):
-    """Local bundle plans take precedence; catalog plans mirror the robot path."""
+def binding_resource(root, *, backend):
+    """Return an owner-bundle plan or a packaged default, never catalog internals.
+
+    The resource supports read_text/read_bytes/is_file, including in a wheel;
+    callers must not assume it is a filesystem path.
+    """
     root = Path(root)
     local = root / "bindings.yaml"
     if local.exists():
         return local
-    for parent in root.parents:
-        if parent.name == "robots":
-            return parent.parent / "bindings" / f"{root.relative_to(parent)}.yaml"
-    return root.parent.parent / "bindings" / f"{root.name}.yaml"
+    return (
+        files("roboenv.devices.bindings")
+        .joinpath("defaults")
+        .joinpath(_name(backend, "backend"))
+        .joinpath(f"{_name(root.name, 'robot')}.yaml")
+    )
 
 
 def _name(value, label):
@@ -137,12 +144,12 @@ class BindingPlan:
     @classmethod
     def load(cls, root, *, backend, devices=None):
         root = Path(root)
-        path = binding_path(root)
-        if path.exists() or devices is not None:
+        resource = binding_resource(root, backend=backend) if devices is None else None
+        if devices is not None or resource.is_file():
             value = (
                 {"schema_version": BINDING_CONTRACT, "backend": backend, "devices": devices}
                 if devices is not None
-                else yaml_load(path.read_text())
+                else yaml_load(resource.read_text(encoding="utf-8"))
             )
             if (
                 not isinstance(value, dict)
@@ -164,7 +171,10 @@ class BindingPlan:
                 embodiment,
             )
         else:
-            raise ValueError("robot requires an explicit bindings.yaml")
+            raise ValueError(
+                f"No default bindings for {backend}/{root.name}; "
+                "robot requires an explicit bindings.yaml or task device_bindings"
+            )
         for entry in plan.devices:
             entry.definition(root)  # validate parameters/paths before a simulator is started
         return plan

@@ -15,12 +15,13 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from roboenv.provisioning.interpreter import resolve_interpreter
 from roboenv.provisioning.sources import status
 from roboenv.tasks.catalog import BACKENDS
-from roboenv.validation import yaml_load
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 SOURCES = {
+    "simple": ["third_party/SIMPLE"],
     "isaaclab": ["third_party/IsaacLab"],
     "libero": ["third_party/LIBERO"],
     "robotwin": ["third_party/RoboTwin"],
@@ -33,6 +34,7 @@ SOURCES = {
     "behavior": ["third_party/BEHAVIOR-1K"],
 }
 EXTERNAL = {
+    "simple": [".cache/simple/data"],
     "isaaclab": [".cache/isaaclab/assets"],
     "libero": [],
     "robotwin": ["third_party/RoboTwin/assets"],
@@ -137,7 +139,7 @@ def main():
     parser.add_argument(
         "--interpreter",
         type=Path,
-        help="Explicit simulator bin/python; independent of the asset dependency root",
+        help="Simulator bin/python; defaults to the project's prepared installation",
     )
     parser.add_argument("--runtime-wheel", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
@@ -146,23 +148,21 @@ def main():
     parser.add_argument("--asset-mode", choices=("reference", "copy"), default="reference")
     parser.add_argument("--interpreter-mode", choices=("image", "depot"), default="image")
     args = parser.parse_args()
-    settings = yaml_load((WORKSPACE / "catalog/deployments" / f"{args.backend}.yaml").read_text())
     source_status = status(WORKSPACE, [args.backend])
     if not source_status["ready"]:
         parser.error("pinned upstream sources are not ready; run roboenv sources sync first")
     root, out = args.dependencies.resolve(), args.out.resolve()
     if out.exists():
         parser.error("output exists; use a fresh directory (never overwrite an image/depot)")
-    interpreter = (
-        args.interpreter.absolute()
-        if args.interpreter is not None
-        else root / settings["interpreter"]
-    )
+    try:
+        interpreter = resolve_interpreter(WORKSPACE, args.backend, args.interpreter)
+    except ValueError as exc:
+        parser.error(str(exc))
     if interpreter.parent.name != "bin":
         parser.error("interpreter must be the bin/python executable of an isolated environment")
     environment = interpreter.parent.parent
-    if not interpreter.is_file() or not args.runtime_wheel.is_file():
-        parser.error("interpreter and built runtime wheel are required")
+    if not args.runtime_wheel.is_file():
+        parser.error("a built runtime wheel is required")
     size = interpreter_size(environment)
     staging_parent = next(parent for parent in out.parents if parent.exists())
     if shutil.disk_usage(staging_parent).free < size + 4 * 1024**3:
@@ -250,6 +250,13 @@ def main():
             raise FileNotFoundError(f"required dependency missing: {source}")
         target = context / "runtime-data" / relative
         shutil.copytree(source, target, symlinks=True, ignore=ignore, dirs_exist_ok=True)
+    if args.backend == "simple":
+        pin = json.loads((root / "src/roboenv/assets/simple-g1.json").read_text())
+        receipts = context / "runtime-data/.cache/simple"
+        receipts.mkdir(parents=True, exist_ok=True)
+        for entry in pin["archives"]:
+            name = entry["file"] + ".json"
+            shutil.copy2(root / ".cache/simple" / name, receipts / name)
     descriptions = root / ".cache/robot_descriptions"
     if descriptions.is_dir():
         shutil.copytree(
@@ -316,8 +323,7 @@ def main():
         "mounts": mounts,
         "runtime_wheel_sha256": hashlib.sha256(args.runtime_wheel.read_bytes()).hexdigest(),
         "interpreter": "/opt/sim-env/bin/python",
-        "runtime_options": {key: settings[key] for key in ("shm_size", "start_period")
-                            if key in settings},
+        "runtime_options": {},
         "legacy_tree_required": False,
         "source_revisions": {item["name"]: item["actual"] for item in source_status["sources"]},
         "interpreter_mode": args.interpreter_mode,

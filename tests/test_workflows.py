@@ -8,11 +8,12 @@ import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 import roboenv
 import yaml
-from roboenv.environment import connect, launch, stop
+from roboenv.environment import connect, launch, status, stop
 from roboenv.tasks.model import Task
 from roboenv.tasks.resolve import resolve_task
 
@@ -46,14 +47,11 @@ def test_task_id_resolution_and_missing_task():
         resolve_task("not-a-task", project=ROOT)
 
 
-def test_grouped_robot_resolves_external_bindings_and_launches(tmp_path):
+def test_grouped_robot_resolves_owner_bundle_bindings_and_launches(tmp_path):
     catalog = tmp_path / "catalog"
     reference = "fakeshell/toy-puck"
     robot = catalog / "robots" / reference
     shutil.copytree(FIXTURE / "catalog/robots/toy-puck", robot)
-    binding = catalog / "bindings" / f"{reference}.yaml"
-    binding.parent.mkdir(parents=True)
-    (robot / "bindings.yaml").rename(binding)
     task = asdict(Task.load(FIXTURE / "task.yaml"))
     task["robot"] = reference
     path = tmp_path / "task.yaml"
@@ -123,6 +121,74 @@ def test_multiple_runs_require_selection(monkeypatch):
         first.process.wait(timeout=10)
         assert stop(first.path)["state"] == "stopped"
         assert second.client.request("health")["device_service"]["ready"]
+
+
+@pytest.mark.parametrize("selector", ["--port", "--endpoint"])
+def test_cli_lifecycle_selects_only_requested_service(monkeypatch, tmp_path, selector):
+    monkeypatch.delenv("ROBOENV_ENDPOINT", raising=False)
+    monkeypatch.delenv("ROBOENV_SOCKET", raising=False)
+
+    def target(run):
+        return (selector, str(urlsplit(run.endpoint).port)
+                if selector == "--port" else run.endpoint)
+
+    def cli(*args, code=0):
+        result = subprocess.run(
+            [sys.executable, "-m", "roboenv.cli.main", *args, "--json"],
+            cwd=tmp_path, capture_output=True, text=True, timeout=20,
+        )
+        assert result.returncode == code, result.stdout + result.stderr
+        return json.loads(result.stdout) if code == 0 else result.stdout + result.stderr
+
+    with launch_toy(timeout=20, allow_stop=True) as first, \
+            launch_toy(timeout=20, allow_stop=True) as second:
+        assert first.endpoint != second.endpoint
+        assert "select --endpoint" in cli("status", "--project", str(ROOT), code=1)
+        assert "--endpoint" in cli("stop", code=1)
+        monkeypatch.setenv("ROBOENV_ENDPOINT", second.endpoint)
+        assert cli("status")["session"] == second.record["session"]
+        for run in (first, second):
+            result = cli("status", *target(run))
+            assert result["endpoint"] == run.endpoint
+            assert result["simulation"]["session"] == run.record["session"]
+            assert "success" not in result["simulation"]
+        assert cli("status", first.endpoint)["session"] == first.record["session"]
+        for command in ("status", "stop"):
+            cli(command, first.endpoint, "--endpoint", second.endpoint, code=2)
+            cli(command, first.endpoint, "--port", "8123", code=2)
+            cli(command, "--port", "8123", "--endpoint", second.endpoint, code=2)
+            cli(command, "--endpoint", "", code=1)
+            cli(command, "--endpoint", "not-a-url", code=1)
+            for port in ("0", "-1", "65536"):
+                cli(command, "--port", port, code=1)
+        assert second.client.request("health")["worker"]["alive"]
+        # Explicit HTTP selection must work even without a local project or run manifest.
+        stopped = cli("stop", *target(first), "--project", str(tmp_path))
+        assert stopped["session"] == first.record["session"]
+        assert stopped["service_state"] == "stopped"
+        assert type(stopped["success"]) is bool
+        assert cli("stop", *target(first)) == stopped
+        assert cli("status", *target(first))["simulation"]["terminal"]
+        assert cli("status")["worker"]["alive"]
+        assert second.device("controller").read()["budget"]["used"] == 0
+        assert connect(second.endpoint).device("controller").write([0.3])["position"][0] > 0
+        assert cli("stop")["session"] == second.record["session"]
+
+
+@pytest.mark.parametrize("operation", [status, stop])
+def test_lifecycle_rejects_conflicting_or_empty_endpoint(operation, monkeypatch):
+    monkeypatch.setenv("ROBOENV_ENDPOINT", "http://127.0.0.1:8123")
+    with pytest.raises(ValueError, match="Choose a run, endpoint, or port"):
+        operation("some-run", endpoint="http://127.0.0.1:8124")
+    with pytest.raises(ValueError, match="Choose a run, endpoint, or port"):
+        operation(endpoint="http://127.0.0.1:8124", port=8123)
+    with pytest.raises(ValueError, match="Choose a run, endpoint, or port"):
+        operation("some-run", port=8123)
+    with pytest.raises(ValueError, match="endpoint must"):
+        operation(endpoint="")
+    for port in (0, -1, 65536, True, "8123"):
+        with pytest.raises(ValueError, match="port must"):
+            operation(port=port)
 
 
 def test_launch_validation_precedes_process_creation(monkeypatch):
@@ -347,7 +413,7 @@ def test_grouped_catalog_ids_and_listing(capsys):
     from roboenv.tasks.catalog import load_catalog
 
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 13
+    assert len(catalog) == 16
     for identifier, (task, path) in catalog.items():
         assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
         assert identifier.split("/")[0] == task.backend

@@ -45,11 +45,14 @@ export ROBOENV_ENDPOINT=http://127.0.0.1:8123
 
 Use a working Kinex installation with its TUI dependencies already installed
 (see the sibling README). Exported profiles use Kinex's workspace Python. Remote device access
-uses standard-library transport in the adjacent `_roboenv.py`; profile loading needs
+uses standard-library transport in the shared `devices/_roboenv.py`; profile loading needs
 PyYAML and typed actuator operations need Kinex’s Python helpers. Kinex supplies
 its Python library to drivers; for direct shell calls, set
 `export PYTHONPATH="$kinex_repo/python${PYTHONPATH:+:$PYTHONPATH}"`.
-The agent environment does not need RoboEnv or simulator dependencies.
+The agent environment does not need RoboEnv or simulator dependencies. There is
+one transport module per device collection, outside the individual device folders.
+Drivers resolve it relative to their own file, so the working directory is irrelevant.
+When copying selected devices, include the collection's `_roboenv.py` once.
 Drivers use `persistent: true`: Kinex starts `driver.py --serve` once and reuses
 its configuration, kinematics model, and HTTP connection. `/reload <device>`
 restarts the process after driver/profile/connection edits. Session and generation

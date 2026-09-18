@@ -15,8 +15,9 @@ from roboenv.provisioning.sources import load_lock, status
 from roboenv.tasks.artifacts import Bundle
 from roboenv.tasks.model import DEVICE_BACKENDS, Task
 
-BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab")
+BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab", "simple")
 ROBOTS = {
+    "simple": "simple/simple-g1",
     "isaaclab": "isaaclab/isaaclab-g1",
     "libero": "libero/libero-panda-tabletop",
     "robocasa": "robocasa/robocasa-panda-omron",
@@ -70,7 +71,7 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None, device_bindin
         robot=robot or ROBOTS[backend],
         device_bindings=device_bindings,
         budget_mode="practice"
-        if backend in {"libero", "robotwin", "robodojo", "behavior"}
+        if backend in {"libero", "robotwin", "robodojo", "behavior", "simple"}
         else "official",
         instruction=instruction,
         action_abstraction="devices" if backend in DEVICE_BACKENDS else "cartesian-primitives",
@@ -238,7 +239,14 @@ def _isaaclab(root, issues):
         yield Task.load(source), source
 
 
+def _simple(root, issues):
+    from roboenv.tasks.simple import discover_tasks
+
+    yield from discover_tasks(root)
+
+
 DISCOVERERS = {
+    "simple": _simple,
     "isaaclab": _isaaclab,
     "libero": _libero,
     "robocasa": _robocasa,

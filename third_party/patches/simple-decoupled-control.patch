@@ -1,0 +1,124 @@
+diff --git a/control/policy/g1_decoupled_whole_body_policy.py b/control/policy/g1_decoupled_whole_body_policy.py
+index 6e68894..6d16549 100644
+--- a/control/policy/g1_decoupled_whole_body_policy.py
++++ b/control/policy/g1_decoupled_whole_body_policy.py
+@@ -20,11 +20,13 @@ class G1DecoupledWholeBodyPolicy(Policy):
+         robot_model,
+         lower_body_policy: Policy,
+         upper_body_policy: Policy,
++        clock=None,
+     ):
++        self.clock = clock or time_module.monotonic
+         self.robot_model = robot_model
+         self.lower_body_policy = lower_body_policy
+         self.upper_body_policy = upper_body_policy
+-        self.last_goal_time = time_module.monotonic()
++        self.last_goal_time = self.clock()
+         self.is_in_teleop_mode = False  # Track if lower body is in teleop mode
+ 
+     def reset(self, init_time=None):
+@@ -34,7 +36,7 @@ class G1DecoupledWholeBodyPolicy(Policy):
+             init_time: Initial time for upper-body interpolation policy reset
+         """
+         if init_time is None:
+-            init_time = time_module.monotonic()
++            init_time = self.clock()
+ 
+         # Reset upper-body interpolation policy
+         self.upper_body_policy.reset(init_time=init_time)
+@@ -63,7 +65,7 @@ class G1DecoupledWholeBodyPolicy(Policy):
+             goal["base_height_command"]: Target base height for both upper and lower body policies
+         """
+         # Update goal timestamp for timeout safety
+-        self.last_goal_time = time_module.monotonic()
++        self.last_goal_time = self.clock()
+ 
+         upper_body_goal = {}
+         lower_body_goal = {}
+@@ -108,7 +110,7 @@ class G1DecoupledWholeBodyPolicy(Policy):
+         self.lower_body_policy.set_goal(lower_body_goal)
+ 
+     def get_action(self, time: Optional[float] = None):
+-        current_time = time if time is not None else time_module.monotonic()
++        current_time = time if time is not None else self.clock()
+ 
+         # Safety timeout: Only apply when in teleop mode (communication loss dangerous)
+         # When in keyboard mode, no timeout needed (user controls directly)
+diff --git a/control/policy/g1_gear_wbc_policy.py b/control/policy/g1_gear_wbc_policy.py
+index 42a6ebf..fed540e 100644
+--- a/control/policy/g1_gear_wbc_policy.py
++++ b/control/policy/g1_gear_wbc_policy.py
+@@ -52,6 +52,7 @@ class G1GearWbcPolicy(Policy):
+         self.pitch_cmd = self.config["rpy_cmd"][1]
+         self.yaw_cmd = self.config["rpy_cmd"][2]
+         self.target_yaw_cmd = 0
++        self.metric_velocity = None
+         self.gait_indices = torch.zeros((1), dtype=torch.float32)
+         # self.control_dt = 1.0 / 50.0  # Control frequency at 50Hz
+ 
+@@ -77,6 +78,7 @@ class G1GearWbcPolicy(Policy):
+         self.pitch_cmd = self.config["rpy_cmd"][1]
+         self.yaw_cmd = self.config["rpy_cmd"][2]
+         self.target_yaw_cmd = 0
++        self.metric_velocity = None
+         # Gait state
+         self.gait_indices = torch.zeros((1), dtype=torch.float32)
+ 
+@@ -195,6 +197,23 @@ class G1GearWbcPolicy(Policy):
+ 
+         assert self.obs_tensor.shape[1] == self.config["num_obs"]
+ 
++    def set_metric_command(self, velocity, height, torso_rpy):
++        """Opt-in metric command path for simulation-owned device control.
++
++        Call before set_observation so this interval's command enters history.
++        The legacy heading/turn-flag path remains unchanged when not selected.
++        """
++        velocity = np.asarray(velocity, dtype=float)
++        torso_rpy = np.asarray(torso_rpy, dtype=float)
++        if velocity.shape != (3,) or torso_rpy.shape != (3,):
++            raise ValueError("Expected three velocity and torso components")
++        if not np.isfinite(np.r_[velocity, height, torso_rpy]).all():
++            raise ValueError("Metric command must be finite")
++        self.metric_velocity = velocity.copy()
++        self.cmd[:3] = velocity
++        self.height_cmd = float(height)
++        self.roll_cmd, self.pitch_cmd, self.yaw_cmd = torso_rpy
++
+     def set_use_teleop_policy_cmd(self, use_teleop_policy_cmd: bool):
+         self.use_teleop_policy_cmd = use_teleop_policy_cmd
+         # Safety: When teleop is disabled, reset navigation to stop
+@@ -245,7 +264,10 @@ class G1GearWbcPolicy(Policy):
+                 else base_height_command
+             )
+ 
+-        if interpolated_navigate_cmd is not None and self.use_teleop_policy_cmd:
++        if self.metric_velocity is not None:
++            self.cmd[:3] = self.metric_velocity
++            vyaw_flag = self.metric_velocity[2]
++        elif interpolated_navigate_cmd is not None and self.use_teleop_policy_cmd:
+             self.cmd[0:2] = interpolated_navigate_cmd[0:2]  # vx, vy unchanged
+             vyaw_flag = interpolated_navigate_cmd[2]  # Turning flag (raw controller input)
+             target_yaw = interpolated_navigate_cmd[3]  # Integrated target yaw
+diff --git a/pyproject.toml b/pyproject.toml
+index 53d4b2f..818f19f 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
+ [project]
+ name = "decoupled_wbc"
+ dynamic = ["version"]
+-readme = "../README.md"
++readme = "README.md"
+ classifiers = [
+     "Intended Audience :: Science/Research",
+     "Development Status :: 3 - Alpha",
+@@ -22,7 +22,7 @@ dependencies = [
+     "scipy==1.15.3",
+     "torch",
+ ]
+-license = {file = "../LICENSE"}
++license = {text = "Apache-2.0"}
+ 
+ [project.optional-dependencies]
+ # Full: all dependencies for the complete decoupled_wbc project

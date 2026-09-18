@@ -1,0 +1,1926 @@
+{
+  "parts": {
+    "waist": {
+      "base": "pelvis",
+      "tip": "torso_link",
+      "chain": [
+        {
+          "origin": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 0,
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            -0.0039635,
+            0.0,
+            0.035,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 1,
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.0,
+            0.0,
+            0.019,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 2,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        }
+      ],
+      "joints": [
+        {
+          "name": "waist_yaw_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -2.618,
+            "max": 2.618
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "waist_roll_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -0.52,
+            "max": 0.52
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "waist_pitch_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -0.52,
+            "max": 0.52
+          },
+          "max_velocity": null,
+          "max_effort": null
+        }
+      ],
+      "home": {
+        "waist_yaw_joint": 0.0,
+        "waist_roll_joint": 0.0,
+        "waist_pitch_joint": 0.0
+      }
+    },
+    "left_arm": {
+      "base": "torso_link",
+      "tip": "left_wrist_yaw_link",
+      "chain": [
+        {
+          "origin": [
+            0.0039563,
+            0.10022,
+            0.23778,
+            0.13920101962535997,
+            1.387220195578278e-05,
+            -9.868681391343435e-05,
+            0.9902641396131312
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 0,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.0,
+            0.038,
+            -0.013831,
+            -0.13917203079821713,
+            0.0,
+            0.0,
+            0.9902682191424201
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 1,
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.0,
+            0.00624,
+            -0.1032,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 2,
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.015783,
+            0.0,
+            -0.080518,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 3,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.1,
+            0.00188791,
+            -0.01,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 4,
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.038,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 5,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.046,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 6,
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        }
+      ],
+      "joints": [
+        {
+          "name": "left_shoulder_pitch_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -3.0892,
+            "max": 2.6704
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_shoulder_roll_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.5882,
+            "max": 2.2515
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_shoulder_yaw_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -2.618,
+            "max": 2.618
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_elbow_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.0472,
+            "max": 2.0944
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_wrist_roll_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.97222,
+            "max": 1.97222
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_wrist_pitch_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.61443,
+            "max": 1.61443
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_wrist_yaw_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.61443,
+            "max": 1.61443
+          },
+          "max_velocity": null,
+          "max_effort": null
+        }
+      ],
+      "home": {
+        "left_shoulder_pitch_joint": 0.0,
+        "left_shoulder_roll_joint": 0.0,
+        "left_shoulder_yaw_joint": 0.0,
+        "left_elbow_joint": 0.0,
+        "left_wrist_roll_joint": 0.0,
+        "left_wrist_pitch_joint": 0.0,
+        "left_wrist_yaw_joint": 0.0
+      }
+    },
+    "right_arm": {
+      "base": "torso_link",
+      "tip": "right_wrist_yaw_link",
+      "chain": [
+        {
+          "origin": [
+            0.0039563,
+            -0.10021,
+            0.23778,
+            -0.13920101962535997,
+            1.387220195578278e-05,
+            9.868681391343435e-05,
+            0.9902641396131312
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 0,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.0,
+            -0.038,
+            -0.013831,
+            0.13917203079821713,
+            0.0,
+            0.0,
+            0.9902682191424201
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 1,
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.0,
+            -0.00624,
+            -0.1032,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 2,
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.015783,
+            0.0,
+            -0.080518,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 3,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.1,
+            -0.00188791,
+            -0.01,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 4,
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.038,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 5,
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        },
+        {
+          "origin": [
+            0.046,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        },
+        {
+          "origin": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "joint": 6,
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "anchor": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "reference": 0
+        }
+      ],
+      "joints": [
+        {
+          "name": "right_shoulder_pitch_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -3.0892,
+            "max": 2.6704
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_shoulder_roll_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -2.2515,
+            "max": 1.5882
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_shoulder_yaw_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -2.618,
+            "max": 2.618
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_elbow_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.0472,
+            "max": 2.0944
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_wrist_roll_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.97222,
+            "max": 1.97222
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_wrist_pitch_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.61443,
+            "max": 1.61443
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_wrist_yaw_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.61443,
+            "max": 1.61443
+          },
+          "max_velocity": null,
+          "max_effort": null
+        }
+      ],
+      "home": {
+        "right_shoulder_pitch_joint": 0.0,
+        "right_shoulder_roll_joint": 0.0,
+        "right_shoulder_yaw_joint": 0.0,
+        "right_elbow_joint": 0.0,
+        "right_wrist_roll_joint": 0.0,
+        "right_wrist_pitch_joint": 0.0,
+        "right_wrist_yaw_joint": 0.0
+      }
+    },
+    "left_hand": {
+      "base": "left_wrist_yaw_link",
+      "tip": "left_wrist_yaw_link",
+      "mount": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "joints": [
+        {
+          "name": "left_hand_thumb_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.0472,
+            "max": 1.0472
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_thumb_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -0.724312,
+            "max": 1.0472
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_thumb_2_joint",
+          "type": "revolute",
+          "limits": {
+            "min": 0.0,
+            "max": 1.74533
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_index_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.5708,
+            "max": 0.0
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_index_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.74533,
+            "max": 0.0
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_middle_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.5708,
+            "max": 0.0
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "left_hand_middle_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.74533,
+            "max": 0.0
+          },
+          "max_velocity": null,
+          "max_effort": null
+        }
+      ],
+      "home": {
+        "left_hand_thumb_0_joint": 0.0,
+        "left_hand_thumb_1_joint": 0.0,
+        "left_hand_thumb_2_joint": 0.0,
+        "left_hand_index_0_joint": 0.0,
+        "left_hand_index_1_joint": 0.0,
+        "left_hand_middle_0_joint": 0.0,
+        "left_hand_middle_1_joint": 0.0
+      },
+      "geometry": {
+        "description": "Nominal mesh-distal fingertip references; grasp_center is the midpoint between thumb and opposing-finger midpoint, with hand-aligned axes. grasp_reference fixes that center at home. These are geometric references, not contacts.",
+        "palm_frame": "palm",
+        "reference_frame": "grasp_reference",
+        "fingers": {
+          "thumb": {
+            "joints": [
+              "left_hand_thumb_0_joint",
+              "left_hand_thumb_1_joint",
+              "left_hand_thumb_2_joint"
+            ],
+            "chain": [
+              {
+                "origin": [
+                  0.067,
+                  0.003,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 0,
+                "axis": [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              },
+              {
+                "origin": [
+                  -0.0025,
+                  -0.0193,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 1,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              },
+              {
+                "origin": [
+                  0.0,
+                  -0.0458,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 2,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              }
+            ],
+            "tip_frame": "thumb_tip",
+            "tip_offset": [
+              -7.3787291e-05,
+              -0.051961675286,
+              -0.000100064091,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "index": {
+            "joints": [
+              "left_hand_index_0_joint",
+              "left_hand_index_1_joint"
+            ],
+            "chain": [
+              {
+                "origin": [
+                  0.1192,
+                  0.0046,
+                  0.0285,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 0,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              },
+              {
+                "origin": [
+                  0.0458,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 1,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              }
+            ],
+            "tip_frame": "index_tip",
+            "tip_offset": [
+              0.051961675286,
+              7.3787291e-05,
+              0.000100064091,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "middle": {
+            "joints": [
+              "left_hand_middle_0_joint",
+              "left_hand_middle_1_joint"
+            ],
+            "chain": [
+              {
+                "origin": [
+                  0.1192,
+                  0.0046,
+                  -0.0285,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 0,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              },
+              {
+                "origin": [
+                  0.0458,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 1,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              }
+            ],
+            "tip_frame": "middle_tip",
+            "tip_offset": [
+              0.051961675286,
+              7.3787291e-05,
+              0.000100064091,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        "center": {
+          "frame": "grasp_center",
+          "weights": {
+            "thumb": 0.5,
+            "index": 0.25,
+            "middle": 0.25
+          },
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "frames": {
+        "palm": [
+          0.0415,
+          0.003,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "grasp_reference": [
+          0.140693943998,
+          -0.054693943998,
+          0.0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "thumb_tip": null,
+        "index_tip": null,
+        "middle_tip": null,
+        "grasp_center": null
+      },
+      "frame_bodies": {
+        "thumb_tip": "left_hand_thumb_2_link",
+        "index_tip": "left_hand_index_1_link",
+        "middle_tip": "left_hand_middle_1_link"
+      },
+      "geometry_sources": {
+        "thumb_tip": {
+          "mesh": "meshes/left_hand_thumb_2_link.STL",
+          "sha256": "3d8dbe5085acfc213d21aa8b0782e89cd79084e9678f3a85fc7b04a86b029db5",
+          "distal_axis": 1,
+          "distal_sign": -1,
+          "bounds_m": [
+            [
+              -0.008919619023799896,
+              -0.05196167528629303,
+              -0.013100000098347664
+            ],
+            [
+              0.008772044442594051,
+              0.007000000216066837,
+              0.012899871915578842
+            ]
+          ]
+        },
+        "index_tip": {
+          "mesh": "meshes/left_hand_index_1_link.STL",
+          "sha256": "9e315ebc8a7a0cb98e033985b586b20d81cf8aa761181ae61ce56fcb14077a06",
+          "distal_axis": 0,
+          "distal_sign": 1,
+          "bounds_m": [
+            [
+              -0.007000000216066837,
+              -0.008772044442594051,
+              -0.012899871915578842
+            ],
+            [
+              0.05196167528629303,
+              0.008919619023799896,
+              0.013100000098347664
+            ]
+          ]
+        },
+        "middle_tip": {
+          "mesh": "meshes/left_hand_middle_1_link.STL",
+          "sha256": "9e315ebc8a7a0cb98e033985b586b20d81cf8aa761181ae61ce56fcb14077a06",
+          "distal_axis": 0,
+          "distal_sign": 1,
+          "bounds_m": [
+            [
+              -0.007000000216066837,
+              -0.008772044442594051,
+              -0.012899871915578842
+            ],
+            [
+              0.05196167528629303,
+              0.008919619023799896,
+              0.013100000098347664
+            ]
+          ]
+        }
+      }
+    },
+    "right_hand": {
+      "base": "right_wrist_yaw_link",
+      "tip": "right_wrist_yaw_link",
+      "mount": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "joints": [
+        {
+          "name": "right_hand_thumb_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.0472,
+            "max": 1.0472
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_thumb_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.0472,
+            "max": 0.724312
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_thumb_2_joint",
+          "type": "revolute",
+          "limits": {
+            "min": -1.74533,
+            "max": 0.0
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_index_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": 0.0,
+            "max": 1.5708
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_index_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": 0.0,
+            "max": 1.74533
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_middle_0_joint",
+          "type": "revolute",
+          "limits": {
+            "min": 0.0,
+            "max": 1.5708
+          },
+          "max_velocity": null,
+          "max_effort": null
+        },
+        {
+          "name": "right_hand_middle_1_joint",
+          "type": "revolute",
+          "limits": {
+            "min": 0.0,
+            "max": 1.74533
+          },
+          "max_velocity": null,
+          "max_effort": null
+        }
+      ],
+      "home": {
+        "right_hand_thumb_0_joint": 0.0,
+        "right_hand_thumb_1_joint": 0.0,
+        "right_hand_thumb_2_joint": 0.0,
+        "right_hand_index_0_joint": 0.0,
+        "right_hand_index_1_joint": 0.0,
+        "right_hand_middle_0_joint": 0.0,
+        "right_hand_middle_1_joint": 0.0
+      },
+      "geometry": {
+        "description": "Nominal mesh-distal fingertip references; grasp_center is the midpoint between thumb and opposing-finger midpoint, with hand-aligned axes. grasp_reference fixes that center at home. These are geometric references, not contacts.",
+        "palm_frame": "palm",
+        "reference_frame": "grasp_reference",
+        "fingers": {
+          "thumb": {
+            "joints": [
+              "right_hand_thumb_0_joint",
+              "right_hand_thumb_1_joint",
+              "right_hand_thumb_2_joint"
+            ],
+            "chain": [
+              {
+                "origin": [
+                  0.067,
+                  -0.003,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 0,
+                "axis": [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              },
+              {
+                "origin": [
+                  -0.0025,
+                  0.0193,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 1,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              },
+              {
+                "origin": [
+                  0.0,
+                  0.0458,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 2,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              }
+            ],
+            "tip_frame": "thumb_tip",
+            "tip_offset": [
+              -7.3787291e-05,
+              0.051961675286,
+              0.000100064091,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "index": {
+            "joints": [
+              "right_hand_index_0_joint",
+              "right_hand_index_1_joint"
+            ],
+            "chain": [
+              {
+                "origin": [
+                  0.1192,
+                  -0.0046,
+                  0.0285,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 0,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              },
+              {
+                "origin": [
+                  0.0458,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 1,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              }
+            ],
+            "tip_frame": "index_tip",
+            "tip_offset": [
+              0.051961675286,
+              -7.3787291e-05,
+              -0.000100064091,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "middle": {
+            "joints": [
+              "right_hand_middle_0_joint",
+              "right_hand_middle_1_joint"
+            ],
+            "chain": [
+              {
+                "origin": [
+                  0.1192,
+                  -0.0046,
+                  -0.0285,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 0,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              },
+              {
+                "origin": [
+                  0.0458,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0
+                ]
+              },
+              {
+                "origin": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "joint": 1,
+                "axis": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "anchor": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "reference": 0.0
+              }
+            ],
+            "tip_frame": "middle_tip",
+            "tip_offset": [
+              0.051961675286,
+              -7.3787291e-05,
+              -0.000100064091,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        "center": {
+          "frame": "grasp_center",
+          "weights": {
+            "thumb": 0.5,
+            "index": 0.25,
+            "middle": 0.25
+          },
+          "rotation_xyzw": [
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "frames": {
+        "palm": [
+          0.0415,
+          -0.003,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "grasp_reference": [
+          0.140693943998,
+          0.054693943998,
+          0.0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "thumb_tip": null,
+        "index_tip": null,
+        "middle_tip": null,
+        "grasp_center": null
+      },
+      "frame_bodies": {
+        "thumb_tip": "right_hand_thumb_2_link",
+        "index_tip": "right_hand_index_1_link",
+        "middle_tip": "right_hand_middle_1_link"
+      },
+      "geometry_sources": {
+        "thumb_tip": {
+          "mesh": "meshes/right_hand_thumb_2_link.STL",
+          "sha256": "3f1bfb37668e8f61801c8d25f171fa1949e08666be86c67acad7e0079937cc45",
+          "distal_axis": 1,
+          "distal_sign": 1,
+          "bounds_m": [
+            [
+              -0.008919619023799896,
+              -0.007000000216066837,
+              -0.012899871915578842
+            ],
+            [
+              0.008772044442594051,
+              0.05196167528629303,
+              0.013100000098347664
+            ]
+          ]
+        },
+        "index_tip": {
+          "mesh": "meshes/right_hand_index_1_link.STL",
+          "sha256": "c9c34efce4563cacdcfd29fc838a982976d40f5442c71219811dcbbf3923a33d",
+          "distal_axis": 0,
+          "distal_sign": 1,
+          "bounds_m": [
+            [
+              -0.007000000216066837,
+              -0.008919619023799896,
+              -0.013100000098347664
+            ],
+            [
+              0.05196167528629303,
+              0.008772044442594051,
+              0.012899871915578842
+            ]
+          ]
+        },
+        "middle_tip": {
+          "mesh": "meshes/right_hand_middle_1_link.STL",
+          "sha256": "c9c34efce4563cacdcfd29fc838a982976d40f5442c71219811dcbbf3923a33d",
+          "distal_axis": 0,
+          "distal_sign": 1,
+          "bounds_m": [
+            [
+              -0.007000000216066837,
+              -0.008919619023799896,
+              -0.013100000098347664
+            ],
+            [
+              0.05196167528629303,
+              0.008772044442594051,
+              0.012899871915578842
+            ]
+          ]
+        }
+      }
+    }
+  },
+  "cameras": {
+    "camera_head_left": {
+      "native": "head_stereo_left",
+      "width": 640,
+      "height": 360,
+      "projection": {
+        "model": "pinhole",
+        "fx": 224.06641222710715,
+        "fy": 224.06641222710715,
+        "cx": 320.0,
+        "cy": 180.0,
+        "skew": 0
+      },
+      "mount": {
+        "parent": "base",
+        "parent_frame": "torso",
+        "translation_m": [
+          0.05762354,
+          0.01752999,
+          0.4298702
+        ],
+        "rotation_xyzw": [
+          -0.659253548292,
+          0.659253548292,
+          -0.255704436927,
+          0.255704436927
+        ]
+      }
+    },
+    "camera_head_right": {
+      "native": "head_stereo_right",
+      "width": 640,
+      "height": 360,
+      "projection": {
+        "model": "pinhole",
+        "fx": 224.06641222710715,
+        "fy": 224.06641222710715,
+        "cx": 320.0,
+        "cy": 180.0,
+        "skew": 0
+      },
+      "mount": {
+        "parent": "base",
+        "parent_frame": "torso",
+        "translation_m": [
+          0.05762354,
+          -0.03247001,
+          0.4298702
+        ],
+        "rotation_xyzw": [
+          -0.659253548292,
+          0.659253548292,
+          -0.255704436927,
+          0.255704436927
+        ]
+      }
+    }
+  },
+  "robot_sha256": "8d120ef823a27c96eae88aec07796e224615afe0f289a5a3ab4eaf6c3cf72c91",
+  "control": {
+    "mode": "motion",
+    "body_frame": "pelvis",
+    "modes": {
+      "locomotion": {
+        "velocity": {
+          "frame": "body",
+          "components": [
+            {
+              "axis": "vx",
+              "units": "m/s",
+              "bounds": {
+                "min": -0.5,
+                "max": 0.5
+              }
+            },
+            {
+              "axis": "vy",
+              "units": "m/s",
+              "bounds": {
+                "min": -0.5,
+                "max": 0.5
+              }
+            },
+            {
+              "axis": "wz",
+              "units": "rad/s",
+              "bounds": {
+                "min": -1.0,
+                "max": 1.0
+              }
+            }
+          ]
+        },
+        "posture": {
+          "reference": "ground",
+          "components": [
+            {
+              "axis": "height",
+              "units": "m",
+              "bounds": {
+                "min": 0.2,
+                "max": 0.74
+              },
+              "default": 0.74
+            },
+            {
+              "axis": "roll",
+              "units": "rad",
+              "default": 0.0,
+              "bounds": {
+                "min": -0.52,
+                "max": 0.52
+              }
+            },
+            {
+              "axis": "pitch",
+              "units": "rad",
+              "default": 0.0,
+              "bounds": {
+                "min": -0.52,
+                "max": 0.52
+              }
+            },
+            {
+              "axis": "yaw",
+              "units": "rad",
+              "default": 0.0,
+              "bounds": {
+                "min": -2.618,
+                "max": 2.618
+              }
+            }
+          ]
+        }
+      }
+    },
+    "execution": {
+      "mode": "realtime",
+      "command_timeout_s": 0.5
+    }
+  }
+}

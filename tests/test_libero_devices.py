@@ -150,6 +150,7 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
             "camera",
             "camera_wrist",
             "world",
+            "_roboenv.py",
         }
         for file in root.rglob("*"):
             if file.is_file():
@@ -166,7 +167,8 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
                     path.with_name("driver.py").read_bytes()
                     == (ROOT / "src/roboenv/assets" / DRIVERS[profile["type"]]).read_bytes()
                 )
-                assert path.with_name("_roboenv.py").read_bytes() == transport
+                assert not path.with_name("_roboenv.py").exists()
+                assert (root / "devices/_roboenv.py").read_bytes() == transport
             if profile["type"] == "joint":
                 assert len(profile["intrinsics"]["model"]["joints"]) == 7
                 assert profile["intrinsics"]["control"]["speed"] is None
@@ -229,7 +231,7 @@ def test_static_generation_is_deterministic(tmp_path):
         run_native("tools/generate_libero_config.py", "--out", destination)
         expected = {
             path.relative_to(ROOT / "catalog")
-            for subtree in ("robots/libero", "bindings/libero")
+            for subtree in ("robots/libero",)
             for path in (ROOT / "catalog" / subtree).rglob("*")
             if path.is_file()
         }

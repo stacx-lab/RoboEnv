@@ -7,7 +7,9 @@ from pathlib import Path
 
 from roboenv.validation import json_value, yaml_load
 
-DEVICE_BACKENDS = frozenset({"libero", "robocasa", "isaaclab", "robotwin", "robodojo", "behavior"})
+DEVICE_BACKENDS = frozenset({
+    "libero", "robocasa", "isaaclab", "robotwin", "robodojo", "behavior", "simple",
+})
 
 @dataclass(frozen=True)
 class Task:
@@ -57,8 +59,20 @@ class Task:
         ):
             raise ValueError("backend_kwargs must be an environment configuration mapping")
         json_value(task.backend_kwargs)
+        if "max_steps" in task.backend_kwargs:
+            maximum = task.backend_kwargs["max_steps"]
+            if maximum is not None and (type(maximum) is not int or maximum <= 0):
+                raise ValueError("max_steps must be a positive integer or null")
+        if "stop_on_success" in task.backend_kwargs:
+            if type(task.backend_kwargs["stop_on_success"]) is not bool:
+                raise ValueError("stop_on_success must be a boolean")
         if "realtime" in task.backend_kwargs and type(task.backend_kwargs["realtime"]) is not bool:
             raise ValueError("realtime must be a boolean")
+        if "arm_gravity_compensation" in task.backend_kwargs:
+            if type(task.backend_kwargs["arm_gravity_compensation"]) is not bool:
+                raise ValueError("arm_gravity_compensation must be a boolean")
+            if task.backend != "simple":
+                raise ValueError("Arm gravity compensation selection is supported only for SIMPLE")
         if task.device_bindings is not None:
             from roboenv.devices.bindings.spec import BindingSpec
 
