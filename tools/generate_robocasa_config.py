@@ -20,7 +20,7 @@ import yaml
 from robocasa.utils.camera_utils import get_robot_cam_configs
 from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
-from roboenv.devices.export import export_devices
+from roboenv.devices.export import export_devices, write_driver
 from roboenv_runtime.adapters.robocasa.backend import DEFAULT_CAMERAS, joint_controller_config
 from roboenv_runtime.bindings import default_registry
 from robosuite.models.arenas import EmptyArena
@@ -129,8 +129,8 @@ def generate(out, provenance=None):
             destination = out / "devices" / path.parent.name
             destination.mkdir(parents=True, exist_ok=True)
             (destination / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
-            for support in path.parent.glob("*.py"):
-                (destination / support.name).write_bytes(support.read_bytes())
+            if profile["type"] != "world":
+                write_driver(destination, profile["type"])
             # There is deliberately no task or session connection file.
     (out / "workspace.yaml").write_bytes((ROBOT / "workspace.yaml").read_bytes())
     if provenance is None:

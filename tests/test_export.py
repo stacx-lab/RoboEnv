@@ -35,6 +35,8 @@ def test_native_task_is_harbor_format_without_a_solution(tmp_path):
     out = tmp_path / "task"
     export_task(task, ROOT / "catalog", out, wheel, deployment_path=deployment)
     assert validate_harbor_task(out)["schema_version"] == "1.4"
+    assert (out / "environment/sim/robot/bindings.yaml").is_file()
+    assert not list((out / "environment/definition").rglob("bindings.yaml"))
     assert not (out / "solution").exists()
     assert (out / "tests/test.sh").stat().st_mode & 0o111
     compose = yaml.safe_load((out / "environment/docker-compose.yaml").read_text())

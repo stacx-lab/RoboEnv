@@ -73,30 +73,27 @@ def export_task(
                 "environment/definition/robot/" + str(relative),
                 content,
             )
-    if plan:
-        out.add_yaml("environment/sim/robot/bindings.yaml", plan.as_dict())
-        for spec in plan.devices:
-            profile = spec.resolved_profile(robot_dir)
-            access = profile.setdefault("access", {})
-            driver = access.setdefault("driver", {})
-            actions = driver.get("actions", ["read"])
-            driver.update(
-                entry="driver.py", interpreter="python3", persistent=True, actions=actions
-            )
-            prefix = f"environment/definition/robot/devices/{spec.name}/"
-            if task.backend not in DEVICE_BACKENDS:
-                out.add_yaml(prefix + "profile.yaml", profile)
-                out.add(prefix + "driver.py", assets.joinpath("device-client.py").read_bytes())
-                out.add(prefix + "_roboenv.py", assets.joinpath("_roboenv.py").read_bytes())
-        out.add(
-            "environment/definition/robot/lib/README.md",
-            "Device implementations run on the server; clients use the public SDK.\n",
+    out.add_yaml("environment/sim/robot/bindings.yaml", plan.as_dict())
+    if task.backend not in DEVICE_BACKENDS:
+        out.add("environment/definition/robot/devices/_roboenv.py",
+                assets.joinpath("_roboenv.py").read_bytes())
+    for spec in plan.devices:
+        profile = spec.resolved_profile(robot_dir)
+        access = profile.setdefault("access", {})
+        driver = access.setdefault("driver", {})
+        actions = driver.get("actions", ["read"])
+        driver.update(
+            entry="driver.py", interpreter="python3", persistent=True, actions=actions
         )
-    names = (
-        [spec.name for spec in plan.devices]
-        if plan
-        else sorted(path.parent.name for path in (robot_dir / "devices").glob("*/profile.yaml"))
+        prefix = f"environment/definition/robot/devices/{spec.name}/"
+        if task.backend not in DEVICE_BACKENDS:
+            out.add_yaml(prefix + "profile.yaml", profile)
+            out.add(prefix + "driver.py", assets.joinpath("device-client.py").read_bytes())
+    out.add(
+        "environment/definition/robot/lib/README.md",
+        "Device implementations run on the server; clients use the public SDK.\n",
     )
+    names = [spec.name for spec in plan.devices]
     primary = next((name for name in ("arm", "left_arm", "controller") if name in names), None)
     manifest = {
         "schema_version": "roboenv/environment/1",

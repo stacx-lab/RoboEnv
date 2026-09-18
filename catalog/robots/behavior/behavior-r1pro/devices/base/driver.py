@@ -1,8 +1,10 @@
 """Mobile base adapter: fenced transport and velocity/posture validation."""
 
 import sys
+from pathlib import Path
 
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from _roboenv import Transport, WireError, main  # noqa: E402
 
 transport = Transport(__file__)

@@ -67,6 +67,30 @@ def driver_resources(directory):
     return resources
 
 
+def shared_driver_resources(directory):
+    """Return collection support separately from each device's local resources."""
+    directory = Path(directory)
+    source = directory / "_roboenv.py"
+    if any(path.is_symlink() for path in (source, *source.parents)):
+        raise ValueError("Shared device support must not contain symlinks")
+    if not source.exists():
+        return []
+    if not source.is_file():
+        raise ValueError("Shared device support must be a regular file")
+    return [Path("_roboenv.py")]
+
+
+def write_shared_driver(directory):
+    """Install one portable transport for a collection of sibling devices."""
+    directory = Path(directory)
+    shared_driver_resources(directory)  # Validate the destination before writing.
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / "_roboenv.py"
+    content = files("roboenv").joinpath("assets/_roboenv.py").read_bytes()
+    if not target.exists() or target.read_bytes() != content:
+        target.write_bytes(content)
+
+
 def driver_access(kind, name, actions, endpoint, *, timeout_s=None):
     driver = {
         "entry": "driver.py",
@@ -95,14 +119,16 @@ def driver_access(kind, name, actions, endpoint, *, timeout_s=None):
 
 
 def write_driver(directory, kind):
-    """Copy the same portable adapter bundle for catalog generation and live export."""
+    """Write a device adapter and ensure its parent collection has shared transport."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
+    write_shared_driver(directory.parent)
     assets = files("roboenv").joinpath("assets")
     (directory / "driver.py").write_bytes(
         assets.joinpath(DRIVERS.get(kind, "device-client.py")).read_bytes()
     )
-    (directory / "_roboenv.py").write_bytes(assets.joinpath("_roboenv.py").read_bytes())
+    # Remove the obsolete generated copy when refreshing an existing device.
+    (directory / "_roboenv.py").unlink(missing_ok=True)
 
 
 def export_devices(profiles, directory, connection):

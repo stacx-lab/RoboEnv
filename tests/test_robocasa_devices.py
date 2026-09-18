@@ -236,6 +236,7 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
         "camera_right",
         "camera_wrist",
         "world",
+        "_roboenv.py",
     }
     assert not list(robot.rglob("connection.json"))
     assert {p.name for p in robot.iterdir()} == {"workspace.yaml", "devices"}
@@ -495,7 +496,9 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         assert owners[0].request("health")["worker"]["alive"]
 
 
-@pytest.mark.parametrize("clock_mode", ["realtime", "synchronous"])
+@pytest.mark.parametrize(
+    "clock_mode", ["realtime", "synchronous", "bounded-realtime", "bounded-synchronous"]
+)
 def test_native_clock_modes(tmp_path, clock_mode):
     result = subprocess.run(
         [

@@ -154,3 +154,56 @@ def test_readme_only_is_not_a_valid_asset_bundle(project, monkeypatch):
     logfile = project / ".cache/roboenv/assets/robocasa/fixtures_lightwheel.private.log"
     assert "empty asset archive" in logfile.read_text()
     assert logfile.stat().st_mode & 0o777 == 0o600
+
+
+def test_imports_verified_assets_and_repairs_without_network(project, monkeypatch):
+    import shutil
+
+    monkeypatch.setattr(assets, "urlopen", lambda *a, **kw: bundle("fixtures/model.xml"))
+    assets.prepare_assets(project)
+    target = project / "another-project"
+    asset_path = "third_party/robocasa/robocasa/models/assets"
+    shutil.copytree(project / asset_path / "box_links", target / asset_path / "box_links")
+
+    def offline(*a, **kw):
+        pytest.fail("Valid local assets must never download")
+
+    monkeypatch.setattr(assets, "urlopen", offline)
+    assets.prepare_assets(target, reuse_from=project)
+    installed = target / asset_path / "fixtures/model.xml"
+    assert installed.read_bytes() == b"asset"
+    original = project / asset_path / "fixtures/model.xml"
+    assert installed.stat().st_ino != original.stat().st_ino
+    installed.write_bytes(b"damaged")
+    assets.prepare_assets(target, reuse_from=project)
+    assert installed.read_bytes() == b"asset" and original.read_bytes() == b"asset"
+    # No donor is needed after seeding; this also models a rebuilt image.
+    assets.prepare_assets(target)
+
+
+@pytest.mark.parametrize("damage", ["hash", "url"])
+def test_invalid_donor_is_not_reused(project, monkeypatch, damage):
+    import shutil
+
+    monkeypatch.setattr(assets, "urlopen", lambda *a, **kw: bundle("fixtures/model.xml"))
+    assets.prepare_assets(project)
+    target = project / "another-project"
+    asset_path = "third_party/robocasa/robocasa/models/assets"
+    shutil.copytree(project / asset_path / "box_links", target / asset_path / "box_links")
+    if damage == "hash":
+        (project / asset_path / "fixtures/model.xml").write_bytes(b"corrupt")
+    else:
+        receipt = project / ".cache/roboenv/assets/robocasa/fixtures_lightwheel.json"
+        record = json.loads(receipt.read_text())
+        record["url"] += "-different"
+        receipt.write_text(json.dumps(record))
+    calls = []
+
+    def download(*a, **kw):
+        calls.append(a)
+        return bundle("fixtures/model.xml", b"fresh")
+
+    monkeypatch.setattr(assets, "urlopen", download)
+    assets.prepare_assets(target, reuse_from=project)
+    assert len(calls) == 1
+    assert (target / asset_path / "fixtures/model.xml").read_bytes() == b"fresh"

@@ -171,14 +171,24 @@ def test_thin_driver_needs_only_stdlib_and_socket(device_service, tmp_path):
     driver = tmp_path / "controller/driver.py"
     write_driver(driver.parent, "other")
     result = subprocess.run(
-        [sys.executable, "-S", str(driver), "read", "{}"],
+        [sys.executable, "-I", "-S", str(driver), "read", "{}"],
         env={**os.environ, "ROBOENV_SOCKET": client.socket_path},
+        cwd=tmp_path.parent,
         capture_output=True,
         text=True,
         timeout=10,
     )
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["ok"] is True
+    assert (tmp_path / "_roboenv.py").is_file()
+    assert not (driver.parent / "_roboenv.py").exists()
+    assert not list(tmp_path.rglob("__pycache__"))
+    (tmp_path / "_roboenv.py").unlink()
+    missing = subprocess.run(
+        [sys.executable, "-I", "-S", str(driver), "read", "{}"],
+        cwd=tmp_path.parent, capture_output=True, text=True, timeout=10,
+    )
+    assert missing.returncode != 0 and "ModuleNotFoundError" in missing.stderr
 
 
 @pytest.mark.parametrize("override", [None, "environment", "connection"])
@@ -227,10 +237,10 @@ def test_all_catalogs_load_without_contacting_simulators():
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
     for workspace in sorted((ROOT / "catalog/robots").rglob("workspace.yaml")):
-        from roboenv.devices.bindings.spec import binding_path
+        from roboenv.devices.bindings.spec import binding_resource
 
         robot = workspace.parent
-        raw = yaml.safe_load(binding_path(robot).read_text())
+        raw = yaml.safe_load(binding_resource(robot, backend=robot.parent.name).read_text())
         plan = BindingPlan.load(robot, backend=raw["backend"])
         if raw["backend"] in DEVICE_BACKENDS:
             # Offline definitions validate without a world; native bindings require

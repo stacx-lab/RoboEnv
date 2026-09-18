@@ -18,6 +18,14 @@ for wheel in wheels:
         )
         if required not in names:
             raise SystemExit(f"G1 resource missing from wheel: {required}")
+        if distribution == "roboenv":
+            defaults = Path("src/roboenv/devices/bindings/defaults")
+            expected_bindings = {p.relative_to("src").as_posix() for p in defaults.rglob("*.yaml")}
+            actual_bindings = {
+                n for n in names if n.startswith("roboenv/devices/bindings/defaults/")
+            }
+            if actual_bindings != expected_bindings:
+                raise SystemExit("Binding defaults missing or stale in SDK wheel")
         source = Path("src") if distribution == "roboenv" else Path("runtime/src")
         expected = {
             path.relative_to(source).as_posix() for path in (source / distribution).rglob("*.py")
@@ -36,6 +44,12 @@ code = (
     "import importlib, sys;"
     f"sys.path[:0] = {[str(w.resolve()) for w in wheels]!r};"
     "import roboenv, roboenv_runtime.runtime.worker;"
+    "from roboenv.devices.bindings.spec import binding_resource;"
+    "from roboenv.validation import yaml_load;"
+    "resource = binding_resource('libero-panda-kitchen', backend='libero');"
+    "assert '.whl/' in str(resource);"
+    "plan = yaml_load(resource.read_text());"
+    "assert plan['devices']['camera_wrist']['config']['camera'] == 'robot0_eye_in_hand';"
     "from roboenv_runtime.bindings.simulators import binding_index;"
     "[importlib.import_module('roboenv_runtime.bindings.backends.' + item['module']) "
     "for item in binding_index().values()];"

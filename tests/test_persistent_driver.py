@@ -91,8 +91,9 @@ def test_portable_dialog_uses_real_worker_and_stdout_only_contains_replies(
     assert not proc.stderr
 
 
-DIALOG = '''import json, os, time
+DIALOG = '''import json, os, sys, time
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from _roboenv import Transport, main
 transport = Transport(__file__)
 transport.profile = {"access": {"driver": {"actions": ["read", "write", "stop", "unload"]}}}
@@ -168,6 +169,7 @@ def test_local_kinematics_is_cached_and_never_connects_for_cleanup(tmp_path, mon
     for file in source.iterdir():
         if file.is_file():
             shutil.copy2(file, tmp_path / file.name)
+    shutil.copy2(source.parent / "_roboenv.py", tmp_path.parent / "_roboenv.py")
     monkeypatch.syspath_prepend(str(tmp_path))
     spec = importlib.util.spec_from_file_location("arm_cache", tmp_path / "driver.py")
     module = importlib.util.module_from_spec(spec)

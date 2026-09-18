@@ -154,7 +154,7 @@ def cameras(source):
     return result
 
 
-def generate(out, facts_out, provenance):
+def generate(out, facts_out, provenance, *, bindings_out=None):
     source = ROOT / "third_party/SIMPLE"
     robot_xml = ROOT / ".cache/simple/data/robots/g1_sonic/g1_29dof_with_hand.xml"
     model = {
@@ -248,19 +248,20 @@ def generate(out, facts_out, provenance):
         )
         kind = {"dexterous_hand": "joint", "rgb": "camera"}.get(value["type"], value["type"])
         bindings[name] = {"binding": f"simple.{kind}/1", "entity": name}
-    target = out / "bindings/simple/simple-g1.yaml"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        yaml.safe_dump(
-            {
-                "schema_version": "roboenv/bindings/1",
-                "backend": "simple",
-                "embodiment": "g1",
-                "devices": bindings,
-            },
-            sort_keys=False,
+    if bindings_out is not None:
+        target = bindings_out / "simple/simple-g1.yaml"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": "roboenv/bindings/1",
+                    "backend": "simple",
+                    "embodiment": "g1",
+                    "devices": bindings,
+                },
+                sort_keys=False,
+            )
         )
-    )
     from dataclasses import asdict
 
     for task, _ in discover_tasks(ROOT):
@@ -303,5 +304,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--provenance", type=Path, default=ROOT / "docs/simple-config.provenance.json"
     )
+    parser.add_argument("--bindings-out", type=Path, help="Separate internal binding resource root")
     options = parser.parse_args()
-    generate(options.out, options.facts_out, options.provenance)
+    generate(options.out, options.facts_out, options.provenance, bindings_out=options.bindings_out)

@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from roboenv.devices.export import driver_resources
+from roboenv.devices.export import driver_resources, shared_driver_resources, write_driver
 
 
 def manifest(root, names):
@@ -45,10 +45,36 @@ def test_symlinked_resource_directory_is_rejected(tmp_path):
         driver_resources(root)
 
 
-def test_legacy_python_bundle_and_missing_manifest_resource(tmp_path):
+def test_device_local_python_and_missing_manifest_resource(tmp_path):
     (tmp_path / "driver.py").write_text("pass\n")
-    (tmp_path / "_roboenv.py").write_text("pass\n")
-    assert {str(path) for path in driver_resources(tmp_path)} == {"driver.py", "_roboenv.py"}
+    (tmp_path / "geometry.py").write_text("pass\n")
+    assert {str(path) for path in driver_resources(tmp_path)} == {"driver.py", "geometry.py"}
     manifest(tmp_path, ["driver.py", "missing.urdf"])
     with pytest.raises(ValueError, match="Missing portable"):
         driver_resources(tmp_path)
+
+
+def test_sibling_drivers_share_one_transport_and_remove_legacy_copies(tmp_path):
+    arm, gripper = tmp_path / "arm", tmp_path / "gripper"
+    arm.mkdir()
+    (arm / "_roboenv.py").write_text("# obsolete generated transport\n")
+    write_driver(arm, "joint")
+    shared = tmp_path / "_roboenv.py"
+    first = shared.stat().st_mtime_ns
+    write_driver(gripper, "gripper")
+    assert shared.stat().st_mtime_ns == first
+    assert list(tmp_path.rglob("_roboenv.py")) == [shared]
+    assert [str(p) for p in shared_driver_resources(tmp_path)] == ["_roboenv.py"]
+    assert [str(p) for p in driver_resources(arm)] == ["driver.py"]
+    assert [str(p) for p in driver_resources(gripper)] == ["driver.py"]
+
+
+def test_shared_transport_cannot_escape_collection(tmp_path):
+    outside = tmp_path / "private.py"
+    outside.write_text("private")
+    collection = tmp_path / "devices"
+    collection.mkdir()
+    (collection / "_roboenv.py").symlink_to(outside)
+    with pytest.raises(ValueError, match="symlinks"):
+        write_driver(collection / "arm", "joint")
+    assert outside.read_text() == "private"

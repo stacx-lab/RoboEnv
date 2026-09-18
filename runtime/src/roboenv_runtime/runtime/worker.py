@@ -30,6 +30,7 @@ op                      what
 from __future__ import annotations
 
 from roboenv.tasks.model import DEVICE_BACKENDS
+from roboenv.devices.status import status_feedback
 
 import argparse
 import contextlib
@@ -226,6 +227,7 @@ class SimWorker:
         self._closed = False
         self._final_result: dict[str, Any] | None = None
         self._final_observation: dict[str, Any] | None = None
+        self._termination_reason = None
         if reset_adapter:
             self.world.reset(self.seed)
         self.scorer: ScoreAuthority = make_score_authority(
@@ -237,6 +239,8 @@ class SimWorker:
         try:
             self._bind_devices()
             self.state = "ready"
+            if hasattr(self.adapter, "set_step_callback"):
+                self.adapter.set_step_callback(self._check_terminal)
             self.world.start()
         except BaseException:
             self.close()
@@ -415,6 +419,33 @@ class SimWorker:
             observation["policy_servers"] += self._vla_manager.inventory()
         return observation
 
+    def _check_terminal(self):
+        """Called in the world's lane after each native control interval."""
+        if self._final_result is not None or not getattr(self.adapter, "bounded_episodes", False):
+            return
+        success = getattr(self.adapter, "stop_on_success", False) and self.adapter.score().completed
+        if success or self.adapter.budget().exhausted:
+            self._termination_reason = "success" if success else "step_limit"
+            self.submit()
+
+    def simulation_status(self, *, include_verdict=False):
+        """Expose the judgment only for stop receipts and retained owner evidence."""
+        result = self._final_result
+        status = {
+            "schema": "roboenv/simulation-status/1",
+            "session": self.session,
+            "generation": self.generation,
+            "state": "terminal" if result is not None else self.state,
+            "terminal": result is not None,
+            "success": bool(result["completed"]) if result is not None else None,
+            "reason": self._termination_reason,
+            "budget": self._budget_snapshot(),
+            "simulation_time_s": getattr(self.adapter, "simulation_time_s", None),
+            "capabilities": {"terminal_feedback": True,
+                             "bounded_episodes": bool(getattr(self.adapter, "bounded_episodes", False))},
+        }
+        return status if include_verdict else status_feedback(status)
+
     def submit(self) -> dict[str, Any]:
         """Seal one authoritative observation, budget and verdict in the world's lane.
 
@@ -429,6 +460,8 @@ class SimWorker:
             if self.state == "failed" or self.world.failure is not None:
                 raise WorkerRPCError("world_failed", "owner recovery is required")
             self.world.freeze()
+            if hasattr(self.adapter, "freeze_episode"):
+                self.adapter.freeze_episode()
             if self.scorer.submitted:
                 raise WorkerRPCError("submit_failed", "the final evaluation did not complete")
             try:
@@ -453,6 +486,14 @@ class SimWorker:
                 )
                 self._final_observation = copy.deepcopy(observation)
                 self._final_result = copy.deepcopy(verdict)
+                self._termination_reason = self._termination_reason or (
+                    "success" if verdict["completed"] else "stopped"
+                )
+                from roboenv_runtime.runtime.atomic import atomic_write_json
+                atomic_write_json(self.run_dir / "terminal.json", {
+                    "status": self.simulation_status(include_verdict=True), "verdict": verdict,
+                    "task": self.task_id, "seed": self.seed,
+                })
             except Exception:
                 # An incomplete final evaluation is not a retryable opportunity
                 # to take more actions or evaluate a different terminal state.
@@ -504,6 +545,7 @@ class SimWorker:
             self.scorer = make_score_authority(
                 self.adapter, self.run_dir, budget_mode=self.budget_mode, **self.scorer_options
             )
+            self._termination_reason = None
             self._final_result = None
             self._final_observation = None
             self._tools = self._collect_tools()
@@ -626,6 +668,15 @@ class SimWorker:
             return self._dispatch(op, args)
 
     def _dispatch(self, op: str, args: Mapping[str, Any]) -> Any:
+        if op == "simulation.status":
+            if args:
+                raise WorkerRPCError("invalid_args", "simulation.status takes no arguments")
+            return self.simulation_status()
+        if op == "simulation.stop":
+            if args:
+                raise WorkerRPCError("invalid_args", "simulation.stop takes no arguments")
+            self.submit()
+            return self.simulation_status(include_verdict=True)
         if self.state == "failed" and op not in {
             "health", "api", "environment.describe", "devices.list", "devices.describe",
             "reset", "reset_same_task", "shutdown",
@@ -678,8 +729,16 @@ class SimWorker:
                     if set(args) != {"device"}:
                         raise DeviceError("invalid_args", "Expected device name only")
                     return self.devices.describe(args["device"])
+                if self._final_result is not None and getattr(self.adapter, "bounded_episodes", False):
+                    from roboenv.devices.contract import READ_ACTIONS
+                    if args.get("action") not in READ_ACTIONS:
+                        raise WorkerRPCError("episode_finished", "Episode finished; call roboenv stop for the final judgment",
+                                             details=self.simulation_status())
                 result = self.devices.call(args, submitted=self.scorer.submitted)
+                self._check_terminal()
                 result["budget"] = self._budget_snapshot()
+                if self._final_result is not None:
+                    result["simulation"] = self.simulation_status()
                 return result
             except DeviceError as exc:
                 raise WorkerRPCError(exc.code, exc.message, details=exc.details) from exc

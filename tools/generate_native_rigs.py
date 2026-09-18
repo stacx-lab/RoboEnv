@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TIMESTAMP = "2026-09-09T00:00:00Z"
 
 
-def write_rig(root, robot, backend, embodiment, facts):
+def write_rig(root, robot, backend, embodiment, facts, *, bindings_out=None):
     catalog = Path(root)
     robot_path = f"{backend}/{robot}"
     directory = catalog / "robots" / robot_path
@@ -65,12 +65,13 @@ def write_rig(root, robot, backend, embodiment, facts):
         profile["meta"] = {"created_at": TIMESTAMP, "updated_at": TIMESTAMP}
         (device / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
         bindings["devices"][name] = {"binding": backend + ".device/1", "entity": name}
-    path = catalog / "bindings" / (robot_path + ".yaml")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(bindings, sort_keys=False))
+    if bindings_out is not None:
+        path = Path(bindings_out) / (robot_path + ".yaml")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(bindings, sort_keys=False))
 
 
-def generate_robotwin(project, catalog, *, assets=None):
+def generate_robotwin(project, catalog, *, assets=None, bindings_out=None):
     from roboenv_runtime.adapters.robotwin.rig import describe
 
     for embodiment, robot in (
@@ -78,24 +79,25 @@ def generate_robotwin(project, catalog, *, assets=None):
         ("aloha_agilex", "robotwin-aloha-agilex"),
     ):
         facts, _, _ = describe(Path(project) / "third_party/RoboTwin", embodiment, assets=assets)
-        write_rig(catalog, robot, "robotwin", embodiment, facts)
+        write_rig(catalog, robot, "robotwin", embodiment, facts, bindings_out=bindings_out)
 
 
-def generate_robodojo(project, catalog, *, assets=None):
+def generate_robodojo(project, catalog, *, assets=None, bindings_out=None):
     from roboenv_runtime.adapters.robodojo.rig import describe
 
     for embodiment, robot in (("arx_x5", "robodojo-arx-x5"), ("yam", "robodojo-yam")):
         facts, _, _ = describe(Path(project) / "third_party/RoboDojo", embodiment, assets=assets)
-        write_rig(catalog, robot, "robodojo", embodiment, facts)
+        write_rig(catalog, robot, "robodojo", embodiment, facts, bindings_out=bindings_out)
 
 
-def generate_behavior(project, catalog, *, assets=None):
+def generate_behavior(project, catalog, *, assets=None, bindings_out=None):
     from roboenv_runtime.adapters.behavior.devices import compile_rig
 
     if assets is not None:
         raise ValueError("BEHAVIOR uses its registered OmniGibson asset depot")
     try:
-        write_rig(catalog, "behavior-r1pro", "behavior", "r1pro", compile_rig())
+        write_rig(catalog, "behavior-r1pro", "behavior", "r1pro", compile_rig(),
+                  bindings_out=bindings_out)
     finally:
         # A task-free compile still owns an Isaac application. Release it before
         # interpreter teardown rather than leaving native threads to destructors.
@@ -109,7 +111,8 @@ if __name__ == "__main__":
     parser.add_argument("backend", choices=["robotwin", "robodojo", "behavior"])
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--assets", type=Path)
+    parser.add_argument("--bindings-out", type=Path, help="Separate internal binding resource root")
     args = parser.parse_args()
     {"robotwin": generate_robotwin, "robodojo": generate_robodojo, "behavior": generate_behavior}[
         args.backend
-    ](ROOT, args.out, assets=args.assets)
+    ](ROOT, args.out, assets=args.assets, bindings_out=args.bindings_out)

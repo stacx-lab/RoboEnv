@@ -12,7 +12,7 @@ G1 follows the catalog ownership rules in [DESIGN.md](../DESIGN.md):
 | Content | Canonical location |
 | --- | --- |
 | Task definition | `catalog/tasks/isaaclab/g1-pick-place/task.yaml` |
-| Native device bindings | `catalog/bindings/isaaclab/isaaclab-g1.yaml` |
+| Native device bindings | `src/roboenv/devices/bindings/defaults/isaaclab/isaaclab-g1.yaml` |
 | Copyable robot profiles and drivers | `catalog/robots/isaaclab/isaaclab-g1/{workspace.yaml,devices/}` |
 | Runtime model and validation facts | `runtime/src/roboenv_runtime/adapters/isaaclab/g1.json` |
 | Pinned asset manifest | `src/roboenv/assets/isaaclab-g1.json` |
