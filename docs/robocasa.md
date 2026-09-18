@@ -131,8 +131,20 @@ the default realtime mode. Reads, recording, status, local IK/FK, and stop
 never request advancement. Kinex's `servo_to` and `track` use the same loop in
 both modes; their wall-clock rate cap does not set simulation time.
 
-Both modes count `action_frames` with `max: null`; the original horizon and legacy
-`max_steps` do not terminate this configuration. Original task success rules remain.
+Both modes count `action_frames`. The default `max_steps: null` is unbounded;
+a positive `max_steps` sets a hard native control-step limit. Set
+`stop_on_success: true` to freeze on native success, including success on the last
+allowed step. After termination, reads and status remain available but writes fail
+with `episode_finished`. Original task success rules remain.
+
+`roboenv status --json` uses `ROBOENV_ENDPOINT` when no run is supplied and reports
+simulation state and budget without success or failure metrics, including after
+termination. Device responses and terminal errors also omit the judgment.
+Launch with `--allow-stop` to let the assigned agent call `roboenv stop --json`;
+this seals and returns the final verdict, releases the worker, and retains an
+immutable receipt. The local owner can always stop and close its run.
+`--runtime-root` and `--run-dir` support packaged deployments without mounting a
+source checkout. Private evidence includes `terminal.json` and the action journal.
 Submission atomically freezes the terminal state. Realtime pacing is best effort:
 slow simulation or camera requests can cause lag, but physics steps are not skipped.
 Replaying commands without their simulation-frame timing does not reproduce a run.
@@ -148,8 +160,8 @@ catalog/robots/robocasa/robocasa-panda-omron/
   workspace.yaml
   devices/<name>/profile.yaml
   devices/<name>/driver.py       # except world
-  devices/<name>/_roboenv.py      # shared portable transport, except world
-catalog/bindings/robocasa/robocasa-panda-omron.yaml
+  devices/_roboenv.py             # one shared portable transport per collection
+src/roboenv/devices/bindings/defaults/robocasa/robocasa-panda-omron.yaml
 catalog/tasks/<simulator>/<task-name>/task.yaml
 ```
 
@@ -196,8 +208,10 @@ or extrinsics. Required unknown facts use `???`; optional unavailable values use
 
 ## Portable drivers and local kinematics
 
-Catalog drivers share the adjacent `_roboenv.py` HTTP/Unix transport and **do not
-import RoboEnv**. Copy the complete device directory, including this support file. Set `ROBOENV_ENDPOINT` for the current service; the catalog carries no
+Catalog drivers share `devices/_roboenv.py` for HTTP/Unix transport and **do not
+import RoboEnv**. Copy the device collection, including this one shared file.
+Each `devices/<name>/driver.py` locates it relative to its own file, independently
+of the working directory. Set `ROBOENV_ENDPOINT` for the current service; the catalog carries no
 session connection file. Drivers default to persistent processes and discover the
 selected episode once; runners can pin session/generation explicitly. Drivers and
 SDK clients retain their original episode identity. Reload the driver after changing

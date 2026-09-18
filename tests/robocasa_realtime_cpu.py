@@ -26,7 +26,7 @@ def check(root, temporary):
     native = adapter._env
     native.realtime = True
     native.horizon = native.env.horizon = 2
-    native._max_steps = 1  # Legacy overrides must not cap realtime testing.
+    native._max_steps = None  # Unbounded service mode.
     worker = SimWorker(
         adapter,
         task_id="cpu-realtime",
@@ -106,7 +106,7 @@ def check_synchronous(root, temporary):
     adapter = make_adapter(realtime=False)
     native = adapter._env
     native.horizon = native.env.horizon = 2
-    native._max_steps = 1
+    native._max_steps = None
     worker = SimWorker(
         adapter,
         task_id="cpu-synchronous",
@@ -168,6 +168,68 @@ def check_synchronous(root, temporary):
     print(json.dumps({"passed": True, "gpu_replay": False}))
 
 
+def check_bounded(root, temporary, realtime):
+    from roboenv_runtime.runtime.worker import WorkerRPCError
+
+    adapter = make_adapter(realtime=realtime)
+    native = adapter._env
+    native._max_steps = 3
+    native.stop_on_success = True
+    worker = SimWorker(
+        adapter,
+        task_id="cpu-bounded",
+        seed=7,
+        run_dir=temporary,
+        device_root=root / "catalog/robots/robocasa/robocasa-panda-omron",
+    )
+    try:
+        if realtime:
+            wait_frames(worker, 3)
+        else:
+            for _ in range(3):
+                worker.dispatch(
+                    "devices.call",
+                    {
+                        "device": "gripper",
+                        "action": "write",
+                        "args": {"target": [1]},
+                    },
+                )
+        with worker.world.lock:
+            status = worker.dispatch("simulation.status", {})
+            assert status["terminal"] and "reason" not in status and "success" not in status, status
+            assert status["budget"]["used"] == status["budget"]["max"] == 3
+            position = native.sim.data.qpos.copy()
+            sim_time = native.sim.data.time
+        time.sleep(0.15)
+        with worker.world.lock:
+            try:
+                worker.dispatch(
+                    "devices.call",
+                    {
+                        "device": "gripper",
+                        "action": "write",
+                        "args": {"target": [-1]},
+                    },
+                )
+            except WorkerRPCError as exc:
+                assert exc.code == "episode_finished"
+            else:
+                raise AssertionError("Motion accepted after terminal feedback")
+            assert native._step_count == 3
+            assert native.sim.data.time == sim_time
+            np.testing.assert_array_equal(native.sim.data.qpos, position)
+            assert worker.dispatch("simulation.status", {}) == status
+        assert (temporary / "terminal.json").is_file()
+    finally:
+        worker.close()
+    print(json.dumps({"passed": True, "gpu_replay": False}))
+
+
 if __name__ == "__main__":
-    check_fn = check_synchronous if sys.argv[3:] == ["synchronous"] else check
-    check_fn(Path(sys.argv[1]), Path(sys.argv[2]))
+    mode = sys.argv[3] if len(sys.argv) > 3 else "realtime"
+    if mode.startswith("bounded-"):
+        check_bounded(Path(sys.argv[1]), Path(sys.argv[2]), mode == "bounded-realtime")
+    else:
+        check_fn = check_synchronous if mode == "synchronous" else check
+        check_fn(Path(sys.argv[1]), Path(sys.argv[2]))

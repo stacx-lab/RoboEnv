@@ -59,6 +59,13 @@ class Task:
         ):
             raise ValueError("backend_kwargs must be an environment configuration mapping")
         json_value(task.backend_kwargs)
+        if "max_steps" in task.backend_kwargs:
+            maximum = task.backend_kwargs["max_steps"]
+            if maximum is not None and (type(maximum) is not int or maximum <= 0):
+                raise ValueError("max_steps must be a positive integer or null")
+        if "stop_on_success" in task.backend_kwargs:
+            if type(task.backend_kwargs["stop_on_success"]) is not bool:
+                raise ValueError("stop_on_success must be a boolean")
         if "realtime" in task.backend_kwargs and type(task.backend_kwargs["realtime"]) is not bool:
             raise ValueError("realtime must be a boolean")
         if "arm_gravity_compensation" in task.backend_kwargs:

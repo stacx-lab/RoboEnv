@@ -341,9 +341,9 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path, realti
     assert not Path(task.task.backend_kwargs["asset_manifest"]).is_absolute()
     assert "model_path" not in task.task.backend_kwargs
     assert {path.name for path in task.robot.iterdir()} == {"workspace.yaml", "devices"}
-    from roboenv.devices.bindings.spec import binding_path
+    from roboenv.devices.bindings.spec import binding_resource
 
-    assert binding_path(task.robot) == root / "catalog/bindings/isaaclab/isaaclab-g1.yaml"
+    assert binding_resource(task.robot, backend="isaaclab").is_file()
     data = json.loads((root / "runtime/src/roboenv_runtime/adapters/isaaclab/g1.json").read_text())
     assert digest(root / "src/roboenv/assets/isaaclab-g1.json") == data["asset_manifest_sha256"]
     world = Native()

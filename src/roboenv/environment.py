@@ -21,7 +21,9 @@ from pathlib import Path
 
 import yaml
 from roboenv.client import Client
+from roboenv.devices.status import status_feedback
 from roboenv.project import project_root
+from roboenv.provisioning.interpreter import resolve_interpreter
 from roboenv.tasks.model import DEVICE_BACKENDS
 from roboenv.tasks.resolve import resolve_task
 from roboenv.validation import json_loads
@@ -120,15 +122,37 @@ class _OwnerClient(Client):
     allowed_ops = Client.allowed_ops | {"shutdown"}
 
 
-def stop(run, *, project=None):
-    """Ask the identified supervisor to stop; never signal a recorded PID."""
+def _lifecycle_endpoint(run, endpoint, port):
+    if sum(value is not None for value in (run, endpoint, port)) > 1:
+        raise ValueError("Choose a run, endpoint, or port")
+    if port is not None:
+        if type(port) is not int or not 1 <= port <= 65535:
+            raise ValueError("port must be an integer between 1 and 65535")
+        return f"http://127.0.0.1:{port}"
+    if endpoint is not None and not endpoint:
+        raise ValueError("endpoint must be http(s)://HOST:PORT")
+    return endpoint
+
+
+def stop(run=None, *, endpoint=None, port=None, project=None):
+    """Stop one selected service; port selects a local HTTP service."""
+    endpoint = _lifecycle_endpoint(run, endpoint, port)
+    if endpoint is not None:
+        return Client(endpoint=endpoint).request("simulation.stop")
+    run = run or os.environ.get("ROBOENV_ENDPOINT")
+    if run is None:
+        raise ValueError("Select a run, use --port PORT / --endpoint URL, or set ROBOENV_ENDPOINT")
+    if str(run).startswith(("http://", "https://")) and project is None:
+        return Client(endpoint=run).request("simulation.stop")
     path = _record_path(run, project)
     record = _record(path, project)
     if record.get("state") == "stopped":
-        return {"state": "stopped", "id": record["id"]}
+        return {"state": "stopped", "id": record["id"], "simulation": record.get("simulation")}
     owner = _OwnerClient(
         record["socket"], session=record["session"], generation=record["generation"]
     )
+    record["simulation"] = owner.request("simulation.stop", timeout=240)
+    _save(path, record)
     owner.request("shutdown", timeout=15)
     deadline = time.monotonic() + 15
     while Path(record["socket"]).exists():
@@ -137,7 +161,7 @@ def stop(run, *, project=None):
         time.sleep(0.05)
     record["state"] = "stopped"
     _save(path, record)
-    return {"state": "stopped", "id": record["id"]}
+    return {"state": "stopped", "id": record["id"], "simulation": record["simulation"]}
 
 
 def connect(*args, **kwargs):
@@ -146,15 +170,22 @@ def connect(*args, **kwargs):
     return Environment(_connect(*args, **kwargs))
 
 
-def status(run=None, *, project=None):
-    if str(run).startswith(("http://", "https://")):
-        return _connect(run).request("health", timeout=2)
-    if run is not None:
-        record = _record(run, project)
-        if record.get("state") in {"stopped", "failed"}:
-            return {"state": record["state"], "id": record["id"]}
-    client = _connect(run, project=project)
-    return client.request("health", timeout=2)
+def status(run=None, *, endpoint=None, port=None, project=None):
+    """Inspect one selected service without exposing its final judgment."""
+    endpoint = _lifecycle_endpoint(run, endpoint, port)
+    if endpoint is not None:
+        # Validate an explicit URL before considering any ambient connection.
+        client = Client(endpoint=endpoint)
+    else:
+        run = run or os.environ.get("ROBOENV_ENDPOINT")
+        if run is not None and not str(run).startswith(("http://", "https://")):
+            record = _record(run, project)
+            if record.get("state") in {"stopped", "failed"}:
+                return {"state": record["state"], "id": record["id"],
+                        "simulation": status_feedback(record.get("simulation"))}
+        client = _connect(run, project=project)
+    return {**client.request("health", timeout=2),
+            "simulation": client.request("simulation.status", timeout=30)}
 
 
 class RunningEnvironment:
@@ -218,7 +249,11 @@ class RunningEnvironment:
 
     def close(self):
         if self.process.poll() is None:
-            self.process.terminate()
+            try:
+                result = stop(self.path)
+                self.record["simulation"] = result.get("simulation")
+            except (OSError, RuntimeError):
+                self.process.terminate()
             try:
                 self.process.wait(timeout=30)
             except subprocess.TimeoutExpired as exc:
@@ -242,6 +277,11 @@ def launch(
     realtime=None,
     arm_gravity_compensation=None,
     log_stream=None,
+    runtime_root=None,
+    run_dir=None,
+    allow_stop=False,
+    advertise_host=None,
+    python_path=(),
 ):
     """Start a task in its isolated interpreter; return after device readiness.
 
@@ -261,33 +301,32 @@ def launch(
     import ipaddress
 
     ipaddress.IPv4Address(host)
-    root = project_root(project)
+    if runtime_root is not None and (catalog is None or interpreter is None):
+        raise ValueError("Packaged startup requires --catalog and --interpreter")
+    if type(allow_stop) is not bool:
+        raise ValueError("allow_stop must be a boolean")
+    if isinstance(python_path, (str, bytes)):
+        raise ValueError("python_path must be a sequence of deployment paths")
+    python_path = [str(Path(path).resolve(strict=True)) for path in python_path]
+    root = Path(runtime_root).resolve(strict=True) if runtime_root else project_root(project)
     resolved = resolve_task(task, project=root, catalog=catalog, realtime=realtime,
                             arm_gravity_compensation=arm_gravity_compensation)
     spec = resolved.task
-    if interpreter is None:
-        if spec.backend == "fakeshell":
-            interpreter = sys.executable
-        else:
-            registration = root / ".cache/roboenv/installations" / f"{spec.backend}.json"
-            if not registration.is_file():
-                raise ValueError(
-                    f"Simulator is not prepared; run 'roboenv prepare {spec.backend}' "
-                    "or pass --interpreter"
-                )
-            interpreter = json_loads(registration.read_text())["python"]
-    interpreter = Path(interpreter).absolute()
-    if not interpreter.is_file() or not os.access(interpreter, os.X_OK):
-        raise ValueError("Simulator interpreter must be an existing executable")
+    if interpreter is None and spec.backend == "fakeshell":
+        interpreter = sys.executable
+    interpreter = resolve_interpreter(root, spec.backend, interpreter)
     if any(path.is_symlink() for path in resolved.robot.rglob("*")):
         raise ValueError("Robot definition must not contain symlinks")
-    if spec.backend != "fakeshell":
+    if spec.backend != "fakeshell" and runtime_root is None:
         from roboenv.provisioning.sources import status as source_status
 
         if not source_status(root, [spec.backend])["ready"]:
             raise ValueError(f"Sources are not ready; run 'roboenv doctor {spec.backend}'")
     run_id = uuid.uuid4().hex[:16]
-    directory = _records(root) / run_id
+    runs = Path(run_dir).resolve() if run_dir else (
+        root / ".cache/roboenv/runs" if runtime_root else _records(root)
+    )
+    directory = runs / run_id
     directory.mkdir(parents=True, mode=0o700)
     sockets = Path(tempfile.mkdtemp(prefix="roboenv-socket-", dir="/tmp"))
     robot = directory / "server/robot"
@@ -340,7 +379,10 @@ def launch(
         PYTHONDONTWRITEBYTECODE="1",
         PYTHONUNBUFFERED="1",
         MUJOCO_GL="egl",
+        ROBOENV_ALLOW_STOP="1" if allow_stop else "0",
     )
+    if python_path:
+        env["PYTHONPATH"] = os.pathsep.join(python_path)
     command = [
         str(interpreter),
         "-m",
@@ -394,6 +436,9 @@ def launch(
                 if health.get("worker", {}).get("state") == "ready":
                     inventory = running.devices()
                     record["endpoint"] = health["endpoint"]
+                    if advertise_host:
+                        from urllib.parse import urlsplit
+                        record["endpoint"] = f"http://{advertise_host}:{urlsplit(health['endpoint']).port}"
                     from roboenv.devices.export import export_devices
 
                     export_devices(

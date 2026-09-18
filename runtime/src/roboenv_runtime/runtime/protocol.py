@@ -35,6 +35,8 @@ MAX_NDJSON_BYTES = 8 * 1024 * 1024
 ALLOWED_OPS = frozenset(
     {
         "health",
+        "simulation.status",
+        "simulation.stop",
         "environment.describe",
         "devices.list",
         "devices.describe",

@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from roboenv.devices.status import status_feedback
+
 from roboenv_runtime.runtime.atomic import AtomicJournal, atomic_write_json
 from roboenv_runtime.runtime.protocol import (
     ALLOWED_OPS,
@@ -157,6 +159,7 @@ class Supervisor:
         self._http_server = None
         self._http_thread = None
         self._closing = False
+        self._stopped_result = None
         self._restore_cache()
 
     # -------------------------------------------------------------- durability
@@ -624,6 +627,18 @@ class Supervisor:
                 f"supervisor generation is {self.config.generation}",
             ).as_dict()
 
+        if public and request.op == "simulation.stop" and os.environ.get("ROBOENV_ALLOW_STOP") != "1":
+            return Response.failure(request, "permission_denied", "Service stop is owner-only").as_dict()
+        if request.op == "shutdown" and self._stopped_result is not None:
+            self._schedule_server_shutdown()
+            return Response.success(request, {"state": "stopped"}).as_dict()
+        if request.op in {"simulation.status", "simulation.stop"} and self._stopped_result is not None:
+            if request.args:
+                return Response.failure(request, "invalid_args", "Lifecycle operations take no arguments").as_dict()
+            result = (status_feedback(self._stopped_result)
+                      if request.op == "simulation.status" else self._stopped_result)
+            return Response.success(request, result).as_dict()
+
         # Public metadata queries must not reuse cached owner responses. In
         # particular, operations.get must not unwrap a verifier observation.
         if public and request.op in {"health", "operations.get"}:
@@ -668,6 +683,12 @@ class Supervisor:
 
         try:
             # Atomically reserve dispatch against a retry's queue-timeout result.
+            if request.op in {"simulation.status", "simulation.stop"} and self._stopped_result is not None:
+                if request.args:
+                    return Response.failure(request, "invalid_args", "Lifecycle operations take no arguments").as_dict()
+                result = (status_feedback(self._stopped_result)
+                          if request.op == "simulation.status" else self._stopped_result)
+                return Response.success(request, result).as_dict()
             with self._identity_lock:
                 try:
                     cached = self._cache_lookup(request)
@@ -740,6 +761,11 @@ class Supervisor:
                     details={"worker_state": self._worker_state},
                     retryable=False,
                 ).as_dict()
+            if request.op == "simulation.stop" and response["ok"]:
+                self.terminate_worker(reason="simulation stopped")
+                self._stopped_result = {**response["result"], "service_state": "stopped"}
+                response["result"] = self._stopped_result
+                atomic_write_json(self.config.run_dir / "stopped.json", self._stopped_result)
             elapsed = round(time.monotonic() - started, 6)
             if response["ok"]:
                 self.journal.commit(raw_request, response, elapsed_s=elapsed)

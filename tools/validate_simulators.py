@@ -15,7 +15,7 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from roboenv.devices.bindings.spec import BindingPlan, binding_path
+from roboenv.devices.bindings.spec import BindingPlan, binding_resource
 from roboenv.harbor.deployment import load_deployment
 from roboenv.harbor.taskset import deployment_map, export_taskset, validate_harbor_task
 from roboenv.privacy import validate_public_text
@@ -280,7 +280,9 @@ def prepare(
             "program_sha256": hashlib.sha256(program.encode()).hexdigest(),
             "backend_task": task.backend_task,
             "robot": task.robot,
-            "bindings_sha256": digest(binding_path(project / "catalog/robots" / task.robot)),
+            "bindings_sha256": hashlib.sha256(binding_resource(
+                project / "catalog/robots" / task.robot, backend=task.backend,
+            ).read_bytes()).hexdigest(),
             **_probe_inventory(project, task),
         }
     bundle = out / "taskset"

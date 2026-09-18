@@ -54,12 +54,20 @@ class RoboCasaEnv:
         style_ids: Any = None,
         seed: int | None = None,
         max_steps: int | None = None,
+        stop_on_success: bool = False,
         enable_render: bool = True,
         realtime: bool = True,
         camera_names: tuple[str, ...] = DEFAULT_CAMERAS,
         camera_size: tuple[int, int] = (256, 256),
         obj_instance_split: str | None = None,
     ) -> None:
+        if max_steps is not None and (type(max_steps) is not int or max_steps <= 0):
+            raise ValueError("max_steps must be a positive integer or null")
+        if type(stop_on_success) is not bool:
+            raise ValueError("stop_on_success must be a boolean")
+        self.stop_on_success = stop_on_success
+        self.on_step = None
+        self.terminal = False
         _ensure_offscreen_rendering()
         import robocasa  # noqa: F401  (importing it registers the kitchen environments)
         import robosuite
@@ -292,9 +300,7 @@ class RoboCasaEnv:
 
     def get_step_budget(self) -> dict[str, int | None]:
         """Native control frames, including idle frames in realtime mode."""
-        # Both clock modes count frames without the benchmark's old horizon
-        # or legacy max_steps overrides.
-        return {"used": self._step_count, "max": None}
+        return {"used": self._step_count, "max": self._max_steps}
 
     def render(self, camera: str | None = None) -> np.ndarray | None:
         """An RGB frame from ``camera`` (default: the first configured camera)."""
@@ -326,6 +332,7 @@ class RoboCasaEnv:
             self.env.rng = np.random.default_rng(seed)
         self._obs = self.env.reset()
         self._step_count = 0
+        self.terminal = False
         self._stream_commands = {}
         self._frames.clear()
         for part in self._robot.part_controllers:
@@ -334,6 +341,8 @@ class RoboCasaEnv:
 
     def step(self, commands):
         """Replace selected goals; synchronous writes then execute one interval."""
+        if self.terminal or (self._max_steps is not None and self._step_count >= self._max_steps):
+            raise RuntimeError("episode_finished: no further motion is permitted")
         for part, command in commands.items():
             controller = self._robot.part_controllers[part]
             value = np.array(command, dtype=float, copy=True)
@@ -368,6 +377,8 @@ class RoboCasaEnv:
         Only its policy goal update is replaced during this locked call: arm and
         torso goals persist, while velocity / gripper inputs run continuously.
         """
+        if self.terminal or (self._max_steps is not None and self._step_count >= self._max_steps):
+            return
         composite = self._robot.composite_controller
 
         def update_streams(_action):
@@ -388,6 +399,8 @@ class RoboCasaEnv:
             self._obs, _, _, _ = self.env.step(np.zeros(self._robot.action_dim))
             self.sim.forward()  # Publish transforms consistent with the integrated joints.
             self._step_count += 1
+            if self.on_step is not None:
+                self.on_step()
         finally:
             if previous is None:
                 del composite.set_goal

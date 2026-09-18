@@ -16,7 +16,7 @@ def add_commands(commands):
                 "doctor": "Explain simulator readiness and next steps",
                 "launch": "Start a task and wait for its devices",
                 "status": "Inspect a running environment",
-                "stop": "Stop a locally owned environment",
+                "stop": "Finalize a selected simulation or stop a locally owned environment",
                 "export": "Export one task to Harbor",
             }[name],
         )
@@ -32,24 +32,51 @@ def add_commands(commands):
             parser.add_argument("task", help="simulator/task_name or task.yaml path")
             parser.add_argument("--catalog", type=Path)
         if name == "launch":
+            parser.add_argument(
+                "--runtime-root", type=Path, help="Prepared image data root; no source checkout"
+            )
+            parser.add_argument("--run-dir", type=Path, help="Directory for retained run records")
+            parser.add_argument(
+                "--python-path",
+                type=Path,
+                action="append",
+                default=[],
+                help="Explicit SDK/runtime import path for a prepared deployment",
+            )
+            parser.add_argument(
+                "--allow-stop",
+                action="store_true",
+                help="Allow attached clients to finalize this simulation",
+            )
+            parser.add_argument(
+                "--advertise-host", help="Service hostname reachable by attached clients"
+            )
             clock = parser.add_mutually_exclusive_group()
             clock.add_argument(
-                "--realtime", dest="realtime", action="store_true",
+                "--realtime",
+                dest="realtime",
+                action="store_true",
                 help="Run wall-clock-paced physics on a supported backend",
             )
             clock.add_argument(
-                "--sync", dest="realtime", action="store_false",
+                "--sync",
+                dest="realtime",
+                action="store_false",
                 help="Advance one control interval per write on a supported backend",
             )
             parser.set_defaults(realtime=None)
             gravity = parser.add_mutually_exclusive_group()
             gravity.add_argument(
-                "--arm-gravity-compensation", dest="arm_gravity_compensation",
-                action="store_true", help="Enable SIMPLE arm gravity feedforward (default)",
+                "--arm-gravity-compensation",
+                dest="arm_gravity_compensation",
+                action="store_true",
+                help="Enable SIMPLE arm gravity feedforward (default)",
             )
             gravity.add_argument(
-                "--no-arm-gravity-compensation", dest="arm_gravity_compensation",
-                action="store_false", help="Disable SIMPLE arm gravity feedforward",
+                "--no-arm-gravity-compensation",
+                dest="arm_gravity_compensation",
+                action="store_false",
+                help="Disable SIMPLE arm gravity feedforward",
             )
             parser.set_defaults(arm_gravity_compensation=None)
             parser.add_argument("--host", default="127.0.0.1")
@@ -63,7 +90,14 @@ def add_commands(commands):
                 help="HTTP port (default: automatically select a free port)",
             )
         if name in {"status", "stop"}:
-            parser.add_argument("run", nargs="?" if name == "status" else None)
+            target = parser.add_mutually_exclusive_group()
+            target.add_argument(
+                "run", nargs="?", help="Run reference or endpoint (default: ROBOENV_ENDPOINT)"
+            )
+            target.add_argument("--endpoint", help="HTTP service URL: http://HOST:PORT")
+            target.add_argument(
+                "--port", type=int, help="Select the local service at http://127.0.0.1:PORT"
+            )
         if name == "export":
             parser.add_argument("--out", required=True, type=Path)
             parser.add_argument("--deployment", type=Path)
@@ -128,6 +162,11 @@ def execute(args):
             realtime=args.realtime,
             arm_gravity_compensation=args.arm_gravity_compensation,
             log_stream=sys.stderr,
+            runtime_root=args.runtime_root,
+            run_dir=args.run_dir,
+            allow_stop=args.allow_stop,
+            advertise_host=args.advertise_host,
+            python_path=args.python_path,
         )
         emit(environment.record, machine=args.json)
         if args.detach:
@@ -142,7 +181,9 @@ def execute(args):
     if args.command in {"status", "stop"}:
         from roboenv.environment import status, stop
 
-        result = (status if args.command == "status" else stop)(args.run, project=args.project)
+        result = (status if args.command == "status" else stop)(
+            args.run, endpoint=args.endpoint, port=args.port, project=args.project
+        )
     else:
         from roboenv.harbor.workflow import export
 

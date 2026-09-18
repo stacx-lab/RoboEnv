@@ -40,6 +40,13 @@ class Environment:
     def devices(self):
         return deepcopy(list(self._profiles.values()))
 
+    def status(self):
+        return self._transport.request("simulation.status")
+
+    def stop(self):
+        """Finalize and stop the assigned simulation, when its owner permits it."""
+        return self._transport.request("simulation.stop")
+
     def device(self, name):
         if name not in self._profiles:
             raise KeyError(f"Unknown device: {name}")
@@ -110,6 +117,8 @@ class Device:
                 raise RuntimeError("Environment client is closed")
             reply = env._transport.device(self._profile["name"]).call(action, args)
             data = reply["data"]
+            if "simulation" in reply and isinstance(data, dict):
+                data = {**data, "simulation": reply["simulation"]}
             if (
                 self._profile["type"] in {"rgb", "rgbd"}
                 and isinstance(data, dict)

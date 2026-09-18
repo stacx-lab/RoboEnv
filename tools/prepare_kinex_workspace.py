@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 import yaml
-from roboenv.devices.export import driver_resources
+from roboenv.devices.export import driver_resources, shared_driver_resources
 from roboenv.tasks.resolve import resolve_task
 
 
@@ -29,6 +29,13 @@ def prepare(task, destination, *, project=None, catalog=None, realtime=None):
             (device / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
             if profile["type"] != "world":
                 source = resolved.robot / Path(spec.profile).parent
+                for support in shared_driver_resources(source.parent):
+                    target = device.parent / support
+                    content = (source.parent / support).read_bytes()
+                    if target.exists() and target.read_bytes() != content:
+                        raise ValueError("Selected devices require different shared transports")
+                    if not target.exists():
+                        target.write_bytes(content)
                 for support in driver_resources(source):
                     target = device / support
                     target.parent.mkdir(parents=True, exist_ok=True)

@@ -192,6 +192,25 @@ def test_deployment_runtime_options_reach_compose_and_identity(tmp_path):
             load_deployment(path, "libero")
 
 
+@pytest.mark.parametrize("backend,start_period", [
+    ("libero", "120s"), ("robotwin", "120s"), ("robocasa", "120s"),
+    ("behavior", "900s"), ("isaaclab", "900s"), ("robodojo", "900s"),
+    ("simple", "120s"),
+])
+def test_container_defaults_do_not_require_deployment_presets(tmp_path, backend, start_period):
+    from dataclasses import replace
+
+    path, spec = deployment(tmp_path)
+    spec["backend"] = backend
+    spec["runtime_options"] = {}
+    path.write_text(json.dumps(spec))
+    task = replace(Task.load(ROOT / "catalog/tasks/libero/bowl-onto-plate/task.yaml"),
+                   backend=backend)
+    service = native_service(path, task)
+    assert service["shm_size"] == "4gb"
+    assert service["healthcheck"]["start_period"] == start_period
+
+
 def test_task_runner_rejects_changed_deployment_identity_before_launch(tmp_path, monkeypatch):
     path, spec = deployment(tmp_path)
     mapping = tmp_path / "deployments.json"

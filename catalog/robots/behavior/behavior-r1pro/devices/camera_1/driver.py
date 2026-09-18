@@ -5,8 +5,9 @@ import struct
 import sys
 from pathlib import Path
 
-# Importing the support file must not modify the copied catalog.
+# Import shared collection support without modifying a read-only catalog.
 sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from _roboenv import Transport, WireError, main  # noqa: E402
 
 transport = Transport(__file__)

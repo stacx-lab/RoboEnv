@@ -24,7 +24,8 @@ PROTOCOL = "roboenv/1"
 MAX_BYTES = 8 * 1024 * 1024
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:@+-]{0,127}")
 PUBLIC_OPS = (
-    frozenset({"health", "api", "observe", "call", "score.peek", "capture", "vla"}) | SERVICE_OPS
+    frozenset({"health", "api", "observe", "call", "score.peek", "capture", "vla",
+               "simulation.status", "simulation.stop"}) | SERVICE_OPS
 )
 
 

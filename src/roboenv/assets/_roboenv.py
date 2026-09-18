@@ -1,4 +1,4 @@
-"""Portable driver dialog and transport, copied beside every device adapter."""
+"""Portable driver dialog and transport, shared by one exported device collection."""
 
 import contextlib
 import http.client
@@ -190,6 +190,8 @@ class Transport:
             raise WireError(error.get("message", str(error)), error.get("code"), request_id)
         self.unloaded = action == "unload"
         data = response["result"]["data"]
+        if "simulation" in response["result"] and isinstance(data, dict):
+            data = {**data, "simulation": response["result"]["simulation"]}
         if action == "read" and isinstance(data, dict):
             data["received_time_s"] = time.time()
         if self.endpoint and action == "read" and isinstance(data, dict) and data.get("file"):

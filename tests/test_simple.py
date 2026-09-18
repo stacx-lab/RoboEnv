@@ -383,17 +383,23 @@ def test_generator_reproduces_catalog_and_facts(tmp_path):
         sys.executable, str(ROOT / "tools/generate_simple_config.py"),
         "--out", str(tmp_path / "catalog"), "--facts-out", str(tmp_path / "g1.json"),
         "--provenance", str(tmp_path / "provenance.json"),
+        "--bindings-out", str(tmp_path / "bindings"),
     ], check=True, cwd=ROOT)
     assert (tmp_path / "g1.json").read_bytes() == FACTS.read_bytes()
     assert (tmp_path / "provenance.json").read_bytes() == (
         ROOT / "docs/simple-config.provenance.json").read_bytes()
-    for directory in ("robots/simple", "bindings/simple", "tasks/simple"):
+    for directory in ("robots/simple", "tasks/simple"):
         original = ROOT / "catalog" / directory
         copied = tmp_path / "catalog" / directory
         files = {p.relative_to(original) for p in original.rglob("*") if p.is_file()}
         assert files == {p.relative_to(copied) for p in copied.rglob("*") if p.is_file()}
         for relative in files:
             assert (original / relative).read_bytes() == (copied / relative).read_bytes()
+
+    assert not (tmp_path / "catalog/bindings").exists()
+    assert (tmp_path / "bindings/simple/simple-g1.yaml").read_bytes() == (
+        ROOT / "src/roboenv/devices/bindings/defaults/simple/simple-g1.yaml"
+    ).read_bytes()
 
 
 def test_isaac_camera_calibration_checks_actual_optical_mount(monkeypatch):

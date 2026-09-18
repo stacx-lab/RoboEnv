@@ -151,16 +151,20 @@ catalog/robots/SIMULATOR/ROBOT/
   workspace.yaml
   devices/NAME/profile.yaml
   devices/NAME/driver.py       # except world
-  devices/NAME/_roboenv.py     # shared portable transport
-catalog/bindings/SIMULATOR/ROBOT.yaml
+  devices/_roboenv.py          # shared portable transport for the collection
+src/roboenv/devices/bindings/defaults/SIMULATOR/ROBOT.yaml
 catalog/tasks/SIMULATOR/TASK/task.yaml
 ```
 
 The robot directory contains only `workspace.yaml` and `devices/`, ready to copy to
-a harness. Keep binding plans outside it, generators in `tools/`, and explanations
-and source receipts in `docs/`. Launch consumes the catalog without modifying it.
+a harness. Keep binding defaults in the internal package, generators in `tools/`,
+and explanations and source receipts in `docs/`. Launch consumes the catalog without modifying it.
 Task `robot` fields use `SIMULATOR/ROBOT` relative catalog paths; robot identity
-IDs remain flat. Binding paths mirror the simulator namespaces.
+IDs remain flat. Binding resources are selected by backend and robot directory name.
+Generators that emit bindings accept `--bindings-out DIR`, separate from `--out`
+(the public catalog). Omit it to generate only the public catalog and any explicitly
+requested facts or receipts. To maintain built-in defaults, pass
+`--bindings-out src/roboenv/devices/bindings/defaults`.
 
 | Profile field | Content |
 |---|---|
@@ -212,8 +216,14 @@ Provide working drivers in the catalog, with JSON arguments and one JSON result 
 stdout. Diagnostics go to stderr. Success returns `ok: true` plus data; failure
 returns `ok: false` and an error. See the
 [joint adapter](../src/roboenv/assets/joint-client.py) and shared
-[transport](../src/roboenv/assets/_roboenv.py). Copy the transport support file beside
-each typed driver so individual device directories remain portable.
+[transport](../src/roboenv/assets/_roboenv.py). Export one `devices/_roboenv.py`
+shared by all `devices/NAME/driver.py` files. Drivers resolve that parent directory
+from `__file__`; locating the transport needs neither the RoboEnv package nor
+a transport-specific Python path. Typed drivers still use Kinex's Python helpers.
+`write_driver` installs the shared module and removes obsolete per-device copies.
+For static workspace copies, include `shared_driver_resources(collection)` once
+and `driver_resources(device)` for each selected device, including local geometry.
+Move the collection as a unit, or include the shared file when copying a subset.
 
 | Device | Required driver actions |
 |---|---|
@@ -250,8 +260,11 @@ devices:
     profile: devices/base/profile.yaml
 ```
 
-Use `catalog/bindings/SIMULATOR/ROBOT.yaml` for defaults. Task `device_bindings` is a complete
-replacement, not a patch. Publish exactly the selected profiles and drivers.
+Use `src/roboenv/devices/bindings/defaults/SIMULATOR/ROBOT.yaml` for defaults. Task `device_bindings` is a complete
+replacement, not a patch. Private owner bundles may include `bindings.yaml`; these
+plans take precedence over packaged defaults, while explicit task bindings take
+precedence over both. Public robot workspaces exclude binding plans.
+Publish exactly the selected profiles and drivers.
 Sensor configuration must also enable those sensors in the backend.
 
 Catalog task IDs use `SIMULATOR/TASK`, matching their directory below

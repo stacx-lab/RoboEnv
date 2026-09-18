@@ -14,7 +14,7 @@ os.environ.setdefault("MUJOCO_GL", "egl")
 import yaml
 from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
-from roboenv.devices.export import export_devices
+from roboenv.devices.export import export_devices, write_driver
 from roboenv.tasks.libero import ROBOTS
 from roboenv_runtime.adapters.libero.config import CAMERA_SIZE, ensure_libero_config
 from roboenv_runtime.bindings import default_registry
@@ -151,7 +151,7 @@ def descriptors(problem):
         sim.free()
 
 
-def generate(out, provenance=None):
+def generate(out, provenance=None, *, bindings_out=None):
     for problem, rig in ROBOTS.items():
         facts = {d["name"]: canonical(d) for d in descriptors(problem)}
         destination = out / "robots" / rig
@@ -190,11 +190,12 @@ def generate(out, provenance=None):
                 device = destination / "devices" / path.parent.name
                 device.mkdir(parents=True, exist_ok=True)
                 (device / "profile.yaml").write_text(encoded)
-                for support in path.parent.glob("*.py"):
-                    (device / support.name).write_bytes(support.read_bytes())
-        binding = out / "bindings" / f"{rig}.yaml"
-        binding.parent.mkdir(parents=True, exist_ok=True)
-        binding.write_text(yaml.safe_dump(binding_plan(), sort_keys=False))
+                if profile["type"] != "world":
+                    write_driver(device, profile["type"])
+        if bindings_out is not None:
+            binding = bindings_out / f"{rig}.yaml"
+            binding.parent.mkdir(parents=True, exist_ok=True)
+            binding.write_text(yaml.safe_dump(binding_plan(), sort_keys=False))
     if provenance:
         import robosuite
 
@@ -250,5 +251,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=ROOT / "catalog")
     parser.add_argument("--provenance", type=Path)
+    parser.add_argument("--bindings-out", type=Path, help="Separate internal binding resource root")
     args = parser.parse_args()
-    generate(args.out, args.provenance)
+    generate(args.out, args.provenance, bindings_out=args.bindings_out)

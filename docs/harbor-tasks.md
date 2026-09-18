@@ -10,6 +10,10 @@ Build SDK/runtime wheels with `bash tools/check.sh`, prepare the simulator using
 [setup](setup.md), then build its image with `tools/build_simulator_image.py`.
 The builder requires `--dependencies`, `--runtime-wheel`, `--out` and `--tag`;
 `--interpreter ENV/bin/python` selects the prepared interpreter explicitly.
+Otherwise the builder uses the current RoboEnv project’s prepared-installation
+registration, as local launch does; `--dependencies` selects asset locations, not
+the interpreter. Container defaults live in Harbor deployment code, with optional
+`runtime_options` overrides in the generated deployment manifest.
 
 `--interpreter-mode image` embeds the interpreter. `--interpreter-mode depot`
 creates an independent read-only copy, verified by image-owned Python before
@@ -136,3 +140,7 @@ Report Harbor format, container boot, device checks, native task success and
 fresh-process replay separately. See [simulator validation](gpu-validation.md)
 for receipt meanings and [simulator integration](simulator-integration.md) for
 backend implementation.
+
+External orchestrators can supply SDK/CLI agents with
+[agent-neutral device documentation](device-documentation.md). This export is
+independent of Harbor task generation and contains no executable drivers.

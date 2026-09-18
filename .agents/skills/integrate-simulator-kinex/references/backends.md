@@ -13,9 +13,9 @@ repository. Do not restore retired paths or infer current status from these note
 | --- | --- |
 | Source/recipe/assets | `src/roboenv/provisioning/`, `runtime/environments.json`, `runtime/locks/`, `third_party/` |
 | Native lifecycle | `runtime/src/roboenv_runtime/adapters/BACKEND/`, `runtime/world.py` and `runtime/worker.py` under that runtime package |
-| Binding selection | `runtime/src/roboenv_runtime/bindings/{__init__,native_devices,simulators}.py`, `src/roboenv/devices/bindings/registry.py`, `catalog/bindings/` |
+| Binding selection | `runtime/src/roboenv_runtime/bindings/{__init__,native_devices,simulators}.py`, `src/roboenv/devices/bindings/registry.py`, `src/roboenv/devices/bindings/defaults/` |
 | Public projection/transport | `src/roboenv/devices/`, `runtime/src/roboenv_runtime/runtime/http_service.py` |
-| Catalog and discovery | `catalog/robots/`, `catalog/bindings/`, `src/roboenv/tasks/catalog.py`, `tasks/resolve.py` under the SDK package |
+| Catalog and discovery | `catalog/robots/`, `catalog/tasks/`, `src/roboenv/tasks/catalog.py`, `tasks/resolve.py` under the SDK package |
 | Portable driver export | `src/roboenv/devices/export.py`, `src/roboenv/assets/`, `tools/prepare_kinex_workspace.py` |
 | Native acceptance examples | `tools/check_native_{robotwin,robodojo,behavior,transport}.py`, `tools/replay_native_devices.py`; LIBERO/RoboCasa have their own record formats and checks |
 
