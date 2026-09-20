@@ -42,6 +42,16 @@ class RoboCasaAdapter(AdapterBase):
         completed = self._env.task_completed()
         return ScoreReport(reward=float(completed), raw_score=float(completed), completed=completed)
 
+    def score_authority(self, run_dir, **options):
+        import os
+        from roboenv_runtime.runtime.scoring import SimpleScorer
+
+        if os.environ.get("ROBOENV_RECORD_EPISODE") == "1":
+            from .recording import OwnerRecording
+
+            self._env.owner_recording = OwnerRecording(self._env, run_dir / "recording")
+        return SimpleScorer(self)
+
     def budget(self):
         return Budget(**self._env.get_step_budget(), unit="action_frames")
 
@@ -58,6 +68,8 @@ class RoboCasaAdapter(AdapterBase):
 
     def freeze_episode(self):
         self._env.terminal = True
+        if self._env.owner_recording is not None:
+            self._env.owner_recording.close()
 
     @property
     def simulation_time_s(self):

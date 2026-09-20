@@ -86,6 +86,7 @@ class RoboCasaEnv:
         self._step_count = 0
         self._frames: list[np.ndarray] = []
         self._capture = False
+        self.owner_recording = None
         controller_config = joint_controller_config(robot)
         env_kwargs: dict[str, Any] = {
             "robots": robot,
@@ -130,6 +131,8 @@ class RoboCasaEnv:
 
     def close(self) -> None:
         """Close the simulation."""
+        if self.owner_recording is not None:
+            self.owner_recording.close()
         self.env.close()
 
     def episode_meta(self) -> dict[str, Any]:
@@ -343,6 +346,8 @@ class RoboCasaEnv:
         """Replace selected goals; synchronous writes then execute one interval."""
         if self.terminal or (self._max_steps is not None and self._step_count >= self._max_steps):
             raise RuntimeError("episode_finished: no further motion is permitted")
+        if self.owner_recording is not None:
+            self.owner_recording.command("write", {k: np.asarray(v).tolist() for k, v in commands.items()})
         for part, command in commands.items():
             controller = self._robot.part_controllers[part]
             value = np.array(command, dtype=float, copy=True)
@@ -355,6 +360,8 @@ class RoboCasaEnv:
             self.tick()
 
     def stop_part(self, part):
+        if self.owner_recording is not None:
+            self.owner_recording.command("stop", part)
         controller = self._robot.part_controllers[part]
         if part == "base":
             self._stream_commands[part] = np.zeros(controller.control_dim)
@@ -399,6 +406,8 @@ class RoboCasaEnv:
             self._obs, _, _, _ = self.env.step(np.zeros(self._robot.action_dim))
             self.sim.forward()  # Publish transforms consistent with the integrated joints.
             self._step_count += 1
+            if self.owner_recording is not None:
+                self.owner_recording.capture()
             if self.on_step is not None:
                 self.on_step()
         finally:

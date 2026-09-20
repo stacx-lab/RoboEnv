@@ -280,6 +280,7 @@ def launch(
     runtime_root=None,
     run_dir=None,
     allow_stop=False,
+    record_episode=False,
     advertise_host=None,
     python_path=(),
 ):
@@ -305,6 +306,8 @@ def launch(
         raise ValueError("Packaged startup requires --catalog and --interpreter")
     if type(allow_stop) is not bool:
         raise ValueError("allow_stop must be a boolean")
+    if type(record_episode) is not bool:
+        raise ValueError("record_episode must be a boolean")
     if isinstance(python_path, (str, bytes)):
         raise ValueError("python_path must be a sequence of deployment paths")
     python_path = [str(Path(path).resolve(strict=True)) for path in python_path]
@@ -326,7 +329,9 @@ def launch(
     runs = Path(run_dir).resolve() if run_dir else (
         root / ".cache/roboenv/runs" if runtime_root else _records(root)
     )
-    directory = runs / run_id
+    # Owner storage may use a host-managed compatibility symlink. Resolve that
+    # root before exporting devices; device resources themselves remain link-free.
+    directory = runs.resolve() / run_id
     directory.mkdir(parents=True, mode=0o700)
     sockets = Path(tempfile.mkdtemp(prefix="roboenv-socket-", dir="/tmp"))
     robot = directory / "server/robot"
@@ -380,6 +385,7 @@ def launch(
         PYTHONUNBUFFERED="1",
         MUJOCO_GL="egl",
         ROBOENV_ALLOW_STOP="1" if allow_stop else "0",
+        ROBOENV_RECORD_EPISODE="1" if record_episode else "0",
     )
     if python_path:
         env["PYTHONPATH"] = os.pathsep.join(python_path)

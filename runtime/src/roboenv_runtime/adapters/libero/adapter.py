@@ -39,6 +39,34 @@ class LiberoAdapter(AdapterBase):
             detail={"control_protocol": self._env.control_protocol, "native_osc_equivalence": False},
         )
 
+    @property
+    def stop_on_success(self):
+        return self._env.stop_on_success
+
+    @property
+    def bounded_episodes(self):
+        return self._env._max_steps is not None or self.stop_on_success
+
+    def set_step_callback(self, callback):
+        import os
+
+        # The worker attaches its interval callback after reset and device setup.
+        # Recording is independent of scoring mode: LIBERO uses practice budgets.
+        if os.environ.get("ROBOENV_RECORD_EPISODE") == "1" and self._env.owner_recording is None:
+            from .recording import OwnerRecording
+
+            self._env.owner_recording = OwnerRecording(self._env, self.run_dir / "recording")
+        self._env.on_step = callback
+
+    def freeze_episode(self):
+        self._env.terminal = True
+        if self._env.owner_recording is not None:
+            self._env.owner_recording.close()
+
+    @property
+    def simulation_time_s(self):
+        return self._env.get_step_budget()["used"] / self._env.env.control_freq
+
     def capture(self):
         return self._env.render()
 

@@ -45,6 +45,9 @@ def probe(suite, task, init, directory, render=False):
         service = default_registry().assemble(
             plan, root, BindingContext("libero", "panda", adapter)
         )
+        assert service.describe("arm")["intrinsics"]["control"]["execution"] == {
+            "mode": "stepped", "interval_s": 0.05,
+        }
 
         def call(name, action, **args):
             return service.call({"device": name, "action": action, "args": args})["data"]
