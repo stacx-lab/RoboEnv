@@ -77,6 +77,16 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None,
     if not (robot / "workspace.yaml").is_file():
         raise ValueError(f"Robot {task.robot!r} is missing from the selected catalog")
     bindings = BindingPlan.load(robot, backend=task.backend, devices=task.device_bindings)
+    if task.backend == "libero" and not task.backend_kwargs.get("realtime", True):
+        devices = []
+        for spec in bindings.devices:
+            if spec.entity == "arm":
+                intrinsics = spec.resolved_profile(robot)["intrinsics"]
+                # LIBERO fixes the native controller frequency at 20 Hz.
+                intrinsics["control"]["execution"] = {"mode": "stepped", "interval_s": 0.05}
+                spec = replace(spec, overrides={**spec.overrides, "intrinsics": intrinsics})
+            devices.append(spec)
+        bindings = replace(bindings, devices=tuple(devices))
     if task.backend in {"behavior", "isaaclab"} and task.backend_kwargs.get("realtime", False):
         # Execution mode is an episode setting, while geometry stays in the catalog.
         devices = []

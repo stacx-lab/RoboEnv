@@ -13,6 +13,35 @@ ROBOTS = {
     "libero_study_tabletop_manipulation": "libero/libero-panda-study",
 }
 
+CONTROL_GUIDANCE = """
+LIBERO gripper writes select a persistent direction: +1 closes, -1 opens, and 0
+retains the accumulated actuator target. Gripper stop instead resets that target
+to the measured finger positions; it can reduce gripping force and is not a
+grasp-preserving cleanup operation. Arm stop affects only the arm. A write being
+accepted does not establish arrival or a grasp: check measured motion and finger
+aperture, then use a small lift and fresh images to check that the object follows.
+
+Before contact, check the measured tool pose and finger-pad geometry, allowing
+clearance for the whole gripper and arm around articulated fixtures. If motion
+stalls, re-observe and revise the approach before closing the fingers. After an
+object or fixture moves, refresh its observed location. For wrist-camera geometry,
+hold the arm still while reading the image and pose; do not pair an old image
+with a later arm pose.
+"""
+
+COMPLETION_CHECK = """
+Before ending the task or claiming success, define concrete, task-specific checks
+for every requested outcome and verify all of them using fresh public sensor
+observations, including the object's final relation to its target and any required
+drawer, door, or switch state. Use multiple views or measured feedback when one
+view is ambiguous. Tool acceptance, a completed todo, and absence of errors do not
+prove task completion. If a check fails or remains uncertain and time is available,
+diagnose it and attempt a safe correction; do not end solely because one grasp or
+motion failed. If further progress is blocked or the run limit is reached, report
+the task as incomplete and state which checks failed. Do not access private
+verifier state or change the benchmark success rules.
+"""
+
 
 def literal(path, name):
     for node in ast.parse(Path(path).read_text()).body:

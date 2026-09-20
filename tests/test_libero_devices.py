@@ -133,6 +133,24 @@ def test_discovered_scene_robots_reach_prepared_kinex_workspaces(tmp_path):
     assert checked == set(ROBOTS)
 
 
+@pytest.mark.parametrize("realtime", [False, True])
+def test_selected_clock_reaches_workspace_without_changing_catalog(tmp_path, realtime):
+    task = "libero/bowl-onto-plate"
+    resolved = resolve_task(task, project=ROOT, realtime=realtime)
+    arm = next(spec for spec in resolved.bindings.devices if spec.entity == "arm")
+    catalog_profile = (resolved.robot / arm.profile).read_bytes()
+    expected = (
+        {"mode": "realtime", "command_timeout_s": None}
+        if realtime else {"mode": "stepped", "interval_s": 0.05}
+    )
+    assert arm.resolved_profile(resolved.robot)["intrinsics"]["control"]["execution"] == expected
+    workspace = tmp_path / "workspace"
+    load_tool("prepare_kinex_workspace").prepare(task, workspace, project=ROOT, realtime=realtime)
+    copied = yaml.safe_load((workspace / ".kinex/devices/arm/profile.yaml").read_text())
+    assert copied["intrinsics"]["control"]["execution"] == expected
+    assert (resolved.robot / arm.profile).read_bytes() == catalog_profile
+
+
 def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
     from roboenv.devices.export import DRIVERS
 
@@ -187,10 +205,10 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
             yaml.safe_load((root / "devices/arm/profile.yaml").read_text())["access"]
         )
     kinex_root = Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex"))
-    bun = shutil.which(os.environ.get("BUN", "bun"))
+    node = shutil.which(os.environ.get("NODE", "node"))
     require(
-        bun and (kinex_root / "node_modules/zod").exists(),
-        "Kinex schema integration requires prepared Kinex and Bun",
+        node and (kinex_root / "packages/core/dist/index.js").exists(),
+        "Kinex schema integration requires built Kinex core and Node",
     )
     payload = tmp_path / "profiles.json"
     payload.write_text(json.dumps(profiles))
@@ -198,15 +216,16 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
     load_tool("prepare_kinex_workspace").prepare("libero/bowl-onto-plate", workspace, project=ROOT)
     checked = subprocess.run(
         [
-            bun,
-            "-e",
-            "const {Device} = await import('./src/device/profile/schema.ts'); "
-            "const {missingActions} = await import('./src/device/interface.ts'); "
-            "for (const p of JSON.parse(await Bun.file(process.argv[1]).text())) { "
+            node,
+            "--input-type=module", "-e",
+            "import { readFile } from 'node:fs/promises'; "
+            "const {Device} = await import('./packages/core/dist/device/profile/schema.js'); "
+            "const {missingActions} = await import('./packages/core/dist/device/interface.js'); "
+            "for (const p of JSON.parse(await readFile(process.argv[1], 'utf8'))) { "
             "const d = Device.parse(p); "
             "if(missingActions(d, d.access?.driver?.actions ?? []).length) "
             "throw new Error('missing actions'); } "
-            "const {calibrationPlan} = await import('./src/calibration/dag.ts'); "
+            "const {calibrationPlan} = await import('./packages/core/dist/calibration/dag.js'); "
             "const p = await calibrationPlan(process.argv[2]); "
             "if(!p.items.some(i=>i.id==='intrinsics:arm')) throw new Error('no devices'); "
             "for(const i of p.items) if(i.device && i.status!=='done') "
@@ -239,10 +258,17 @@ def test_static_generation_is_deterministic(tmp_path):
         assert actual == expected
         for path in destination.rglob("*"):
             if path.is_file():
-                assert (
-                    path.read_bytes()
-                    == (ROOT / "catalog" / path.relative_to(destination)).read_bytes()
-                )
+                relative = path.relative_to(destination)
+                catalog_path = ROOT / "catalog" / relative
+                if path.suffix == ".yaml":
+                    # Mapping order is not a device fact; keep catalog diffs semantic.
+                    assert yaml.safe_load(path.read_text()) == yaml.safe_load(
+                        catalog_path.read_text()
+                    )
+                else:
+                    assert path.read_bytes() == catalog_path.read_bytes()
+                if name == "second":
+                    assert path.read_bytes() == (tmp_path / "first" / relative).read_bytes()
 
 
 @pytest.mark.parametrize("case", range(8))

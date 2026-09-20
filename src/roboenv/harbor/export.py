@@ -12,6 +12,7 @@ from roboenv.devices.bindings.spec import BINDING_CONTRACT
 from roboenv.devices.contract import DEVICE_CONTRACT
 from roboenv.privacy import validate_public_text
 from roboenv.tasks.artifacts import Bundle, sha
+from roboenv.tasks.libero import COMPLETION_CHECK, CONTROL_GUIDANCE
 from roboenv.tasks.model import DEVICE_BACKENDS
 from roboenv.validation import json_loads, yaml_load
 
@@ -287,6 +288,8 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
                 "in /app. The verifier checks final state and budget after you finish.\n"
             )
         )
+    if task.backend == "libero":
+        instruction += "\n" + CONTROL_GUIDANCE + "\n" + COMPLETION_CHECK
     out.add("instruction.md", instruction)
     out.add("environment/workspace/AGENTS.md", "# Environment workspace\n\n" + instruction)
     reference = task_path.with_name("solution.py")

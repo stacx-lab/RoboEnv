@@ -104,6 +104,11 @@ def bind(spec, root, context):
                 robot.robot_model.init_qpos,
                 definition.name,
             )
+            intrinsics["control"]["execution"] = (
+                {"mode": "realtime", "command_timeout_s": None}
+                if world.realtime
+                else {"mode": "stepped", "interval_s": world.env.control_timestep}
+            )
             extrinsics = mount(
                 data.xpos[base],
                 data.xmat[base].reshape(3, 3),
@@ -124,7 +129,9 @@ def bind(spec, root, context):
                     "mode": "direction",
                     "open_target": -1,
                     "close_target": 1,
-                    "increment_per_interval": float(robot.gripper.speed),
+                    # Native format_action runs once per physics substep.
+                    "increment_per_interval": float(robot.gripper.speed)
+                    * int(world.env.control_timestep / world.env.model_timestep),
                 },
                 "feedback": {
                     "positions": [
@@ -242,8 +249,15 @@ def bind(spec, root, context):
         ("intrinsics", definition.intrinsics, intrinsics),
         ("mounts", definition.extrinsics, extrinsics),
     ):
-        if expected.get("source") == "introspected" and (not same_facts(expected, actual)):
-            raise ValueError(f"Catalog {label} do not match the native LIBERO rig")
+        if expected.get("source") == "introspected":
+            if label == "intrinsics" and entity == "arm":
+                # Execution mode belongs to this episode, not the static robot rig.
+                expected = {
+                    **expected,
+                    "control": {**expected["control"], "execution": actual["control"]["execution"]},
+                }
+            if not same_facts(expected, actual):
+                raise ValueError(f"Catalog {label} do not match the native LIBERO rig")
     return BoundDevice(
         replace(definition, intrinsics=intrinsics, extrinsics=extrinsics),
         actions,

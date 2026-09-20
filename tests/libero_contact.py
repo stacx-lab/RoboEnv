@@ -53,6 +53,9 @@ def check(out):
         devices = default_registry().assemble(
             plan, root, BindingContext("libero", "panda", adapter)
         )
+        assert devices.describe("arm")["intrinsics"]["control"]["execution"] == {
+            "mode": "realtime", "command_timeout_s": None,
+        }
 
         def call(device, action, **args):
             return devices.call({"device": device, "action": action, "args": args})["data"]
@@ -62,19 +65,40 @@ def check(out):
             return sum(obstacle in (c.geom1, c.geom2) for c in world.sim.data.contact)
 
         before = world.sim.get_state().flatten().copy()
+        # Start away from saturation to measure one native interval's target increment.
+        world._robot.gripper.current_action[:] = 0
         assert call("gripper", "write", target=[1]) == {"accepted": True}
         assert np.array_equal(before, world.sim.get_state().flatten())
+        world.tick()
+        increment = devices.describe("gripper")["intrinsics"]["control"]["increment_per_interval"]
+        assert np.allclose(world._robot.gripper.current_action, [-increment, increment])
         for _ in range(60):
             world.tick()
         closed = call("gripper", "read")
         contact_count = contacts()
         assert contact_count >= 2, (closed, contact_count)
         assert abs(closed["positions"][0] - closed["positions"][1]) > 0.02
+        closing_target = world._robot.gripper.current_action.copy()
+        call("gripper", "write", target=[0])
+        call("arm", "stop")
+        for _ in range(10):
+            world.tick()
+        assert np.array_equal(world._robot.gripper.current_action, closing_target)
+        assert contacts() >= 2
         # Stop does not force the measured joints through the obstructing geometry.
         before = world.sim.get_state().flatten().copy()
         call("arm", "stop")
         call("gripper", "stop")
         assert np.array_equal(before, world.sim.get_state().flatten())
+        assert not np.allclose(world._robot.gripper.current_action, closing_target)
+        low, high = world.sim.model.actuator_ctrlrange[
+            world._robot._ref_joint_gripper_actuator_indexes
+        ].T
+        measured = world.sim.data.qpos[world._robot._ref_gripper_joint_pos_indexes]
+        assert np.allclose(
+            world._robot.gripper.current_action,
+            np.clip(2 * (measured - low) / (high - low) - 1, -1, 1),
+        )
         for _ in range(40):
             world.tick()
         stopped = call("gripper", "read")
@@ -90,6 +114,8 @@ def check(out):
             "passed": True,
             "fixture": "owner-only fixed sphere between native fingers",
             "contacts_while_closing": contact_count,
+            "increment_per_interval": increment,
+            "zero_direction_preserves_target": True,
             "closed": closed,
             "stopped": stopped,
             "opened": opened,

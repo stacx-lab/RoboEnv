@@ -11,7 +11,7 @@ intrinsics:
     mode: direction
     open_target: -1
     close_target: 1
-    increment_per_interval: 0.01
+    increment_per_interval: 0.25
   feedback:
     positions:
     - name: gripper0_finger_joint1
