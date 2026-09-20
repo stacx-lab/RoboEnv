@@ -1,0 +1,19 @@
+id: isaaclab/go2-d1-pick-place
+backend: isaaclab
+backend_task: isaaclab.go2-d1-pick-place
+robot: isaaclab/isaaclab-go2-d1
+instruction: Walk to the orange 4 x 4 x 6 cm, 80 g block on the ground near [1.25,
+  0, 0] m. Grasp it with both fingers, lift its center above 0.12 m, and carry it
+  while walking at least 0.6 m to the green ground destination centered at [2.5, 0,
+  0] m. Do not drop it during transport. Place the entire block inside the 0.30 x
+  0.30 m destination, open the gripper, and let the block settle for 1 s. Use the
+  RGB-D cameras and robot feedback; all coordinates are in the world frame.
+seed: 0
+budget_mode: practice
+action_abstraction: devices
+backend_kwargs:
+  task_name: go2-d1-pick-place
+  asset_manifest: .cache/isaaclab/go2-d1/assets.json
+  realtime: false
+  command_timeout_s: 0.5
+  max_steps: 6000

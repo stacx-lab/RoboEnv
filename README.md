@@ -227,3 +227,6 @@ environments stay outside Git.
 This is pre-release software. CPU and format checks do not certify GPU replay
 or benchmark success. Packages and simulator images are not automatically
 published; see [release rules](docs/releasing.md).
+
+The experimental [Go2–D1 Isaac Lab environment](docs/go2-d1.md) provides base
+velocity/height/tilt control, independent arm IK, a gripper, and two mounted RGB-D cameras.

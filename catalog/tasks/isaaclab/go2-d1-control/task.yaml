@@ -1,0 +1,14 @@
+id: isaaclab/go2-d1-control
+backend: isaaclab
+backend_task: isaaclab.go2-d1-control
+robot: isaaclab/isaaclab-go2-d1
+instruction: Practice Go2 base velocity/posture control and independent D1 arm manipulation.
+seed: 0
+budget_mode: practice
+action_abstraction: devices
+backend_kwargs:
+  task_name: go2-d1-control
+  asset_manifest: .cache/isaaclab/go2-d1/assets.json
+  realtime: false
+  command_timeout_s: 0.5
+  max_steps: 1500

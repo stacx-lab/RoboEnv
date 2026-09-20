@@ -1,0 +1,5 @@
+name: world
+type: world
+intrinsics:
+  bounds: null
+  surfaces: []

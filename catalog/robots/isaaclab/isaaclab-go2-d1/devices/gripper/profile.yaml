@@ -1,0 +1,65 @@
+name: gripper
+type: gripper
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  aperture_m: null
+  control:
+    mode: position
+    units: normalized
+    resolution: null
+    bounds:
+      min: 0
+      max: 1
+    open_target: 1
+    close_target: 0
+    speed: null
+  feedback:
+    positions:
+    - name: d1_Joint7_1
+      units: m
+    - name: d1_Joint7_2
+      units: m
+    velocities: true
+    sensors: []
+    clock: simulation
+  stop:
+    behavior: hold
+    affected_devices:
+    - gripper
+  frames: {}
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mount:
+    parent: arm
+    parent_frame: flange
+    translation_m:
+    - 0
+    - 0
+    - 0
+    rotation_xyzw:
+    - 0
+    - 0
+    - 0
+    - 1
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: gripper
+  driver:
+    entry: driver.py
+    persistent: true
+    actions:
+    - read
+    - load
+    - unload
+    - status
+    - write
+    - stop

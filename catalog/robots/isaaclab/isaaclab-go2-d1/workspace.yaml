@@ -1,0 +1,12 @@
+identity:
+  id: go2-d1
+  name: Go2 D1
+  kind: quadruped
+  model: Unitree Go2 + D1-550
+  platform: sim
+  source: introspected
+sim:
+  simulator: isaaclab
+  source: introspected
+devices:
+  source: introspected
