@@ -22,7 +22,8 @@ python tools/prepare_go2_d1.py --source generated/go2-d1-cameras \
   --out .cache/isaaclab/go2-d1
 
 source .venv/bin/activate
-python tools/generate_go2_d1_catalog.py
+python tools/generate_go2_d1_catalog.py \
+  --bindings-out src/roboenv/devices/bindings/defaults
 # After accepting NVIDIA's EULA for this installation:
 export OMNI_KIT_ACCEPT_EULA=YES
 roboenv launch isaaclab/go2-d1-control --port 8123
@@ -33,6 +34,18 @@ overwrite an existing bundle. To refine the URDF, prepare a new bundle, regenera
 the catalog from it with `--assets`, and point the task's `asset_manifest` to the
 new `assets.json`. Catalog/runtime geometry disagreement fails at startup.
 Do not edit a bundle during an episode; recordings pin its identity.
+
+The generator writes public robot and task definitions under `--out` (default:
+`catalog`). Internal binding defaults are written only when `--bindings-out` is
+provided, separately from the public catalog. The installed SDK includes the
+Go2–D1 default at
+`roboenv/devices/bindings/defaults/isaaclab/isaaclab-go2-d1.yaml`, so copied catalogs
+resolve without a neighboring source-tree binding directory.
+
+Portable drivers share one `devices/_roboenv.py`. Copy the whole device collection,
+including that file; an individual device directory is not a complete bundle.
+SDK/CLI agents can also use the [device documentation exporter](device-documentation.md)
+with live descriptors, independently of the Kinex file-driver projection.
 
 ## Inputs and outputs
 

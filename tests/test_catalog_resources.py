@@ -76,3 +76,39 @@ def test_all_robot_variants_have_registered_bindings():
         for spec in BindingPlan.load(robot, backend=robot.parent.name).devices:
             assert spec.binding in registry._factories
             assert spec.definition(robot).name == spec.name
+
+
+def test_go2_generator_keeps_bindings_private_and_drivers_portable(tmp_path, monkeypatch):
+    generator = load_tool("generate_go2_d1_catalog")
+    source = CATALOG / "robots/isaaclab/isaaclab-go2-d1"
+    facts = {}
+    for path in (source / "devices").glob("*/profile.yaml"):
+        profile = yaml.safe_load(path.read_text())
+        profile.pop("name")
+        profile.pop("access", None)
+        facts[path.parent.name] = profile
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "home.json").write_text("{}")
+    monkeypatch.setattr(generator, "RobotModel", lambda path: object())
+    monkeypatch.setattr(generator, "profiles", lambda model, home: facts)
+    catalog = tmp_path / "catalog"
+    generator.generate(assets, catalog)
+    assert {p.name for p in catalog.iterdir()} == {"robots", "tasks"}
+    rig = catalog / "robots/isaaclab/isaaclab-go2-d1"
+    assert list(rig.rglob("_roboenv.py")) == [rig / "devices/_roboenv.py"]
+    for path in (source / "devices").glob("*/driver.py"):
+        assert (rig / path.relative_to(source)).read_bytes() == path.read_bytes()
+    before = {p.relative_to(catalog): p.read_bytes() for p in catalog.rglob("*") if p.is_file()}
+    defaults = tmp_path / "defaults"
+    generator.generate(assets, catalog, bindings_out=defaults)
+    assert before == {
+        p.relative_to(catalog): p.read_bytes() for p in catalog.rglob("*") if p.is_file()
+    }
+    generated = yaml.safe_load((defaults / "isaaclab/isaaclab-go2-d1.yaml").read_text())
+    packaged = yaml.safe_load(binding_resource(rig, backend="isaaclab").read_text())
+    assert generated == packaged
+    assert not (catalog / "bindings").exists()
+    rig.rename(rig.with_name("unknown-go2"))
+    with pytest.raises(ValueError, match="No default bindings"):
+        BindingPlan.load(rig.with_name("unknown-go2"), backend="isaaclab")

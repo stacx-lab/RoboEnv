@@ -20,7 +20,7 @@ from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import (  # noqa: E402
 )
 
 
-def generate(assets, out):
+def generate(assets, out, *, bindings_out=None):
     rig = out / "robots/isaaclab/isaaclab-go2-d1"
     rig.mkdir(parents=True, exist_ok=True)
     values = profiles(
@@ -56,19 +56,20 @@ def generate(assets, out):
             )
             write_driver(dest, value["type"])
         (dest / "profile.yaml").write_text(yaml.safe_dump(descriptor, sort_keys=False))
-    bindings = out / "bindings/isaaclab/isaaclab-go2-d1.yaml"
-    bindings.parent.mkdir(parents=True, exist_ok=True)
-    bindings.write_text(
-        yaml.safe_dump(
-            {
-                "schema_version": "roboenv/bindings/1",
-                "backend": "isaaclab",
-                "embodiment": "go2_d1",
-                "devices": {n: {"binding": "isaaclab.go2-d1/1", "entity": n} for n in values},
-            },
-            sort_keys=False,
+    if bindings_out is not None:
+        bindings = bindings_out / "isaaclab/isaaclab-go2-d1.yaml"
+        bindings.parent.mkdir(parents=True, exist_ok=True)
+        bindings.write_text(
+            yaml.safe_dump(
+                {
+                    "schema_version": "roboenv/bindings/1",
+                    "backend": "isaaclab",
+                    "embodiment": "go2_d1",
+                    "devices": {n: {"binding": "isaaclab.go2-d1/1", "entity": n} for n in values},
+                },
+                sort_keys=False,
+            )
         )
-    )
     for name in TASKS:
         task = out / f"tasks/isaaclab/{name}/task.yaml"
         task.parent.mkdir(parents=True, exist_ok=True)
@@ -100,5 +101,6 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--assets", type=Path, default=ROOT / ".cache/isaaclab/go2-d1")
     p.add_argument("--out", type=Path, default=ROOT / "catalog")
+    p.add_argument("--bindings-out", type=Path, help="Separate internal binding resource root")
     a = p.parse_args()
-    generate(a.assets, a.out)
+    generate(a.assets, a.out, bindings_out=a.bindings_out)
