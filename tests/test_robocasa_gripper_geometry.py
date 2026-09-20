@@ -137,7 +137,8 @@ def test_libero_binding_returns_contact_frames_without_advancing_physics():
         ),
     )
     world = SimpleNamespace(
-        _robot=robot, sim=SimpleNamespace(model=ids, data=SimpleNamespace(_data=data))
+        _robot=robot, sim=SimpleNamespace(model=ids, data=SimpleNamespace(_data=data)),
+        env=SimpleNamespace(control_timestep=0.05, model_timestep=0.002),
     )
     root = ROOT / "catalog/robots/libero/libero-panda-tabletop"
     spec = next(

@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { execute, type Context, type Def, type Result } from "../../src/tool/tool.ts"
+import { execute, type Context, type Def, type Result } from "@kinex/core/tool/tool"
 
 const Completion = z.looseObject({ completed: z.literal(true), error: z.null().optional() })
 

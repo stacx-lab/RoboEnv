@@ -161,7 +161,7 @@ def test_dialog_reuses_process_and_cleans_up_once(tmp_path, ending):
 
 
 def test_local_kinematics_is_cached_and_never_connects_for_cleanup(tmp_path, monkeypatch):
-    library = ROOT.parent / "kinex/python"
+    library = ROOT.parent / "kinex/packages/core/assets/python"
     if not library.is_dir():
         pytest.skip("Requires adjacent Kinex Python library")
     monkeypatch.syspath_prepend(str(library))
@@ -239,9 +239,9 @@ def test_current_kinex_reuses_driver_across_tools_and_reloads(
     device_service, tmp_path, monkeypatch,
 ):
     kinex = ROOT.parent / "kinex"
-    bun = shutil.which("bun")
-    if not bun or not (kinex / "node_modules/zod").exists():
-        pytest.skip("Requires prepared adjacent Kinex")
+    node = shutil.which(os.environ.get("NODE", "node"))
+    if not node or not (kinex / "packages/core/dist/index.js").exists():
+        pytest.skip("Requires Node and built adjacent Kinex core")
     _, supervisor, _ = device_service
     directory = tmp_path / ".kinex/devices/controller"
     write_driver(directory, "other")
@@ -262,7 +262,7 @@ def test_current_kinex_reuses_driver_across_tools_and_reloads(
         return value
 
     monkeypatch.setattr(supervisor._http_server, "get_request", accept)
-    result = subprocess.run([bun, str(ROOT / "tests/persistent_kinex.ts"), str(kinex),
+    result = subprocess.run([node, str(ROOT / "tests/persistent_kinex.ts"), str(kinex),
                              str(tmp_path), sys.executable], capture_output=True, text=True,
                             timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr

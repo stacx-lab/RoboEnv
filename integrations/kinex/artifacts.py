@@ -5,7 +5,10 @@ import json
 import shutil
 from pathlib import Path
 
-CONTENT = ('.kinex/tool', '.kinex/skill', '.kinex/lib', 'pyproject.toml', 'uv.lock', '.kinex/kinex.json', 'AGENTS.md')
+CONTENT = (
+    '.kinex/tool', '.kinex/skill', '.kinex/lib', 'pyproject.toml', 'uv.lock',
+    '.kinex/python/pyproject.toml', '.kinex/python/uv.lock', '.kinex/kinex.json', 'AGENTS.md',
+)
 
 
 def inventory(root, paths):
@@ -35,7 +38,7 @@ def freeze(workspace, destination, *, identity, tool, arguments):
     if destination.exists():
         raise ValueError('Frozen artifact already exists')
     manifest = inventory(source, CONTENT)
-    for required in ('pyproject.toml', 'uv.lock'):
+    for required in ('.kinex/python/pyproject.toml', '.kinex/python/uv.lock'):
         if required not in manifest:
             raise ValueError('Python environment must be locked before freezing')
     if f'.kinex/tool/{tool}/tool.yaml' not in manifest:
@@ -45,7 +48,7 @@ def freeze(workspace, destination, *, identity, tool, arguments):
         output = destination / 'content' / relative
         output.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source / relative, output)
-    record = {'schema':'kinex/controller-artifact/1','identity':identity,'files':manifest,
+    record = {'schema':'kinex/controller-artifact/2','identity':identity,'files':manifest,
               'devices':devices(source),'tool':tool,'args':arguments}
     (destination/'manifest.json').write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
     return record
@@ -54,6 +57,8 @@ def freeze(workspace, destination, *, identity, tool, arguments):
 def restore(artifact, workspace, *, identity, development=False):
     artifact, workspace = Path(artifact), Path(workspace)
     record = json.loads((artifact/'manifest.json').read_text())
+    if record.get('schema') != 'kinex/controller-artifact/2':
+        raise ValueError('Revalidate legacy controllers with the current Kinex Python environment')
     if ((record['identity'] != identity and not development)
             or inventory(artifact/'content',CONTENT) != record['files']):
         raise ValueError('Frozen artifact or dependency identity changed')

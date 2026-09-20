@@ -1,37 +1,24 @@
 // Explicit integration check: copied G1 drivers and the workspace controller.
 import path from "node:path"
+import { writeFile } from "node:fs/promises"
 
 const [kinexRoot, cwd, output] = process.argv.slice(2)
-const { CalibrationStore } = await import(path.join(kinexRoot, "src/calibration/store.ts"))
-const { activateDevice, deactivateDevice, dispatchDevice } = await import(path.join(kinexRoot, "src/device/dispatch.ts"))
-const { pythonTools } = await import(path.join(kinexRoot, "src/tool/python.ts"))
-const { execute } = await import(path.join(kinexRoot, "src/tool/tool.ts"))
+const { createKinexRuntime } = await import(path.join(kinexRoot, "packages/core/dist/index.js"))
+const runtime = createKinexRuntime({ directory: cwd, host: { ask: async () => {} } })
 const names = ["base", "waist", "left_arm", "right_arm", "left_hand", "right_hand"]
-const devices = await Promise.all(names.map(async (name) => {
-  const device = await CalibrationStore.readDevice(cwd, name)
-  if (!device) throw new Error(`Missing ${name}`)
-  await activateDevice(cwd, device)
-  await CalibrationStore.writeDevice(cwd, { name, loaded: true })
-  return device
-}))
 try {
-  const before = Object.fromEntries(await Promise.all(devices.map(async (device) => [device.name, (await dispatchDevice(cwd, device, "read", {})).data])))
-  const tool = (await pythonTools(cwd)).tools.find((tool: { id: string }) => tool.id === "device_composition_probe")
-  if (!tool) throw new Error("Missing device_composition_probe")
+  for (const name of names) await (await runtime.devices.load(name)).ready
+  const before = Object.fromEntries(await Promise.all(names.map(async (name) => [name, (await runtime.devices.dispatch(name, "read")).data])))
   const goals = Object.fromEntries(["left_arm", "right_arm"].map((name) =>
     [name, { frame: name, pose: before[name].frame_poses.flange }]))
-  const result = await execute(tool, { steps: 3, goals }, {
-    directory: cwd, sessionID: "g1-native", abort: new AbortController().signal,
-    ask: async () => {}, questions: async () => ({}),
-  })
+  const result = await runtime.tools.call("device_composition_probe", { steps: 3, goals }, { sessionID: "g1-native" })
   if (result.isError) throw new Error(result.output)
   const motion = JSON.parse(result.output)
   if (motion.steps !== 3) throw new Error(result.output)
-  const after = Object.fromEntries(await Promise.all(devices.map(async (device) => [device.name, (await dispatchDevice(cwd, device, "read", {})).data])))
+  const after = Object.fromEntries(await Promise.all(names.map(async (name) => [name, (await runtime.devices.dispatch(name, "read")).data])))
   if (Math.abs(after.base.sample_time_s - before.base.sample_time_s - .02 * names.length * 3) > 1e-8)
     throw new Error("Each component write advances its own control interval")
-  await Bun.write(output, JSON.stringify({ before, after, motion }, null, 2))
+  await writeFile(output, JSON.stringify({ before, after, motion }, null, 2))
 } finally {
-  await Promise.all(devices.map((device) => deactivateDevice(cwd, device)))
+  await runtime.dispose()
 }
-process.exit(0)

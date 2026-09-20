@@ -3,37 +3,59 @@
 import argparse
 import hashlib
 import json
+import subprocess
 import tarfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = (
-    "src",
-    "python",
-    "builtin",
+    "dist/node",
+    "packages/core/dist",
+    "packages/core/assets",
+    "packages/core/package.json",
+    "assets",
     "bin",
     "package.json",
-    "bun.lock",
-    "tsconfig.json",
+    "package-lock.json",
+    ".nvmrc",
     "node_modules",
 )
 
 
-def package(kinex, bun, uv, destination):
-    kinex, bun, uv = (Path(value).resolve() for value in (kinex, bun, uv))
+def package(kinex, node, uv, destination):
+    kinex, node, uv = (Path(value).resolve() for value in (kinex, node, uv))
     destination = Path(destination).resolve()
     if destination.exists():
         raise ValueError("Select a new bundle path; existing bundles are preserved")
+    version = subprocess.check_output([str(node), "--version"], text=True).strip()
+    if tuple(map(int, version.removeprefix("v").split("."))) < (22, 19, 0):
+        raise ValueError("Kinex requires Node >=22.19")
+    for relative in ("dist/node/src/index.js", "node_modules/@kinex/core/dist/index.js"):
+        if not (kinex / relative).is_file():
+            raise ValueError("Build Kinex first with npm ci && npm run build:node")
     selected = []
+
+    def files(base, ancestors=()):
+        resolved = base.resolve()
+        if not resolved.is_relative_to(kinex):
+            raise ValueError("Kinex bundle input links outside the selected checkout")
+        if base.name == "__pycache__" or base.suffix == ".pyc":
+            return
+        if base.is_file():
+            yield base
+        elif base.is_dir():
+            if resolved in ancestors:
+                raise ValueError("Kinex bundle input contains a directory link cycle")
+            for child in sorted(base.iterdir()):
+                yield from files(child, (*ancestors, resolved))
+
     for relative in SOURCES:
         base = kinex / relative
         if not base.exists():
             raise ValueError(f"Kinex bundle input is missing: {relative}")
-        for file in sorted(base.rglob("*")) if base.is_dir() else [base]:
-            if not file.is_file() or "__pycache__" in file.parts or file.suffix == ".pyc":
-                continue
-            if not file.resolve().is_relative_to(kinex):
-                raise ValueError("Kinex bundle input links outside the selected checkout")
+        # Materialize npm workspace links inside the archive so relocation keeps
+        # @kinex/core resolvable without relying on a host checkout.
+        for file in files(base):
             selected.append((file, "kinex/" + file.relative_to(kinex).as_posix()))
     for file in sorted((ROOT / "integrations/kinex").rglob("*")):
         if file.is_file() and "__pycache__" not in file.parts and file.suffix != ".pyc":
@@ -44,10 +66,10 @@ def package(kinex, bun, uv, destination):
                     + file.relative_to(ROOT / "integrations/kinex").as_posix(),
                 )
             )
-    selected += [(bun, "bin/bun"), (uv, "bin/uv")]
+    selected += [(node, "bin/node"), (uv, "bin/uv")]
     checksums = {name: hashlib.sha256(file.read_bytes()).hexdigest() for file, name in selected}
     manifest = {
-        "schema": "roboenv/kinex-agent-bundle/1",
+        "schema": "roboenv/kinex-agent-bundle/2",
         "files": checksums,
         "identity": {
             "kinex_sha256": hashlib.sha256(
@@ -77,8 +99,8 @@ def package(kinex, bun, uv, destination):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kinex", required=True, type=Path)
-    parser.add_argument("--bun", required=True, type=Path)
+    parser.add_argument("--node", required=True, type=Path)
     parser.add_argument("--uv", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args()
-    print(json.dumps(package(args.kinex, args.bun, args.uv, args.out), indent=2))
+    print(json.dumps(package(args.kinex, args.node, args.uv, args.out), indent=2))

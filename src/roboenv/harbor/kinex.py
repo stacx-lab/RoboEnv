@@ -25,7 +25,7 @@ def inspect_bundle(path):
             if name.is_absolute() or ".." in name.parts or not member.isfile():
                 raise ValueError("Kinex bundles may contain only regular relative files")
         manifest = json_loads(archive.extractfile("bundle.json").read())
-        if manifest.get("schema") != "roboenv/kinex-agent-bundle/1":
+        if manifest.get("schema") != "roboenv/kinex-agent-bundle/2":
             raise ValueError("Unsupported Kinex bundle schema")
         hashes = {
             name: hashlib.sha256(archive.extractfile(name).read()).hexdigest()
@@ -37,7 +37,8 @@ def inspect_bundle(path):
         }
         if hashes != manifest["files"] or identity != manifest["identity"]:
             raise ValueError("Kinex bundle contents differ from the manifest")
-        required = {"bin/bun", "bin/uv", "kinex/bin/kinex", "kinex/integrations/roboenv/run.ts"}
+        required = {"bin/node", "bin/uv", "kinex/bin/kinex", "kinex/integrations/roboenv/run.ts",
+                    "kinex/dist/node/src/index.js", "kinex/node_modules/@kinex/core/dist/index.js"}
         if not required <= hashes.keys():
             raise ValueError("Kinex bundle lacks its runtime entrypoints")
         return identity
@@ -62,6 +63,7 @@ class KinexAgent(BaseAgent):
         require_completion=False,
         agent_timeout_sec=None,
         setup_timeout_sec=600,
+        max_steps=None,
         **kwargs,
     ):
         super().__init__(logs_dir=logs_dir, model_name=model_name, **kwargs)
@@ -76,6 +78,10 @@ class KinexAgent(BaseAgent):
         for timeout in (agent_timeout_sec or 300, setup_timeout_sec):
             if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
                 raise ValueError("Kinex timeouts must be positive finite seconds")
+        if max_steps is not None:
+            raise ValueError(
+                "Kinex has no model-loop cap; remove max_steps and use agent_timeout_sec"
+            )
         if (
             not isinstance(tool, str)
             or not tool
@@ -182,7 +188,7 @@ class KinexAgent(BaseAgent):
         )
         await self.checked(
             environment,
-            f"{self.root}/bin/bun {self.bridge}/run.ts --prepare-python "
+            f"{self.root}/bin/node {self.bridge}/run.ts --prepare-python "
             f"{self.workspace} > {output}/python.log 2>&1",
             timeout=self.setup_timeout,
         )
@@ -210,12 +216,14 @@ class KinexAgent(BaseAgent):
             "mode": self.mode,
             "identity": self.identity,
             "task_success_authority": "Harbor verifier",
+            "max_steps": None,
+            "agent_timeout_sec": self.timeout,
             "completed": False,
         }
         try:
             await self.checked(
                 environment,
-                f"{self.root}/bin/bun {self.bridge}/run.ts "
+                f"{self.root}/bin/node {self.bridge}/run.ts "
                 f"{self.root}/runner.json > {output}/kinex.log 2>&1",
                 timeout=self.timeout + 60,
             )
@@ -225,7 +233,7 @@ class KinexAgent(BaseAgent):
             if self.recording:
                 await self.checked(
                     environment,
-                    f"{self.workspace}/.venv/bin/python "
+                    f"{self.workspace}/.kinex/python/.venv/bin/python "
                     f"{self.bridge}/verify_media.py {self.workspace} "
                     f"{self.root}/runner.json {output}/media.json",
                     timeout=120,
@@ -236,7 +244,7 @@ class KinexAgent(BaseAgent):
             # Preserve agent code, recordings and sessions for review/freeze. Never export auth.
             await self.checked(
                 environment,
-                "tar --exclude=./.venv -czf "
+                "tar --exclude=./.venv --exclude=./.kinex/python/.venv -czf "
                 f"{shlex.quote(output)}/workspace.tar.gz "
                 f"-C {self.workspace} .",
                 timeout=120,

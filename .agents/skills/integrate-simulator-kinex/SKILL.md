@@ -60,7 +60,8 @@ Preflight the actual executables, imports and entrypoints, not just their names:
 
 - Bootstrap RoboEnv's development CLI using `tools/bootstrap.sh`; inspect the
   selected recipe, source lock, asset preparation and diagnostics.
-- Prepare Kinex with its declared Bun version and dependency lock. Trace current
+- Prepare Kinex with its declared Node version and npm dependency lock; build
+  the selected checkout with `npm ci && npm run build:node`. Trace current
   schemas, lifecycle, Python tools, recording, provider and model/effort routing.
 - Locate a working campaign runner and all its imports/bridges/protocol files in
   the selected Kinex checkout. A README reference or archived experiment is not an
@@ -77,9 +78,9 @@ paths work. Track implementation, infrastructure and controller failures separat
 
 Read RoboEnv README.md, DESIGN.md, docs/setup.md, docs/simulator-integration.md,
 and the selected adapter/backend/bindings/generator. Inspect the RoboCasa and
-LIBERO implementations where their contracts apply. In Kinex, read src/calibration/,
-src/device/interface.ts, src/device/dispatch.ts, src/device/driver.ts,
-src/tool/python-runner.ts, src/python/, python/kinex/ and builtin/device/templates/.
+LIBERO implementations where their contracts apply. In Kinex, read packages/core/src/runtime.ts, packages/core/src/calibration/,
+packages/core/src/device/, packages/core/src/tool/python-runner.ts,
+packages/core/src/python/ and packages/core/assets/.
 
 Trace this path before choosing edits:
 

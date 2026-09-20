@@ -32,11 +32,16 @@ export function requestEvidence(body: string, expected: { id: string; effort: st
 
 export function observeProvider(expected: { id: string; effort: string }) {
   const original = globalThis.fetch
+  const apiBase = process.env["OPENAI_BASE_URL"] || process.env["OPENAI_API_BASE"] || "https://api.openai.com/v1"
+  const endpoints = new Set([
+    apiBase.replace(/\/+$/, "") + "/responses",
+    "https://chatgpt.com/backend-api/codex/responses",
+  ])
   const requests: (ReturnType<typeof requestEvidence> & { status?: number })[] = []
-  const observed: typeof fetch = Object.assign(async (...args: Parameters<typeof fetch>) => {
+  const observed: typeof fetch = async (...args: Parameters<typeof fetch>) => {
     const [input, init] = args
     const url = input instanceof Request ? input.url : String(input)
-    if (!/^https:\/\/(?:api\.openai\.com\/v1|chatgpt\.com\/backend-api\/codex)\/responses$/.test(url))
+    if (!endpoints.has(url))
       return original(...args)
     if (typeof init?.body !== "string") throw new Error("Expected a JSON provider request body")
     const record: ReturnType<typeof requestEvidence> & { status?: number } = requestEvidence(init.body, expected)
@@ -44,7 +49,7 @@ export function observeProvider(expected: { id: string; effort: string }) {
     const response = await original(...args)
     record.status = response.status
     return response
-  }, { preconnect: original.preconnect })
+  }
   globalThis.fetch = observed
   return { requests, stop: () => { globalThis.fetch = original } }
 }

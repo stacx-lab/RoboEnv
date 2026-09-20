@@ -112,7 +112,7 @@ def native_interpreter():
 
 
 def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
-    if not (ROOT.parent / "kinex/python/kinex/kinematics.py").is_file():
+    if not (ROOT.parent / "kinex/packages/core/assets/python/kinex/kinematics.py").is_file():
         pytest.skip("Driver-local IK/FK integration requires the sibling Kinex utility")
     interpreter = native_interpreter()
     environment = {
@@ -139,27 +139,18 @@ def check_kinex_profiles(tmp_path, paths):
     import shutil
 
     kinex_root = ROOT.parent / "kinex"
-    if not (kinex_root / "node_modules/zod").exists():
-        isolated = ROOT / ".cache/kinex-schema"
-        if (isolated / "node_modules/zod").exists() and (kinex_root / "src").is_dir():
-            # Reuse dependencies only; always test the sibling's CURRENT sources,
-            # including its uncommitted contract updates.
-            current = tmp_path / "kinex-current"
-            shutil.copytree(kinex_root / "src", current / "src")
-            shutil.copyfile(kinex_root / "package.json", current / "package.json")
-            (current / "node_modules").symlink_to(
-                isolated / "node_modules", target_is_directory=True
-            )
-            kinex_root = current
-    if not shutil.which("bun") or not (kinex_root / "node_modules/zod").exists():
-        pytest.skip("Requires Bun and Kinex schema dependencies")
+    node = shutil.which(os.environ.get("NODE", "node"))
+    if not node or not (kinex_root / "packages/core/dist/index.js").is_file():
+        pytest.skip("Requires Node and built Kinex core")
     payload = tmp_path / "profiles.json"
     payload.write_text(json.dumps([yaml.safe_load(path.read_text()) for path in paths]))
     code = (
-        "const {Device, RobotManifest} = await import('./src/device/profile/schema.ts'); "
-        "RobotManifest.parse(JSON.parse(await Bun.file(process.argv[2]).text())); "
-        "const {missingActions} = await import('./src/device/interface.ts'); "
-        "for (const value of JSON.parse(await Bun.file(process.argv[1]).text())) { "
+        "import { readFile } from 'node:fs/promises'; "
+        "const {Device, RobotManifest} = "
+        "await import('./packages/core/dist/device/profile/schema.js'); "
+        "RobotManifest.parse(JSON.parse(await readFile(process.argv[2], 'utf8'))); "
+        "const {missingActions} = await import('./packages/core/dist/device/interface.js'); "
+        "for (const value of JSON.parse(await readFile(process.argv[1], 'utf8'))) { "
         "const device = Device.parse(value); "
         "if (device.type === 'joint' && "
         "(!device.intrinsics.home || "
@@ -168,7 +159,7 @@ def check_kinex_profiles(tmp_path, paths):
         "throw new Error('Missing home joints: ' + device.name); "
         "if (missingActions(device, device.access?.driver?.actions ?? []).length) "
         "throw new Error('Missing interface actions: ' + device.name); } "
-        "const {calibrationPlan} = await import('./src/calibration/dag.ts'); "
+        "const {calibrationPlan} = await import('./packages/core/dist/calibration/dag.js'); "
         "const plan = await calibrationPlan(process.argv[3]); "
         "for (const item of plan.items) { "
         "if (item.device && item.status !== 'done') "
@@ -194,7 +185,7 @@ def check_kinex_profiles(tmp_path, paths):
         workspace / ".kinex",
     )
     checked = subprocess.run(
-        ["bun", "-e", code, str(payload), str(manifest), str(workspace)],
+        [node, "--input-type=module", "-e", code, str(payload), str(manifest), str(workspace)],
         cwd=kinex_root,
         env={**os.environ, "KINEX_CONFIG_DIR": str(tmp_path / "kinex-config")},
         capture_output=True,

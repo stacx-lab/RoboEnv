@@ -2,19 +2,19 @@
 import path from "node:path"
 import fs from "node:fs/promises"
 import { z } from "zod"
-import { CalibrationStore } from "../../src/calibration/store.ts"
-import { activateDevice, deactivateDevice } from "../../src/device/dispatch.ts"
-import { observeDevices } from "../../src/device/observe.ts"
-import { pythonTools } from "../../src/tool/python.ts"
-import { execute, type Context } from "../../src/tool/tool.ts"
-import { Recorder } from "../../src/record/recorder.ts"
-import { Session } from "../../src/session/index.ts"
-import { createRunner } from "../../src/session/runner.ts"
-import { createBus } from "../../src/bus/index.ts"
-import { toResponsesBody } from "../../src/provider/openai.ts"
-import { preparePython, pythonEnvironment } from "../../src/python/environment.ts"
-import { ConfigPaths } from "../../src/config/paths.ts"
-import { Global } from "../../src/global.ts"
+import { deactivateDevice } from "@kinex/core/device/dispatch"
+import { observeDevices } from "@kinex/core/device/observe"
+import { pythonTools } from "@kinex/core/tool/python"
+import { execute, type Context } from "@kinex/core/tool/tool"
+import { Recorder } from "../../dist/node/src/integration/kinex/recorder.js"
+import { Session } from "../../dist/node/src/session/index.js"
+import { createRunner } from "../../dist/node/src/session/runner.js"
+import { createBus } from "../../dist/node/src/bus/index.js"
+import { toResponsesBody } from "../../dist/node/src/provider/openai.js"
+import { pythonEnvironment } from "@kinex/core/python/environment"
+import { createStandaloneRuntime } from "../../dist/node/src/integration/kinex/runtime.js"
+import { ConfigPaths } from "@kinex/core/config/paths"
+import { Global } from "@kinex/core/global"
 import { observeProvider } from "./provider-evidence.ts"
 import { executeController } from "./controller.ts"
 
@@ -35,20 +35,28 @@ async function main() {
   if (process.argv[2] === "--prepare-python") {
     const directory = process.argv[3]
     if (!directory) throw new Error("Workspace directory is required")
-    await preparePython(directory)
+    const runtime = createStandaloneRuntime({ directory })
+    try { await runtime.python.prepare() }
+    finally { await runtime.dispose() }
     return
   }
   if (process.argv[2] === "--help") {
-    console.log("bun integrations/roboenv/run.ts RUN.json\nRun inside the packaged Kinex tree with public per-episode devices.")
+    console.log("node integrations/roboenv/run.ts RUN.json\nRun inside the packaged Kinex tree with public per-episode devices.")
     return
   }
-  const input = Input.parse(await Bun.file(process.argv[2] ?? "").json())
+  const input = Input.parse(JSON.parse(await fs.readFile(process.argv[2] ?? "", "utf8")))
   const directory = path.resolve(input.workspace)
-  if (await Bun.file(input.output).exists()) throw new Error("Preserve existing receipts; select a fresh output")
+  if (await fs.access(input.output).then(() => true, () => false)) throw new Error("Preserve existing receipts; select a fresh output")
   if (input.mode === "develop" && (!input.prompt || !input.model)) throw new Error("Development needs an authorized exact model and prompt")
   if (input.mode === "no-model" && (input.model || input.prompt)) throw new Error("No-model execution cannot contain model instructions")
-  await preparePython(directory)
-  const devices = await CalibrationStore.listDevices(directory)
+  const runtime = createStandaloneRuntime({ directory })
+  try { await runtime.run(() => executeRun(input, runtime)) }
+  finally { await runtime.dispose() }
+}
+
+async function executeRun(input: z.infer<typeof Input>, runtime: ReturnType<typeof createStandaloneRuntime>) {
+  const directory = runtime.directory
+  const devices = await runtime.devices.list()
   if (!devices.length || devices.some((device) => device.type === "model")) throw new Error("Require native devices without undeclared model services")
   if (devices.some((device) => !device.loaded)) throw new Error("Prepare loaded device profiles before freezing")
   const roots = await ConfigPaths.directories(directory)
@@ -74,16 +82,24 @@ async function main() {
     questions: async () => { throw new Error("Owner input is required; this run cannot answer agent questions") },
   }
   const runner = createRunner(bus)
-  const cancel = () => { abort.abort(); void runner.cancel(session.id) }
+  const cancel = () => {
+    abort.abort()
+    void runner.cancel(session.id)
+    // Abort activation/Python preparation as well as an already running tool.
+    // Cleanup errors are awaited again below and included in the receipt.
+    void runtime.dispose().catch(() => {})
+  }
   process.once("SIGTERM", cancel)
-  const timer = setTimeout(() => { abort.abort(); void runner.cancel(session.id) }, input.timeout_s * 1000)
+  const timer = setTimeout(cancel, input.timeout_s * 1000)
   const receipt: Record<string, unknown> = { schema: "kinex/simulator-execution/1", mode: input.mode,
-    passed: false, session: session.id, timeout_s: input.timeout_s, events,
+    passed: false, session: session.id, timeout_s: input.timeout_s, max_steps: null, events,
     python: await pythonEnvironment(directory).then((value) => value.executable) }
+  const originalFetch = globalThis.fetch
   const provider = input.mode === "develop" ? observeProvider(input.model!) : undefined
   if (provider) receipt.provider_requests = provider.requests
   try {
-    for (const device of devices) await activateDevice(directory, device)
+    const activations = await runtime.devices.warmLoaded()
+    await Promise.all(activations.map((activation) => activation.ready))
     if (Object.keys(input.recording).length) {
       const started = await Recorder.start(directory, { sessionID: session.id,
         instruction: input.prompt ?? "Integration probe; task success is evaluated by the Harbor verifier",
@@ -106,7 +122,7 @@ async function main() {
     if (input.mode === "no-model") {
       // This path has no provider call. Also reject accidental harness fetches.
       const disabled = () => { throw new Error("Network provider calls are disabled in no-model validation") }
-      globalThis.fetch = Object.assign(async () => disabled(), { preconnect: disabled })
+      globalThis.fetch = async () => disabled()
       const found = await pythonTools(directory)
       if (found.problems.length) throw new Error(found.problems.join("\n"))
       const tool = found.tools.find((candidate) => candidate.id === input.tool)
@@ -143,7 +159,13 @@ async function main() {
       receipt.passed = false
       receipt.cleanup_errors = errors
     }
+    await runtime.dispose().catch((error: unknown) => {
+      receipt.passed = false
+      errors.push(String(error))
+      receipt.cleanup_errors = errors
+    })
     provider?.stop()
+    globalThis.fetch = originalFetch
     process.removeListener("SIGTERM", cancel)
     unobserve()
     await fs.writeFile(input.output, JSON.stringify(receipt, null, 2) + "\n", { flag: "wx", mode: 0o600 })
@@ -152,5 +174,3 @@ async function main() {
 }
 
 await main()
-// Device/recorder cleanup above is explicit; imported file watchers are process scoped.
-process.exit(0)

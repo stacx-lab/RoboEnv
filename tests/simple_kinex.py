@@ -49,7 +49,7 @@ def check(args):
              if key not in {"PYTHONPATH", "PYTHONHOME"}}
     env = {**clean, "PYTHONNOUSERSITE": "1", "KINEX_DATA_DIR": str(out / "kinex-data"),
            "KINEX_CONFIG_DIR": str(out / "kinex-config")}
-    subprocess.run([args.bun, str(ROOT / "tests/native_rigs_kinex.ts"), str(args.kinex),
+    subprocess.run([args.node, str(ROOT / "tests/native_rigs_kinex.ts"), str(args.kinex),
                     str(workspace)], check=True, env=env, timeout=60)
     with roboenv.launch(task, project=ROOT, interpreter=sys.executable,
                         realtime=args.realtime, timeout=300) as run:
@@ -59,7 +59,7 @@ def check(args):
                 **{key: run.record[key] for key in ("session", "generation")},
             }))
         with (out / "kinex.log").open("x") as log:
-            subprocess.run([args.bun, str(ROOT / "tests/simple_kinex_smoke.ts"),
+            subprocess.run([args.node, str(ROOT / "tests/simple_kinex_smoke.ts"),
                             str(args.kinex), str(workspace), str(out / "smoke.json"),
                             "realtime" if args.realtime else "sync"], cwd=workspace,
                            env=env, check=True, stdout=log, stderr=log, timeout=180)
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--task", default="simple/g1-xmove-pick")
     parser.add_argument("--kinex", type=Path, default=ROOT.parent / "kinex")
-    parser.add_argument("--bun", default="bun")
+    parser.add_argument("--node", default="node")
     parser.add_argument("--sim-mode", choices=("mujoco", "mujoco_isaac"), default="mujoco")
     parser.add_argument("--realtime", action="store_true")
     parser.add_argument("--arm-gravity-compensation", action=argparse.BooleanOptionalAction,

@@ -57,7 +57,7 @@ def main():
             (options.out / "cameras.json").write_text(json.dumps(cameras, indent=2) + "\n")
         subprocess.run(
             [
-                "bun",
+                os.environ.get("NODE", "node"),
                 str(root / "tests/g1_kinex_smoke.ts"),
                 str(options.kinex.resolve()),
                 str(workspace),

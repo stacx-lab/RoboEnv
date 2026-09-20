@@ -12,7 +12,7 @@ GRIPPER = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices/gripper"
 
 @pytest.fixture
 def gripper(monkeypatch):
-    library = ROOT.parent / "kinex/python"
+    library = ROOT.parent / "kinex/packages/core/assets/python"
     if not (library / "kinex/scalar_control.py").is_file():
         pytest.skip("Requires the Kinex Python library used by exported drivers")
     monkeypatch.syspath_prepend(str(library))

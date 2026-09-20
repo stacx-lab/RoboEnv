@@ -13,7 +13,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 ROBOT = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices"
-KINEX_PYTHON = ROOT.parent / "kinex/python"
+KINEX_PYTHON = ROOT.parent / "kinex/packages/core/assets/python"
 sys.path.insert(0, str(KINEX_PYTHON))
 Kinematics = pytest.importorskip("kinex.kinematics").Kinematics
 

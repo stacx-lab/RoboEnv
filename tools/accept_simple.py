@@ -75,7 +75,7 @@ def run(args):
         for task, realtime in cases:
             name = f"kinex-{task}-" + ("realtime" if realtime else "sync")
             command = [str(args.python), "tests/simple_kinex.py", "--out", str(args.out / name),
-                       "--kinex", str(args.kinex.resolve()), "--bun", args.bun,
+                       "--kinex", str(args.kinex.resolve()), "--node", args.node,
                        "--sim-mode", args.sim_mode, "--task", KINEX_TASKS[task]]
             if realtime:
                 command.append("--realtime")
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--python", type=Path, required=True)
     parser.add_argument("--kinex", type=Path, default=ROOT.parent / "kinex")
-    parser.add_argument("--bun", default="bun")
+    parser.add_argument("--node", default="node")
     parser.add_argument("--sim-mode", choices=("mujoco", "mujoco_isaac"), default="mujoco_isaac")
     parser.add_argument("--jobs", type=int, choices=(1, 2), default=1)
     parser.add_argument("--timeout", type=int, default=600, help="Seconds per child stage")

@@ -1,6 +1,7 @@
-import { describe, expect, test } from "bun:test"
+import { describe, test } from "node:test"
+import assert from "node:assert/strict"
 import { z } from "zod"
-import { define, type Context } from "../../src/tool/tool.ts"
+import { define, type Context } from "@kinex/core/tool/tool"
 import { controllerCompleted, executeController } from "./controller.ts"
 
 const context: Context = {
@@ -12,11 +13,11 @@ describe("frozen controller completion", () => {
   test("rejects returned failures, missing status and malformed output", () => {
     for (const output of ["{}", '{"completed":false}', '{"completed":true,"error":"stalled"}',
       '{"completed":1}', "not JSON", '{"completed":true}\ntruncated']) {
-      expect(controllerCompleted({ title: "controller", output })).toBe(false)
+      assert.equal(controllerCompleted({ title: "controller", output }), false)
     }
-    expect(controllerCompleted(undefined)).toBe(false)
-    expect(controllerCompleted({ title: "controller", output: '{"completed":true}', isError: true })).toBe(false)
-    expect(controllerCompleted({ title: "controller", output: '{"completed":true,"error":null}' })).toBe(true)
+    assert.equal(controllerCompleted(undefined), false)
+    assert.equal(controllerCompleted({ title: "controller", output: '{"completed":true}', isError: true }), false)
+    assert.equal(controllerCompleted({ title: "controller", output: '{"completed":true,"error":null}' }), true)
   })
 
   test("checks the real JSON return before normal output truncation", async () => {
@@ -26,9 +27,9 @@ describe("frozen controller completion", () => {
       }) }),
     })
     const execution = await executeController(tool, {}, context)
-    expect(execution.result.output).toContain("output truncated")
-    expect(execution.raw?.output).not.toContain("output truncated")
-    expect(execution.completed).toBe(true)
+    assert.match(execution.result.output, /output truncated/)
+    assert.doesNotMatch(execution.raw!.output, /output truncated/)
+    assert.equal(execution.completed, true)
   })
 
   test("normal tool exception and argument checks remain authoritative", async () => {
@@ -37,8 +38,8 @@ describe("frozen controller completion", () => {
     })
     for (const input of [{}, { run: true }]) {
       const execution = await executeController(tool, input, context)
-      expect(execution.result.isError).toBe(true)
-      expect(execution.completed).toBe(false)
+      assert.equal(execution.result.isError, true)
+      assert.equal(execution.completed, false)
     }
   })
 })

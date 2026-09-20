@@ -8,19 +8,20 @@ development environment active. For interactive recording, see
 
 ## Package the agent
 
-Select a Kinex checkout with installed Bun dependencies and matching Bun and uv
-executables:
+Build the selected Kinex 0.4 checkout with `npm ci && npm run build:node`.
+Select a Node executable (>=22.19 for headless use) and uv:
 
 ```sh
 python tools/package_kinex_agent.py --kinex "$KINEX_REPO" \
-  --bun "$BUN" --uv "$UV" --out "$ARTIFACTS/kinex-agent.tar.gz"
+  --node "$NODE" --uv "$UV" --out "$ARTIFACTS/kinex-agent.tar.gz"
 ```
 
-The verified bundle includes Kinex source, builtins, Python helpers, locked
-JavaScript dependencies, Bun, uv and this integration. It excludes credentials,
+The version-2 bundle includes compiled Kinex, core assets and Python helpers,
+locked JavaScript dependencies, Node, uv and this integration. npm workspace
+links are materialized so the extracted bundle can run independently. It excludes credentials,
 user configuration and runs, and does not modify the Kinex checkout. The bridge
-is installed at `kinex/integrations/roboenv`; its imports of Kinex internals require
-the matching source version.
+is installed at `kinex/integrations/roboenv`; its standalone session imports require the matching compiled version. Robotics
+operations share the core runtime scope and its awaited cleanup.
 
 ## Generate and run tasks
 
@@ -52,8 +53,19 @@ kwargs. Set attempts, concurrency, retry, output and timeout in `job.json`; the
 generated default is one attempt, serial execution and no retries. Seeds, clocks
 and native initialization belong to generated tasks. Regenerate when they change.
 
+Kinex runs its native model loop without a step cap. Finite agent kwargs
+`max_steps` are rejected; omit the option (legacy `null` is accepted). For a
+20-minute execution budget, set `"agent_timeout_sec": 1200`. The execution receipt
+records the unlimited model loop and wall-clock deadline. Python preparation precedes
+this timer; device activation, recording startup and agent execution count toward it.
+The outer Harbor timeout must also allow preparation and artifact collection.
+For LIBERO, an unlimited native action budget separately requires
+`backend_kwargs.max_steps: null` in the task. Native success, normal agent
+completion and execution errors can still end an episode before the deadline.
+
 The agent prepares `/app/workspace` from public device profiles/drivers and creates
-a standard uv project (`pyproject.toml`, `uv.lock`, `.venv`). The bridge synchronizes
+a dedicated uv project under `.kinex/python/` (`pyproject.toml`, `uv.lock`,
+`.venv`). Ordinary shell environments are not activated or replaced. The bridge synchronizes
 its dependencies before execution. Initial dependency resolution
 requires network access or a populated cache. The default main image supplies
 Python, venv/pip and ffmpeg; custom images need ffmpeg with libx264 and ffv1.
@@ -72,7 +84,7 @@ through Harbor's agent environment, outside bundles and tasks. The bridge checks
 the actual model, effort and camera image requests.
 
 Extract the trial's `agent/workspace.tar.gz` into a new directory; it contains
-tools, skills, the Python lock, recordings and sessions, excluding the venv.
+tools, skills, the Python lock, recordings and sessions, excluding `.kinex/python/.venv`.
 Freeze the selected controller using that trial's identity:
 
 ```sh
@@ -82,7 +94,9 @@ python integrations/kinex/freeze.py "$WORKSPACE" \
 ```
 
 Set `artifact` to the frozen directory in a new no-model configuration. The
-artifact selects its recorded tool and arguments. Bundle identity, Python lock
+version-2 artifact selects its recorded tool and arguments and freezes the core
+Python manifest and lock under `.kinex/python/`. Legacy artifacts must be
+revalidated with the new runtime; their existing files are preserved. Bundle identity, Python lock
 and device facts must match; content is checked before and after execution.
 Each Harbor trial creates a fresh world/workspace. Use its task matrix for repeats
 and held-out cases.
@@ -107,12 +121,13 @@ is defined in the [testing skill](../../.agents/skills/test-simulator-kinex/SKIL
 ```sh
 bash tools/check.sh
 python -m unittest discover -s integrations/kinex -p 'test_*.py'
+python -m pytest -q tests/test_kinex_node.py tests/test_libero_kinex_python.py
 python tools/smoke_device_harbor.py --base-image "$SDK_BASE_IMAGE" \
   --sdk-wheel "$SDK_WHEEL" --runtime-wheel "$RUNTIME_WHEEL" \
   --agent-bundle "$AGENT_BUNDLE" --out "$FRESH_SMOKE_OUT"
 ```
 
 The last command runs Harbor/Docker/Kinex with a synthetic CPU world. Native
-simulator and live-model checks are separate. Run TypeScript tests/typecheck from
-the unpacked bundle with its Bun and dependencies so imports resolve against the
-packaged Kinex source. Preserve failed attempts and their evidence.
+simulator and live-model checks are separate. Run `node --test kinex/integrations/roboenv/*.test.ts` from the unpacked
+bundle using its Node executable and dependencies. Imports resolve against the
+packaged Kinex runtime. Preserve failed attempts and their evidence.

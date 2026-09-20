@@ -19,7 +19,8 @@ from test_taskset import ROOT, inputs
 
 def bundle(path, *, extra=None, corrupt=False):
     contents = dict.fromkeys(
-        ("bin/bun", "bin/uv", "kinex/bin/kinex", "kinex/integrations/roboenv/run.ts"), b"fixture"
+        ("bin/node", "bin/uv", "kinex/bin/kinex", "kinex/integrations/roboenv/run.ts",
+         "kinex/dist/node/src/index.js", "kinex/node_modules/@kinex/core/dist/index.js"), b"fixture"
     )
     if extra:
         contents[extra] = b"bad path"
@@ -28,9 +29,9 @@ def bundle(path, *, extra=None, corrupt=False):
         "kinex_sha256": hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
     }
     if corrupt:
-        contents["bin/bun"] = b"changed"
+        contents["bin/node"] = b"changed"
     contents["bundle.json"] = json.dumps(
-        {"schema": "roboenv/kinex-agent-bundle/1", "files": hashes, "identity": identity}
+        {"schema": "roboenv/kinex-agent-bundle/2", "files": hashes, "identity": identity}
     ).encode()
     with tarfile.open(path, "w:gz") as archive:
         for name, data in contents.items():
@@ -56,6 +57,13 @@ def test_bundle_rejects_unsafe_paths_and_changed_bytes_before_effects(tmp_path, 
         {"model_name": "openai/test"},
         {"mode": "develop"},
         {"setup_timeout_sec": float("inf")},
+        {"max_steps": 100},
+        {"max_steps": 0},
+        {"max_steps": -1},
+        {"max_steps": 1.5},
+        {"max_steps": True},
+        {"max_steps": "unlimited"},
+        {"max_steps": 2**53},
         {"tool": "../../escape"},
     ],
 )
@@ -114,6 +122,33 @@ def test_zero_exit_without_execution_receipt_cannot_pass(tmp_path):
         asyncio.run(agent.run("Fixture instruction", Environment(), context))
     assert context.metadata["completed"] is False
     assert any("prepare.py verify" in command for command in commands)
+
+
+@pytest.mark.parametrize("options", [{}, {"max_steps": None}])
+def test_agent_uses_native_unlimited_loop_and_passes_wall_deadline(tmp_path, options):
+    agent = KinexAgent(
+        logs_dir=tmp_path, bundle=bundle(tmp_path / "agent.tar.gz"),
+        agent_timeout_sec=1200, **options,
+    )
+    uploaded = {}
+
+    class Environment:
+        async def exec(self, command, **kwargs):
+            return SimpleNamespace(return_code=0, stdout="", stderr="")
+
+        async def upload_file(self, source, target):
+            uploaded[Path(target).name] = json.loads(Path(source).read_text())
+
+        async def download_file(self, source, target):
+            Path(target).write_text(json.dumps({"passed": True, "mode": "no-model"}))
+
+    context = AgentContext()
+    asyncio.run(agent.run("Fixture instruction", Environment(), context))
+    assert "max_steps" not in uploaded["runner.json"]
+    assert uploaded["runner.json"]["timeout_s"] == 1200
+    assert context.metadata["max_steps"] is None
+    assert context.metadata["agent_timeout_sec"] == 1200
+    assert context.metadata["completed"] is True
 
 
 def test_harbor_report_requires_receipts_and_distinguishes_native_success(tmp_path):

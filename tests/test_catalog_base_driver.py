@@ -12,7 +12,7 @@ BASE = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices/base"
 
 @pytest.fixture
 def base(monkeypatch):
-    library = ROOT.parent / "kinex/python"
+    library = ROOT.parent / "kinex/packages/core/assets/python"
     if not (library / "kinex/base.py").is_file():
         pytest.skip("Requires Kinex's Python library for exported drivers")
     monkeypatch.syspath_prepend(str(library))
