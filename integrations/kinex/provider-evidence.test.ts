@@ -18,6 +18,17 @@ test("actual model request evidence preserves image identity without credentials
   assert.doesNotMatch(JSON.stringify(evidence), /base64/)
 })
 
+test("Pi tool-result images retain the same evidence and reject remote references", () => {
+  const input = [{ type: "function_call_output", call_id: "read-frame",
+    output: body.input[0]!.content }]
+  const evidence = requestEvidence(JSON.stringify({ ...body, input }), expected)
+  assert.deepEqual(evidence, requestEvidence(JSON.stringify(body), expected))
+  assert.throws(() => requestEvidence(JSON.stringify({ ...body, input: [{
+    type: "function_call_output", call_id: "read-frame",
+    output: [{ type: "input_image", image_url: "https://example.com/frame.png" }],
+  }] }), expected), /encoded sensor bytes/)
+})
+
 test("provider evidence rejects substituted configuration and remote-only images", () => {
   assert.throws(() => requestEvidence(JSON.stringify({ ...body, model: "another-model" }), expected), /authorized/)
   assert.throws(() => requestEvidence(JSON.stringify({ ...body, reasoning: { effort: "high" } }), expected), /authorized/)

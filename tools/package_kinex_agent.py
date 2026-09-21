@@ -9,10 +9,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = (
-    "dist/node",
+    "dist",
     "packages/core/dist",
     "packages/core/assets",
     "packages/core/package.json",
+    "packages/pi/dist",
+    "packages/pi/package.json",
     "assets",
     "bin",
     "package.json",
@@ -30,9 +32,10 @@ def package(kinex, node, uv, destination):
     version = subprocess.check_output([str(node), "--version"], text=True).strip()
     if tuple(map(int, version.removeprefix("v").split("."))) < (22, 19, 0):
         raise ValueError("Kinex requires Node >=22.19")
-    for relative in ("dist/node/src/index.js", "node_modules/@kinex/core/dist/index.js"):
+    for relative in ("dist/cli.js", "dist/application.js", "node_modules/@kinex/core/dist/index.js",
+                     "node_modules/@kinex/pi/dist/owner.js"):
         if not (kinex / relative).is_file():
-            raise ValueError("Build Kinex first with npm ci && npm run build:node")
+            raise ValueError("Build Kinex first with npm ci && npm run build")
     selected = []
 
     def files(base, ancestors=()):

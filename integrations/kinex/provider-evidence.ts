@@ -7,7 +7,11 @@ const Body = z.object({
   reasoning: z.object({ effort: z.string() }),
   input: z.array(z.unknown()),
 })
-const Message = z.object({ content: z.array(z.unknown()) })
+const Content = z.union([
+  z.object({ content: z.array(z.unknown()) }).transform(value => value.content),
+  z.object({ type: z.literal("function_call_output"), output: z.array(z.unknown()) })
+    .transform(value => value.output),
+])
 const Image = z.object({ type: z.literal("input_image"), image_url: z.string() })
 
 export function requestEvidence(body: string, expected: { id: string; effort: string }) {
@@ -15,9 +19,9 @@ export function requestEvidence(body: string, expected: { id: string; effort: st
   if (parsed.model !== expected.id || parsed.reasoning.effort !== expected.effort)
     throw new Error("Actual provider request differs from the authorized model/effort")
   const images = parsed.input.flatMap((item) => {
-    const message = Message.safeParse(item)
-    if (!message.success) return []
-    return message.data.content.flatMap((part) => {
+    const content = Content.safeParse(item)
+    if (!content.success) return []
+    return content.data.flatMap((part) => {
       const image = Image.safeParse(part)
       if (!image.success) return []
       const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\r\n]+)$/.exec(image.data.image_url)

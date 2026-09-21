@@ -37,8 +37,11 @@ def inspect_bundle(path):
         }
         if hashes != manifest["files"] or identity != manifest["identity"]:
             raise ValueError("Kinex bundle contents differ from the manifest")
-        required = {"bin/node", "bin/uv", "kinex/bin/kinex", "kinex/integrations/roboenv/run.ts",
-                    "kinex/dist/node/src/index.js", "kinex/node_modules/@kinex/core/dist/index.js"}
+        required = {"bin/node", "bin/uv", "kinex/bin/kinex.mjs",
+                    "kinex/integrations/roboenv/run.ts",
+                    "kinex/dist/cli.js", "kinex/dist/application.js",
+                    "kinex/node_modules/@kinex/core/dist/index.js",
+                    "kinex/node_modules/@kinex/pi/dist/owner.js"}
         if not required <= hashes.keys():
             raise ValueError("Kinex bundle lacks its runtime entrypoints")
         return identity

@@ -8,7 +8,7 @@ development environment active. For interactive recording, see
 
 ## Package the agent
 
-Build the selected Kinex 0.4 checkout with `npm ci && npm run build:node`.
+Build the selected Pi-based Kinex checkout with `npm ci && npm run build`.
 Select a Node executable (>=22.19 for headless use) and uv:
 
 ```sh
@@ -84,7 +84,8 @@ through Harbor's agent environment, outside bundles and tasks. The bridge checks
 the actual model, effort and camera image requests.
 
 Extract the trial's `agent/workspace.tar.gz` into a new directory; it contains
-tools, skills, the Python lock, recordings and sessions, excluding `.kinex/python/.venv`.
+tools, skills, the Python lock and recordings, excluding `.kinex/python/.venv`.
+Development sessions are retained as `agent/session.jsonl` beside the execution receipt.
 Freeze the selected controller using that trial's identity:
 
 ```sh

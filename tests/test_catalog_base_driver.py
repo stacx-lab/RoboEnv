@@ -13,7 +13,7 @@ BASE = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices/base"
 @pytest.fixture
 def base(monkeypatch):
     library = ROOT.parent / "kinex/packages/core/assets/python"
-    if not (library / "kinex/base.py").is_file():
+    if not (library / "kinex/velocity.py").is_file():
         pytest.skip("Requires Kinex's Python library for exported drivers")
     monkeypatch.syspath_prepend(str(library))
     monkeypatch.syspath_prepend(str(BASE))
@@ -80,10 +80,10 @@ def test_base_rejects_bad_commands_before_transport(base):
     assert calls == []
 
 
-def test_wheels_ignore_posture_before_transport(base):
+def test_wheels_reject_unsupported_posture_before_transport(base):
     module, calls = base
     velocity = {"vx": 0.1, "vy": 0, "wz": 0}
-    assert module.handle(
+    result = module.handle(
         "write",
         {
             "mode": "drive",
@@ -95,8 +95,9 @@ def test_wheels_ignore_posture_before_transport(base):
                 "yaw": 0.3,
             },
         },
-    )["ok"]
-    assert calls == [("write", {"mode": "drive", "velocity": velocity})]
+    )
+    assert not result["ok"] and "posture is unsupported" in result["error"]
+    assert calls == []
 
 
 def test_stop_and_unload_do_not_require_control_metadata(base, monkeypatch):

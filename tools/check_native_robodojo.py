@@ -444,7 +444,7 @@ def main():
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    sys.path.insert(0, str(args.kinex.resolve() / "python"))
+    sys.path.insert(0, str(args.kinex.resolve() / "packages/core/assets/python"))
     faulthandler.dump_traceback_later(180, repeat=True)
     report = {
         "passed": False,

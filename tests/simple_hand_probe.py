@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @cache
 def predictor(kinex):
-    sys.path.insert(0, str(kinex / "python"))
+    sys.path.insert(0, str(kinex / "packages/core/assets/python"))
     from kinex.hand import forward
 
     return forward

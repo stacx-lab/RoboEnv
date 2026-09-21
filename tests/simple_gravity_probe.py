@@ -204,7 +204,7 @@ def native(enabled, out, models, pose_error):
 def main(args):
     os.environ.setdefault("MUJOCO_GL", "egl")
     args.out.mkdir(parents=True, exist_ok=False)
-    sys.path.insert(0, str(args.kinex / "python"))
+    sys.path.insert(0, str(args.kinex / "packages/core/assets/python"))
     from kinex.joints import JointDevice
     from kinex.motion import pose_error
 

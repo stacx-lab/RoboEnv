@@ -19,8 +19,10 @@ from test_taskset import ROOT, inputs
 
 def bundle(path, *, extra=None, corrupt=False):
     contents = dict.fromkeys(
-        ("bin/node", "bin/uv", "kinex/bin/kinex", "kinex/integrations/roboenv/run.ts",
-         "kinex/dist/node/src/index.js", "kinex/node_modules/@kinex/core/dist/index.js"), b"fixture"
+        ("bin/node", "bin/uv", "kinex/bin/kinex.mjs", "kinex/integrations/roboenv/run.ts",
+         "kinex/dist/cli.js", "kinex/dist/application.js",
+         "kinex/node_modules/@kinex/pi/dist/owner.js",
+         "kinex/node_modules/@kinex/core/dist/index.js"), b"fixture"
     )
     if extra:
         contents[extra] = b"bad path"

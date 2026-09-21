@@ -1,18 +1,16 @@
 // Harbor agent-side composition of the normal Kinex tool/session/recording APIs.
 import path from "node:path"
+import { randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
 import { z } from "zod"
 import { deactivateDevice } from "@kinex/core/device/dispatch"
 import { observeDevices } from "@kinex/core/device/observe"
 import { pythonTools } from "@kinex/core/tool/python"
 import { execute, type Context } from "@kinex/core/tool/tool"
-import { Recorder } from "../../dist/node/src/integration/kinex/recorder.js"
-import { Session } from "../../dist/node/src/session/index.js"
-import { createRunner } from "../../dist/node/src/session/runner.js"
-import { createBus } from "../../dist/node/src/bus/index.js"
-import { toResponsesBody } from "../../dist/node/src/provider/openai.js"
+import { Recorder } from "@kinex/core/record/recorder"
+import { createKinexRuntime, type KinexRuntime } from "@kinex/core"
+import { createApplication } from "../../dist/application.js"
 import { pythonEnvironment } from "@kinex/core/python/environment"
-import { createStandaloneRuntime } from "../../dist/node/src/integration/kinex/runtime.js"
 import { ConfigPaths } from "@kinex/core/config/paths"
 import { Global } from "@kinex/core/global"
 import { observeProvider } from "./provider-evidence.ts"
@@ -28,14 +26,14 @@ const Input = z.strictObject({
   recording: z.record(z.string(), z.strictObject({ rate: z.number().positive() })),
   require_completion: z.boolean().default(false),
   prompt: z.string().optional(),
-  model: z.strictObject({ provider: z.literal("openai"), id: z.string(), effort: z.string() }).optional(),
+  model: z.strictObject({ provider: z.literal("openai"), id: z.string(), effort: z.enum(["off", "minimal", "low", "medium", "high", "xhigh"]) }).optional(),
 })
 
 async function main() {
   if (process.argv[2] === "--prepare-python") {
     const directory = process.argv[3]
     if (!directory) throw new Error("Workspace directory is required")
-    const runtime = createStandaloneRuntime({ directory })
+    const runtime = createKinexRuntime({ directory })
     try { await runtime.python.prepare() }
     finally { await runtime.dispose() }
     return
@@ -49,12 +47,15 @@ async function main() {
   if (await fs.access(input.output).then(() => true, () => false)) throw new Error("Preserve existing receipts; select a fresh output")
   if (input.mode === "develop" && (!input.prompt || !input.model)) throw new Error("Development needs an authorized exact model and prompt")
   if (input.mode === "no-model" && (input.model || input.prompt)) throw new Error("No-model execution cannot contain model instructions")
-  const runtime = createStandaloneRuntime({ directory })
-  try { await runtime.run(() => executeRun(input, runtime)) }
-  finally { await runtime.dispose() }
+  const app = input.mode === "develop" ? await createApplication({ cwd: directory,
+    model: `${input.model!.provider}/${input.model!.id}`, thinkingLevel: input.model!.effort,
+  }) : undefined
+  const runtime = app?.owner.runtime ?? createKinexRuntime({ directory })
+  try { await runtime.run(() => executeRun(input, runtime, app)) }
+  finally { if (app) await app.dispose(); else await runtime.dispose() }
 }
 
-async function executeRun(input: z.infer<typeof Input>, runtime: ReturnType<typeof createStandaloneRuntime>) {
+async function executeRun(input: z.infer<typeof Input>, runtime: KinexRuntime, app?: Awaited<ReturnType<typeof createApplication>>) {
   const directory = runtime.directory
   const devices = await runtime.devices.list()
   if (!devices.length || devices.some((device) => device.type === "model")) throw new Error("Require native devices without undeclared model services")
@@ -62,9 +63,7 @@ async function executeRun(input: z.infer<typeof Input>, runtime: ReturnType<type
   const roots = await ConfigPaths.directories(directory)
   if (roots.some((root) => ![path.join(directory, ".kinex"), path.resolve(Global.Path.config)].includes(path.resolve(root))))
     throw new Error("Workspace inherits undeclared parent content")
-  const session = await Session.create(directory)
-  const bus = createBus()
-  Recorder.attach(bus)
+  const session = { id: app?.host.session.sessionId ?? randomUUID() }
   const abort = new AbortController()
   const events: { device: string; action: string; error?: string; wall: number; latencyMs: number; origin?: string }[] = []
   const unobserve = observeDevices((event) => {
@@ -81,10 +80,14 @@ async function executeRun(input: z.infer<typeof Input>, runtime: ReturnType<type
     },
     questions: async () => { throw new Error("Owner input is required; this run cannot answer agent questions") },
   }
-  const runner = createRunner(bus)
+  if (app) {
+    app.owner.interaction.host.ask = context.ask
+    app.owner.interaction.questions = context.questions
+    await app.host.session.bindExtensions({ mode: "print", onError: error => { throw new Error(error.error) } })
+  }
   const cancel = () => {
     abort.abort()
-    void runner.cancel(session.id)
+    void app?.host.session.abort()
     // Abort activation/Python preparation as well as an already running tool.
     // Cleanup errors are awaited again below and included in the receipt.
     void runtime.dispose().catch(() => {})
@@ -108,13 +111,12 @@ async function executeRun(input: z.infer<typeof Input>, runtime: ReturnType<type
       if (Object.keys(started.refusals).length || !Recorder.active()) throw new Error("Required recording streams were refused")
     }
     if (input.mode === "develop") {
-      const model = input.model!
-      // The same model/effort is passed to createRunner and checked at serialization.
-      receipt.provider_request = toResponsesBody({ model: model.id, effort: model.effort,
-        system: "configuration preflight", messages: [], tools: [] })
-      await runner.submit(session.id, { directory, providerID: model.provider, model: model.id,
-        effort: model.effort, ask: context.ask, questions: context.questions }, input.prompt!)
-      await runner.wait(session.id)
+      // observeProvider checks the actual serialized request's model and effort.
+      await app!.host.session.prompt(input.prompt!)
+      const last = app!.host.session.messages.findLast(message => message.role === "assistant")
+      if (app!.owner.failure) throw app!.owner.failure
+      if (last?.role === "assistant" && (last.stopReason === "error" || last.stopReason === "aborted"))
+        throw new Error(last.errorMessage ?? last.stopReason)
       if (!provider!.requests.length) throw new Error("Development did not issue a real provider request")
       if (!provider!.requests.some((request) => request.images.length && request.status === 200))
         throw new Error("Development did not deliver sensor images to the live model")
@@ -149,7 +151,7 @@ async function executeRun(input: z.infer<typeof Input>, runtime: ReturnType<type
     clearTimeout(timer)
     const errors: string[] = []
     // A failed stage must not prevent the remaining cleanup or its receipt.
-    for (const finish of [() => runner.cancel(session.id), () => Recorder.stop({ endedBy: "error" })]) {
+    for (const finish of [() => app?.host.session.abort(), () => Recorder.stop({ endedBy: "error" })]) {
       try { await finish() } catch (error) { errors.push(String(error)) }
     }
     const cleanup = await Promise.allSettled(devices.map((device) => deactivateDevice(directory, device)))
@@ -159,7 +161,14 @@ async function executeRun(input: z.infer<typeof Input>, runtime: ReturnType<type
       receipt.passed = false
       receipt.cleanup_errors = errors
     }
-    await runtime.dispose().catch((error: unknown) => {
+    if (app?.host.session.sessionFile) {
+      try {
+        const native = path.join(path.dirname(input.output), "session.jsonl")
+        await fs.copyFile(app.host.session.sessionFile, native, fs.constants.COPYFILE_EXCL)
+        receipt.native_session = native
+      } catch (error) { receipt.passed = false; errors.push(String(error)); receipt.cleanup_errors = errors }
+    }
+    await (app ? app.dispose() : runtime.dispose()).catch((error: unknown) => {
       receipt.passed = false
       errors.push(String(error))
       receipt.cleanup_errors = errors
