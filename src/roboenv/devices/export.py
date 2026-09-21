@@ -95,7 +95,8 @@ def driver_access(kind, name, actions, endpoint, *, timeout_s=None):
     driver = {
         "entry": "driver.py",
         "persistent": True,
-        "actions": actions,
+        "actions": (actions if kind in DRIVERS else
+                    list(dict.fromkeys([*actions, "load", "unload", "status"]))),
     }
     if timeout_s is not None:
         driver["timeout_s"] = timeout_s
