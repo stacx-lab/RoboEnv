@@ -33,6 +33,58 @@ def world(*, limit=None, stop=True, success=False):
     return adapter, native
 
 
+@pytest.mark.parametrize("direction", [-1.0, 1.0])
+def test_device_stop_scope_and_persistent_gripper_target(direction):
+    _, native = world()
+    measured = np.linspace(-0.3, 0.3, 7)
+    updates = []
+    controller = SimpleNamespace(
+        name="JOINT_POSITION", goal_qpos=np.ones(7),
+        update=lambda **kwargs: updates.append(kwargs),
+    )
+    controller.reset_goal = lambda: setattr(controller, "goal_qpos", measured.copy())
+    controller.set_goal = lambda _action, set_qpos: setattr(controller, "goal_qpos", set_qpos)
+    gripper = SimpleNamespace(current_action=np.array([1.0, -1.0]))
+    native.env.robots = [SimpleNamespace(
+        controller=controller, gripper=gripper, action_dim=8,
+        _ref_joint_gripper_actuator_indexes=np.array([0, 1]),
+        _ref_gripper_joint_pos_indexes=np.array([0, 1]),
+    )]
+    native.sim.model = SimpleNamespace(actuator_ctrlrange=np.array([[0, .04], [-.04, 0]]))
+    native.sim.data = SimpleNamespace(qpos=np.array([.03, -.01]))
+    native._gripper_command = direction
+    initial_target = gripper.current_action.copy()
+
+    native.stop_part("arm")
+    assert updates == [{"force": True}]
+    np.testing.assert_array_equal(controller.goal_qpos, measured)
+    assert native._gripper_command == direction
+    np.testing.assert_array_equal(gripper.current_action, initial_target)
+    assert native.get_step_budget()["used"] == 5
+
+    # Exercise the real step/tick path: arm-only writes retain the last direction.
+    actions = []
+    native.env.step = lambda action: actions.append(action.copy())
+    native.step({"arm": np.zeros(7)})
+    assert actions[-1][-1] == direction
+    assert native.get_step_budget()["used"] == 6
+
+    native.step({"gripper": [0]})
+    np.testing.assert_array_equal(gripper.current_action, initial_target)
+    assert actions[-1][-1] == 0
+    assert native.get_step_budget()["used"] == 7
+    arm_target = controller.goal_qpos.copy()
+    native.stop_part("gripper")
+    assert native._gripper_command == 0
+    # Measured asymmetric fingers map to [0.5, 0.5], replacing the old preload.
+    np.testing.assert_allclose(gripper.current_action, [.5, .5])
+    np.testing.assert_array_equal(controller.goal_qpos, arm_target)
+    assert native.get_step_budget()["used"] == 7
+    with pytest.raises(ValueError, match="Unknown native actuator"):
+        native.stop_part("unknown")
+    assert native.get_step_budget()["used"] == 7
+
+
 @pytest.mark.parametrize("limit,stop,success,reason", [
     (None, True, True, "success"), (6, False, False, "step_limit"),
     (None, False, True, None),

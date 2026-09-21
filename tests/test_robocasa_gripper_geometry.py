@@ -91,6 +91,7 @@ def test_pad_frames_and_aperture_follow_compiled_model(backend):
 def test_libero_binding_returns_contact_frames_without_advancing_physics():
     from roboenv.devices.bindings.registry import BindingContext
     from roboenv.devices.bindings.spec import BindingPlan
+    from roboenv.devices.documentation import render_documentation
     from roboenv.devices.model import ExecutionContext
     from roboenv_runtime.bindings.backends.libero.devices import bind
 
@@ -147,6 +148,13 @@ def test_libero_binding_returns_contact_frames_without_advancing_physics():
         if spec.entity == "gripper"
     )
     bound = bind(spec, root, BindingContext("libero", "panda", SimpleNamespace(_env=world)))
+    descriptor = bound.describe()
+    text = render_documentation({}, [descriptor], {"endpoint": "http://sim:8123"})
+    for action in ("read", "write", "stop"):
+        assert descriptor["actions"][action]["input_schema"]["description"] in text
+    assert "including arm writes" in text
+    assert "different from writing zero" in text
+    assert "not collision clearance" in text
     for opening in ([0.04, -0.04], [0.02, -0.01]):
         data.qpos[7:] = opening
         mujoco.mj_forward(model, data)

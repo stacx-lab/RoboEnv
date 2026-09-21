@@ -186,12 +186,25 @@ def bind(spec, root, context):
             world.stop_part(entity)
             return {"stopped": True, **intrinsics["stop"]}
 
-        register("read", read, required=("positions", "velocities", "faults", "sample_time_s"))
+        register(
+            "read", read,
+            {**EMPTY, "description": "Read measured feedback without requesting a control step."},
+            required=("positions", "velocities", "faults", "sample_time_s"),
+        )
         register(
             "write",
             write,
             {
                 "type": "object",
+                "description": (
+                    "Set persistent absolute joint goals. In synchronous mode, this write "
+                    "advances one control interval while retaining the active gripper direction."
+                    if entity == "arm" else
+                    "Set a persistent opening or closing direction. It remains active during "
+                    "later control intervals, including arm writes. Zero retains the accumulated "
+                    "gripper target; it does not reset the target to measured finger positions. "
+                    "In synchronous mode, this write advances one control interval."
+                ),
                 "additionalProperties": False,
                 "required": ["target"],
                 "properties": {
@@ -206,7 +219,19 @@ def bind(spec, root, context):
             mutation=True,
             required=("accepted",),
         )
-        register("stop", stop, mutation=True, required=("stopped", "behavior", "affected_devices"))
+        register(
+            "stop", stop,
+            {**EMPTY, "description": (
+                "Hold measured arm joint positions without changing the gripper direction or "
+                "accumulated gripper target. Does not request a control step."
+                if entity == "arm" else
+                "Set gripper direction to zero and reset its accumulated actuator target to "
+                "measured finger positions. This can relax contact preload in a held grasp; "
+                "it is different from writing zero. The arm goal is unchanged. "
+                "Does not request a control step."
+            )},
+            mutation=True, required=("stopped", "behavior", "affected_devices"),
+        )
     elif entity == "camera":
         camera = spec.config.get("camera", "agentview")
         if not world._render or camera not in world._camera_names:

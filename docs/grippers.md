@@ -17,6 +17,28 @@ Use the declared frame, for example `gripper:left_pad` or
 `left_gripper:pad_1`, instead of assuming the flange is the grasp center.
 Mounting, joint command signs and feedback channel signs are independent facts.
 
+Contact patches and aperture describe the inner grasping surfaces. They do not
+bound the whole fingers, hand, wrist, or arm, and do not establish clearance along
+a motion. A nonzero aperture also does not establish that an object remains held;
+use measured motion and fresh observations to verify the grasp.
+
+## LIBERO direction and stop behavior
+
+LIBERO retains the last gripper direction across control intervals, including
+intervals advanced by arm writes in synchronous mode. `+1` closes, `-1` opens,
+and `0` retains the accumulated actuator target. The target changes by 0.25 per
+control interval with the native 20 Hz configuration; this is not an aperture
+change in metres.
+
+`arm.stop()` holds measured arm joint positions and leaves the gripper direction
+and accumulated target unchanged. `gripper.stop()` sets the direction to zero and
+replaces the accumulated target with measured finger positions. It can therefore
+relax contact preload; writing zero retains the previous target instead. Neither
+device stop requests a control step or finalizes the simulation. In realtime
+mode, the owner continues advancing physics independently of reads and stops.
+These semantics are shared by all five LIBERO Panda catalogs and are included in
+the live action descriptions exported to the agent's device guide.
+
 ## Model-specific frames
 
 Panda keeps its native `grip_site` TCP. `left_pad` and `right_pad` locate the
