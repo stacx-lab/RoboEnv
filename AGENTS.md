@@ -16,10 +16,20 @@ for task generation.
 - docs/, .github/: integration guides, release rules, and CI.
 - .cache/, build/, generated/: local artifacts; do not commit them.
 
+Keep runtime and packaging code, concise current documentation, and reusable
+contract tests in the source tree. Keep campaign plans, reports, one-off
+development tools and their dedicated tests under ignored `.local/`. Tracked
+tests must not depend on ignored helpers. Preserve local evidence; do not remove
+it as cache cleanup.
+
 RoboEnv owns environment state and verdicts. Agents own reasoning and programs;
 agent-specific integration and training belong outside this repository.
 One world owns lifecycle and budgets; device bindings connect to that world.
 Do not reintroduce a second driver stack or an agent loop.
+
+Kinex integrations target `stacx-lab/kinex` and its host-independent `@kinex/core`.
+Standalone uses Pi's coding harness; `kinex-legacy` is historical. Keep robotics
+consumers on core APIs and adapt standalone session composition only where needed.
 
 ## Development environment
 

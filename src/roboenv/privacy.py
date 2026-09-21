@@ -9,6 +9,7 @@ from pathlib import Path
 SKIP = {
     ".git",
     ".cache",
+    ".local",
     ".venv",
     ".ruff_cache",
     ".pytest_cache",

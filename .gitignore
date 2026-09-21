@@ -13,3 +13,5 @@ jobs/
 generated/
 benchmarks/manipulation/
 deployments/local/
+# Local experiment plans, reports, development tools and their dedicated tests.
+/.local/

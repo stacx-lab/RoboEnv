@@ -24,3 +24,13 @@ def test_container_paths_are_not_host_identifiers(tmp_path):
 def test_publishable_source_has_no_machine_identifiers():
     result = audit(ROOT)
     assert result["passed"], result["findings"]
+
+
+def test_local_notes_are_excluded_without_hiding_owned_source(tmp_path):
+    private = "/" + "home/" + "example-owner/" + "asset"
+    local = tmp_path / ".local"
+    local.mkdir()
+    (local / "report.md").write_text(private)
+    assert audit(tmp_path)["passed"]
+    (tmp_path / "source.py").write_text(private)
+    assert audit(tmp_path)["findings"] == [{"file": "source.py", "kind": "user_home"}]
