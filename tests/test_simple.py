@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import zipfile
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -116,7 +117,12 @@ def test_independent_writes_retain_goals_and_reads_do_not_step(realtime):
     initial = copy.deepcopy(world.control.targets)
     left = initial["left_arm"].copy()
     left[0] = 0.2
-    assert world.control.write("base", base()) == {"accepted": True}
+    assert world.control.write("base", base()) == {
+        "accepted": True,
+        # A write with no budget does not wait, so only a stepping world
+        # advances its clock inside the call.
+        "elapsed_s": 0.0 if realtime else 0.02,
+    }
     assert world.steps == (0 if realtime else 1)
     with pytest.raises(ValueError):
         world.control.write("left_arm", {"target": [0]})
@@ -200,24 +206,6 @@ def test_catalog_routes_upper_body_through_measured_base_torso():
     ]
 
 
-def test_realtime_timeout_retains_full_posture_and_upper_targets(monkeypatch):
-    import roboenv_runtime.adapters.simple.control as control_module
-
-    now = [0.0]
-    monkeypatch.setattr(control_module.time, "monotonic", lambda: now[0])
-    world = World(True)
-    world.control.write("base", base())
-    targets = copy.deepcopy(world.control.targets)
-    now[0] = 0.6
-    world.control.tick()
-    assert world.received[-1] == {**targets, "base": [0, 0, 0, 0.74, 0.1, 0.2, 0.3]}
-    world.done = True
-    world.control.tick()
-    assert world.steps == 1
-    with pytest.raises(ValueError, match="terminated"):
-        world.control.write("base", base())
-
-
 def test_contract_bindings_have_only_basic_actions():
     resolved = resolve_task("simple/g1-xmove-pick", realtime=False)
     world = World()
@@ -255,11 +243,18 @@ def test_hand_geometry_survives_live_export(tmp_path, realtime):
 def test_binding_rejects_incorrect_fingertip_offset():
     resolved = resolve_task("simple/g1-xmove-pick", realtime=False)
     spec = next(spec for spec in resolved.bindings.devices if spec.name == "left_hand")
-    spec.overrides["intrinsics"]["geometry"]["fingers"]["thumb"]["tip_offset"][0] += .01
+    # Resolving an episode no longer rewrites intrinsics, so state the override here.
+    intrinsics = spec.resolved_profile(resolved.robot)["intrinsics"]
+    intrinsics["geometry"]["fingers"]["thumb"]["tip_offset"][0] += .01
+    bindings = replace(resolved.bindings, devices=tuple(
+        replace(s, overrides={**s.overrides, "intrinsics": intrinsics})
+        if s.name == "left_hand" else s
+        for s in resolved.bindings.devices
+    ))
     world = World()
     with pytest.raises(ValueError, match="tip_offset"):
         default_registry().assemble(
-            resolved.bindings, resolved.robot,
+            bindings, resolved.robot,
             BindingContext("simple", "g1", SimpleNamespace(_env=world)),
         )
     assert world.steps == 0
@@ -270,8 +265,7 @@ def test_realtime_profile_resolution_does_not_rewrite_catalog():
     before = path.read_bytes()
     resolved = resolve_task("simple/g1-xmove-pick", realtime=True)
     spec = next(s for s in resolved.bindings.devices if s.name == "base")
-    execution = spec.resolved_profile(resolved.robot)["intrinsics"]["control"]["execution"]
-    assert execution == {"mode": "realtime", "command_timeout_s": 0.5}
+    assert "execution" not in spec.resolved_profile(resolved.robot)["intrinsics"]["control"]
     assert path.read_bytes() == before
 
 
@@ -311,21 +305,6 @@ def test_extracted_inventory_is_pinned(tmp_path):
     receipt.write_text("[ ]\n")
     with pytest.raises(ValueError, match="inventory"):
         verify_assets(tmp_path)
-
-
-@pytest.mark.parametrize("realtime", [False, True])
-def test_clock_profiles_match_device_expiry(realtime):
-    resolved = resolve_task("simple/g1-xmove-pick", realtime=realtime)
-    for spec in resolved.bindings.devices:
-        profile = spec.resolved_profile(resolved.robot)
-        if "control" not in profile["intrinsics"]:
-            continue
-        expected = ({"mode": "realtime", "command_timeout_s": 0.5
-                     if spec.name == "base" else None} if realtime
-                    else {"mode": "stepped", "interval_s": 0.02})
-        assert profile["intrinsics"]["control"]["execution"] == expected
-        assert set(profile["access"]["driver"]["actions"]) <= {
-            "read", "write", "stop", "load", "unload", "status", "ik", "fk"}
 
 
 def test_metric_hook_sets_current_observation_commands_and_rejects_nan():
@@ -448,16 +427,3 @@ def test_joint_stop_keeps_measured_soft_limit_overshoot_without_stepping():
     assert world.control.targets == {**original, "left_arm": measured}
 
 
-def test_only_base_writes_refresh_velocity_expiry(monkeypatch):
-    import roboenv_runtime.adapters.simple.control as control_module
-
-    now = [0.0]
-    monkeypatch.setattr(control_module.time, "monotonic", lambda: now[0])
-    world = World(True)
-    world.control.write("base", base())
-    now[0] = .4
-    world.control.write("left_hand", {"target": world.control.targets["left_hand"]})
-    now[0] = .6
-    world.control.tick()
-    assert world.control.targets["base"][:3] == [0, 0, 0]
-    assert world.control.events[-1]["reason"] == "timeout"

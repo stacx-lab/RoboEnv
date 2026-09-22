@@ -56,6 +56,7 @@ def service(tmp_path, *, embodiment="piper"):
         advance,
         realtime=False,
         exhausted=lambda: world.steps >= 3,
+        interval_s=1 / 30,
     )
     world.device_write = world.control.write
     world.device_stop = lambda name: world.control.stop(name, targets[name])
@@ -144,9 +145,9 @@ def test_behavior_velocity_binding_accepts_named_commands_without_joint_feedback
     )
     writes = []
 
-    def write(name, target):
+    def write(name, target, *, for_s=None, arrived=None):
         writes.append((name, target))
-        return {"accepted": True}
+        return {"accepted": True, "elapsed_s": for_s or 0.0}
 
     world.device_write = write
     wire = default_registry().assemble(

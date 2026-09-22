@@ -17,17 +17,17 @@ from roboenv_runtime.adapters.urdf_geometry import matrix, matrix_pose
 from roboenv_runtime.paths import repo_root
 
 from .control import Control
+from .profiles import CONTROL_INTERVAL_S
 
 
 class SimpleEnv:
-    control_interval = 0.02
+    control_interval = CONTROL_INTERVAL_S
 
     def __init__(
         self,
         *,
         env_id="simple/G1WholebodyXMovePickTeleop-v0",
         realtime=True,
-        command_timeout_s=0.5,
         arm_gravity_compensation=True,
         sim_mode="mujoco_isaac",
         dr_level=0,
@@ -41,10 +41,9 @@ class SimpleEnv:
         self.root = root
         self.env = None
         self.realtime = realtime
-        self.command_timeout_s = command_timeout_s
         self.model = json.loads(Path(__file__).with_name("g1.json").read_text())
         self.control = Control(
-            self, self.model, realtime=realtime, command_timeout_s=command_timeout_s
+            self, self.model, realtime=realtime
         )
         if sim_mode not in {"mujoco", "mujoco_isaac"}:
             raise ValueError("SIMPLE supports mujoco or mujoco_isaac")

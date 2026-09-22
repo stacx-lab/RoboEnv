@@ -45,7 +45,7 @@ def main():
         for command in commands:
             env.control.write(command["device"], command["args"])
         after = {name: env.read_device(name) for name in NAMES}
-        period = env.model["control"]["execution"]["interval_s"]
+        period = env.control_interval
         assert (
             abs(
                 after["base"]["sample_time_s"]

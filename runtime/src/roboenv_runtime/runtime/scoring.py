@@ -51,7 +51,7 @@ class ScoreAuthority(Protocol):
         ...
 
     def native_action(self) -> contextlib.AbstractContextManager[None]:
-        """Context for one benchmark-native action frame (VLA steps)."""
+        """Context for one benchmark-native action frame."""
         ...
 
     def close(self) -> None:

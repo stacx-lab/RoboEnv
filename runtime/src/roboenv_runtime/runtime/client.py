@@ -235,10 +235,6 @@ class RemoteAPI:
             raise ClientError(f"primitive {name!r} result is not a dictionary")
         return value
 
-    def vla(self, **kwargs: Any) -> Any:
-        """Bounded pretrained-policy control (adapters with ``Capability.VLA``)."""
-        return self._rpc("vla", kwargs, deadline_s=max(self.default_deadline_s, 1800.0))
-
     def score_peek(self) -> Any:
         """Read-only evaluation."""
         return self._rpc("score.peek")

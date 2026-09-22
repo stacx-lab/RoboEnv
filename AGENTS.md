@@ -19,7 +19,9 @@ for task generation.
 RoboEnv owns environment state and verdicts. Agents own reasoning and programs;
 agent-specific integration and training belong outside this repository.
 One world owns lifecycle and budgets; device bindings connect to that world.
-Do not reintroduce a second driver stack or an agent loop.
+Do not reintroduce a second driver stack or an agent loop. Policy inference and
+rollout are agent-side work: there is no VLA subsystem, no policy client or
+server, and no `vla` operation. Devices are the only control surface.
 
 ## Development environment
 

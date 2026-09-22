@@ -69,9 +69,6 @@ intrinsics:
   control:
     mode: position
     speed: null
-    execution:
-      mode: stepped
-      interval_s: 0.02
   feedback:
     velocities: true
     efforts: false

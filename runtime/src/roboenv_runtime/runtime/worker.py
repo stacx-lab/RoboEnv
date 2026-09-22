@@ -19,7 +19,6 @@ op                      what
 ``submit``              the one final evaluation; mutating calls freeze after it
 ``reset``               same task, optional ``seed`` (``reset_same_task`` alias)
 ``checkpoint`` / ``restore``  when the adapter has ``Capability.CHECKPOINT``
-``vla``                 bounded pretrained policy control (``Capability.VLA``)
 ``capture``             ``{"path": "captures/x.png"}`` → PNG inside the run dir
 ``exec``                always refused; programs execute in the agent container
 ``skill``               refused: primitives run client-side so each call is journaled
@@ -81,8 +80,8 @@ READ_ONLY_PREFIXES = ("get_", "list_", "check_", "is_", "observe", "render", "pe
 """Tools whose names start with these never move the world (allowed after submit)."""
 SCORING_TOOL_MARKERS = ("score", "reward", "completed")
 """Tools that touch scoring are hidden from unprivileged clients."""
-EXCLUDED_TOOLS = frozenset({"a", "sim", "exec", "checkpoint", "restore", "vla_run"})
-"""Never exposed through ``call`` (checkpoint/restore/vla have their own ops)."""
+EXCLUDED_TOOLS = frozenset({"a", "sim", "exec", "checkpoint", "restore"})
+"""Never exposed through ``call`` (checkpoint/restore have their own ops)."""
 
 
 class WorkerRPCError(RuntimeError):
@@ -221,8 +220,6 @@ class SimWorker:
         self.request_count = 0
         self.basic_call_count = 0
         self.reset_count = 0
-        self._vla_manager: Any = None
-        self._policy_session = None
         self._checkpoints = {}
         self._closed = False
         self._final_result: dict[str, Any] | None = None
@@ -361,15 +358,6 @@ class SimWorker:
         capabilities = sorted(getattr(self.adapter, "capabilities", ()) or ())
         if self.budget_mode == "official":
             capabilities = [value for value in capabilities if value not in {"checkpoint", "privileged"}]
-        vla_tool = None
-        vla_fn = self.adapter.tools().get("vla_run")
-        if callable(vla_fn):  # excluded from ``call``; served through the ``vla`` op instead
-            spec = ToolSpec.of("vla_run", vla_fn)
-            vla_tool = {
-                "signature": spec.signature,
-                "parameters": _parameter_names(vla_fn),
-                "doc": spec.doc,
-            }
         return {
             "protocol": PROTOCOL_VERSION,
             "device_contract": "roboenv/devices/1" if self.devices else None,
@@ -385,8 +373,6 @@ class SimWorker:
                 "task": self.task_id,
                 "seed": self.seed,
                 "budget_mode": self.budget_mode,
-                "vla_tool": vla_tool,
-                "vla_callback_protocol": "roboenv/vla-callback/1" if vla_tool and "until" in vla_tool["parameters"] else None,
             },
             "notes": {
                 "skill": (
@@ -413,10 +399,6 @@ class SimWorker:
                 "submitted": self.scorer.submitted,
             }
         )
-        from roboenv_runtime.vla.server import inventory
-        observation["policy_servers"] = inventory()
-        if self._vla_manager is not None and hasattr(self._vla_manager, "inventory"):
-            observation["policy_servers"] += self._vla_manager.inventory()
         return observation
 
     def _check_terminal(self):
@@ -465,9 +447,6 @@ class SimWorker:
             if self.scorer.submitted:
                 raise WorkerRPCError("submit_failed", "the final evaluation did not complete")
             try:
-                if self._policy_session is not None:
-                    self._policy_session.close()
-                    self._policy_session = None
                 observation = self.observe()
                 verdict = copy.deepcopy(self.scorer.submit())
                 budget = self.adapter.budget().as_dict()
@@ -531,10 +510,6 @@ class SimWorker:
         if unknown:
             raise WorkerRPCError("invalid_args", f"reset does not accept: {sorted(unknown)}")
         seed = int(args.get("seed", self.seed))
-        if self._vla_manager is not None:
-            with contextlib.suppress(Exception):
-                self._vla_manager.close()
-            self._vla_manager = None
         self.scorer.close()
         self.state = "resetting"
         try:
@@ -598,68 +573,6 @@ class SimWorker:
             raise
         return {"restored": True}
 
-    def run_vla(self, args: Mapping[str, Any]) -> Any:
-        """Bounded pretrained-policy control through the adapter's VLA manager."""
-        if self.scorer.submitted:
-            raise WorkerRPCError("already_submitted", "VLA is frozen after submit")
-        if "_interactive" in args:
-            from roboenv_runtime.runtime.policy_session import PolicySession
-
-            action = args["_interactive"]
-            if action == "start":
-                if self._policy_session is not None:
-                    raise WorkerRPCError("policy_active", "finish the current policy rollout first")
-                tool = self.adapter.tools().get("vla_run")
-                if not callable(tool):
-                    raise WorkerRPCError("unsupported_op", "no VLA tool")
-                params = dict(args.get("arguments", {}))
-                if "until" in params:
-                    raise WorkerRPCError("invalid_args", "callbacks must remain agent-side")
-                factory = getattr(tool, "_interactive_factory", None)
-                if factory is not None:
-                    from roboenv_runtime.runtime.generator_session import GeneratorPolicySession
-                    self._policy_session = GeneratorPolicySession(factory(**params))
-                else:
-                    self._policy_session = PolicySession(lambda until: tool(**params, until=until))
-                state = self._policy_session.start()
-                if state["status"] == "done":
-                    self._policy_session = None
-                return state
-            session = self._policy_session
-            if session is None or args.get("token") != session.token:
-                raise WorkerRPCError("policy_identity", "unknown policy session")
-            if action == "stop":
-                session.close()
-                self._policy_session = None
-                return {"status": "done", "report": session.report, "cancelled": True}
-            if action != "advance" or type(args.get("stop")) is not bool:
-                raise WorkerRPCError("invalid_args", "invalid policy callback decision")
-            state = session.advance(args["sequence"], args["stop"])
-            if state["status"] == "done":
-                self._policy_session = None
-            return state
-        if self._policy_session is not None:
-            raise WorkerRPCError("policy_active", "a continuous policy rollout is already active")
-        factory = getattr(self.adapter, "vla_manager", None)
-        if callable(factory):
-            if self._vla_manager is None:
-                self._vla_manager = factory(self.scorer, self.run_dir)
-            try:
-                return self._vla_manager.dispatch(dict(args))
-            except ValueError as exc:
-                raise WorkerRPCError("invalid_args", str(exc)) from exc
-        # adapters without a dedicated manager expose the shared ``vla_run`` tool
-        # (roboenv_runtime.vla): same report shape, ``actions_taken`` included for finalize
-        tool = self.adapter.tools().get("vla_run")
-        if not callable(tool):
-            raise WorkerRPCError("unsupported_op", "this adapter has no VLA capability")
-        kwargs = dict(args)
-        kwargs.pop("func_name", None)
-        try:
-            return tool(**kwargs)
-        except (TypeError, ValueError) as exc:
-            raise WorkerRPCError("invalid_args", str(exc)) from exc
-
     def dispatch(self, op: str, args: Mapping[str, Any]) -> Any:
         """All public operations and native devices share the same world's lane."""
         with self.world.lock:
@@ -683,7 +596,7 @@ class SimWorker:
         }:
             raise WorkerRPCError("world_failed", "World lifecycle failed; owner recovery is required")
         if self.adapter.name in DEVICE_BACKENDS and op in {
-            "call", "skill", "exec", "vla", "reset", "reset_same_task", "checkpoint", "restore",
+            "call", "skill", "exec", "reset", "reset_same_task", "checkpoint", "restore",
         }:
             raise WorkerRPCError("unsupported_op", "This backend accepts basic device operations; start a new service for a new episode")
         if op not in WORKER_OPS:
@@ -765,8 +678,6 @@ class SimWorker:
             return self.checkpoint()
         if op == "restore":
             return self.restore(args)
-        if op == "vla":
-            return self.run_vla(args)
         if op == "exec":
             raise WorkerRPCError("client_side_exec", "programs execute in the agent container, never inside the simulator")
         if op == "shutdown":
@@ -780,19 +691,12 @@ class SimWorker:
     # ------------------------------------------------------------ lifecycle
 
     def close(self) -> None:
-        """Release the VLA manager, the scorer and the adapter (idempotent)."""
+        """Release the scorer and the adapter (idempotent)."""
         if self._closed:
             return
         self._closed = True
         self.world.stop_clock()
-        if self._policy_session is not None:
-            self._policy_session.close()
-            self._policy_session = None
         self.state = "closed"
-        if self._vla_manager is not None:
-            with contextlib.suppress(Exception):
-                self._vla_manager.close()
-            self._vla_manager = None
         try:
             if self.devices is not None:
                 with contextlib.suppress(Exception):

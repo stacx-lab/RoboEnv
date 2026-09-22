@@ -56,6 +56,10 @@ def target_schema(joints):
                     }
                     for j in joints
                 ],
-            }
+            },
+            # Every write is a segment: for_s bounds how long the world runs the
+            # command, arrive is the spec the device judges itself against.
+            "for_s": {"type": "number", "exclusiveMinimum": 0},
+            "arrive": {"type": "object"},
         },
     }

@@ -190,7 +190,6 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
                     },
                 }
             },
-            "execution": {"mode": "realtime", "command_timeout_s": 0.5},
         },
     }
     waist = {joint["name"]: joint for joint in model["parts"]["waist"]["joints"]}

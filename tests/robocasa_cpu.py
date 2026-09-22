@@ -189,7 +189,7 @@ def check(root, temporary):
         assert "needs_calibration" not in service.describe("base")["extrinsics"]
         base_facts = service.describe("base")["intrinsics"]
         assert service.describe("base")["type"] == "velocity"
-        assert base_facts["control"]["execution"] == {"mode": "stepped", "interval_s": 0.05}
+        assert "execution" not in base_facts["control"]
         assert base_facts["feedback"]["pose_frame"] == "world"
         # Measured velocity is the chassis-origin twist in body coordinates,
         # including the yaw-joint offset, rather than raw generalized qvel.

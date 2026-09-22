@@ -48,7 +48,6 @@ def model():
                     },
                 }
             },
-            "execution": {"mode": "stepped", "interval_s": 0.02},
         },
         "parts": {
             name: {
@@ -145,7 +144,7 @@ def test_write_validates_before_effects_and_preserves_other_targets(realtime):
             control.write(invalid["device"], invalid["args"])
     assert native.received == []
     receipt = control.write(valid["device"], valid["args"])
-    assert receipt == {"accepted": True}
+    assert receipt["accepted"] is True and receipt["elapsed_s"] >= 0
     if realtime:
         assert native.received == []
         assert native.sample_time_s == 0
@@ -170,66 +169,11 @@ def test_write_validates_before_effects_and_preserves_other_targets(realtime):
     assert native.sample_time_s == 0.04
 
 
-@pytest.mark.parametrize("timeout", [None, 0.5])
-def test_realtime_watchdog_retains_posture_and_only_base_writes_refresh_it(monkeypatch, timeout):
-    from roboenv_runtime.adapters.isaaclab import g1_control
-
-    now = [10.0]
-    monkeypatch.setattr(g1_control.time, "monotonic", lambda: now[0])
-    native = Native()
-    data = model()
-    control = Control(native, data, realtime=True, command_timeout_s=timeout)
-    target = {
-        "mode": "locomotion",
-        "velocity": {"vx": 0.1, "vy": 0, "wz": 0},
-        "posture": {"height": 0.7},
-    }
-    control.write("base", target)
-    first_deadline = control.base_deadline
-    assert data["control"]["execution"] == {"mode": "stepped", "interval_s": 0.02}
-    assert control.profiles["base"]["intrinsics"]["control"]["execution"] == {
-        "mode": "realtime",
-        "command_timeout_s": timeout,
-    }
-    now[0] = 10.2
-    native.read_device("base")
-    control.write("left_arm", {"target": [0.4]})
-    with pytest.raises(ValueError):
-        control.write("base", {**target, "posture": {"height": 2}})
-    assert control.base_deadline == first_deadline
-    assert native.received == []
-    control.tick()
-    assert native.received[-1]["base"] == [0.1, 0, 0, 0.7]
-    assert native.received[-1]["left_arm"] == [0.4]
-    now[0] = 10.3
-    control.write("base", target)
-    assert control.base_deadline == (10.8 if timeout else None)
-    now[0] = 10.6
-    control.tick()
-    assert native.received[-1]["base"][0] == 0.1
-    now[0] = 10.8
-    control.tick()
-    assert native.received[-1]["base"] == ([0, 0, 0, 0.7] if timeout else [0.1, 0, 0, 0.7])
-    assert native.received[-1]["left_arm"] == [0.4]
-    # Stops replace goals but do not step. Upper body holds measured positions.
-    before = native.steps
-    control.stop("base")
-    control.stop("left_arm")
-    assert native.steps == before and control.base_deadline is None
-    control.tick()
-    assert native.received[-1]["base"] == [0, 0, 0, 0.7]
-    assert native.received[-1]["left_arm"] == [0.2]
-
-
 @pytest.mark.parametrize(
     "options",
     [
         {"realtime": "true"},
         {"realtime": 1},
-        *(
-            {"command_timeout_s": value}
-            for value in (0, -1, True, "0.5", float("nan"), float("inf"))
-        ),
     ],
 )
 def test_invalid_clock_settings_are_rejected_before_effects(options):
@@ -348,12 +292,7 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path, realti
     assert digest(root / "src/roboenv/assets/isaaclab-g1.json") == data["asset_manifest_sha256"]
     world = Native()
     world.model = data
-    world.control = Control(
-        world,
-        data,
-        realtime=realtime,
-        command_timeout_s=task.task.backend_kwargs.get("command_timeout_s", 0.5),
-    )
+    world.control = Control(world, data, realtime=realtime)
     world.read_camera = lambda name, directory: {"sample_time_s": world.sample_time_s}
     context = BindingContext("isaaclab", "g1", SimpleNamespace(_env=world, run_dir=tmp_path))
     service = default_registry().assemble(task.bindings, task.robot, context)
@@ -369,8 +308,7 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path, realti
                 with pytest.raises(DeviceError):
                     service.call({"device": name, "action": action, "args": {}})
         assert world.received == []
-        expected_execution = world.control.profiles["base"]["intrinsics"]["control"]["execution"]
-        assert service.describe("base")["intrinsics"]["control"]["execution"] == expected_execution
+        assert "execution" not in service.describe("base")["intrinsics"]["control"]
         import yaml
         from roboenv.devices.export import export_devices
 
@@ -380,7 +318,7 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path, realti
             {"endpoint": "http://127.0.0.1:8123"},
         )
         exported = yaml.safe_load((tmp_path / "devices/base/profile.yaml").read_text())
-        assert exported["intrinsics"]["control"]["execution"] == expected_execution
+        assert "execution" not in exported["intrinsics"]["control"]
         service.call(
             {
                 "device": "base",
@@ -397,32 +335,8 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path, realti
         service.call({"device": "base", "action": "stop", "args": {}})
         assert service.call({"device": "base", "action": "unload", "args": {}})["data"]["unloaded"]
         assert world.control.targets["base"] == [0, 0, 0, 0.75]
-        assert world.steps == before and world.control.base_deadline is None
+        assert world.steps == before
     finally:
         service.close()
 
 
-def test_g1_reset_clears_pending_motion_and_watchdog():
-    from types import SimpleNamespace
-
-    from roboenv_runtime.adapters.isaaclab.g1 import G1Env
-
-    world = G1Env.__new__(G1Env)
-    world.model = model()
-    world.realtime = True
-    world.command_timeout_s = 0.5
-    world.control_interval = 0.02
-    world.env = SimpleNamespace(allow_reset=False, max_episode_length=10, reset=lambda **_: None)
-    world.read_device = lambda name: {"positions": [0.2]}
-    world.steps = 10
-    world.done = world.completed = True
-    world.images = {"old": {}}
-    world.control = Control(world, world.model, realtime=True)
-    world.control.targets["base"] = [0.1, 0, 0, 0.7]
-    world.control.base_deadline = 999
-    world.reset(7)
-    assert world.steps == 0 and not world.done and not world.completed
-    assert world.images == {} and world.env.allow_reset is False
-    assert world.control.realtime and world.control.base_deadline is None
-    assert world.control.targets["base"] == [0, 0, 0, 0.75]
-    assert world.control.targets["left_arm"] == [0.2]

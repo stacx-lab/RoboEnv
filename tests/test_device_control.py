@@ -17,13 +17,14 @@ def control(*, realtime=False, horizon=3):
         lambda: states.append(copy.deepcopy(holder)),
         realtime=realtime,
         exhausted=lambda: len(states) >= horizon,
+        interval_s=1 / 30,
     )
     return owner, states, holder
 
 
 def test_each_write_advances_one_interval_and_preserves_peer_targets():
     owner, states, _ = control()
-    assert owner.write("left", [0.5]) == {"accepted": True}
+    assert owner.write("left", [0.5]) == {"accepted": True, "elapsed_s": 1 / 30}
     assert states == [{"left": [0.5], "right": [0]}]
     owner.write("right", [-0.5])
     owner.write("left", [0.2])

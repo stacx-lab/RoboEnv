@@ -40,7 +40,7 @@ def check(out):
             )
             owner.allowed_ops = owner.allowed_ops | {"submit"}
             owner.request("observe", request_id="owner-private")
-            for operation in ("observe", "score.peek", "api", "capture", "reset", "vla"):
+            for operation in ("observe", "score.peek", "api", "capture", "reset"):
                 public.allowed_ops = public.allowed_ops | {operation}
                 try:
                     public.request(operation)

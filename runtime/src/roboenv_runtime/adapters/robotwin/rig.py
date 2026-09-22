@@ -9,6 +9,9 @@ import yaml
 
 from roboenv_runtime.adapters.gripper_geometry import ParallelGripper
 
+# Native 250 Hz physics with control decimation 10, asserted on reset.
+CONTROL_INTERVAL_S = 10 / 250
+
 from roboenv_runtime.adapters.urdf_geometry import (
     fixed_transform,
     joint_intrinsics,

@@ -28,8 +28,6 @@ class Capability:
 
     CHECKPOINT = "checkpoint"
     """``checkpoint()`` / ``restore(id)`` tools rewind the world in place."""
-    VLA = "vla"
-    """A pretrained visuomotor policy can be invoked as a bounded tool."""
     FUNCTIONAL_POINTS = "functional_points"
     """Objects carry named functional points (rim, handle, bottom, ...)."""
     OFFICIAL_BUDGET = "official_budget"
@@ -42,7 +40,7 @@ class Capability:
     """Ground-truth state (poses, checker internals) is readable."""
 
     ALL = frozenset(
-        {CHECKPOINT, VLA, FUNCTIONAL_POINTS, OFFICIAL_BUDGET, BASE_MOTION, VIDEO, PRIVILEGED}
+        {CHECKPOINT, FUNCTIONAL_POINTS, OFFICIAL_BUDGET, BASE_MOTION, VIDEO, PRIVILEGED}
     )
 
 

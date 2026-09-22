@@ -168,6 +168,7 @@ class BehaviorDevices(BehaviorBackend):
             realtime=self.realtime,
             exhausted=self.exhausted,
             on_write=self._release_holds,
+            interval_s=self.control_interval,
         )
         self.initialization = {
             "requested_seed": seed,
@@ -238,8 +239,8 @@ class BehaviorDevices(BehaviorBackend):
         self._native_success = self._native_success or bool(self.goal_report()["success"])
         self._native_done = bool(terminated or truncated)
 
-    def device_write(self, name, target):
-        return self.control.write(name, target)
+    def device_write(self, name, target, *, for_s=None, arrived=None):
+        return self.control.write(name, target, for_s=for_s, arrived=arrived)
 
     def _release_holds(self, devices):
         for name in devices:

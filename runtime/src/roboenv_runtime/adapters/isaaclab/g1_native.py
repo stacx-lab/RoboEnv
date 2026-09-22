@@ -53,6 +53,4 @@ def create(paths, model, device, *, realtime=False):
         scale=1.0,
         use_default_offset=False,
     )
-    if abs(cfg.sim.dt * cfg.decimation - model["control"]["execution"]["interval_s"]) > 1e-9:
-        raise ValueError("G1 control period differs from the generated catalog")
-    return Episode(cfg=cfg), names
+    return Episode(cfg=cfg), names, cfg.sim.dt * cfg.decimation

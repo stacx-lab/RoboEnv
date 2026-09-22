@@ -45,7 +45,6 @@ def intrinsics(sim, indexes, chain, home, name):
         "control": {
             "mode": "position",
             "speed": None,
-            "execution": {"mode": "realtime", "command_timeout_s": None},
         },
         "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
         "stop": {"behavior": "hold", "affected_devices": [name]},
@@ -88,11 +87,6 @@ def bind(spec, root, context):
     frame = "flange" if part == "right" else "top"
     facts["kinematics"]["frame"] = frame
     facts["frames"] = {frame: None}
-    facts["control"].update(
-        execution={"mode": "realtime", "command_timeout_s": None}
-        if world.realtime
-        else {"mode": "stepped", "interval_s": 1.0 / world.env.control_freq},
-    )
     limits = [joint["limits"] for joint in facts["model"]["joints"]]
 
     def read():
@@ -105,7 +99,12 @@ def bind(spec, root, context):
             "frame_poses": {frame: pose(model, data, tip, base)},
         }
 
-    def write(target):
+    def write(target, for_s=None, arrive=None):
+        """Set this device's goal and execute it; report the time spent.
+
+        This layer judges arrival because it knows which joints it owns; the
+        world owns the clock. `reached` is a measurement, never a promise.
+        """
         command = vector(
             target,
             len(indexes),
@@ -113,8 +112,22 @@ def bind(spec, root, context):
             upper=[v["max"] if v else np.inf for v in limits],
         )
 
-        world.step({part: command})
-        return {"accepted": True}
+        def arrived():
+            tolerance = (arrive or {}).get("joint_tolerance")
+            if not tolerance:
+                return False
+            measured = np.asarray(data.qpos[model.jnt_qposadr[indexes]], dtype=float)
+            if not np.all(np.abs(measured - np.asarray(command, dtype=float))
+                          <= np.asarray(tolerance, dtype=float)):
+                return False
+            quiet = (arrive or {}).get("quiet_velocity")
+            if quiet is None:
+                return True
+            speeds = np.asarray(data.qvel[model.jnt_dofadr[indexes]], dtype=float)
+            return bool(np.all(np.abs(speeds) <= np.asarray(quiet, dtype=float)))
+
+        elapsed = world.step({part: command}, for_s=for_s, arrived=arrived)
+        return {"accepted": True, "elapsed_s": elapsed, "reached": arrived(), "state": read()}
 
     def stop():
         world.stop_part(part)

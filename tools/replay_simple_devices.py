@@ -21,7 +21,6 @@ def replay(record):
     world = SimpleEnv(
         env_id=metadata["env_id"],
         realtime=metadata["realtime"],
-        command_timeout_s=None,
         arm_gravity_compensation=metadata["arm_gravity_compensation"],
         sim_mode=metadata["sim_mode"],
         dr_level=metadata["dr_level"],

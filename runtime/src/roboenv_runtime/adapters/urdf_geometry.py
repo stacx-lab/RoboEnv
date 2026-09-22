@@ -174,7 +174,6 @@ def joint_intrinsics(model, home, name):
         "control": {
             "speed": None,
             "mode": "position",
-            "execution": {"mode": "realtime", "command_timeout_s": None},
         },
         "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
         "stop": {"behavior": "hold", "affected_devices": [name]},

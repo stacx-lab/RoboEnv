@@ -70,7 +70,6 @@ def generate(assets, out, *, facts_out=None, provenance=None, bindings_out=None)
                     },
                 }
             },
-            "execution": {"mode": "stepped", "interval_s": 0.02},
         },
     }
     robot = out / "robots/isaaclab/isaaclab-g1"
@@ -167,7 +166,6 @@ def generate(assets, out, *, facts_out=None, provenance=None, bindings_out=None)
                 "backend_kwargs": {
                     "task_name": "g1-pick-place",
                     "realtime": False,
-                    "command_timeout_s": 0.5,
                     "asset_manifest": portable(assets),
                 },
             },

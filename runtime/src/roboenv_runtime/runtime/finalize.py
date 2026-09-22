@@ -267,7 +267,7 @@ def _is_read_only_call(request: Request) -> bool:
 def _is_physical_mutation(request: Request) -> bool:
     if request.op in {"call", "devices.call"}:
         return not _is_read_only_call(request)
-    return request.op in {"vla", "reset", "reset_same_task", "restore", "exec"}
+    return request.op in {"reset", "reset_same_task", "restore", "exec"}
 
 
 def _latest_budget(
@@ -466,30 +466,6 @@ def build_result(run: str | os.PathLike[str]) -> dict[str, Any]:
     if manifest["budget_mode"] == "official" and not within_official_cap:
         raise FinalizationError("official run exceeded its simulator-step cap")
 
-    failed_vla = [
-        action
-        for action in actions
-        if action["request"].op == "vla" and action["phase"] != "commit"
-    ]
-    if failed_vla:
-        # A raised VLA request may execute a prefix but its error envelope
-        # carries no trustworthy actions_taken count.
-        raise FinalizationError("failed VLA request makes the total action count indeterminate")
-
-    vla_total = 0
-    vla_entries: list[dict[str, Any]] = []
-    for action in _successful(actions, "vla"):
-        result = _result_mapping(action, label="vla")
-        taken = _nonnegative_int(result.get("actions_taken"), field="vla.result.actions_taken")
-        vla_total += taken
-        vla_entries.append(
-            {
-                "request_id": action["request"].request_id,
-                "terminal_event": action["terminal_event"],
-                "actions_taken": taken,
-            }
-        )
-
     seed = int(manifest["seed"])
     if manifest["budget_mode"] == "practice":
         ledger_candidate: str | None = "practice_full"
@@ -525,11 +501,6 @@ def build_result(run: str | os.PathLike[str]) -> dict[str, Any]:
             "source_op": budget_action["request"].op,
             "source_request_id": budget_action["request"].request_id,
             "source_terminal_event": budget_action["terminal_event"],
-        },
-        "vla": {
-            "calls": len(vla_entries),
-            "actions_taken_total": vla_total,
-            "entries": vla_entries,
         },
         "submit": _action_evidence(submit, submit_result),
         "last_score": _action_evidence(last_score, score_result),

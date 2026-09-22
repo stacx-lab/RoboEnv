@@ -50,7 +50,7 @@ def _merge(base, overlay):
     for key, value in overlay.items():
         result[key] = (
             _merge(result[key], value)
-            if isinstance(value, dict) and isinstance(result.get(key), dict) and key != "execution"
+            if isinstance(value, dict) and isinstance(result.get(key), dict)
             else copy.deepcopy(value)
         )
     return result

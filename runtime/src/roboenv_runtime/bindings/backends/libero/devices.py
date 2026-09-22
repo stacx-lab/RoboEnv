@@ -168,12 +168,32 @@ def bind(spec, root, context):
                 )
             return result
 
-        def write(target):
+        def write(target, for_s=None, arrive=None):
+            """Set this device's goal and execute it; report the time spent.
+
+            This layer judges arrival because it knows which joints it owns; the
+            world owns the clock. `reached` is a measurement, never a promise.
+            """
             command = vector(
                 target, size, lower=[a["min"] for a in limits], upper=[a["max"] for a in limits]
             )
-            world.step({entity: command})
-            return {"accepted": True}
+
+            def arrived():
+                tolerance = (arrive or {}).get("joint_tolerance")
+                if not tolerance:
+                    return False
+                measured = np.asarray(data.qpos[model.jnt_qposadr[joints]], dtype=float)
+                if not np.all(np.abs(measured - np.asarray(command, dtype=float))
+                              <= np.asarray(tolerance, dtype=float)):
+                    return False
+                quiet = (arrive or {}).get("quiet_velocity")
+                if quiet is None:
+                    return True
+                speeds = np.asarray(data.qvel[model.jnt_dofadr[joints]], dtype=float)
+                return bool(np.all(np.abs(speeds) <= np.asarray(quiet, dtype=float)))
+
+            elapsed = world.step({entity: command}, for_s=for_s, arrived=arrived)
+            return {"accepted": True, "elapsed_s": elapsed, "reached": arrived(), "state": read()}
 
         def stop():
             world.stop_part(entity)
@@ -193,11 +213,13 @@ def bind(spec, root, context):
                         "minItems": size,
                         "maxItems": size,
                         "items": {"type": "number"},
-                    }
+                    },
+                    "for_s": {"type": "number"},
+                    "arrive": {"type": "object"},
                 },
             },
             mutation=True,
-            required=("accepted",),
+            required=("accepted", "elapsed_s", "reached", "state"),
         )
         register("stop", stop, mutation=True, required=("stopped", "behavior", "affected_devices"))
     elif entity == "camera":

@@ -4,9 +4,6 @@ import numpy as np
 
 
 def intrinsics(world, pose_frame="world"):
-    execution = {"mode": "realtime", "command_timeout_s": None}
-    if not world.realtime:
-        execution = {"mode": "stepped", "interval_s": 1.0 / world.env.control_freq}
     return {
         "source": "introspected",
         "method": "introspection",
@@ -26,7 +23,6 @@ def intrinsics(world, pose_frame="world"):
                     "posture": None,
                 }
             },
-            "execution": execution,
         },
         "stop": {"behavior": "halt", "affected_devices": ["base"]},
         "feedback": {
@@ -76,9 +72,18 @@ def bind(spec, root, context):
     facts["stop"]["affected_devices"] = [definition.name]
 
     def write(**args):
+        """Hold the commanded body velocity for for_s of the world's own clock.
+
+        A base has no goal to arrive at, so it never reports reached: the caller's
+        budget is what ends the segment.
+        """
+        for_s = args.pop("for_s", None)
+        args.pop("arrive", None)
         value = command(facts["control"], args)
-        world.step({"base": [value["velocity"][axis] for axis in ("vx", "vy", "wz")]})
-        return {"accepted": True}
+        elapsed = world.step({"base": [value["velocity"][axis] for axis in ("vx", "vy", "wz")]},
+                             for_s=for_s)
+        return {"accepted": True, "elapsed_s": elapsed, "reached": False,
+                "state": reading(model, data, body)}
 
     def stop():
         world.stop_part("base")

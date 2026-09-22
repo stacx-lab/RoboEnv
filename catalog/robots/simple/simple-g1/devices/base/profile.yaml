@@ -56,9 +56,6 @@ intrinsics:
             bounds:
               min: -2.618
               max: 2.618
-    execution:
-      mode: realtime
-      command_timeout_s: 0.5
   feedback:
     pose_frame: world
     velocity_frame: base

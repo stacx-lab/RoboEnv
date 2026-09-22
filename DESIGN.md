@@ -205,10 +205,17 @@ The standard RoboCasa devices are:
 
 ## One world, one execution authority
 
-Bindings validate inputs before effects. RoboCasa writes return `accepted: true`,
-never an arrival claim. In realtime mode, background physics pursues persistent
-goals; in synchronous mode, each write runs one control period then pauses. Other
-parts retain their active goals. Read/status/kinematics do not request extra steps.
+Bindings validate inputs before effects. A write both sets a goal and executes it,
+returning `elapsed_s` — the simulated time that call was worth — along with
+`reached` and the resulting state. Synchronously the write is what advances
+physics, so it runs one control period. With the wall clock running the world it
+waits for the goal, bounded by the caller's `for_s`; without a `for_s` it does not
+wait at all, leaving the background clock to carry the goal. `reached` is judged
+by the device binding, which knows which actuator it owns, against the caller's
+`arrive` spec; the world only owns the clock. Other parts retain their active
+goals and read/status/kinematics never request extra steps. Simulated elapsed
+time is the only clock a controller reads, so the same call covers the same
+motion in either mode and nothing above the binding branches on which it is.
 RoboCasa imposes no horizon in either mode; action frames count physical intervals.
 Other backends retain their declared benchmark budgets. The service owns clocks;
 controller tools do not branch on realtime versus synchronous execution.

@@ -123,13 +123,13 @@ backend_kwargs:
 | Realtime | Return after accepting the goal; background physics continues while the agent thinks. |
 | Synchronous | Update the goal, advance the whole world by one native control interval, then return and pause. |
 
-The service owns the control period, normally 0.05 simulated seconds. Joint and
-velocity devices declare `intrinsics.control.execution`: realtime
-with `command_timeout_s: null` (retain commands until replaced/stopped), or stepped
-with `interval_s: 0.05` in a live synchronous export. The static catalog describes
-the default realtime mode. Reads, recording, status, local IK/FK, and stop
-never request advancement. Kinex's `servo_to` and `track` use the same loop in
-both modes; their wall-clock rate cap does not set simulation time.
+The service owns the control period, normally 0.05 simulated seconds, and never
+declares it: a write reports `elapsed_s`, the simulated time that call was worth,
+so a caller measures a task in the world's clock rather than in calls.
+`intrinsics.control.execution` carries only `command_timeout_s` — null to retain
+commands until replaced or stopped. Reads, recording, status, local IK/FK and
+stop never request advancement. Kinex's `move_to`, `drive` and `track` run the
+same loop in both modes, differing only in how many rounds it takes.
 
 Both modes count `action_frames`. The default `max_steps: null` is unbounded;
 a positive `max_steps` sets a hard native control-step limit. Set

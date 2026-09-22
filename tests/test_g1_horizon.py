@@ -71,17 +71,15 @@ def native_factory(monkeypatch):
         model = {
             "parts": {},
             "cameras": {},
-            "control": {
-                "execution": {"mode": "stepped", "interval_s": 0.02},
-            },
         }
         paths = {key: key for key in ("robot", "table", "object", "policy")}
-        native, names = g1_native.create(paths, model, "cpu", realtime=realtime)
+        native, names, interval = g1_native.create(paths, model, "cpu", realtime=realtime)
         world = G1Env.__new__(G1Env)
         world.env, world.upper_names, world.model = native, names, model
         world.app = None
         world.realtime = realtime
-        world.control_interval = 0.02
+        # The control period comes from the native config, not the catalog.
+        world.control_interval = interval
         world.steps = 0
         world.done = world.completed = False
         return world

@@ -96,6 +96,7 @@ class RoboTwinDevices(RoboTwinEnv):
             realtime=self.realtime,
             exhausted=self._exhausted,
             on_write=self._release_holds,
+            interval_s=self.control_interval,
         )
         self.initialization.update(
             rig=self.rig_identity,
@@ -162,8 +163,8 @@ class RoboTwinDevices(RoboTwinEnv):
             self._native_success = bool(self.task.check_success()) or self._native_success
         self.task.take_action_cnt = self.control.frame + 1
 
-    def device_write(self, name, target):
-        return self.control.write(name, target)
+    def device_write(self, name, target, *, for_s=None, arrived=None):
+        return self.control.write(name, target, for_s=for_s, arrived=arrived)
 
     def _release_holds(self, devices):
         for name in devices:

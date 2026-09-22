@@ -9,16 +9,9 @@ from .g1_profiles import NAMES, profiles
 
 
 class Control:
-    def __init__(self, native, model, *, realtime=False, command_timeout_s=0.5):
+    def __init__(self, native, model, *, realtime=False):
         if type(realtime) is not bool:
             raise ValueError("realtime must be a boolean")
-        if command_timeout_s is not None and (
-            isinstance(command_timeout_s, bool)
-            or not isinstance(command_timeout_s, (int, float))
-            or not math.isfinite(command_timeout_s)
-            or command_timeout_s <= 0
-        ):
-            raise ValueError("command_timeout_s must be positive and finite, or null")
         control = model["control"]
         if (
             control["mode"] != "motion"
@@ -52,14 +45,7 @@ class Control:
         self.native = native
         self.model = model
         self.realtime = realtime
-        self.command_timeout_s = command_timeout_s
-        self.base_deadline = None
-        execution = (
-            {"mode": "realtime", "command_timeout_s": command_timeout_s}
-            if realtime
-            else control["execution"]
-        )
-        self.profiles = profiles({**model, "control": {**control, "execution": execution}})
+        self.profiles = profiles({**model, "control": control})
         self.targets = {"base": [0, 0, 0, height]}
         for name in NAMES[1:]:
             part = model["parts"][name]
@@ -90,27 +76,38 @@ class Control:
                 raise ValueError("Target exceeds limits")
         return list(target)
 
-    def write(self, name, args):
+    def write(self, name, args, *, for_s=None, arrived=None):
         self.native.require_active()
         target = self.validate(name, args)
         combined = {**self.targets, name: target}
+        started = self.native.steps
         if not self.realtime:
             self.native.advance(combined)
         self.targets = combined
-        if self.realtime and name == "base":
-            self.base_deadline = (
-                time.monotonic() + self.command_timeout_s
-                if self.command_timeout_s is not None
-                else None
-            )
-        return {"accepted": True}
+        if self.realtime and for_s:
+            self._settle(for_s, arrived)
+        return {"accepted": True,
+                "elapsed_s": (self.native.steps - started) * self.native.control_interval}
+
+    def _settle(self, for_s, arrived):
+        """Wait out the background clock until the goal is met or the budget ends."""
+        interval = self.native.control_interval
+        frames = max(1, math.ceil(for_s / interval))
+        limit = self.native.steps + frames
+        # A stalled background clock must not hang the caller: bound the wait
+        # in wall time too, and report whatever simulated time did pass.
+        deadline = time.monotonic() + max(1.0, 4 * frames * interval)
+        while self.native.steps < limit and not self.native.done:
+            if arrived is not None and arrived():
+                return
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(interval / 4)
 
     def tick(self):
         """One owner-clock interval; never step a terminal episode."""
         if self.native.done:
             return
-        if self.base_deadline is not None and time.monotonic() >= self.base_deadline:
-            self.stop("base")
         self.native.advance(self.targets)
 
     def stop(self, name):
@@ -123,5 +120,4 @@ class Control:
         )
         self.targets[name] = list(value)
         if name == "base":
-            self.base_deadline = None
-        return {"stopped": True, **self.profiles[name]["intrinsics"]["stop"]}
+            return {"stopped": True, **self.profiles[name]["intrinsics"]["stop"]}

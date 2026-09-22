@@ -9,5 +9,4 @@ action_abstraction: devices
 backend_kwargs:
   task_name: g1-pick-place
   realtime: false
-  command_timeout_s: null
   asset_manifest: .cache/isaaclab/g1/assets.json

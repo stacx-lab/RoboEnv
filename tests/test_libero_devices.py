@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import ROOT, load_tool
+from helpers import ROOT, kinex_sources, load_tool
 from roboenv.tasks.libero import ROBOTS, entries
 from roboenv.tasks.resolve import resolve_task
 
@@ -186,10 +186,10 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
         assert "simulator" not in str(
             yaml.safe_load((root / "devices/arm/profile.yaml").read_text())["access"]
         )
-    kinex_root = Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex"))
+    kinex_root, kinex_src = kinex_sources()
     bun = shutil.which(os.environ.get("BUN", "bun"))
     require(
-        bun and (kinex_root / "node_modules/zod").exists(),
+        bun and kinex_src and (kinex_root / "node_modules/zod").exists(),
         "Kinex schema integration requires prepared Kinex and Bun",
     )
     payload = tmp_path / "profiles.json"
@@ -200,13 +200,13 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
         [
             bun,
             "-e",
-            "const {Device} = await import('./src/device/profile/schema.ts'); "
-            "const {missingActions} = await import('./src/device/interface.ts'); "
+            f"const {{Device}} = await import('{kinex_src}/device/profile/schema.ts'); "
+            f"const {{missingActions}} = await import('{kinex_src}/device/interface.ts'); "
             "for (const p of JSON.parse(await Bun.file(process.argv[1]).text())) { "
             "const d = Device.parse(p); "
             "if(missingActions(d, d.access?.driver?.actions ?? []).length) "
             "throw new Error('missing actions'); } "
-            "const {calibrationPlan} = await import('./src/calibration/dag.ts'); "
+            f"const {{calibrationPlan}} = await import('{kinex_src}/calibration/dag.ts'); "
             "const p = await calibrationPlan(process.argv[2]); "
             "if(!p.items.some(i=>i.id==='intrinsics:arm')) throw new Error('no devices'); "
             "for(const i of p.items) if(i.device && i.status!=='done') "
@@ -262,8 +262,3 @@ def test_native_contact_stop_and_release(tmp_path):
     run_native("tests/libero_contact.py", "--out", tmp_path / "contact.json")
     assert json.loads((tmp_path / "contact.json").read_text())["passed"]
 
-
-def test_native_vla_bridge_and_replay(tmp_path):
-    run_native("tests/libero_vla.py", "--out", tmp_path / "vla")
-    report = json.loads((tmp_path / "vla/report.json").read_text())
-    assert report["passed"] and report["model_calls"] == 0

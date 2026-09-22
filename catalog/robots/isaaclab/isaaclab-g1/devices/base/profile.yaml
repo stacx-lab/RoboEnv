@@ -37,9 +37,6 @@ intrinsics:
               min: 0.65
               max: 0.8
             default: 0.75
-    execution:
-      mode: stepped
-      interval_s: 0.02
   feedback:
     pose_frame: world
     velocity_frame: base

@@ -68,9 +68,6 @@ def describe(robot, interval, *, realtime=False):
                         "posture": None,
                     }
                 },
-                "execution": {"mode": "realtime", "command_timeout_s": None}
-                if realtime
-                else {"mode": "stepped", "interval_s": interval},
             },
             "stop": {"behavior": "halt", "affected_devices": ["base"]},
             "feedback": {
