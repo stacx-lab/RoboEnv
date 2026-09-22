@@ -25,7 +25,6 @@ under :mod:`roboenv_runtime.adapters` and one line in :data:`BUILTIN_ADAPTERS`.
 
 from __future__ import annotations
 
-from roboenv.tasks.model import DEVICE_BACKENDS
 
 import importlib
 import logging
@@ -311,12 +310,4 @@ def make_adapter(name: str, **kwargs: Any) -> EnvAdapter:
             ) from exc
         if name not in _REGISTRY:
             raise KeyError(f"{module} imported but did not register adapter {name!r}")
-    adapter = _REGISTRY[name](**kwargs)
-    try:  # pretrained policies as tools (roboenv_runtime.vla) — optional, never fatal
-        from roboenv_runtime.vla.attach import attach_vla_tool
-
-        if name not in DEVICE_BACKENDS:
-            attach_vla_tool(adapter, name)
-    except Exception as exc:
-        logging.getLogger(__name__).debug("vla tool not attached to %s: %s", name, exc)
-    return adapter
+    return _REGISTRY[name](**kwargs)

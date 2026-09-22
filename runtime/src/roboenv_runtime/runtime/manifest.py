@@ -38,7 +38,6 @@ RUN_SUBDIRS = (
     "state",
     "journal",
     "evidence",
-    "vla",
     "tmp",
     "cache",
     "home",

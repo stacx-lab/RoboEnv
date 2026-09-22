@@ -33,9 +33,6 @@ intrinsics:
   control:
     speed: null
     mode: position
-    execution:
-      mode: realtime
-      command_timeout_s: null
   feedback:
     velocities: true
     efforts: false

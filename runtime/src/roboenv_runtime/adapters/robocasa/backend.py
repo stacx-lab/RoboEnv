@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 import os
 import contextlib
+import math
+import time
+
 import numpy as np
 
 DEFAULT_ROBOT = "PandaOmron"
@@ -339,8 +342,17 @@ class RoboCasaEnv:
             self.stop_part(part)
         return self._obs
 
-    def step(self, commands):
-        """Replace selected goals; synchronous writes then execute one interval."""
+    @property
+    def control_interval_s(self):
+        return 1.0 / self.env.control_freq
+
+    def step(self, commands, *, for_s=None, arrived=None):
+        """Replace the named goals and execute them; report the time spent.
+
+        Synchronously the write is what advances physics, so it runs exactly one
+        control interval. With the wall clock running the world, it waits for the
+        background clock to carry the goal home, bounded by for_s.
+        """
         if self.terminal or (self._max_steps is not None and self._step_count >= self._max_steps):
             raise RuntimeError("episode_finished: no further motion is permitted")
         for part, command in commands.items():
@@ -351,8 +363,33 @@ class RoboCasaEnv:
                 continue
             if not np.array_equal(value, controller.goal_qpos):
                 controller.set_goal(value)
+        started = self._step_count
         if not self.realtime:
             self.tick()
+        elif for_s:
+            self._settle(for_s, arrived)
+        return (self._step_count - started) * self.control_interval_s
+
+    def _settle(self, for_s, arrived):
+        """Wait out the background clock until the goal is met or the budget ends.
+
+        `arrived` comes from the device binding, which knows which actuator it
+        owns; this only owns the clock.
+        """
+        interval = self.control_interval_s
+        frames = max(1, math.ceil(for_s / interval))
+        limit = self._step_count + frames
+        if self._max_steps is not None:
+            limit = min(limit, self._max_steps)
+        # A stalled background clock must not hang the caller: bound the wait
+        # in wall time too, and report whatever simulated time did pass.
+        deadline = time.monotonic() + max(1.0, 4 * frames * interval)
+        while self._step_count < limit and not self.terminal:
+            if arrived is not None and arrived():
+                return
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(interval / 4)
 
     def stop_part(self, part):
         controller = self._robot.part_controllers[part]

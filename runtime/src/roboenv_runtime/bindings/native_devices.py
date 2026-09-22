@@ -103,11 +103,38 @@ def bind(spec, root, context):
         size = len(world.control.limits[spec.entity])
 
         def write(**args):
+            """Set this device's goal and execute it; report the time spent.
+
+            Arrival is judged here, against the device's own measured state; the
+            world only owns the clock. A velocity device has no goal to arrive
+            at, so it never reports reached.
+            """
+            for_s, arrive = args.pop("for_s", None), args.pop("arrive", None)
             target = args.get("target")
             if definition.type == "velocity":
                 value = velocity_command(facts["intrinsics"]["control"], args)
                 target = [value["velocity"][axis] for axis in ("vx", "vy", "wz")]
-            return world.device_write(spec.entity, target)
+
+            def arrived():
+                tolerance = (arrive or {}).get("joint_tolerance")
+                if not tolerance or definition.type == "velocity":
+                    return False
+                state = world.device_read(spec.entity)
+                measured = state.get("positions") or []
+                if len(measured) != len(target) or len(tolerance) != len(target):
+                    return False
+                if any(abs(m - t) > limit for m, t, limit in zip(measured, target, tolerance)):
+                    return False
+                quiet = (arrive or {}).get("quiet_velocity")
+                if quiet is None:
+                    return True
+                speeds = state.get("velocities") or []
+                return len(speeds) == len(quiet) and all(
+                    abs(v) <= limit for v, limit in zip(speeds, quiet)
+                )
+
+            outcome = world.device_write(spec.entity, target, for_s=for_s, arrived=arrived)
+            return {**outcome, "reached": arrived(), "state": world.device_read(spec.entity)}
 
         def stop():
             result = world.device_stop(spec.entity)
@@ -128,11 +155,14 @@ def bind(spec, root, context):
                     "maxItems": size,
                     "items": {"type": "number"},
                 },
+                "for_s": {"type": "number", "exclusiveMinimum": 0},
+                "arrive": {"type": "object"},
             },
         }
         if definition.type == "velocity":
             schema = command_schema(facts["intrinsics"]["control"])
-        register("write", write, schema, mutation=True, required=("accepted",))
+        register("write", write, schema, mutation=True,
+                 required=("accepted", "elapsed_s", "reached", "state"))
         register("stop", stop, mutation=True, required=("stopped", "behavior", "affected_devices"))
     return BoundDevice(
         definition,

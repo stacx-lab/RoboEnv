@@ -47,7 +47,7 @@ def test_removed_go2_joint_demo_is_not_discoverable():
 
 
 @pytest.mark.parametrize("realtime", [False, True])
-def test_g1_clock_selection_updates_episode_profiles_only(realtime, tmp_path):
+def test_g1_clock_selection_leaves_profiles_alone(realtime, tmp_path):
     import yaml
     from helpers import load_tool
 
@@ -56,37 +56,15 @@ def test_g1_clock_selection_updates_episode_profiles_only(realtime, tmp_path):
     resolved = resolve_task("isaaclab/g1-pick-place", project=ROOT, realtime=realtime)
     assert resolved.task.backend_kwargs["realtime"] is realtime
     base = next(spec for spec in resolved.bindings.devices if spec.name == "base")
-    execution = base.resolved_profile(resolved.robot)["intrinsics"]["control"]["execution"]
-    assert execution == (
-        {
-            "mode": "realtime",
-            "command_timeout_s": resolved.task.backend_kwargs.get("command_timeout_s", 0.5),
-        }
-        if realtime
-        else {"mode": "stepped", "interval_s": 0.02}
-    )
+    # Nothing about timing is declared any more: a write reports the device time
+    # it spent, so resolving an episode leaves the control block untouched.
+    assert "execution" not in base.resolved_profile(resolved.robot)["intrinsics"]["control"]
     assert profile.read_bytes() == original
     destination = tmp_path / "workspace"
     load_tool("prepare_kinex_workspace").prepare(
         "isaaclab/g1-pick-place", destination, project=ROOT, realtime=realtime
     )
     copied = yaml.safe_load((destination / ".kinex/devices/base/profile.yaml").read_text())
-    assert copied["intrinsics"]["control"]["execution"] == execution
+    assert "execution" not in copied["intrinsics"]["control"]
 
 
-@pytest.mark.parametrize("timeout", [None, 0.2])
-def test_g1_task_timeout_reaches_resolved_profiles(tmp_path, timeout):
-    from dataclasses import asdict
-
-    import yaml
-
-    task = asdict(resolve_task("isaaclab/g1-pick-place", project=ROOT).task)
-    task["backend_kwargs"].update(realtime=True, command_timeout_s=timeout)
-    path = tmp_path / "task.yaml"
-    path.write_text(yaml.safe_dump(task))
-    resolved = resolve_task(path, project=ROOT)
-    base = next(spec for spec in resolved.bindings.devices if spec.name == "base")
-    assert base.resolved_profile(resolved.robot)["intrinsics"]["control"]["execution"] == {
-        "mode": "realtime",
-        "command_timeout_s": timeout,
-    }

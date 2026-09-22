@@ -1087,10 +1087,6 @@
           ]
         }
       }
-    },
-    "execution": {
-      "mode": "stepped",
-      "interval_s": 0.02
     }
   }
 }

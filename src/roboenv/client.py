@@ -24,7 +24,7 @@ PROTOCOL = "roboenv/1"
 MAX_BYTES = 8 * 1024 * 1024
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:@+-]{0,127}")
 PUBLIC_OPS = (
-    frozenset({"health", "api", "observe", "call", "score.peek", "capture", "vla",
+    frozenset({"health", "api", "observe", "call", "score.peek", "capture",
                "simulation.status", "simulation.stop"}) | SERVICE_OPS
 )
 
@@ -239,23 +239,6 @@ class Client:
         if self._api is None:
             self._api = self.request("api")
         return self._api
-
-    def vla(self, n_actions=50, *, instruction=None, policy=None, until=None):
-        arguments = {"n_actions": n_actions}
-        if instruction is not None:
-            arguments["instruction"] = instruction
-        if policy is not None:
-            arguments["policy"] = policy
-        if until is not None:
-            if (
-                self.api().get("context", {}).get("vla_callback_protocol")
-                != "roboenv/vla-callback/1"
-            ):
-                raise ValueError("environment does not advertise per-action policy callbacks")
-            from roboenv.control.policy import run_with_callback
-
-            return run_with_callback(self, arguments, until)
-        return self.request("vla", arguments)
 
     def call(self, _name, *args, **kwargs):
         entry = self.api().get("tools", {}).get(_name)

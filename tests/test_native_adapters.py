@@ -19,7 +19,7 @@ def test_native_adapters_share_clock_without_creating_another_owner(adapter_type
     advanced = []
     control = DeviceControl({"arm": [(-1, 1)]}, {"arm": [0]}, lambda _: None,
                             lambda: advanced.append(True), realtime=realtime,
-                            exhausted=lambda: False)
+                            exhausted=lambda: False, interval_s=1 / 30)
     adapter = adapter_type.__new__(adapter_type)
     adapter._env = SimpleNamespace(control=control, realtime=realtime,
                                    control_interval=1 / 30, frame_limit=20)
@@ -43,9 +43,10 @@ def test_behavior_clock_reaches_native_and_portable_base_profile(tmp_path, realt
     world = BehaviorDevices("turning_on_radio", "house_double_floor_lower", realtime=realtime)
     assert world.env is None and world.realtime is realtime
     base = next(spec for spec in resolved.bindings.devices if spec.entity == "base")
-    execution = base.resolved_profile(resolved.robot)["intrinsics"]["control"]["execution"]
-    assert execution == ({"mode": "realtime", "command_timeout_s": None} if realtime
-                         else {"mode": "stepped", "interval_s": 1 / 30})
+    # Timing is the device's own business now: a write reports the time it spent,
+    # so a profile declares no execution block at all.
+    control = base.resolved_profile(resolved.robot)["intrinsics"]["control"]
+    assert "execution" not in control
     # A real task YAML follows the same path used by exported jobs and workspaces.
     from dataclasses import asdict
 
@@ -54,7 +55,7 @@ def test_behavior_clock_reaches_native_and_portable_base_profile(tmp_path, realt
     output = tmp_path / "workspace"
     load_tool("prepare_kinex_workspace").prepare(task, output, project=ROOT)
     copied = yaml.safe_load((output / ".kinex/devices/base/profile.yaml").read_text())
-    assert copied["intrinsics"]["control"]["execution"] == execution
+    assert "execution" not in copied["intrinsics"]["control"]
     assert original.path.read_bytes() == resolved.path.read_bytes()
 
 

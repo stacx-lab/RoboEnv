@@ -7,6 +7,11 @@ from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.project import project_root
 from roboenv.tasks.model import Task
 
+# SIMPLE advances its control loop at a fixed 50 Hz. Mirrors
+# roboenv_runtime.adapters.simple.profiles.CONTROL_INTERVAL_S, which this
+# package cannot import.
+SIMPLE_CONTROL_INTERVAL_S = 0.02
+
 
 @dataclass(frozen=True)
 class ResolvedTask:
@@ -77,37 +82,4 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None,
     if not (robot / "workspace.yaml").is_file():
         raise ValueError(f"Robot {task.robot!r} is missing from the selected catalog")
     bindings = BindingPlan.load(robot, backend=task.backend, devices=task.device_bindings)
-    if task.backend in {"behavior", "isaaclab"} and task.backend_kwargs.get("realtime", False):
-        # Execution mode is an episode setting, while geometry stays in the catalog.
-        devices = []
-        for spec in bindings.devices:
-            intrinsics = spec.resolved_profile(robot)["intrinsics"]
-            if isinstance(intrinsics.get("control"), dict) and "execution" in intrinsics["control"]:
-                intrinsics["control"]["execution"] = {
-                    "mode": "realtime",
-                    "command_timeout_s": (
-                        task.backend_kwargs.get("command_timeout_s", 0.5)
-                        if task.backend == "isaaclab"
-                        else None
-                    ),
-                }
-                spec = replace(spec, overrides={**spec.overrides, "intrinsics": intrinsics})
-            devices.append(spec)
-        bindings = replace(bindings, devices=tuple(devices))
-    if task.backend == "simple":
-        devices = []
-        for spec in bindings.devices:
-            profile = spec.resolved_profile(robot)
-            intrinsics = profile["intrinsics"]
-            if "control" in intrinsics:
-                intrinsics["control"]["execution"] = (
-                    {"mode": "realtime", "command_timeout_s":
-                     task.backend_kwargs.get("command_timeout_s", 0.5)
-                     if profile["type"] == "velocity" else None}
-                    if task.backend_kwargs.get("realtime", True)
-                    else {"mode": "stepped", "interval_s": 0.02}
-                )
-                spec = replace(spec, overrides={**spec.overrides, "intrinsics": intrinsics})
-            devices.append(spec)
-        bindings = replace(bindings, devices=tuple(devices))
     return ResolvedTask(task, path.resolve(), catalog, robot, bindings)

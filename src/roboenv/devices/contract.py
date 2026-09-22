@@ -12,5 +12,4 @@ UNSUPPORTED_ACTIONS = {
     "ik": "General joint-space inverse kinematics is not implemented by this bridge.",
     "fk": "General joint-space forward kinematics is not implemented by this bridge.",
     "unload": "Device lifecycle belongs to the environment owner, not agent clients.",
-    "policy_run": "Use the separately journaled vla operation for policy execution.",
 }

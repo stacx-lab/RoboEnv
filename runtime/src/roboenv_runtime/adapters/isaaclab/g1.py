@@ -18,14 +18,12 @@ class G1Env:
         model_path=None,
         asset_manifest,
         realtime=False,
-        command_timeout_s=0.5,
         device="cuda:0",
         task_name="g1-pick-place",
     ):
         if task_name != "g1-pick-place":
             raise ValueError("G1 supports pick/place only")
         self.realtime = realtime
-        self.command_timeout_s = command_timeout_s
         from roboenv_runtime.paths import repo_root
 
         model_path = (
@@ -36,8 +34,9 @@ class G1Env:
         asset_manifest = repo_root() / asset_manifest
         _, paths = load_bundle(asset_manifest)
         self.model = json.loads(Path(model_path).read_text())
-        # Native policy/physics cadence is independent of the public execution mode.
-        self.control_interval = self.model["control"]["execution"]["interval_s"]
+        # The native physics config owns the control period; it is resolved when
+        # the episode is built, not declared in the catalog.
+        self.control_interval = None
         if self.model["asset_manifest_sha256"] != digest(asset_manifest):
             raise ValueError("G1 catalog was generated from another asset bundle")
         source = repo_root() / "third_party/IsaacLab"
@@ -50,14 +49,16 @@ class G1Env:
         self.steps = 0
         self.completed = self.done = False
         self.control = Control(
-            self, self.model, realtime=realtime, command_timeout_s=command_timeout_s
+            self, self.model, realtime=realtime
         )
         try:
             from isaaclab.app import AppLauncher
             from .g1_native import create
 
             self.app = AppLauncher(headless=True, enable_cameras=True, device=device).app
-            self.env, self.upper_names = create(paths, self.model, device, realtime=realtime)
+            self.env, self.upper_names, self.control_interval = create(
+                paths, self.model, device, realtime=realtime
+            )
             self.robot = self.env.scene["robot"]
             self.ids = {
                 name: self.robot.find_joints(
@@ -95,7 +96,7 @@ class G1Env:
         self.steps = 0
         self.completed = self.done = False
         self.control = Control(
-            self, self.model, realtime=self.realtime, command_timeout_s=self.command_timeout_s
+            self, self.model, realtime=self.realtime
         )
         for name in self.model["parts"]:
             self.control.targets[name] = self.read_device(name)["positions"]

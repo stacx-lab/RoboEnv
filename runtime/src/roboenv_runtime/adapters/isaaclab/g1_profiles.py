@@ -62,7 +62,6 @@ def profiles(model):
             "control": {
                 "mode": "position",
                 "speed": None,
-                "execution": model["control"]["execution"],
             },
             "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
             "stop": {"behavior": "hold", "affected_devices": [name]},

@@ -17,7 +17,6 @@ import os
 import sys
 from collections.abc import Mapping
 from contextlib import nullcontext
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -26,7 +25,7 @@ import numpy as np
 # --------------------------------------------------------------------------
 # RoboDojo checkout + Isaac boot (both are process-global and one-shot)
 # --------------------------------------------------------------------------
-from roboenv_runtime.paths import repo_root, robodojo_root, runs_root
+from roboenv_runtime.paths import robodojo_root
 
 ROBODOJO_ROOT = str(robodojo_root())  # $ROBODOJO_ROOT or <repo>/RoboDojo
 
@@ -252,7 +251,6 @@ class RoboDojoEnv:
         return int(ids[int(seed) % len(ids)])
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
-        self._vla_needs_reset = True
         if seed is not None:
             self.seed = seed
         self._sim_step_count = 0
@@ -1523,110 +1521,6 @@ class RoboDojoEnv:
                 pass
         self.goto_pose(arm, pos, [float(x) for x in quat0], max_tilt_deg=0.0)
 
-    # -------------- VLA-as-tool (hybrid control: the code agent keeps goal
-    # selection + verification; a pretrained policy supplies closed-loop
-    # dexterity for contact-rich stretches) ------------------------------
-    VLA_PORT_BASE = 8790
-
-    def _ensure_vla(self, policy: str = "G05"):
-        if getattr(self, "_vla_client", None) is not None:
-            return self._vla_client
-        import socket
-        import subprocess
-        import time as _t
-
-        W = str(repo_root())
-        rd_root = str(robodojo_root().resolve())
-        gpu = (os.environ.get("CUDA_VISIBLE_DEVICES", "0").split(",")[0] or "0").strip()
-        try:
-            port = self.VLA_PORT_BASE + int(gpu)
-        except ValueError:
-            port = self.VLA_PORT_BASE
-        xpl = os.path.join(rd_root, "XPolicyLab")
-        pdir = os.path.join(xpl, "policy", policy)
-        env = dict(os.environ)
-        from roboenv_runtime.adapters.robodojo.vla_manager import _policy_runtime_env
-
-        policy_cache = Path(W) / ".cache" / "vla" / "robodojo" / f"{policy}_g{gpu}"
-        env.update(_policy_runtime_env(policy_cache))
-        env.update(
-            {
-                "HOME": os.path.join(W, "omni-home"),
-                "HF_HOME": os.path.join(W, ".cache", "huggingface"),
-                "G05_CKPT_PATH": os.path.join(
-                    xpl,
-                    "policy/GalaxeaVLA/checkpoints/"
-                    "RoboDojo-sim-arx_x5-joint-0/checkpoints/checkpoint",
-                ),
-                "ROBODOJO_G05_ACTION_SOURCE": "fm",
-                "G05_ACTION_TOKENIZER_PATH": os.path.join(
-                    xpl,
-                    "policy/GalaxeaVLA/checkpoints/RoboDojo-sim-arx_x5-joint-0/action_tokenizer.pt",
-                ),
-            }
-        )
-        vpy = os.path.join(pdir, policy, ".venv", "bin", "python")
-        cmd = [
-            "bash",
-            os.path.join(pdir, "setup_eval_policy_server.sh"),
-            "RoboDojo",
-            self.task_name,
-            "RoboDojo-sim-arx_x5-joint-0",
-            self.env_cfg_type,
-            "joint",
-            str(self.seed),
-            # the server script re-exports CUDA_VISIBLE_DEVICES with this
-            # value, and CUDA ids are absolute - pass the PHYSICAL id
-            gpu,
-            vpy,
-            str(port),
-            "localhost",
-        ]
-        log_dir = runs_root() / "vla_logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        logf = open(log_dir / f"vla_server_{policy}_g{gpu}.log", "ab")
-        self._vla_server = subprocess.Popen(
-            cmd, env=env, cwd=pdir, stdout=logf, stderr=logf, start_new_session=True
-        )
-        deadline = _t.time() + 900
-        up = False
-        while _t.time() < deadline:
-            if self._vla_server.poll() is not None:
-                raise RuntimeError(
-                    f"vla policy server exited rc={self._vla_server.returncode}"
-                    f" (see solutions/logs/vla_server_{policy}_g{gpu}.log)"
-                )
-            try:
-                with socket.create_connection(("127.0.0.1", port), timeout=2):
-                    up = True
-                    break
-            except OSError:
-                _t.sleep(5)
-        if not up:
-            raise RuntimeError("vla policy server did not open its port in 900s")
-        import inspect as _inspect
-
-        import websockets as _ws
-
-        _connect = _ws.connect
-        try:
-            if "proxy" not in _inspect.signature(_connect).parameters:
-
-                def _connect_no_proxy(*a, proxy=None, **k):
-                    return _connect(*a, **k)
-
-                _ws.connect = _connect_no_proxy
-        except (TypeError, ValueError):
-            pass
-        from client_server.ws.model_client import WsModelClient
-
-        self._vla_client = WsModelClient(
-            url=f"ws://127.0.0.1:{port}",
-            evaluation_id=f"roboenv-{self.task_name}",
-            trial_id=f"{self.task_name}-roboenv",
-            action_case_id=f"{self.task_name}_case",
-        )
-        return self._vla_client
 
     def _observable_object_positions(self) -> dict[str, np.ndarray]:
         """Snapshot only scene labels that currently have a materialized pose.
@@ -1683,8 +1577,8 @@ class RoboDojoEnv:
         selected labels, or other task-private state.
         """
 
-        from roboenv_runtime.adapters.robodojo.vla_manager import (
-            MAX_VLA_ACTIONS,
+        from roboenv_runtime.adapters.robodojo.actions import (
+            MAX_HOLD_ACTIONS,
             _canonical_actions_sha256,
             _jsonable,
             _validated_joint_action,
@@ -1707,9 +1601,9 @@ class RoboDojoEnv:
         if (
             isinstance(n_actions, bool)
             or not isinstance(n_actions, int)
-            or not 1 <= n_actions <= MAX_VLA_ACTIONS
+            or not 1 <= n_actions <= MAX_HOLD_ACTIONS
         ):
-            raise ValueError(f"neutral_hold n_actions must be an integer in 1..{MAX_VLA_ACTIONS}")
+            raise ValueError(f"neutral_hold n_actions must be an integer in 1..{MAX_HOLD_ACTIONS}")
 
         env = self._env
         action_frames = int(np.asarray(env.take_action_cnt).reshape(-1)[0])
@@ -1800,285 +1694,8 @@ class RoboDojoEnv:
             "rng_replay": None,
         }
 
-    def vla_run(self, n_actions: int = 25, policy: str = "G05") -> dict:
-        """Hand closed-loop control to a pretrained VLA policy for up to
-        n_actions action frames, then return a before/after report. The
-        policy sees the cameras + robot state exactly as in its own
-        benchmark evaluation; sim-step budget is charged honestly."""
-        if self.budget_exhausted():
-            raise RuntimeError("episode step budget exhausted; vla_run refused")
-        env = self._env
-        client = self._ensure_vla(policy)
-        if getattr(self, "_vla_needs_reset", True):
-            client.call(func_name="reset")
-            self._vla_needs_reset = False
-        interval = int(getattr(getattr(env, "obs_manager", None), "collect_interval", 10) or 10)
-        r0 = self.compute_reward()
-        p0 = self._observable_object_positions()
-        taken = 0
-        note = ""
-        while taken < n_actions and not env.end_flag[0]:
-            if env.take_action_cnt[0] >= env.step_lim:
-                note = (
-                    f"policy action limit reached ({env.take_action_cnt[0]}/{env.step_lim} frames)"
-                )
-                break
-            obs = env.get_obs()
-            client.call(func_name="update_obs", obs=obs)
-            actions = client.call(func_name="get_action")
-            for i, a in enumerate(actions):
-                env.take_action(a)
-                self._sim_step_count += interval
-                self._maybe_capture()
-                taken += 1
-                if (
-                    taken >= n_actions
-                    or env.end_flag[0]
-                    or self.budget_exhausted()
-                    or env.take_action_cnt[0] >= env.step_lim
-                ):
-                    break
-                if i + 1 < len(actions):
-                    obs = env.get_obs()
-                    client.call(func_name="update_obs", obs=obs)
-        r1 = self.compute_reward()
-        p1 = self._observable_object_positions()
-        moved = {}
-        for n in p0.keys() & p1.keys():
-            d = float(np.linalg.norm(p1[n] - p0[n]))
-            if d > 0.01:
-                moved[n] = round(d, 3)
-        out = {
-            "policy": policy,
-            "actions_taken": taken,
-            "reward_before": round(r0, 3),
-            "reward_after": round(r1, 3),
-            "objects_moved_m": moved,
-            "budget": self.get_step_budget(),
-        }
-        if note:
-            out["note"] = note
-        return out
 
-    def vla_run_until_event(
-        self,
-        n_actions: int = 110,
-        candidate_labels: list[str] | tuple[str, ...] | None = None,
-        protected_labels: list[str] | tuple[str, ...] | None = None,
-        allow_midstate: bool = False,
-        reserve_sim_steps: int = 0,
-        stop_when_latched: bool = True,
-        owner_rise_m: float = 0.035,
-        owner_near_m: float = 0.17,
-        owner_width_m: float = 0.125,
-        owner_arm_margin_m: float = 0.015,
-        owner_stable_actions: int = 2,
-        owner_position_drift_m: float = 0.03,
-        owner_rotation_drift_deg: float = 25.0,
-        protected_displacement_m: float = 0.02,
-        protected_rotation_deg: float = 15.0,
-    ) -> dict[str, Any]:
-        """Run bounded G05 replans with public per-action event guards."""
 
-        from roboenv_runtime.adapters.robodojo.policy_events import (
-            PolicyEventTracker,
-            gripper_snapshot,
-            pose_snapshot,
-            validate_event_config,
-        )
-        from roboenv_runtime.adapters.robodojo.vla_manager import (
-            _action_batch,
-            _canonical_actions_sha256,
-            _gripper_motion,
-            _jsonable,
-            _validated_joint_action,
-        )
-
-        if self.env_cfg_type != "arx_x5":
-            raise RuntimeError("policy event rollout is supported only for ARX X5")
-        if not isinstance(allow_midstate, bool):
-            raise ValueError("allow_midstate must be boolean")
-        if (
-            isinstance(reserve_sim_steps, bool)
-            or not isinstance(reserve_sim_steps, int)
-            or reserve_sim_steps < 0
-        ):
-            raise ValueError("reserve_sim_steps must be a non-negative integer")
-        if not isinstance(stop_when_latched, bool):
-            raise ValueError("stop_when_latched must be boolean")
-        env = self._env
-        action_frames = int(np.asarray(env.take_action_cnt).reshape(-1)[0])
-        if (action_frames or self._sim_step_count) and not allow_midstate:
-            raise RuntimeError(
-                "policy event mid-state handoff refused after "
-                f"{action_frames} action frames / {self._sim_step_count} simulation steps"
-            )
-        clock = getattr(env, "_codex_dojo_score_clock", None)
-        if bool(getattr(clock, "submitted", False)):
-            raise RuntimeError("policy event rollout is frozen after score submission")
-
-        live_labels = set(self.list_objects())
-        config = validate_event_config(
-            n_actions=n_actions,
-            candidate_labels=candidate_labels,
-            protected_labels=protected_labels,
-            live_labels=live_labels,
-            owner_rise_m=owner_rise_m,
-            owner_near_m=owner_near_m,
-            owner_width_m=owner_width_m,
-            owner_arm_margin_m=owner_arm_margin_m,
-            owner_stable_actions=owner_stable_actions,
-            owner_position_drift_m=owner_position_drift_m,
-            owner_rotation_drift_deg=owner_rotation_drift_deg,
-            protected_displacement_m=protected_displacement_m,
-            protected_rotation_deg=protected_rotation_deg,
-        )
-        labels = tuple(dict.fromkeys((*config["candidate_labels"], *config["protected_labels"])))
-
-        def public_grippers() -> dict[str, dict[str, Any]]:
-            def state(arm: str) -> dict[str, Any]:
-                first, second = self.get_finger_positions(arm)
-                return {
-                    "tip_pose": self.get_ee_pose(arm),
-                    "width": float(np.linalg.norm(np.asarray(first) - np.asarray(second))),
-                }
-
-            return gripper_snapshot(self.get_ee_pose, state)
-
-        initial_poses = pose_snapshot(self.get_object_pose, labels)
-        initial_grippers = public_grippers()
-        tracker = PolicyEventTracker(config, initial_poses, initial_grippers)
-        before_positions = self._observable_object_positions()
-        client = self._ensure_vla("G05")
-        if getattr(self, "_vla_needs_reset", True):
-            client.call(func_name="reset")
-            self._vla_needs_reset = False
-        executed: list[Any] = []
-        event: dict[str, Any] | None = None
-        policy_inferences = 0
-        stop_reason = "action_limit"
-
-        def success_latched() -> bool:
-            # The event interface never queries the hidden reward manager. In an
-            # official run ScoreClock is installed and supplies this public latch;
-            # without it, final replay scoring remains the sole authority.
-            return bool(getattr(clock, "latched", False)) if clock is not None else False
-
-        interval = int(getattr(getattr(env, "obs_manager", None), "collect_interval", 10) or 10)
-        if interval <= 0:
-            raise RuntimeError("policy event collect_interval must be positive")
-
-        def pre_action_stop() -> str | None:
-            if bool(np.asarray(env.end_flag).reshape(-1)[0]):
-                return "environment_end"
-            current_frame = int(np.asarray(env.take_action_cnt).reshape(-1)[0])
-            step_lim = int(getattr(env, "step_lim", 0) or 0)
-            if step_lim > 0 and current_frame >= step_lim:
-                return "task_action_limit"
-            if stop_when_latched and success_latched():
-                return "success_latched"
-            remaining = int(self.max_steps) - int(self._sim_step_count)
-            if remaining < reserve_sim_steps + interval:
-                return "budget_reserve"
-            return None
-
-        halted = False
-        while len(executed) < config["n_actions"]:
-            reason = pre_action_stop()
-            if reason is not None:
-                stop_reason = reason
-                break
-            client.call(func_name="update_obs", obs=env.get_obs())
-            proposed = _action_batch(client.call(func_name="get_action"))
-            policy_inferences += 1
-            if not proposed:
-                stop_reason = "empty_policy_plan"
-                break
-            for action in proposed:
-                reason = pre_action_stop()
-                if reason is not None:
-                    stop_reason = reason
-                    halted = True
-                    break
-                normalized = _validated_joint_action(action)
-                native = getattr(clock, "native_action", None)
-                context = native() if callable(native) else nullcontext()
-                with context:
-                    env.take_action(normalized)
-                self._sim_step_count += interval
-                self._maybe_capture()
-                executed.append(_jsonable(normalized))
-                event = tracker.observe(
-                    pose_snapshot(self.get_object_pose, labels),
-                    public_grippers(),
-                    action_index=len(executed),
-                )
-                if event is not None:
-                    stop_reason = str(event["kind"])
-                    halted = True
-                    break
-                if bool(np.asarray(env.end_flag).reshape(-1)[0]):
-                    stop_reason = "environment_end"
-                    halted = True
-                    break
-                if stop_when_latched and success_latched():
-                    stop_reason = "success_latched"
-                    halted = True
-                    break
-                if len(executed) >= config["n_actions"]:
-                    stop_reason = "action_limit"
-                    halted = True
-                    break
-            if halted:
-                break
-
-        after_positions = self._observable_object_positions()
-        moved: dict[str, float] = {}
-        for label in sorted(before_positions.keys() & after_positions.keys()):
-            distance = float(np.linalg.norm(after_positions[label] - before_positions[label]))
-            if distance > 0.001:
-                moved[label] = round(distance, 6)
-        after_grippers = public_grippers()
-        return {
-            "mode": "policy_event",
-            "policy": "G05",
-            "actions_taken": len(executed),
-            "requested_actions": config["n_actions"],
-            "policy_inferences": policy_inferences,
-            "stop_reason": stop_reason,
-            "owner": event if event and event["kind"] == "owner_witness" else None,
-            "protection": event if event and event["kind"].startswith("protected_") else None,
-            "objects_moved_m": moved,
-            "grippers_moved_equivalent_m": _gripper_motion(initial_grippers, after_grippers),
-            "budget": self.get_step_budget(),
-            "provenance": {
-                "source": "bounded_continuous_g05_replanning_event_stop",
-                "executed_actions_sha256": _canonical_actions_sha256(executed),
-                "executed_actions_count": len(executed),
-                "event_config": _jsonable(config),
-            },
-        }
-
-    def _stop_vla(self) -> None:
-        srv = getattr(self, "_vla_server", None)
-        cli = getattr(self, "_vla_client", None)
-        if cli is not None:
-            try:
-                cli.close()
-            except Exception:
-                pass
-            self._vla_client = None
-        if srv is not None and srv.poll() is None:
-            import signal as _sig
-
-            try:
-                os.killpg(os.getpgid(srv.pid), _sig.SIGTERM)
-            except Exception:
-                try:
-                    srv.terminate()
-                except Exception:
-                    pass
-            self._vla_server = None
 
     def wait_steps(self, steps: int = 30) -> None:
         """Advance the simulation without moving (settling / pouring dwell)."""

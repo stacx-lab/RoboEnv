@@ -1,8 +1,10 @@
 """One official LIBERO world with persistent absolute Panda joint goals."""
 
 import hashlib
+import math
 import os
 import random
+import time
 from pathlib import Path
 
 import numpy as np
@@ -146,10 +148,19 @@ class LiberoEnv:
     def _joint_controller(self):
         controller = self._robot.controller
         if controller.name != "JOINT_POSITION":
-            raise RuntimeError("Finish the OSC policy rollout before joint-device control or reset")
+            raise RuntimeError("LIBERO devices require the native joint-position controller")
         return controller
 
-    def step(self, commands):
+    CONTROL_INTERVAL_S = 1 / 20
+
+    def step(self, commands, *, for_s=None, arrived=None):
+        """Replace the named goals and execute them; report the time spent.
+
+        Synchronously the write is what advances physics, so it runs exactly one
+        control interval. With the wall clock running the world, it waits for the
+        background clock to carry the goal home, bounded by for_s. Either way the
+        caller learns how much simulated time this call was worth.
+        """
         if self._max_steps is not None and self._step_count >= self._max_steps:
             raise RuntimeError("LIBERO action frame budget exhausted")
         controller = self._joint_controller()
@@ -169,8 +180,33 @@ class LiberoEnv:
                 "commands": {part: np.asarray(value).tolist() for part, value in commands.items()},
             }
         )
+        started = self._step_count
         if not self.realtime:
             self.tick()
+        elif for_s:
+            self._settle(for_s, arrived)
+        return (self._step_count - started) * self.CONTROL_INTERVAL_S
+
+    def _settle(self, for_s, arrived):
+        """Wait out the background clock until the goal is met or the budget ends.
+
+        `arrived` is supplied by the device binding, which knows which joints it
+        owns; this only owns the clock.
+        """
+        interval = self.CONTROL_INTERVAL_S
+        frames = max(1, math.ceil(for_s / interval))
+        limit = self._step_count + frames
+        if self._max_steps is not None:
+            limit = min(limit, self._max_steps)
+        # A stalled background clock must not hang the caller: bound the wait
+        # in wall time too, and report whatever simulated time did pass.
+        deadline = time.monotonic() + max(1.0, 4 * frames * interval)
+        while self._step_count < limit:
+            if arrived is not None and arrived():
+                return
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(interval / 4)
 
     def stop_part(self, part):
         if part not in {"arm", "gripper"}:

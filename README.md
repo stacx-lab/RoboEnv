@@ -86,19 +86,6 @@ copies of the shared device drivers.
 The additional `drawer-and-bowl` example maps to `libero_90` task 8: open the
 top drawer and put the bowl inside. It uses the kitchen Panda catalog.
 
-For an explicit VLA comparison, `roboenv_runtime.adapters.libero.vla.LiberoPolicyHooks` adapts
-the same native world to OpenPI observations and OSC pose actions. An evaluation
-harness can call `build_vla_tool(adapter, "libero")` from
-`roboenv_runtime.vla.attach` after resetting a `LiberoAdapter` with
-`realtime=False`, finite `max_steps`, and both cameras enabled. The call owns
-the world exclusively until it returns; it restores joint control even when
-inference fails. Policy transitions and actions are recorded for the same
-owner replay tool. This opt-in path preserves local initialization and latched
-success semantics; it is not an official LIBERO baseline. The default Kinex
-workspace exposes only devices. Install the runtime's `vla` extra in the
-simulator interpreter for policy-server communication. Policy weights and their
-interpreter are separate prerequisites; native bridge checks do not certify
-model performance.
 
 RoboCasa’s typed catalog contains arm, torso, base, gripper, three RGB-D cameras,
 and world, using Kinex’s current device schemas. It implements the device-first API: `env.task`, `env.devices()`, and
@@ -112,6 +99,10 @@ through Kinex after changing profiles or episode connections; unloading stops on
 the device's declared scope. Transport failures never resubmit commands.
 Pass `--sync` to `roboenv launch`, or set `backend_kwargs.realtime: false`
 in the task YAML for synchronous mode, where each write advances one control period, retaining all active goals.
+Either way a write reports `elapsed_s`, the simulated time it was worth, so a
+caller measures a task in the world's own clock rather than in wall time or in
+calls: synchronously that is one control period per write, and with the wall
+clock running the world it is however long the goal took, bounded by `for_s`.
 Arm and torso targets are absolute joint positions in radians/metres; gripper
 commands keep their native signed format. Acceptance never implies arrival.
 Neither mode imposes a simulation horizon.

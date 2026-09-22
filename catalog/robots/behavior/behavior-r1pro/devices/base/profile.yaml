@@ -28,9 +28,6 @@ intrinsics:
               min: -1
               max: 1
         posture: null
-    execution:
-      mode: stepped
-      interval_s: 0.03333333333333333
   stop:
     behavior: halt
     affected_devices:

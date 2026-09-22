@@ -58,7 +58,7 @@ def check(root, temporary):
             target = before.copy()
             target[0] += 0.1
             result = call("arm", "write", target=target.tolist())
-            assert result == {"accepted": True}
+            assert result["accepted"] is True and result["elapsed_s"] >= 0
             arm = native._robot.part_controllers["right"]
             goal = arm.goal_qpos.copy()
             start = native._step_count
@@ -149,7 +149,7 @@ def check_synchronous(root, temporary):
                     "velocity": dict(zip(("vx", "vy", "wz"), target, strict=True)),
                 }
             result = call(device, "write", **args)
-            assert result == {"accepted": True}
+            assert result["accepted"] is True and result["elapsed_s"] >= 0
             assert native._step_count == frame
             np.testing.assert_allclose(native._robot.part_controllers["right"].goal_qpos, goal)
             assert abs(native.sim.data.time - frame * 0.05) < 1e-10

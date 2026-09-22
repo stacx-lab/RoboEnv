@@ -11,7 +11,6 @@ requires-python = ">=3.10"
 dependencies = ["roboenv[server]==0.2.0", "numpy>=1.23", "PyYAML>=6", "requests>=2.28"]
 
 [project.optional-dependencies]
-vla = ["msgpack>=1.0", "websockets>=15", "Pillow>=9"]
 
 [project.scripts]
 roboenv-worker = "roboenv_runtime.runtime.worker:main"

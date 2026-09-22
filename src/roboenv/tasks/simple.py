@@ -72,7 +72,6 @@ def discover_tasks(root):
                     "realtime": True,
                     "sim_mode": "mujoco_isaac",
                     "dr_level": 0,
-                    "command_timeout_s": 0.5,
                     "arm_gravity_compensation": True,
                 },
             ),

@@ -3,6 +3,8 @@
 import copy
 
 
+# SIMPLE advances its control loop at a fixed 50 Hz.
+CONTROL_INTERVAL_S = 0.02
 NAMES = ("base", "left_arm", "right_arm", "left_hand", "right_hand")
 META = {"source": "introspected", "method": "introspection", "calibrated_at": None}
 IDENTITY = [0, 0, 0, 0, 0, 0, 1]
@@ -62,9 +64,6 @@ def profiles(model):
             "control": {
                 "mode": "position",
                 "speed": None,
-                "execution": {"mode": "realtime", "command_timeout_s": None}
-                if model["control"]["execution"]["mode"] == "realtime"
-                else model["control"]["execution"],
             },
             "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
             "stop": {"behavior": "hold", "affected_devices": [name]},

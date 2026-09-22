@@ -6,30 +6,18 @@ import time
 
 from roboenv.devices.velocity import command as velocity_command
 
-from .profiles import NAMES, profiles
+from .profiles import CONTROL_INTERVAL_S, NAMES, profiles
 
 
 class Control:
-    def __init__(self, native, model, *, realtime=True, command_timeout_s=0.5):
+    def __init__(self, native, model, *, realtime=True):
         if type(realtime) is not bool:
             raise ValueError("realtime must be a boolean")
-        if command_timeout_s is not None and (
-            type(command_timeout_s) not in (int, float)
-            or not math.isfinite(command_timeout_s)
-            or command_timeout_s <= 0
-        ):
-            raise ValueError("command_timeout_s must be positive and finite, or null")
         self.native, self.model = native, model
-        self.realtime, self.command_timeout_s = realtime, command_timeout_s
-        self.base_deadline = None
+        self.realtime = realtime
         self.events = []
         self.names = NAMES
         control = copy.deepcopy(model["control"])
-        control["execution"] = (
-            {"mode": "realtime", "command_timeout_s": command_timeout_s}
-            if realtime
-            else {"mode": "stepped", "interval_s": 0.02}
-        )
         self.profiles = profiles({**model, "control": control})
         posture = control["modes"]["locomotion"]["posture"]["components"]
         self.targets = {"base": [0, 0, 0, *[c["default"] for c in posture]]}
@@ -59,22 +47,39 @@ class Control:
                 raise ValueError("Target exceeds limits")
         return list(target)
 
-    def write(self, name, args):
+    def write(self, name, args, *, for_s=None, arrived=None):
         target = self.validate(name, args)
         self.native.require_active()
         self.targets[name] = target
         self.events.append(
             {"frame": self.native.steps, "op": "write", "device": name, "args": copy.deepcopy(args)}
         )
-        if self.realtime and name == "base":
-            self.base_deadline = (
-                time.monotonic() + self.command_timeout_s
-                if self.command_timeout_s is not None
-                else None
-            )
+        started = self.native.steps
         if not self.realtime:
             self.native.advance(self.targets)
-        return {"accepted": True}
+        elif for_s:
+            self._settle(for_s, arrived)
+        return {"accepted": True,
+                "elapsed_s": (self.native.steps - started) * CONTROL_INTERVAL_S}
+
+    def _settle(self, for_s, arrived):
+        """Wait out the background clock until the goal is met or the budget ends.
+
+        `arrived` is the device binding's to supply: it knows which actuator it
+        owns, while this owns the clock.
+        """
+        interval = CONTROL_INTERVAL_S
+        frames = max(1, math.ceil(for_s / interval))
+        limit = self.native.steps + frames
+        # A stalled background clock must not hang the caller: bound the wait
+        # in wall time too, and report whatever simulated time did pass.
+        deadline = time.monotonic() + max(1.0, 4 * frames * interval)
+        while self.native.steps < limit and not self.native.done:
+            if arrived is not None and arrived():
+                return
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(interval / 4)
 
     def stop(self, name, *, reason="requested"):
         if name not in NAMES:
@@ -86,8 +91,7 @@ class Control:
         )
         self.targets[name] = list(value)
         if name == "base":
-            self.base_deadline = None
-        self.events.append(
+            self.events.append(
             {"frame": self.native.steps, "op": "stop", "device": name, "reason": reason}
         )
         return {"stopped": True, **self.profiles[name]["intrinsics"]["stop"]}
@@ -95,6 +99,4 @@ class Control:
     def tick(self):
         if self.native.done:
             return
-        if self.base_deadline is not None and time.monotonic() >= self.base_deadline:
-            self.stop("base", reason="timeout")
         self.native.advance(self.targets)

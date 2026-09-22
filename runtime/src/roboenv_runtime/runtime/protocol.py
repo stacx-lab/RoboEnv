@@ -46,7 +46,6 @@ ALLOWED_OPS = frozenset(
         "observe",
         "call",
         "skill",
-        "vla",
         "score.peek",
         "capture",
         "submit",

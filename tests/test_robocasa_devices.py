@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from helpers import kinex_sources
 from roboenv.client import Client, RemoteError
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.client import Environment
@@ -50,7 +51,7 @@ def test_endpoint_client_has_no_primitive_catalog_and_returns_data(device_servic
     _, supervisor, _ = device_service
     transport = Client(supervisor.http_endpoint)
     env = Environment(transport)
-    for name in ("api", "call", "observe", "vla", "request", "describe"):
+    for name in ("api", "call", "observe", "request", "describe"):
         assert not hasattr(env, name)
     with pytest.raises(FrozenInstanceError):
         env.task.instruction = "changed"
@@ -61,7 +62,7 @@ def test_endpoint_client_has_no_primitive_catalog_and_returns_data(device_servic
         env.device("missing")
     controller = env.device("controller")
     assert controller.read() == transport.device("controller").read()["data"]
-    for op in ("api", "call", "observe", "vla", "score.peek", "capture"):
+    for op in ("api", "call", "observe", "score.peek", "capture"):
         with pytest.raises(RemoteError):
             transport.request(op)
     env.close()
@@ -138,27 +139,29 @@ def check_kinex_profiles(tmp_path, paths):
     # is present. RoboEnv itself retains no runtime dependency on Kinex.
     import shutil
 
-    kinex_root = ROOT.parent / "kinex"
-    if not (kinex_root / "node_modules/zod").exists():
+    kinex_root, kinex_src = kinex_sources()
+    if kinex_src and not (kinex_root / "node_modules/zod").exists():
         isolated = ROOT / ".cache/kinex-schema"
-        if (isolated / "node_modules/zod").exists() and (kinex_root / "src").is_dir():
+        if (isolated / "node_modules/zod").exists():
             # Reuse dependencies only; always test the sibling's CURRENT sources,
             # including its uncommitted contract updates.
+            relative = Path(kinex_src.removeprefix("./"))
             current = tmp_path / "kinex-current"
-            shutil.copytree(kinex_root / "src", current / "src")
+            (current / relative.parent).mkdir(parents=True, exist_ok=True)
+            shutil.copytree(kinex_root / relative, current / relative)
             shutil.copyfile(kinex_root / "package.json", current / "package.json")
             (current / "node_modules").symlink_to(
                 isolated / "node_modules", target_is_directory=True
             )
             kinex_root = current
-    if not shutil.which("bun") or not (kinex_root / "node_modules/zod").exists():
+    if not shutil.which("bun") or not kinex_src or not (kinex_root / "node_modules/zod").exists():
         pytest.skip("Requires Bun and Kinex schema dependencies")
     payload = tmp_path / "profiles.json"
     payload.write_text(json.dumps([yaml.safe_load(path.read_text()) for path in paths]))
     code = (
-        "const {Device, RobotManifest} = await import('./src/device/profile/schema.ts'); "
+        f"const {{Device, RobotManifest}} = await import('{kinex_src}/device/profile/schema.ts'); "
         "RobotManifest.parse(JSON.parse(await Bun.file(process.argv[2]).text())); "
-        "const {missingActions} = await import('./src/device/interface.ts'); "
+        f"const {{missingActions}} = await import('{kinex_src}/device/interface.ts'); "
         "for (const value of JSON.parse(await Bun.file(process.argv[1]).text())) { "
         "const device = Device.parse(value); "
         "if (device.type === 'joint' && "
@@ -168,7 +171,7 @@ def check_kinex_profiles(tmp_path, paths):
         "throw new Error('Missing home joints: ' + device.name); "
         "if (missingActions(device, device.access?.driver?.actions ?? []).length) "
         "throw new Error('Missing interface actions: ' + device.name); } "
-        "const {calibrationPlan} = await import('./src/calibration/dag.ts'); "
+        f"const {{calibrationPlan}} = await import('{kinex_src}/calibration/dag.ts'); "
         "const plan = await calibrationPlan(process.argv[3]); "
         "for (const item of plan.items) { "
         "if (item.device && item.status !== 'done') "
@@ -264,10 +267,7 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
     body = yaml.safe_load((robot / "devices/base/profile.yaml").read_text())
     assert body["type"] == "velocity"
     assert body["extrinsics"] == {"source": "introspected"}
-    assert body["intrinsics"]["control"]["execution"] == {
-        "mode": "realtime",
-        "command_timeout_s": None,
-    }
+    assert "execution" not in body["intrinsics"]["control"]
     assert body["intrinsics"]["feedback"]["pose_frame"] == "world"
     torso = yaml.safe_load((robot / "devices/torso/profile.yaml").read_text())
     assert torso["extrinsics"]["mount"]["parent"] == "base"

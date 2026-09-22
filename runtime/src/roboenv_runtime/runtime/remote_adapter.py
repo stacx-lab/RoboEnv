@@ -72,26 +72,6 @@ def _make_tool(api: RemoteAPI, name: str, spec: Mapping[str, Any]) -> Callable[.
     return tool
 
 
-def _make_vla_tool(api: RemoteAPI, spec: Mapping[str, Any]) -> Callable[..., Any]:
-    """``vla_run`` over the wire: the worker runs the policy loop, the client waits."""
-    parameters = [str(p) for p in (spec.get("parameters") or [])]
-    documentation = _documentation_signature(str(spec.get("signature") or ""), parameters)
-
-    def vla_run(*args: Any, **kwargs: Any) -> Any:
-        if args:
-            kwargs = {**dict(zip(parameters, args, strict=False)), **kwargs}
-        try:
-            return api.vla(**kwargs)
-        except ClientError as exc:
-            raise RuntimeError(str(exc)) from exc
-
-    vla_run.__name__ = vla_run.__qualname__ = "vla_run"
-    vla_run.__doc__ = str(spec.get("doc") or "")
-    if documentation is not None:
-        vla_run.__signature__ = documentation  # type: ignore[attr-defined]
-    return vla_run
-
-
 @register_adapter
 class RemoteAdapter(AdapterBase):
     """The adapter contract over a worker socket."""
@@ -153,9 +133,6 @@ class RemoteAdapter(AdapterBase):
         if self._tools is None:
             specs = self.describe().get("tools") or {}
             self._tools = {name: _make_tool(self.api, name, spec) for name, spec in specs.items()}
-            vla_spec = self._context().get("vla_tool")
-            if isinstance(vla_spec, Mapping):  # served through the worker's ``vla`` op
-                self._tools.setdefault("vla_run", _make_vla_tool(self.api, vla_spec))
         return dict(self._tools)
 
     # ------------------------------------------------------------ lifecycle

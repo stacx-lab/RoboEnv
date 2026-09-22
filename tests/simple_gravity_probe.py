@@ -149,7 +149,7 @@ def physics(facts, models, pose_error):
 
 
 def native(enabled, out, models, pose_error):
-    world = SimpleEnv(sim_mode="mujoco", realtime=True, command_timeout_s=None,
+    world = SimpleEnv(sim_mode="mujoco", realtime=True,
                       arm_gravity_compensation=enabled)
     try:
         world.reset(0)
