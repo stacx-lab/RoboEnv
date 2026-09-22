@@ -6,9 +6,10 @@ import uuid
 from dataclasses import replace
 from pathlib import Path
 
+from roboenv.devices.execution import map_result
+from roboenv.devices.model import Action, BoundDevice
 from roboenv.devices.velocity import command as velocity_command
 from roboenv.devices.velocity import command_schema
-from roboenv.devices.model import Action, BoundDevice
 
 from roboenv_runtime.adapters.robocasa.depth import write_depth
 from roboenv_runtime.bindings.backends.libero.devices import same_facts
@@ -134,7 +135,7 @@ def bind(spec, root, context):
                 )
 
             outcome = world.device_write(spec.entity, target, for_s=for_s, arrived=arrived)
-            return {**outcome, "reached": arrived(), "state": world.device_read(spec.entity)}
+            return map_result(outcome, lambda value: {**value, "reached": arrived(), "state": world.device_read(spec.entity)})
 
         def stop():
             result = world.device_stop(spec.entity)

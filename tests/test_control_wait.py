@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from roboenv.devices.bindings.registry import BindingContext
+from roboenv.devices.execution import map_result
 from roboenv.devices.model import Action, BoundDevice, DeviceDefinition, DeviceError
 from roboenv.devices.service import DeviceService
 from roboenv.tasks.resolve import resolve_task
@@ -67,10 +68,9 @@ class Rig:
             env._joint_controller = lambda: controller
             env.env.robots = [SimpleNamespace(part_controllers={"arm": controller})]
             env.tick = self.tick
-            self.write = lambda budget, arrive: {
-                "accepted": True,
-                "elapsed_s": env.step({"arm": [0.2]}, for_s=budget, arrived=arrive),
-            }
+            self.write = lambda budget, arrive: map_result(
+                env.step({"arm": [0.2]}, for_s=budget, arrived=arrive),
+                lambda elapsed: {"accepted": True, "elapsed_s": elapsed})
         elif backend in {"simple", "isaaclab"}:
             model = json.loads((ROOT / "runtime/src/roboenv_runtime/adapters" / backend
                                 / "g1.json").read_text())
@@ -100,10 +100,11 @@ class Rig:
             DeviceDefinition("arm", "joint"),
             {"write": Action(self.execute), "read": Action(lambda *_: {"ticks": self.ticks})},
             implementation="instrumented native clock")],
-            execution_lock=self.world.lock, request_lock=self.world.requests)
+            execution_lock=self.world.lock, segment_scheduler=self.world.schedule,
+            resolve=self.world.resolve)
         self.worker = SimWorker.__new__(SimWorker)
         self.worker.world, self.worker.state = self.world, "ready"
-        self.worker._dispatch = lambda op, args: self.wire.call(args)
+        self.worker._dispatch = lambda op, args: self.wire.submit(args)
 
     def budget(self):
         return Budget(used=self.ticks, max=self.maximum)
@@ -201,7 +202,7 @@ def test_clock_termination_wakes_the_writer(backend, termination):
         rig.close()
 
 
-def test_requests_remain_serialized_while_background_physics_advances():
+def test_reads_finish_during_a_bounded_write():
     rig = Rig("robotwin")
     rig.world.start()
     results, failures = [], []
@@ -221,8 +222,8 @@ def test_requests_remain_serialized_while_background_physics_advances():
         reader.join(2)
         assert not writer.is_alive() and not reader.is_alive()
         assert not failures
-        assert [r["sequence"] for r in results] == [1, 2]
-        assert results[1]["data"]["ticks"] >= 10
+        assert [r["sequence"] for r in results] == [2, 1]
+        assert results[0]["data"]["ticks"] < 10
     finally:
         rig.close()
 
@@ -240,7 +241,7 @@ def test_stalled_clock_retains_wall_bound(backend):
         rig.close()
 
 
-def test_reset_rebinds_replaced_control():
+def test_replaced_control_uses_the_world_scheduler():
     rig = Rig("robotwin")
     rig.adapter.reset = lambda seed: setattr(rig.env, "control", DeviceControl(
         {"arm": [(-1, 1)]}, {"arm": [0]}, lambda _: None, rig.tick,
@@ -269,8 +270,9 @@ def test_component_bindings_forward_segments_and_report_state(backend, realtime)
     rig.env.read_device = read
     wire = default_registry().assemble(
         task.bindings, task.robot, BindingContext(backend, "g1", rig.adapter),
-        execution_lock=rig.world.lock, request_lock=rig.world.requests)
-    rig.worker._dispatch = lambda op, args: wire.call(args)
+        execution_lock=rig.world.lock, segment_scheduler=rig.world.schedule,
+        resolve=rig.world.resolve)
+    rig.worker._dispatch = lambda op, args: wire.submit(args)
     rig.world.start()
     def call(name, **args):
         return rig.worker.dispatch("devices.call", {
@@ -303,13 +305,13 @@ def test_component_bindings_forward_segments_and_report_state(backend, realtime)
         rig.close()
 
 
-def test_owner_thread_wait_rejects_foreign_thread():
+def test_owner_thread_poll_rejects_foreign_thread():
     rig = Rig("simple")
     rig.world.start()
     errors = []
     def wait():
         try:
-            rig.world.wait_for_clock(0.01)
+            rig.world.poll()
         except RuntimeError as error:
             errors.append(str(error))
     thread = threading.Thread(target=wait)
@@ -339,8 +341,9 @@ def test_shared_native_binding_forwards_segments(backend, cls, realtime):
     spec = SimpleNamespace(name="arm", entity="arm", binding=backend + ".device/1", config={},
                            definition=lambda root: definition)
     device = bind_native(spec, None, BindingContext(backend, rig.adapter.embodiment, rig.adapter))
-    wire = DeviceService([device], execution_lock=rig.world.lock, request_lock=rig.world.requests)
-    rig.worker._dispatch = lambda op, args: wire.call(args)
+    wire = DeviceService([device], execution_lock=rig.world.lock,
+                         segment_scheduler=rig.world.schedule, resolve=rig.world.resolve)
+    rig.worker._dispatch = lambda op, args: wire.submit(args)
     rig.world.start()
     try:
         result = rig.call(target=[0.2], for_s=0.04)["data"]

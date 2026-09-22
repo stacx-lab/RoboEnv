@@ -28,30 +28,30 @@ op                      what
 
 from __future__ import annotations
 
-from roboenv.tasks.model import DEVICE_BACKENDS
-from roboenv.devices.status import status_feedback
-
 import argparse
 import contextlib
 import copy
 import logging
 import os
+import queue
 import signal
 import socketserver
 import stat
 import struct
 import sys
 import threading
-import queue
-from concurrent.futures import Future
 import time
 import zlib
 from collections.abc import Mapping, Sequence
+from concurrent.futures import Future
 from functools import wraps
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+from roboenv.devices.execution import map_result
+from roboenv.devices.status import status_feedback
+from roboenv.tasks.model import DEVICE_BACKENDS
 
 from roboenv_runtime.core.access import is_read_only
 from roboenv_runtime.core.adapter import EnvAdapter, make_adapter
@@ -408,7 +408,7 @@ class SimWorker:
         success = getattr(self.adapter, "stop_on_success", False) and self.adapter.score().completed
         if success or self.adapter.budget().exhausted:
             self._termination_reason = "success" if success else "step_limit"
-            self.submit()
+            self.submit(interrupt=False)
 
     def simulation_status(self, *, include_verdict=False):
         """Expose the judgment only for stop receipts and retained owner evidence."""
@@ -428,7 +428,12 @@ class SimWorker:
         }
         return status if include_verdict else status_feedback(status)
 
-    def submit(self) -> dict[str, Any]:
+    def _interrupt_devices(self):
+        if self.devices is not None:
+            self.devices.interrupt()
+        self.world.poll_segments()
+
+    def submit(self, *, interrupt=True) -> dict[str, Any]:
         """Seal one authoritative observation, budget and verdict in the world's lane.
 
         Some adapters charge their internal observation API queries. Capture
@@ -441,6 +446,10 @@ class SimWorker:
                 return copy.deepcopy(self._final_result)
             if self.state == "failed" or self.world.failure is not None:
                 raise WorkerRPCError("world_failed", "owner recovery is required")
+            if self.devices is not None:
+                # Natural terminal frames complete current segments normally.
+                # Explicit stop interrupts them; neither admits queued goals.
+                self.devices.interrupt(active=interrupt)
             self.world.freeze()
             if hasattr(self.adapter, "freeze_episode"):
                 self.adapter.freeze_episode()
@@ -478,6 +487,8 @@ class SimWorker:
                 # to take more actions or evaluate a different terminal state.
                 self.state = "failed"
                 raise
+            # Publish the sealed verdict before completing terminal segments.
+            self.world.poll_segments()
             return copy.deepcopy(self._final_result)
 
     def _budget_snapshot(self) -> dict[str, Any]:
@@ -510,6 +521,7 @@ class SimWorker:
         if unknown:
             raise WorkerRPCError("invalid_args", f"reset does not accept: {sorted(unknown)}")
         seed = int(args.get("seed", self.seed))
+        self._interrupt_devices()
         self.scorer.close()
         self.state = "resetting"
         try:
@@ -560,6 +572,7 @@ class SimWorker:
         token = args["token"]
         if token not in self._checkpoints:
             raise WorkerRPCError("checkpoint_identity", "unknown checkpoint in this worker")
+        self._interrupt_devices()
         self.state = "restoring"
         try:
             if self.devices is not None:
@@ -574,11 +587,17 @@ class SimWorker:
         return {"restored": True}
 
     def dispatch(self, op: str, args: Mapping[str, Any]) -> Any:
-        """All public operations and native devices share the same world's lane."""
-        with self.world.requests, self.world.lock:
+        return self.world.resolve(self.dispatch_async(op, args))
+
+    def dispatch_async(self, op: str, args: Mapping[str, Any]) -> Any:
+        """Native sections are atomic; bounded segment completion yields the lane."""
+        with self.world.lock:
             if self.world.failure is not None:
                 self.state = "failed"
-            return self._dispatch(op, args)
+            try:
+                return self._dispatch(op, args)
+            finally:
+                self.world.poll_segments()
 
     def _dispatch(self, op: str, args: Mapping[str, Any]) -> Any:
         if op == "simulation.status":
@@ -647,12 +666,18 @@ class SimWorker:
                     if args.get("action") not in READ_ACTIONS:
                         raise WorkerRPCError("episode_finished", "Episode finished; call roboenv stop for the final judgment",
                                              details=self.simulation_status())
-                result = self.devices.call(args, submitted=self.scorer.submitted)
-                self._check_terminal()
-                result["budget"] = self._budget_snapshot()
-                if self._final_result is not None:
-                    result["simulation"] = self.simulation_status()
-                return result
+                result = self.devices.submit(args, submitted=self.scorer.submitted)
+                def finish(value):
+                    self._check_terminal()
+                    value["budget"] = self._budget_snapshot()
+                    if self._final_result is not None:
+                        value["simulation"] = self.simulation_status()
+                    return value
+                def failed(error):
+                    if isinstance(error, DeviceError):
+                        raise WorkerRPCError(error.code, error.message, details=error.details) from error
+                    raise error
+                return map_result(result, finish, failed)
             except DeviceError as exc:
                 raise WorkerRPCError(exc.code, exc.message, details=exc.details) from exc
         if op == "call":
@@ -683,6 +708,7 @@ class SimWorker:
         if op == "shutdown":
             if args:
                 raise WorkerRPCError("invalid_args", "shutdown takes no arguments")
+            self._interrupt_devices()
             self.shutdown_requested = True
             self.state = "shutting_down"
             return {"shutdown": True}
@@ -695,6 +721,7 @@ class SimWorker:
         if self._closed:
             return
         self._closed = True
+        self._interrupt_devices()
         self.world.stop_clock()
         self.state = "closed"
         try:
@@ -732,7 +759,7 @@ def _strict_error(raw: Any, code: str, message: str, *, details: Any = None) -> 
     }
 
 
-def handle_mapping(worker: SimWorker, raw: Mapping[str, Any]) -> dict[str, Any]:
+def handle_mapping(worker: SimWorker, raw: Mapping[str, Any], *, deferred=False):
     """Dispatch a full protocol envelope, or a minimal ``{id, op, args}`` test envelope."""
     strict = {"protocol", "session", "generation", "request_id", "deadline_s", "op", "args"} <= set(
         raw
@@ -750,16 +777,16 @@ def handle_mapping(worker: SimWorker, raw: Mapping[str, Any]) -> dict[str, Any]:
             return Response.failure(
                 request, "generation_mismatch", f"worker generation is {worker.generation}"
             ).as_dict()
+        def failed(exc):
+            if isinstance(exc, WorkerRPCError):
+                return Response.failure(request, exc.code, exc.message, details=exc.details).as_dict()
+            return Response.failure(request, "operation_failed", f"{type(exc).__name__}: {exc}").as_dict()
         try:
-            return Response.success(
-                request, jsonable(worker.dispatch(request.op, request.args))
-            ).as_dict()
-        except WorkerRPCError as exc:
-            return Response.failure(request, exc.code, exc.message, details=exc.details).as_dict()
+            dispatch = worker.dispatch_async if deferred else worker.dispatch
+            return map_result(dispatch(request.op, request.args),
+                              lambda value: Response.success(request, jsonable(value)).as_dict(), failed)
         except Exception as exc:
-            return Response.failure(
-                request, "operation_failed", f"{type(exc).__name__}: {exc}"
-            ).as_dict()
+            return failed(exc)
 
     request_id = raw.get("id", raw.get("request_id"))
     op = raw.get("op")
@@ -770,23 +797,26 @@ def handle_mapping(worker: SimWorker, raw: Mapping[str, Any]) -> dict[str, Any]:
             "ok": False,
             "error": {"code": "invalid_request", "message": "op and object args are required"},
         }
-    try:
-        return {"id": request_id, "ok": True, "result": jsonable(worker.dispatch(op, args))}
-    except WorkerRPCError as exc:
-        error: dict[str, Any] = {"code": exc.code, "message": exc.message}
-        if exc.details is not None:
-            error["details"] = jsonable(exc.details)
+    def failed(exc):
+        if isinstance(exc, WorkerRPCError):
+            error = {"code": exc.code, "message": exc.message}
+            if exc.details is not None:
+                error["details"] = jsonable(exc.details)
+        else:
+            error = {"code": "operation_failed", "message": f"{type(exc).__name__}: {exc}"}
         return {"id": request_id, "ok": False, "error": error}
+    try:
+        dispatch = worker.dispatch_async if deferred else worker.dispatch
+        return map_result(dispatch(op, args), lambda value: {"id": request_id, "ok": True, "result": jsonable(value)}, failed)
     except Exception as exc:
-        return {
-            "id": request_id,
-            "ok": False,
-            "error": {"code": "operation_failed", "message": f"{type(exc).__name__}: {exc}"},
-        }
+        return failed(exc)
 
 
-class WorkerUnixServer(socketserver.UnixStreamServer):
-    """Serial Unix-socket server around one :class:`SimWorker`."""
+class WorkerUnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+    """Concurrent connections; the world owns atomic native state access."""
+
+    daemon_threads = True
+    block_on_close = False
 
     allow_reuse_address = False
 
@@ -799,7 +829,7 @@ class WorkerUnixServer(socketserver.UnixStreamServer):
         return handle_mapping(self.worker, raw)
 
 
-class MainThreadWorkerUnixServer(socketserver.ThreadingMixIn, WorkerUnixServer):
+class MainThreadWorkerUnixServer(WorkerUnixServer):
     """Decode connections in threads; run every native call on the owner thread.
 
     Isaac cannot advance physics on the background clock thread. Idle or partial
@@ -860,10 +890,20 @@ class MainThreadWorkerUnixServer(socketserver.ThreadingMixIn, WorkerUnixServer):
                 break
             if future.set_running_or_notify_cancel():
                 try:
-                    future.set_result(handle_mapping(self.worker, raw))
+                    result = handle_mapping(self.worker, raw, deferred=True)
+                    if isinstance(result, Future):
+                        def completed(source, target=future):
+                            try:
+                                target.set_result(source.result())
+                            except Exception as error:
+                                target.set_exception(error)
+                        result.add_done_callback(completed)
+                    else:
+                        future.set_result(result)
                 except Exception as exc:
                     future.set_exception(exc)
         self.worker.world.poll()
+        self.worker.world.poll_segments()
 
     def server_close(self):
         with self._pending_lock:

@@ -6,12 +6,13 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+from roboenv.devices.execution import map_result
 from roboenv.devices.model import Action, BoundDevice
 
 from roboenv_runtime.adapters.robocasa.geometry import chain, pose, vector
 from roboenv_runtime.bindings.backends.robocasa.camera import intrinsics as camera_intrinsics
-from roboenv_runtime.bindings.backends.robocasa.joint import intrinsics as arm_intrinsics
 from roboenv_runtime.bindings.backends.robocasa.gripper_geometry import geometry as gripper_geometry
+from roboenv_runtime.bindings.backends.robocasa.joint import intrinsics as arm_intrinsics
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
 TYPES = {"arm": "joint", "gripper": "gripper", "camera": "rgb", "world": "world"}
@@ -193,7 +194,7 @@ def bind(spec, root, context):
                 return bool(np.all(np.abs(speeds) <= np.asarray(quiet, dtype=float)))
 
             elapsed = world.step({entity: command}, for_s=for_s, arrived=arrived)
-            return {"accepted": True, "elapsed_s": elapsed, "reached": arrived(), "state": read()}
+            return map_result(elapsed, lambda duration: {"accepted": True, "elapsed_s": duration, "reached": arrived(), "state": read()})
 
         def stop():
             world.stop_part(entity)

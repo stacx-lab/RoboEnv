@@ -7,7 +7,10 @@ migration. Devices do not own reset/close, and this object does not own scoring.
 import math
 import threading
 import time
+from concurrent.futures import Future
 from typing import Protocol
+
+from roboenv.devices.model import DeviceError
 
 
 class World(Protocol):
@@ -25,21 +28,52 @@ class WorldSession:
         self.backend = native.name
         self.embodiment = native.embodiment
         self.lock = threading.RLock()
-        # Requests stay serialized while a bounded write yields the state lock
-        # to physics. Always acquire requests before lock, never from a tick.
-        self.requests = threading.RLock()
-        self._changed = threading.Condition(self.lock)
         self.epoch = 0
         self._closed = False
         self._halt = threading.Event()
         self._thread = None
-        self.main_thread_clock = bool(getattr(native, "realtime_on_main_thread", False)) and (
-            getattr(native, "realtime_interval", None) is not None
-        )
+        self.main_thread_clock = bool(getattr(native, "realtime_on_main_thread", False))
         self._interval = None
         self._deadline = None
-        self._owner_thread = None
+        self._owner_thread = threading.get_ident() if self.main_thread_clock else None
+        self._segments = []
         self.failure = None
+
+    def schedule(self, complete, snapshot, cancel):
+        """Register a bounded result; callbacks only touch native state under lock."""
+        future = Future()
+        self._segments.append((future, complete, snapshot, cancel))
+        self.poll_segments()
+        return future
+
+    def poll_segments(self):
+        with self.lock:
+            # Callbacks may admit the next queued write and append another job.
+            pending, self._segments = self._segments, []
+            for future, complete, snapshot, cancel in pending:
+                try:
+                    if cancel.is_set():
+                        raise DeviceError("operation_interrupted", "device write interrupted by stop")
+                    if self.failure is not None:
+                        raise RuntimeError("world clock failed") from self.failure
+                    if self._halt.is_set() or complete():
+                        future.set_result(snapshot())
+                    else:
+                        self._segments.append((future, complete, snapshot, cancel))
+                except Exception as error:
+                    future.set_exception(error)
+
+    def resolve(self, value):
+        if not isinstance(value, Future):
+            return value
+        # Direct owner-thread callers have no outer service loop to poll for them.
+        if self.main_thread_clock and threading.get_ident() == self._owner_thread:
+            while not value.done():
+                self.poll()
+                self.poll_segments()
+                if not value.done():
+                    time.sleep(min(self.poll_interval, 0.005))
+        return value.result()
 
     @property
     def poll_interval(self):
@@ -47,7 +81,6 @@ class WorldSession:
 
     def start(self):
         """Start an adapter's optional wall-clock-paced simulation after binding."""
-        self._bind_clock_wait()
         interval = getattr(self.native, "realtime_interval", None)
         if interval is None:
             return
@@ -65,34 +98,6 @@ class WorldSession:
                 target=self._run, args=(interval,), name="roboenv-world", daemon=True
             )
             self._thread.start()
-
-    def _bind_clock_wait(self):
-        bind = getattr(self.native, "set_clock_wait", None)
-        if bind is not None:
-            bind(self.wait_for_clock)
-
-    def wait_for_clock(self, timeout):
-        """Yield every recursive state-lock acquisition, retaining the request lane.
-
-        Thread-affine physics must be serviced here because the worker's outer
-        event loop cannot poll until this write returns. Conditions restore the
-        full lock depth before arrival predicates or native reads run again.
-        """
-        with self._changed:
-            if self.main_thread_clock and threading.get_ident() != self._owner_thread:
-                raise RuntimeError("native clock must run on its creating thread")
-            if self.failure is not None:
-                raise RuntimeError("world clock failed") from self.failure
-            if self._halt.is_set():
-                return False
-            if self.main_thread_clock:
-                timeout = min(timeout, max(0, self._deadline - time.monotonic()))
-            self._changed.wait(timeout)
-            if self.main_thread_clock:
-                self.poll()
-            if self.failure is not None:
-                raise RuntimeError("world clock failed") from self.failure
-            return not self._halt.is_set()
 
     def _run(self, interval):
         deadline = time.monotonic() + interval
@@ -128,28 +133,27 @@ class WorldSession:
                 self.failure = exc
                 self._halt.set()
             finally:
-                self._changed.notify_all()
+                self.poll_segments()
 
     def freeze(self):
         """Linearize the terminal snapshot with ticks; safe while holding lock."""
         with self.lock:
             self._halt.set()
-            self._changed.notify_all()
 
     def stop_clock(self):
         self.freeze()
+        self.poll_segments()
         if self._thread is not None:
             self._thread.join()
 
     def reset(self, seed):
-        with self.requests, self.lock:
+        with self.lock:
             if self._closed:
                 raise RuntimeError("world is closed")
             active_main_clock = self.main_thread_clock and self._interval is not None
             if active_main_clock and threading.get_ident() != self._owner_thread:
                 raise RuntimeError("native reset must run on its creating thread")
             self.native.reset(seed)
-            self._bind_clock_wait()
             self.epoch += 1
             if active_main_clock:
                 self.failure = None
@@ -158,7 +162,7 @@ class WorldSession:
 
     def close(self):
         self.stop_clock()
-        with self.requests, self.lock:
+        with self.lock:
             if not self._closed:
                 self._closed = True
                 self.native.close()

@@ -17,9 +17,6 @@ class LiberoAdapter(AdapterBase):
     def realtime_interval(self):
         return 1 / self._env.env.control_freq if self._env.realtime else None
 
-    def set_clock_wait(self, wait):
-        self._env.wait_for_clock = wait
-
     def realtime_tick(self):
         self._env.tick()
 

@@ -1,6 +1,7 @@
 """Chassis facts and measured spatial velocity for the native Omron controller."""
 
 import numpy as np
+from roboenv.devices.execution import map_result
 
 
 def intrinsics(world, pose_frame="world"):
@@ -82,8 +83,8 @@ def bind(spec, root, context):
         value = command(facts["control"], args)
         elapsed = world.step({"base": [value["velocity"][axis] for axis in ("vx", "vy", "wz")]},
                              for_s=for_s)
-        return {"accepted": True, "elapsed_s": elapsed, "reached": False,
-                "state": reading(model, data, body)}
+        return map_result(elapsed, lambda duration: {"accepted": True, "elapsed_s": duration, "reached": False,
+                "state": reading(model, data, body)})
 
     def stop():
         world.stop_part("base")

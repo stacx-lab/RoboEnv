@@ -95,7 +95,7 @@ def test_idle_partial_connection_does_not_block_clock_or_other_rpc(tmp_path):
         rpc_threads.append(threading.get_ident())
         return {"op": op, "frames": native.frames}
 
-    worker = SimpleNamespace(world=world, dispatch=dispatch, shutdown_requested=False)
+    worker = SimpleNamespace(world=world, dispatch_async=dispatch, shutdown_requested=False)
     path = str(tmp_path / "worker.sock")
     server = MainThreadWorkerUnixServer(path, worker)
     ready = threading.Event()
@@ -141,8 +141,10 @@ def test_idle_partial_connection_does_not_block_clock_or_other_rpc(tmp_path):
 def test_request_batch_is_bounded_and_still_services_clock(tmp_path):
     events = []
     worker = SimpleNamespace(
-        world=SimpleNamespace(poll=lambda: events.append("tick"), poll_interval=0.005),
-        dispatch=lambda op, args: events.append("request"),
+        world=SimpleNamespace(
+            poll=lambda: events.append("tick"), poll_segments=lambda: None, poll_interval=0.005,
+        ),
+        dispatch_async=lambda op, args: events.append("request"),
     )
     server = MainThreadWorkerUnixServer(str(tmp_path / "batch.sock"), worker)
     futures = [Future() for _ in range(17)]
@@ -169,7 +171,7 @@ def test_new_connections_can_share_a_slow_native_frame(tmp_path):
     native.realtime_tick = slow_tick
     world = WorldSession(native)
     worker = SimpleNamespace(
-        world=world, dispatch=lambda op, args: native.frames, shutdown_requested=False,
+        world=world, dispatch_async=lambda op, args: native.frames, shutdown_requested=False,
     )
     path = str(tmp_path / "fresh-connections.sock")
     server = MainThreadWorkerUnixServer(path, worker)

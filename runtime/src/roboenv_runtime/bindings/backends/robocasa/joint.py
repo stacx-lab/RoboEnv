@@ -1,5 +1,7 @@
 """Joint-position devices extracted from the compiled model, in physical units."""
 
+from roboenv.devices.execution import map_result
+
 
 def intrinsics(sim, indexes, chain, home, name):
     model = sim.model._model
@@ -127,7 +129,7 @@ def bind(spec, root, context):
             return bool(np.all(np.abs(speeds) <= np.asarray(quiet, dtype=float)))
 
         elapsed = world.step({part: command}, for_s=for_s, arrived=arrived)
-        return {"accepted": True, "elapsed_s": elapsed, "reached": arrived(), "state": read()}
+        return map_result(elapsed, lambda duration: {"accepted": True, "elapsed_s": duration, "reached": arrived(), "state": read()})
 
     def stop():
         world.stop_part(part)

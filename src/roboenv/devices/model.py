@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from roboenv.devices.contract import DEVICE_CONTRACT, READ_ACTIONS
+from roboenv.devices.execution import map_result
 from roboenv.validation import json_value
 
 
@@ -59,8 +60,16 @@ class ExecutionContext:
         self.calls.append(entry)
         try:
             result = operation()
-            entry["ok"] = True
-            return result
+
+            def success(value):
+                entry["ok"] = True
+                return value
+
+            def failure(error):
+                entry.update(ok=False, error=str(error))
+                raise error
+
+            return map_result(result, success, failure)
         except Exception as exc:
             entry.update(ok=False, error=str(exc))
             raise

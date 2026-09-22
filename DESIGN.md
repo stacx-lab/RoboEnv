@@ -21,16 +21,21 @@ A camera returns images, not detected objects or simulator object poses. Higher-
 operations belong in harness tools. Native motor/servo controllers remain in RoboEnv;
 there is no second agent loop or parallel driver stack inside the simulator.
 
-A single world owns lifecycle, execution serialization, and budgets. Bindings attach
+A single world owns lifecycle, atomic native state access, and budgets. Bindings attach
 to its existing entities. Loading a device never creates another world or resets a task.
 
-Requests acquire a shared request lock before the world state lock. A bounded
-device write retains the request lock while its clock wait releases every recursive
-acquisition of the state lock, allowing background physics to advance. Arrival
-checks and response snapshots run after reacquiring the state lock. Thread-affine
-backends service scheduled ticks on their owner thread during the wait. Clock
-failure, freeze, exhaustion and the wall-time guard end the wait; reset reconnects
-replacement controllers to the same world-owned wait mechanism.
+Requests do not hold a world-wide motion lock. Each physical device has an ordered
+mutation queue; observations bypass those queues. Bounded realtime writes install
+goals and register completion callbacks with the world clock. Each tick evaluates
+arrival, elapsed time and a consistent final snapshot under the state lock.
+Independent device segments can overlap without nested waits on the owner thread.
+Thread-affine native calls stay on their owner thread in both clock modes.
+Stop invalidates active and queued writes in its declared scope before applying
+hold/halt. Reset, explicit submission and shutdown interrupt outstanding segments
+before changing lifecycle state. Natural episode completion seals the final verdict,
+completes active segments with their final snapshots and rejects queued goals.
+Reads never advance physics; synchronous writes retain
+one atomic control interval. Clock failure and wall-time guards settle pending work.
 
 ## Static robot configuration and private task configuration
 
@@ -233,7 +238,7 @@ Do not turn one command into separately stepped actuator writes. If simultaneous
 control needs a composite device, define its basic vector explicitly. The operator
 ensures that commanded devices do not overlap.
 
-All transports share the same serialization, identity, and durable motion outcomes.
+All transports share per-device write ordering, identity, and durable motion outcomes.
 A timeout does not establish that no motion occurred. Do not blindly resend an
 uncertain command with a new request ID; query the allowed original operation status.
 Device close never shuts down the world. A new episode has a new identity; backend
@@ -286,6 +291,8 @@ See [RoboCasa and its catalog](docs/robocasa.md),
 
 Devices expose individual read/write/stop operations. Kinex's devices() helper can
 submit mixed calls concurrently and returns per-call results in request order.
-The operator selects non-overlapping devices. The world lock protects native state,
-and each stepped write advances its own interval while retaining other targets.
+Independent devices write concurrently; writes to the same bound entity remain ordered.
+Reads and recording continue during motion. The world lock protects individual native
+operations, and each synchronous write advances its interval while retaining other targets.
+Realtime writes complete independently with their own acquisition-time state snapshots.
 Control/observation types remain independent of robot morphology.

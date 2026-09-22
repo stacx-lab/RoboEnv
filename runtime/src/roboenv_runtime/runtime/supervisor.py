@@ -1,10 +1,10 @@
-"""Stateful simulator-process supervisor and serial Unix-socket proxy.
+"""Stateful simulator-process supervisor and concurrent Unix-socket proxy.
 
 The supervisor owns exactly one ``sim_worker`` process group.  Public health
 checks are answered from supervisor state and never depend on the worker.
-Every other operation is serialized, journaled, and proxied to the worker's
-private Unix socket.  A request deadline kills only the process group created
-by this supervisor; no process discovery or broad cleanup is performed.
+Device requests are journaled and proxied concurrently; the worker orders writes
+per device. An uncertain mutating request deadline terminates only the process
+group owned by this supervisor. Read timeouts do not terminate the worker.
 """
 
 
@@ -675,9 +675,10 @@ class Supervisor:
             return response
 
         remaining_for_queue = request_deadline - time.monotonic()
-        acquired = remaining_for_queue > 0 and self._worker_lock.acquire(
+        concurrent = request.op in {"devices.call", "devices.list", "devices.describe", "environment.describe", "simulation.status", "simulation.stop"}
+        acquired = remaining_for_queue > 0 and (concurrent or self._worker_lock.acquire(
             timeout=remaining_for_queue
-        )
+        ))
         if not acquired:
             return self._queue_timeout_response(request, received_monotonic=received)
 
@@ -696,6 +697,8 @@ class Supervisor:
                     return Response.failure(request, exc.code, exc.message).as_dict()
                 if cached is not None:
                     return cached
+                if request.request_id in self._inflight:
+                    return Response.failure(request, "request_in_progress", "Original request is still running", retryable=True).as_dict()
                 if time.monotonic() >= request_deadline:
                     return self._queue_timeout_response(request, received_monotonic=received)
 
@@ -742,8 +745,12 @@ class Supervisor:
                     self._device_registry_ready = registry_ready
             except TimeoutError as exc:
                 worker_was_alive = self._worker_alive()
-                self.terminate_worker(reason=str(exc), timed_out=True)
-                worker_killed = worker_was_alive and self._worker_state == "timed_out"
+                from roboenv.devices.contract import READ_ACTIONS
+                read_only = request.op in {"devices.list", "devices.describe", "environment.describe", "simulation.status"} or (
+                    request.op == "devices.call" and request.args.get("action") in READ_ACTIONS)
+                if not read_only:
+                    self.terminate_worker(reason=str(exc), timed_out=True)
+                worker_killed = not read_only and worker_was_alive and self._worker_state == "timed_out"
                 response = Response.failure(
                     request,
                     "worker_timeout",
@@ -778,7 +785,8 @@ class Supervisor:
                 self._schedule_server_shutdown()
             return response
         finally:
-            self._worker_lock.release()
+            if not concurrent:
+                self._worker_lock.release()
 
     # --------------------------------------------------------------- server I/O
 

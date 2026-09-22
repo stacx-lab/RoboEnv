@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from helpers import kinex_sources
 from roboenv.devices.export import write_driver
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,7 +80,7 @@ def test_portable_dialog_uses_real_worker_and_stdout_only_contains_replies(
     (directory / "profile.yaml").write_text(yaml.safe_dump({
         "access": {"driver": {"actions": ["read"]}},
     }))
-    requests = [{"action": "read", "args": {}} for _ in range(20)]
+    requests = [{"id": str(i), "action": "read", "args": {}} for i in range(20)]
     proc = subprocess.run([sys.executable, str(directory / "driver.py"), "--serve"],
                           input="".join(json.dumps(r) + "\n" for r in requests),
                           env={**os.environ, "ROBOENV_ENDPOINT": supervisor.http_endpoint},
@@ -133,12 +134,13 @@ def test_dialog_reuses_process_and_cleans_up_once(tmp_path, ending):
                             stderr=subprocess.DEVNULL, text=True)
     try:
         for i in range(1000 if ending == "eof" else 2):
-            proc.stdin.write('{"action":"read","args":{}}\n')
+            proc.stdin.write(json.dumps({'id': str(i), 'action': 'read', 'args': {}}) + '\n')
             proc.stdin.flush()
             reply = json.loads(proc.stdout.readline())
-            assert reply == {"ok": True, "stopped": False, "pid": proc.pid, "calls": i + 1}
+            assert reply == {"id": str(i), "ok": True, "stopped": False,
+                             "pid": proc.pid, "calls": i + 1}
         if ending == "unload":
-            proc.stdin.write('{"action":"unload","args":{}}\n')
+            proc.stdin.write('{"id":"unload","action":"unload","args":{}}\n')
             proc.stdin.flush()
             assert json.loads(proc.stdout.readline())["ok"]
         if ending == "malformed":
@@ -236,12 +238,12 @@ def test_live_identity_change_is_not_followed(device_service, tmp_path, monkeypa
 
 @pytest.mark.parametrize("device_service", ["http"], indirect=True)
 def test_current_kinex_reuses_driver_across_tools_and_reloads(
-    device_service, tmp_path, monkeypatch,
+    device_service, tmp_path,
 ):
-    kinex = ROOT.parent / "kinex"
-    bun = shutil.which("bun")
-    if not bun or not (kinex / "node_modules/zod").exists():
-        pytest.skip("Requires prepared adjacent Kinex")
+    kinex, _ = kinex_sources()
+    node = shutil.which("node")
+    if not node or not (kinex / "packages/core/dist/index.js").is_file():
+        pytest.skip("Requires built Kinex and Node >=22.19")
     _, supervisor, _ = device_service
     directory = tmp_path / ".kinex/devices/controller"
     write_driver(directory, "other")
@@ -250,20 +252,21 @@ def test_current_kinex_reuses_driver_across_tools_and_reloads(
         "meta": {"created_at": "2026-09-09T00:00:00Z", "updated_at": "2026-09-09T00:00:00Z"},
         "access": {"connection": {"kind": "url", "url": supervisor.http_endpoint,
                                   "device": "controller"},
-                   "driver": {"interpreter": sys.executable, "actions": ["read"]}},
+                   "driver": {"interpreter": sys.executable,
+                              "actions": ["load", "unload", "status", "read"]}},
     }))
     (directory / "connection.json").write_text(json.dumps({"endpoint": supervisor.http_endpoint}))
-    accepted = []
-    original = supervisor._http_server.get_request
-
-    def accept():
-        value = original()
-        accepted.append(value[0])
-        return value
-
-    monkeypatch.setattr(supervisor._http_server, "get_request", accept)
-    result = subprocess.run([bun, str(ROOT / "tests/persistent_kinex.ts"), str(kinex),
+    driver = directory / "driver.py"
+    driver.write_text(
+        "import os\nfrom pathlib import Path\n"
+        "with Path(__file__).with_name('boots').open('a') as log: "
+        "log.write(str(os.getpid()) + '\\n')\n" + driver.read_text().replace(
+            '        data = remote(action, args)',
+            '        data = ({"ready": True} if action in {"load", "unload", "status"} '
+            'else remote(action, args))',
+        )
+    )
+    result = subprocess.run([node, str(ROOT / "tests/persistent_kinex.mjs"), str(kinex),
                              str(tmp_path), sys.executable], capture_output=True, text=True,
                             timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert len(accepted) == 2  # first activation and explicit reload

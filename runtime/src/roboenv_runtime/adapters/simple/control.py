@@ -2,17 +2,15 @@
 
 import copy
 import math
-import time
-
-from roboenv_runtime.adapters.control_wait import wait_for_clock
 
 from roboenv.devices.velocity import command as velocity_command
+
+from roboenv_runtime.adapters.segments import finish_segment, require_scheduler
 
 from .profiles import CONTROL_INTERVAL_S, NAMES, profiles
 
 
 class Control:
-    wait_for_clock = staticmethod(wait_for_clock)
 
     def __init__(self, native, model, *, realtime=True):
         if type(realtime) is not bool:
@@ -52,6 +50,7 @@ class Control:
         return list(target)
 
     def write(self, name, args, *, for_s=None, arrived=None):
+        require_scheduler(self.realtime, for_s)
         target = self.validate(name, args)
         self.native.require_active()
         self.targets[name] = target
@@ -61,30 +60,11 @@ class Control:
         started = self.native.steps
         if not self.realtime:
             self.native.advance(self.targets)
-        elif for_s:
-            self._settle(for_s, arrived)
-        return {"accepted": True,
-                "elapsed_s": (self.native.steps - started) * CONTROL_INTERVAL_S}
-
-    def _settle(self, for_s, arrived):
-        """Wait out the background clock until the goal is met or the budget ends.
-
-        `arrived` is the device binding's to supply: it knows which actuator it
-        owns, while this owns the clock.
-        """
-        interval = CONTROL_INTERVAL_S
-        frames = max(1, math.ceil(for_s / interval))
-        limit = self.native.steps + frames
-        # A stalled background clock must not hang the caller: bound the wait
-        # in wall time too, and report whatever simulated time did pass.
-        deadline = time.monotonic() + max(1.0, 4 * frames * interval)
-        while self.native.steps < limit and not self.native.done:
-            if arrived is not None and arrived():
-                return
-            if time.monotonic() >= deadline:
-                return
-            if not self.wait_for_clock(interval / 4):
-                return
+        return finish_segment(
+            started=started, frame=lambda: self.native.steps, interval=CONTROL_INTERVAL_S,
+            for_s=for_s, realtime=self.realtime, arrived=arrived,
+            exhausted=lambda: self.native.done, result=lambda elapsed: {"accepted": True, "elapsed_s": elapsed},
+        )
 
     def stop(self, name, *, reason="requested"):
         if name not in NAMES:
