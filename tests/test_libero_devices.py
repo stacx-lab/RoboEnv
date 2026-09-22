@@ -34,13 +34,13 @@ def interpreter():
     return value
 
 
-def run_native(script, *args, timeout=180):
+def run_native(script, *args, timeout=180, render=False):
     result = subprocess.run(
         [interpreter(), str(ROOT / script), *map(str, args)],
         cwd=ROOT,
         env={
             **os.environ,
-            "CUDA_VISIBLE_DEVICES": "",
+            **({} if render else {"CUDA_VISIBLE_DEVICES": ""}),
             "MUJOCO_GL": "egl",
             "PYTHONPATH": os.pathsep.join(str(ROOT / p) for p in ("src", "runtime/src")),
         },
@@ -262,3 +262,18 @@ def test_native_contact_stop_and_release(tmp_path):
     run_native("tests/libero_contact.py", "--out", tmp_path / "contact.json")
     assert json.loads((tmp_path / "contact.json").read_text())["passed"]
 
+
+
+@pytest.mark.parametrize("realtime", [False, True])
+def test_native_camera_pixels_survive_concurrent_rpc(tmp_path, realtime):
+    require(
+        os.environ.get("ROBOENV_LIBERO_RENDER_TESTS") == "1",
+        "Requires explicitly enabled native EGL camera tests",
+    )
+    run_native(
+        "tests/libero_camera_rpc.py", "--out", tmp_path,
+        *(["--realtime"] if realtime else []),
+        render=True,
+    )
+    report = json.loads((tmp_path / "report.json").read_text())
+    assert report["passed"] and report["camera_reads"] == 10

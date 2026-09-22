@@ -7,6 +7,9 @@ from roboenv_runtime.core.types import Budget, ScoreReport
 class LiberoAdapter(AdapterBase):
     name = "libero"
     embodiment = "panda"
+    # Robosuite's GL context stays current on its creating thread. This also
+    # keeps synchronous camera reads on that thread, not on RPC handler threads.
+    realtime_on_main_thread = True
 
     def __init__(self, suite_name="libero_spatial", task_id=0, **kwargs):
         from .backend import LiberoEnv

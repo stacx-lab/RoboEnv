@@ -205,3 +205,77 @@ def test_new_connections_can_share_a_slow_native_frame(tmp_path):
         server.shutdown()
         thread.join(timeout=2)
     assert not thread.is_alive() and native.closed
+
+
+@pytest.mark.parametrize("backend", ["libero", "robocasa"])
+@pytest.mark.parametrize("realtime", [False, True])
+def test_camera_rpc_uses_the_thread_that_created_the_native_renderer(tmp_path, backend, realtime):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from roboenv_runtime.adapters.libero.adapter import LiberoAdapter
+    from roboenv_runtime.adapters.robocasa.adapter import RoboCasaAdapter
+    from roboenv_runtime.runtime.worker import create_worker_server
+
+    ready = Future()
+    closed = []
+    path = str(tmp_path / "camera.sock")
+
+    def serve():
+        owner = threading.get_ident()
+        frames = [0]
+
+        def capture():
+            # A graphics context belongs to its creating thread, even if access
+            # from a different thread is serialized with a mutex.
+            if threading.get_ident() != owner:
+                raise RuntimeError("rendering without the owning graphics context")
+            return {"pixels": [23, 41, 97], "thread": owner}
+
+        def close():
+            closed.append(threading.get_ident())
+
+        adapter_type = LiberoAdapter if backend == "libero" else RoboCasaAdapter
+        adapter = adapter_type.__new__(adapter_type)
+        adapter._env = SimpleNamespace(
+            realtime=realtime, env=SimpleNamespace(control_freq=200), render=capture,
+            tick=lambda: frames.__setitem__(0, frames[0] + 1), close=close,
+            get_step_budget=lambda: {"used": frames[0], "max": None},
+        )
+        world = WorldSession(adapter)
+        def dispatch(op, args):
+            return adapter.capture()
+
+        worker = SimpleNamespace(
+            world=world, dispatch=dispatch, dispatch_async=dispatch, shutdown_requested=False,
+        )
+        server = create_worker_server(path, worker)
+        world.start()
+        ready.set_result(server)
+        try:
+            server.serve_forever(poll_interval=world.poll_interval)
+        finally:
+            server.server_close()
+            world.close()
+
+    thread = threading.Thread(target=serve)
+    thread.start()
+    server = ready.result(timeout=2)
+
+    def read(index):
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+            client.settimeout(2)
+            client.connect(socket_address(path))
+            client.sendall(json.dumps({"id": index, "op": "capture"}).encode() + b"\n")
+            with client.makefile("rb") as stream:
+                response = json.loads(stream.readline())
+            assert response["ok"], response
+            assert response["result"] == {"pixels": [23, 41, 97], "thread": thread.ident}
+
+    try:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(read, range(8)))
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+    assert not thread.is_alive()
+    assert closed == [thread.ident]

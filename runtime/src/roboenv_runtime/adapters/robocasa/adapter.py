@@ -12,6 +12,8 @@ from roboenv_runtime.core.types import Budget, ScoreReport
 class RoboCasaAdapter(AdapterBase):
     name = "robocasa"
     embodiment = "panda_omron"
+    # Native graphics resources share the world's creating thread in both clocks.
+    realtime_on_main_thread = True
 
     def __init__(self, task_name="PickPlaceCounterToCabinet", **kwargs):
         from .backend import RoboCasaEnv

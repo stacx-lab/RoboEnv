@@ -80,6 +80,7 @@ def check(directory):
                 deadline = time.monotonic() + 10
                 while adapter.budget().used < 10:
                     assert time.monotonic() < deadline
+                    worker.world.poll()
                     time.sleep(0.02)
             else:
                 state = adapter._env.sim.get_state().flatten().copy()
@@ -104,8 +105,7 @@ def check(directory):
             assert adapter.budget().used == 10
         finally:
             worker.close()
-        if realtime:
-            assert not worker.world._thread.is_alive()
+        assert worker.world._thread is None
     for index in (0, 1):
         result = subprocess.run(
             [sys.executable, __file__, "--replay", "--out", str(directory / f"replay-{index}")],
