@@ -3,12 +3,16 @@
 import math
 import time
 
+from roboenv_runtime.adapters.control_wait import wait_for_clock
+
 from roboenv.devices.velocity import command as base_command
 
 from .g1_profiles import NAMES, profiles
 
 
 class Control:
+    wait_for_clock = staticmethod(wait_for_clock)
+
     def __init__(self, native, model, *, realtime=False):
         if type(realtime) is not bool:
             raise ValueError("realtime must be a boolean")
@@ -102,7 +106,8 @@ class Control:
                 return
             if time.monotonic() >= deadline:
                 return
-            time.sleep(interval / 4)
+            if not self.wait_for_clock(interval / 4):
+                return
 
     def tick(self):
         """One owner-clock interval; never step a terminal episode."""

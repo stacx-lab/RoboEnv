@@ -24,6 +24,14 @@ there is no second agent loop or parallel driver stack inside the simulator.
 A single world owns lifecycle, execution serialization, and budgets. Bindings attach
 to its existing entities. Loading a device never creates another world or resets a task.
 
+Requests acquire a shared request lock before the world state lock. A bounded
+device write retains the request lock while its clock wait releases every recursive
+acquisition of the state lock, allowing background physics to advance. Arrival
+checks and response snapshots run after reacquiring the state lock. Thread-affine
+backends service scheduled ticks on their owner thread during the wait. Clock
+failure, freeze, exhaustion and the wall-time guard end the wait; reset reconnects
+replacement controllers to the same world-owned wait mechanism.
+
 ## Static robot configuration and private task configuration
 
 A robot configuration describes a stable embodiment and sensor arrangement. It is

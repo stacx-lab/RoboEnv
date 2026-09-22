@@ -13,7 +13,8 @@ from roboenv.validation import action_validator, json_value
 
 
 class DeviceService:
-    def __init__(self, devices: Iterable[Device], *, manifest=None, execution_lock=None):
+    def __init__(self, devices: Iterable[Device], *, manifest=None, execution_lock=None,
+                 request_lock=None):
         self._devices = {}
         self._descriptors = {}
         self._validators = {}
@@ -37,6 +38,7 @@ class DeviceService:
             raise ValueError("device server needs a nonempty registry")
         self.manifest = copy.deepcopy(manifest or {})
         self._lock = execution_lock if execution_lock is not None else threading.RLock()
+        self._requests = request_lock if request_lock is not None else threading.RLock()
         self.sequence = 0
         self._closed = False
 
@@ -68,7 +70,7 @@ class DeviceService:
         }
 
     def call(self, args, *, submitted=False):
-        with self._lock:
+        with self._requests, self._lock:
             if self._closed:
                 raise DeviceError("device_closed", "Device registry has been closed")
             if (
@@ -135,7 +137,7 @@ class DeviceService:
             }
 
     def close(self):
-        with self._lock:
+        with self._requests, self._lock:
             if self._closed:
                 return
             self._closed = True

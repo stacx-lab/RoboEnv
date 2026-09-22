@@ -4,12 +4,16 @@ import copy
 import math
 import time
 
+from roboenv_runtime.adapters.control_wait import wait_for_clock
+
 from roboenv.devices.velocity import command as velocity_command
 
 from .profiles import CONTROL_INTERVAL_S, NAMES, profiles
 
 
 class Control:
+    wait_for_clock = staticmethod(wait_for_clock)
+
     def __init__(self, native, model, *, realtime=True):
         if type(realtime) is not bool:
             raise ValueError("realtime must be a boolean")
@@ -79,7 +83,8 @@ class Control:
                 return
             if time.monotonic() >= deadline:
                 return
-            time.sleep(interval / 4)
+            if not self.wait_for_clock(interval / 4):
+                return
 
     def stop(self, name, *, reason="requested"):
         if name not in NAMES:
