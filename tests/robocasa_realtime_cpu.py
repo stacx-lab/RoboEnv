@@ -13,12 +13,13 @@ from roboenv_runtime.runtime.worker import SimWorker
 def wait_frames(worker, count):
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
+        worker.world.poll()
         with worker.world.lock:
             assert worker.world.failure is None, worker.world.failure
             if worker.adapter.budget().used >= count:
                 return
         time.sleep(0.01)
-    raise AssertionError("Background simulation did not advance")
+    raise AssertionError("Simulation did not advance on its owner thread")
 
 
 def check(root, temporary):
@@ -98,7 +99,7 @@ def check(root, temporary):
         assert worker.submit() == final
     finally:
         worker.close()
-    assert not worker.world._thread.is_alive()
+    assert worker.world._thread is None
     print(json.dumps({"passed": True, "gpu_replay": False}))
 
 

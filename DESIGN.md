@@ -30,6 +30,9 @@ goals and register completion callbacks with the world clock. Each tick evaluate
 arrival, elapsed time and a consistent final snapshot under the state lock.
 Independent device segments can overlap without nested waits on the owner thread.
 Thread-affine native calls stay on their owner thread in both clock modes.
+LIBERO and RoboCasa camera reads retain the OpenGL context created on that thread;
+initialization, rendering, physics and cleanup share it. Bounded motion waits yield
+to other native operations, including camera capture, between control intervals.
 Stop invalidates active and queued writes in its declared scope before applying
 hold/halt. Reset, explicit submission and shutdown interrupt outstanding segments
 before changing lifecycle state. Natural episode completion seals the final verdict,

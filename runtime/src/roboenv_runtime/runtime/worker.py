@@ -832,8 +832,9 @@ class WorkerUnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 class MainThreadWorkerUnixServer(WorkerUnixServer):
     """Decode connections in threads; run every native call on the owner thread.
 
-    Isaac cannot advance physics on the background clock thread. Idle or partial
-    connections must also leave its main execution lane available for clock ticks.
+    Native physics and graphics contexts can require their creating thread, in
+    either clock mode. Idle connections and motion waits leave that thread free
+    to service camera reads and clock ticks.
     """
 
     daemon_threads = True
@@ -912,6 +913,11 @@ class MainThreadWorkerUnixServer(WorkerUnixServer):
                 future, _raw = self._pending.get_nowait()
                 future.cancel()
         super().server_close()
+
+
+def create_worker_server(path, worker, max_bytes=MAX_NDJSON_BYTES):
+    server_type = MainThreadWorkerUnixServer if worker.world.main_thread_clock else WorkerUnixServer
+    return server_type(path, worker, max_bytes)
 
 
 class WorkerRequestHandler(socketserver.StreamRequestHandler):
@@ -1037,8 +1043,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             generation=args.generation,
             privileged=args.privileged,
         )
-        server_type = MainThreadWorkerUnixServer if worker.world.main_thread_clock else WorkerUnixServer
-        server = server_type(str(socket_path), worker, args.max_ndjson_bytes)
+        server = create_worker_server(str(socket_path), worker, args.max_ndjson_bytes)
         os.chmod(socket_path, 0o600)
         log.info(
             "worker ready: task=%s seed=%s mode=%s socket=%s",
