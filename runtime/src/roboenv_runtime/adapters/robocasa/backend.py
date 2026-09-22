@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
-import os
 import contextlib
-import math
-import time
-
-from roboenv_runtime.adapters.control_wait import wait_for_clock
+import os
+from typing import Any
 
 import numpy as np
+
+from roboenv_runtime.adapters.segments import finish_segment, require_scheduler
 
 DEFAULT_ROBOT = "PandaOmron"
 DEFAULT_TASK = "PickPlaceCounterToCabinet"
@@ -50,7 +48,6 @@ def joint_controller_config(robot):
 
 
 class RoboCasaEnv:
-    wait_for_clock = staticmethod(wait_for_clock)
 
     def __init__(
         self,
@@ -357,6 +354,7 @@ class RoboCasaEnv:
         control interval. With the wall clock running the world, it waits for the
         background clock to carry the goal home, bounded by for_s.
         """
+        require_scheduler(self.realtime, for_s)
         if self.terminal or (self._max_steps is not None and self._step_count >= self._max_steps):
             raise RuntimeError("episode_finished: no further motion is permitted")
         for part, command in commands.items():
@@ -370,31 +368,11 @@ class RoboCasaEnv:
         started = self._step_count
         if not self.realtime:
             self.tick()
-        elif for_s:
-            self._settle(for_s, arrived)
-        return (self._step_count - started) * self.control_interval_s
-
-    def _settle(self, for_s, arrived):
-        """Wait out the background clock until the goal is met or the budget ends.
-
-        `arrived` comes from the device binding, which knows which actuator it
-        owns; this only owns the clock.
-        """
-        interval = self.control_interval_s
-        frames = max(1, math.ceil(for_s / interval))
-        limit = self._step_count + frames
-        if self._max_steps is not None:
-            limit = min(limit, self._max_steps)
-        # A stalled background clock must not hang the caller: bound the wait
-        # in wall time too, and report whatever simulated time did pass.
-        deadline = time.monotonic() + max(1.0, 4 * frames * interval)
-        while self._step_count < limit and not self.terminal:
-            if arrived is not None and arrived():
-                return
-            if time.monotonic() >= deadline:
-                return
-            if not self.wait_for_clock(interval / 4):
-                return
+        return finish_segment(
+            started=started, frame=lambda: self._step_count, interval=1 / self.env.control_freq,
+            for_s=for_s, realtime=self.realtime, arrived=arrived,
+            exhausted=lambda: self.terminal or (self._max_steps is not None and self._step_count >= self._max_steps), result=lambda elapsed: elapsed,
+        )
 
     def stop_part(self, part):
         controller = self._robot.part_controllers[part]

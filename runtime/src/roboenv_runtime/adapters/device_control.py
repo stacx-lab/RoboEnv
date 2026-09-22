@@ -7,13 +7,11 @@ motor application and one fixed control interval.
 
 import copy
 import math
-import time
 
-from roboenv_runtime.adapters.control_wait import wait_for_clock
+from roboenv_runtime.adapters.segments import finish_segment, require_scheduler
 
 
 class DeviceControl:
-    wait_for_clock = staticmethod(wait_for_clock)
 
     def __init__(self, limits, targets, apply, advance, *, realtime, exhausted,
                  on_write=None, interval_s=None):
@@ -55,6 +53,7 @@ class DeviceControl:
         bounded by for_s. Either way the caller learns how much simulated time
         this call was worth, which is the only clock a controller reads.
         """
+        require_scheduler(self.realtime, for_s)
         value = self._target(device, target)
         if self.exhausted():
             raise RuntimeError("Native episode budget exhausted")
@@ -66,28 +65,11 @@ class DeviceControl:
         started = self.frame
         if not self.realtime:
             self.tick()
-        elif for_s:
-            self._settle(for_s, arrived)
-        return {"accepted": True, "elapsed_s": (self.frame - started) * self.interval_s}
-
-    def _settle(self, for_s, arrived):
-        """Wait out the background clock until the goal is met or the budget ends.
-
-        `arrived` is the device binding's to supply: it knows which actuator it
-        owns, while this owns the clock.
-        """
-        frames = max(1, math.ceil(for_s / self.interval_s))
-        limit = self.frame + frames
-        # A stalled background clock must not hang the caller: bound the wait
-        # in wall time too, and report whatever simulated time did pass.
-        deadline = time.monotonic() + max(1.0, 4 * frames * self.interval_s)
-        while self.frame < limit and not self.exhausted():
-            if arrived is not None and arrived():
-                return
-            if time.monotonic() >= deadline:
-                return
-            if not self.wait_for_clock(self.interval_s / 4):
-                return
+        return finish_segment(
+            started=started, frame=lambda: self.frame, interval=self.interval_s,
+            for_s=for_s, realtime=self.realtime, arrived=arrived,
+            exhausted=self.exhausted, result=lambda elapsed: {"accepted": True, "elapsed_s": elapsed},
+        )
 
     def stop(self, device, measured_target):
         # Stop may hold measured soft-limit overshoot. Never project reported state.

@@ -1,17 +1,15 @@
 """Validate and latch component targets before one shared native interval."""
 
 import math
-import time
-
-from roboenv_runtime.adapters.control_wait import wait_for_clock
 
 from roboenv.devices.velocity import command as base_command
+
+from roboenv_runtime.adapters.segments import finish_segment, require_scheduler
 
 from .g1_profiles import NAMES, profiles
 
 
 class Control:
-    wait_for_clock = staticmethod(wait_for_clock)
 
     def __init__(self, native, model, *, realtime=False):
         if type(realtime) is not bool:
@@ -81,6 +79,7 @@ class Control:
         return list(target)
 
     def write(self, name, args, *, for_s=None, arrived=None):
+        require_scheduler(self.realtime, for_s)
         self.native.require_active()
         target = self.validate(name, args)
         combined = {**self.targets, name: target}
@@ -88,26 +87,11 @@ class Control:
         if not self.realtime:
             self.native.advance(combined)
         self.targets = combined
-        if self.realtime and for_s:
-            self._settle(for_s, arrived)
-        return {"accepted": True,
-                "elapsed_s": (self.native.steps - started) * self.native.control_interval}
-
-    def _settle(self, for_s, arrived):
-        """Wait out the background clock until the goal is met or the budget ends."""
-        interval = self.native.control_interval
-        frames = max(1, math.ceil(for_s / interval))
-        limit = self.native.steps + frames
-        # A stalled background clock must not hang the caller: bound the wait
-        # in wall time too, and report whatever simulated time did pass.
-        deadline = time.monotonic() + max(1.0, 4 * frames * interval)
-        while self.native.steps < limit and not self.native.done:
-            if arrived is not None and arrived():
-                return
-            if time.monotonic() >= deadline:
-                return
-            if not self.wait_for_clock(interval / 4):
-                return
+        return finish_segment(
+            started=started, frame=lambda: self.native.steps, interval=self.native.control_interval,
+            for_s=for_s, realtime=self.realtime, arrived=arrived,
+            exhausted=lambda: self.native.done, result=lambda elapsed: {"accepted": True, "elapsed_s": elapsed},
+        )
 
     def tick(self):
         """One owner-clock interval; never step a terminal episode."""

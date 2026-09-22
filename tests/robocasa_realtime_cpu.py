@@ -184,7 +184,24 @@ def check_bounded(root, temporary, realtime):
     )
     try:
         if realtime:
+            with worker.world.lock:
+                active = worker.dispatch_async("devices.call", {
+                    "device": "gripper", "action": "write",
+                    "args": {"target": [1], "for_s": 10},
+                })
+                queued = worker.dispatch_async("devices.call", {
+                    "device": "gripper", "action": "write",
+                    "args": {"target": [-1], "for_s": 10},
+                })
             wait_frames(worker, 3)
+            result = active.result(timeout=2)
+            assert result["simulation"]["terminal"], result
+            try:
+                queued.result(timeout=2)
+            except WorkerRPCError as error:
+                assert error.code == "operation_interrupted", error
+            else:
+                raise AssertionError("Terminal frame admitted a queued goal")
         else:
             for _ in range(3):
                 worker.dispatch(

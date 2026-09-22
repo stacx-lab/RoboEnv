@@ -1,5 +1,7 @@
 """Typed gripper facts; native command dimensions differ from measured joints."""
 
+from roboenv.devices.execution import map_result
+
 
 def intrinsics(robot, sim, joints):
     return {
@@ -71,7 +73,7 @@ def bind(spec, root, context):
         """
         command = np.sign(vector(target, 1, lower=[-1], upper=[1])).tolist()
         elapsed = world.step({"right_gripper": command}, for_s=for_s)
-        return {"accepted": True, "elapsed_s": elapsed, "reached": False, "state": read()}
+        return map_result(elapsed, lambda duration: {"accepted": True, "elapsed_s": duration, "reached": False, "state": read()})
 
     def stop():
         world.stop_part("right_gripper")

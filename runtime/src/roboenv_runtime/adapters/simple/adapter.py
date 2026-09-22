@@ -19,9 +19,6 @@ class SimpleAdapter(AdapterBase):
     def realtime_interval(self):
         return 0.02 if self._env.realtime else None
 
-    def set_clock_wait(self, wait):
-        self._env.control.wait_for_clock = wait
-
     def realtime_tick(self):
         self._env.control.tick()
 

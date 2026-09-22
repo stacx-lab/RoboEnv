@@ -20,5 +20,5 @@ def assemble_devices(
     context = BindingContext(world.backend, world.embodiment, world.native, dispatch, public_tools)
     return (registry or default_registry()).assemble(
         plan, root, context, manifest=manifest, execution_lock=world.lock,
-        request_lock=world.requests
+        segment_scheduler=world.schedule, resolve=world.resolve
     )

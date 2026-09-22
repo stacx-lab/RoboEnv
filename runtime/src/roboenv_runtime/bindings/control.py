@@ -1,5 +1,7 @@
 """Bounded writes for component controllers with named command arguments."""
 
+from roboenv.devices.execution import map_result
+
 
 def write_segment(world, name, *, for_s=None, arrive=None, **command):
     def arrived():
@@ -22,4 +24,4 @@ def write_segment(world, name, *, for_s=None, arrive=None, **command):
         )
 
     outcome = world.control.write(name, command, for_s=for_s, arrived=arrived)
-    return {**outcome, "reached": arrived(), "state": world.read_device(name)}
+    return map_result(outcome, lambda value: {**value, "reached": arrived(), "state": world.read_device(name)})

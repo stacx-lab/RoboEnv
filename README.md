@@ -135,6 +135,16 @@ when preparing a Kinex workspace; see the Isaac Lab guide. Realtime G1 has no
 episode time horizon; synchronous runs retain the upstream limit. Success and
 non-timeout termination conditions remain active.
 
+Device reads and recording remain available during bounded writes. Independent
+devices accept concurrent writes through `env.device(name)`; writes to the same
+physical device are ordered. Stop interrupts its declared scope and clears older
+queued writes. Individual simulator steps and consistent snapshots remain atomic.
+
+Portable persistent drivers now use correlated JSONL requests and may reply out of
+order. Refresh existing workspace drivers from the updated catalog/export, then
+reload Kinex devices. Restart simulator services you own to pick up runtime changes;
+borrowed services remain under their owner's lifecycle control.
+
 ## Export a Harbor task
 
 With a [prepared native deployment](docs/harbor-tasks.md):
