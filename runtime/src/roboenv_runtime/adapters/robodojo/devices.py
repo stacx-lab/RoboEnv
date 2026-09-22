@@ -252,8 +252,8 @@ class RoboDojoDevices(RoboDojoEnv):
         if self.physics_steps - before != self.native_interval:
             raise RuntimeError("Native control cadence changed; acceptance must be revalidated")
 
-    def device_write(self, name, target):
-        return self.control.write(name, target)
+    def device_write(self, name, target, *, for_s=None, arrived=None):
+        return self.control.write(name, target, for_s=for_s, arrived=arrived)
 
     def device_stop(self, name):
         if name.endswith("_gripper"):

@@ -159,6 +159,19 @@ checks. CLI replay and verifier coverage exercise the real worker rather than a
 second fake server. Recipe and installation checks live in `tests/test_setup.py`; test helpers live
 outside test modules so tests do not import one another. The default check still runs the complete CPU suite.
 
+Bounded-write regressions cover all seven simulator backends using CPU state and
+the real control/dispatch code. With LIBERO prepared and a built Kinex checkout,
+run the separate native smoke (Node >=22.19):
+
+```sh
+.venv/bin/python tests/libero_control_wait.py --kinex /path/to/kinex \
+  --out /tmp/libero-control-wait
+```
+
+It starts and disposes fresh services on free ports, calls Kinex `move_to` in
+realtime and synchronous modes, and records motion outcomes without model calls
+or a task-success claim. Existing services and workspaces are preserved.
+
 The SDK is organized by responsibility:
 
 ```text

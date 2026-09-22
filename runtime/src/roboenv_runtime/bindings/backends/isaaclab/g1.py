@@ -5,6 +5,7 @@ from pathlib import Path
 from roboenv.devices.velocity import command_schema
 
 from roboenv.devices.model import Action, BoundDevice
+from roboenv_runtime.bindings.control import write_segment
 from .profile import validate
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
@@ -51,12 +52,16 @@ def bind(spec, root, context):
     register("stop", lambda: control.stop(spec.name), mutation=True)
     register(
         "write",
-        lambda **args: control.write(spec.name, args),
+        lambda **args: write_segment(world, spec.name, **args),
         command_schema(control.profiles["base"]["intrinsics"]["control"])
         if spec.name == "base"
         else {
             "type": "object",
-            "properties": {"target": {"type": "array", "items": {"type": "number"}}},
+            "properties": {
+                "target": {"type": "array", "items": {"type": "number"}},
+                "for_s": {"type": "number", "exclusiveMinimum": 0},
+                "arrive": {"type": "object"},
+            },
             "required": ["target"],
             "additionalProperties": False,
         },

@@ -8,6 +8,8 @@ import contextlib
 import math
 import time
 
+from roboenv_runtime.adapters.control_wait import wait_for_clock
+
 import numpy as np
 
 DEFAULT_ROBOT = "PandaOmron"
@@ -48,6 +50,8 @@ def joint_controller_config(robot):
 
 
 class RoboCasaEnv:
+    wait_for_clock = staticmethod(wait_for_clock)
+
     def __init__(
         self,
         task_name: str = DEFAULT_TASK,
@@ -389,7 +393,8 @@ class RoboCasaEnv:
                 return
             if time.monotonic() >= deadline:
                 return
-            time.sleep(interval / 4)
+            if not self.wait_for_clock(interval / 4):
+                return
 
     def stop_part(self, part):
         controller = self._robot.part_controllers[part]

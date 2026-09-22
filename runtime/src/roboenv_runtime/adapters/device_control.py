@@ -9,8 +9,12 @@ import copy
 import math
 import time
 
+from roboenv_runtime.adapters.control_wait import wait_for_clock
+
 
 class DeviceControl:
+    wait_for_clock = staticmethod(wait_for_clock)
+
     def __init__(self, limits, targets, apply, advance, *, realtime, exhausted,
                  on_write=None, interval_s=None):
         if type(realtime) is not bool:
@@ -82,7 +86,8 @@ class DeviceControl:
                 return
             if time.monotonic() >= deadline:
                 return
-            time.sleep(self.interval_s / 4)
+            if not self.wait_for_clock(self.interval_s / 4):
+                return
 
     def stop(self, device, measured_target):
         # Stop may hold measured soft-limit overshoot. Never project reported state.

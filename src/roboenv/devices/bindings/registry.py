@@ -25,7 +25,8 @@ class BindingRegistry:
             raise ValueError(f"duplicate binding or invalid factory: {name}")
         self._factories[name] = factory
 
-    def assemble(self, plan, root, context, *, manifest=None, execution_lock=None):
+    def assemble(self, plan, root, context, *, manifest=None, execution_lock=None,
+                 request_lock=None):
         if plan.backend != context.backend:
             raise ValueError("binding backend mismatch")
         if plan.embodiment is not None and plan.embodiment != context.embodiment:
@@ -41,7 +42,8 @@ class BindingRegistry:
                 devices.append(device)
                 if device.describe().get("name") != spec.name:
                     raise ValueError("binding returned a different logical device name")
-            return DeviceService(devices, manifest=manifest, execution_lock=execution_lock)
+            return DeviceService(devices, manifest=manifest, execution_lock=execution_lock,
+                                 request_lock=request_lock)
         except BaseException:
             for device in reversed(devices):
                 try:

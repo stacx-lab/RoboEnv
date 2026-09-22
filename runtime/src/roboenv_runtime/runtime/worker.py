@@ -575,7 +575,7 @@ class SimWorker:
 
     def dispatch(self, op: str, args: Mapping[str, Any]) -> Any:
         """All public operations and native devices share the same world's lane."""
-        with self.world.lock:
+        with self.world.requests, self.world.lock:
             if self.world.failure is not None:
                 self.state = "failed"
             return self._dispatch(op, args)

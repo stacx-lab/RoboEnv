@@ -5,6 +5,8 @@ import math
 import os
 import random
 import time
+
+from roboenv_runtime.adapters.control_wait import wait_for_clock
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +19,8 @@ INITIALIZATION_FRAMES = 5
 
 
 class LiberoEnv:
+    wait_for_clock = staticmethod(wait_for_clock)
+
     def __init__(
         self,
         suite_name="libero_spatial",
@@ -206,7 +210,8 @@ class LiberoEnv:
                 return
             if time.monotonic() >= deadline:
                 return
-            time.sleep(interval / 4)
+            if not self.wait_for_clock(interval / 4):
+                return
 
     def stop_part(self, part):
         if part not in {"arm", "gripper"}:
