@@ -7,9 +7,8 @@ from pathlib import Path
 
 import numpy as np
 
-from .gait import DEFAULT, validate_command
-from .kinematics import pose
-from .tasks import CONTROL, INSTRUCTIONS, TASKS
+from .adapter import DEFAULT, pose, validate_command
+from .tasks import CONTROL, INSTRUCTIONS, PICK_PLACE, TASKS
 
 
 class Go2Env:
@@ -24,9 +23,18 @@ class Go2Env:
         cameras=True,
         task_name="go2-d1-control",
         max_steps=1500,
+        payload_mass_kg=0.08,
     ):
         if task_name not in TASKS:
             raise ValueError("Unknown Go2 task")
+        if (
+            type(payload_mass_kg) not in (int, float)
+            or not math.isfinite(payload_mass_kg)
+            or not 0 < payload_mass_kg <= 5
+        ):
+            raise ValueError("Payload mass must be finite and in (0, 5] kg")
+        if task_name != PICK_PLACE and payload_mass_kg != 0.08:
+            raise ValueError("Payload mass applies only to pick-and-place")
         if type(realtime) is not bool or type(cameras) is not bool:
             raise ValueError("realtime and cameras must be booleans")
         if command_timeout_s is not None and (
@@ -46,7 +54,11 @@ class Go2Env:
         self.command_timeout_s = command_timeout_s
         self.max_steps = None if realtime and task_name == CONTROL else max_steps
         self.native = Native(
-            repo_root() / asset_manifest, device=device, cameras=cameras, task_name=task_name
+            repo_root() / asset_manifest,
+            device=device,
+            cameras=cameras,
+            task_name=task_name,
+            payload_mass_kg=float(payload_mass_kg),
         )
         from .profiles import profiles
 
@@ -68,7 +80,9 @@ class Go2Env:
 
     @property
     def instruction(self):
-        return INSTRUCTIONS[self.task_name]
+        return INSTRUCTIONS[self.task_name].replace(
+            "80 g", f"{self.native.payload_mass_kg * 1000:g} g"
+        )
 
     def reset(self, seed):
         self.native.reset(seed)
@@ -117,6 +131,15 @@ class Go2Env:
         if not self.realtime:
             self.advance()
         return {"accepted": True}
+
+    def set_posture_feedback(self, enabled):
+        """Owner-only ablation switch, journaled for exact command replay."""
+        if type(enabled) is not bool:
+            raise ValueError("Posture feedback switch must be boolean")
+        if self.done:
+            raise ValueError("Episode terminated")
+        self.native.posture_feedback = enabled
+        self.events.append({"frame": self.steps, "op": "posture_feedback", "enabled": enabled})
 
     def stop(self, name, reason="requested"):
         if name not in self.targets:
@@ -189,17 +212,15 @@ class Go2Env:
     def source_identity():
         import hashlib
 
-        from . import gait, kinematics, native, profiles, task_scene, tasks
+        from . import adapter, native, profiles, tasks
 
         sources = {
             Path(p).name: hashlib.sha256(Path(p).read_bytes()).hexdigest()
             for p in (
-                gait.__file__,
+                adapter.__file__,
                 native.__file__,
-                kinematics.__file__,
                 profiles.__file__,
                 tasks.__file__,
-                task_scene.__file__,
                 __file__,
             )
         }
@@ -216,6 +237,7 @@ class Go2Env:
             "sources": self.implementation,
             "seed": self.native.seed,
             "task_name": self.task_name,
+            "payload_mass_kg": self.native.payload_mass_kg,
             "task_definition": self.native.task.spec,
             "realtime": self.realtime,
             "max_steps": self.max_steps,

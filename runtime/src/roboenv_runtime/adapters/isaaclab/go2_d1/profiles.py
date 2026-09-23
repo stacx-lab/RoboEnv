@@ -1,10 +1,11 @@
 """Portable Go2–D1 device facts from the prepared robot description."""
 
 import math
+
 import numpy as np
+
 from ..g1_cameras import profile as camera_profile
-from .gait import BOUNDS, DEFAULT
-from .kinematics import matrix_quat, pose
+from .adapter import BOUNDS, DEFAULT, matrix_quat, pose
 
 META = {"source": "introspected", "method": "introspection", "calibrated_at": None}
 IDENTITY = [0, 0, 0, 0, 0, 0, 1]

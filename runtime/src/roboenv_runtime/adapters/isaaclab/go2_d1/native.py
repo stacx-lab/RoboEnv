@@ -9,8 +9,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .gait import DEFAULT, LEG_NAMES, Trot
-from .kinematics import RobotModel, matrix_quat, quat_matrix
+from .adapter import DEFAULT, LEG_NAMES, RobotModel, Trot, matrix_quat, quat_matrix
 from .tasks import PICK_PLACE
 
 
@@ -18,7 +17,14 @@ class Native:
     dt = 0.005
     interval = 0.02
 
-    def __init__(self, asset_manifest, device="cuda:0", cameras=True, task_name="go2-d1-control"):
+    def __init__(
+        self,
+        asset_manifest,
+        device="cuda:0",
+        cameras=True,
+        task_name="go2-d1-control",
+        payload_mass_kg=0.08,
+    ):
         manifest = Path(asset_manifest).resolve()
         facts = json.loads(manifest.read_text())
         if facts.get("schema") != "roboenv/go2-d1-assets/1":
@@ -31,6 +37,7 @@ class Native:
             ):
                 raise ValueError(f"Changed or missing Go2–D1 asset: {name}")
         self.task_name = task_name
+        self.payload_mass_kg = payload_mass_kg
         self.asset_manifest = manifest
         self.asset_sha = hashlib.sha256(manifest.read_bytes()).hexdigest()
         self.model = RobotModel(manifest.parent / "robot.urdf")
@@ -112,7 +119,7 @@ class Native:
                 ),
                 "fingers": ImplicitActuatorCfg(
                     joint_names_expr=["d1_Joint7_.*"],
-                    stiffness=500.0,
+                    stiffness=1000.0,
                     damping=10.0,
                     effort_limit_sim=40.0,
                     velocity_limit_sim=0.1,
@@ -120,7 +127,7 @@ class Native:
             },
         )
         self.robot = Articulation(cfg)
-        from .task_scene import TaskScene
+        from .tasks import TaskScene
 
         self.scene = TaskScene(self, self.task_name)
         if cameras:
@@ -164,6 +171,7 @@ class Native:
     def reset(self, seed):
         self.seed = seed
         self.gait = Trot(self.support_center)
+        self.posture_feedback = True
         self.steps = 0
         self.done = False
         self.arm_target = np.array([self.home[n] for n in self.model.arm_names])
@@ -194,9 +202,9 @@ class Native:
             legs = self.gait.targets(
                 np.array(base),
                 self.dt,
-                measured,
+                measured if self.posture_feedback else None,
                 [velocity[0], velocity[1], angular[2]],
-                [(r @ velocity)[2], angular[0], angular[1]],
+                [(r @ velocity)[2], angular[0], angular[1]] if self.posture_feedback else None,
             )
             values = dict(zip(LEG_NAMES, legs, strict=True))
             values.update(zip(self.model.arm_names, arm, strict=True))
@@ -262,6 +270,7 @@ class Native:
             "joints": self.joints(),
             "velocities": self.array(self.robot.data.joint_vel).tolist(),
             "gait": self.gait.state(),
+            "posture_feedback": self.posture_feedback,
             "steps": self.steps,
             "done": self.done,
             **self.scene.snapshot(),
