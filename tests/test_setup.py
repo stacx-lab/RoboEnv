@@ -12,6 +12,33 @@ from roboenv.provisioning.assets import create, inventory, verify
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_isaaclab_cloudxr_is_opt_in(monkeypatch):
+    import runpy
+    import sys
+    from types import ModuleType
+
+    import tomllib
+    from packaging.requirements import Requirement
+
+    package = ROOT / "third_party/IsaacLab/source/isaaclab_teleop"
+    if not (package / "setup.py").exists():
+        pytest.skip("Isaac Lab source is not initialized")
+    metadata = {}
+    setuptools = ModuleType("setuptools")
+    setuptools.setup = lambda **kwargs: metadata.update(kwargs)
+    setuptools.find_packages = lambda: []
+    toml = ModuleType("toml")
+    toml.load = lambda path: tomllib.loads(Path(path).read_text())
+    monkeypatch.setitem(sys.modules, "setuptools", setuptools)
+    monkeypatch.setitem(sys.modules, "toml", toml)
+    runpy.run_path(str(package / "setup.py"))
+    required = [Requirement(value) for value in metadata["install_requires"]]
+    teleop = next(value for value in required if value.name == "isaacteleop")
+    assert teleop.extras == {"retargeters", "ui"}
+    optional = [Requirement(value) for value in metadata["extras_require"]["cloudxr"]]
+    assert any(value.name == "isaacteleop" and "cloudxr" in value.extras for value in optional)
+
+
 def test_robocasa_uses_resolved_lock():
     recipe = json.loads((ROOT / "runtime/environments.json").read_text())["backends"]["robocasa"]
     assert recipe["lock"] == "runtime/locks/robocasa-resolved.txt"
