@@ -31,7 +31,7 @@ def robot_subset(directory):
 
 def replay(directory):
     directory.mkdir(parents=True, exist_ok=True)
-    adapter = LiberoAdapter(enable_render=False, realtime=True, max_steps=605)
+    adapter = LiberoAdapter(enable_render=False, max_steps=605)
     try:
         adapter.reset(0)
         world = adapter._env
@@ -60,52 +60,42 @@ def replay(directory):
 def check(directory):
     directory.mkdir(parents=True, exist_ok=True)
     robot = robot_subset(directory)
-    for realtime in (True, False):
-        adapter = LiberoAdapter(enable_render=False, realtime=realtime, max_steps=10)
-        worker = SimWorker(
-            adapter,
-            task_id="libero-clock-probe",
-            seed=0,
-            run_dir=directory / str(realtime),
-            device_root=robot,
-        )
+    adapter = LiberoAdapter(enable_render=False, max_steps=10)
+    worker = SimWorker(
+        adapter,
+        task_id="libero-clock-probe",
+        seed=0,
+        run_dir=directory / "sync",
+        device_root=robot,
+    )
+    try:
+
+        def call(action, worker=worker, **args):
+            return worker.dispatch(
+                "devices.call", {"device": "arm", "action": action, "args": args}
+            )["data"]
+
+        state = adapter._env.sim.get_state().flatten().copy()
+        for _ in range(4):
+            call("read")
+        assert np.array_equal(state, adapter._env.sim.get_state().flatten())
+        while adapter.budget().used < 10:
+            call("write", actions=[call("read")["positions"]], freq_hz=20)
+        assert adapter.budget().used == 10
+        time.sleep(0.1)
+        assert adapter.budget().used == 10
         try:
-
-            def call(action, worker=worker, **args):
-                return worker.dispatch(
-                    "devices.call", {"device": "arm", "action": action, "args": args}
-                )["data"]
-
-            if realtime:
-                deadline = time.monotonic() + 10
-                while adapter.budget().used < 10:
-                    assert time.monotonic() < deadline
-                    worker.world.poll()
-                    time.sleep(0.02)
-            else:
-                state = adapter._env.sim.get_state().flatten().copy()
-                time.sleep(0.1)
-                for _ in range(4):
-                    call("read")
-                assert np.array_equal(state, adapter._env.sim.get_state().flatten())
-                while adapter.budget().used < 10:
-                    call("write", target=call("read")["positions"])
-            assert adapter.budget().used == 10
-            time.sleep(0.1)
-            assert adapter.budget().used == 10
-            try:
-                call("write", target=call("read")["positions"])
-            except WorkerRPCError:
-                pass
-            else:
-                raise AssertionError("Budget allowed extra physics")
-            final = worker.submit()
-            assert final == worker.submit()
-            time.sleep(0.1)
-            assert adapter.budget().used == 10
-        finally:
-            worker.close()
-        assert worker.world._thread is None
+            call("write", actions=[call("read")["positions"]], freq_hz=20)
+        except WorkerRPCError:
+            pass
+        else:
+            raise AssertionError("Budget allowed extra physics")
+        final = worker.submit()
+        assert final == worker.submit()
+        time.sleep(0.1)
+        assert adapter.budget().used == 10
+    finally:
+        worker.close()
     for index in (0, 1):
         result = subprocess.run(
             [sys.executable, __file__, "--replay", "--out", str(directory / f"replay-{index}")],

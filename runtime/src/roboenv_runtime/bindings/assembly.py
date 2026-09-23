@@ -17,8 +17,15 @@ def assemble_devices(
     manifest = json.loads(Path(manifest_path).read_text()) if manifest_path else {}
     manifest["binding_contract"] = BINDING_CONTRACT
     manifest["binding_mode"] = "explicit"
-    context = BindingContext(world.backend, world.embodiment, world.native, dispatch, public_tools)
+    manifest["execution_mode"] = world.mode
+    context = BindingContext(world.backend, world.embodiment, world.native, dispatch, public_tools, execution_mode=world.mode)
     return (registry or default_registry()).assemble(
-        plan, root, context, manifest=manifest, execution_lock=world.lock,
-        segment_scheduler=world.schedule, resolve=world.resolve
+        plan,
+        root,
+        context,
+        manifest=manifest,
+        execution_lock=world.lock,
+        motion_scheduler=world.schedule,
+        resolve=world.resolve,
+        flush=world.poll_motions,
     )

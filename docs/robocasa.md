@@ -54,7 +54,7 @@ shared worker. Its [backend](../runtime/src/roboenv_runtime/adapters/robocasa/ba
 creates one `robosuite` environment and configures its controllers. The
 [binding factories](../runtime/src/roboenv_runtime/bindings/backends/robocasa/__init__.py)
 attach selected joint, velocity, gripper, camera and world endpoints to that environment.
-The shared `WorldSession` schedules realtime ticks and serializes them with device
+The shared `WorldSession` advances pending commands and serializes them with device
 operations and finalization. Drivers neither own physics nor start another world.
 
 The backend still contains private scene-inspection helpers, and adapter `observe`
@@ -79,8 +79,7 @@ these do not reset or close the world.
 | `world` | `world` | Profile only; reference frame and open workspace bounds |
 
 Actuators implement `write` and `stop`. Arm/torso targets follow
-`intrinsics.model.joints` order and replace the active goal. Repeated targets continue
-motion without restarting interpolation. Their native joint-position controllers
+`intrinsics.model.joints` order and replace the active goal. Joint write streams complete action vectors without planning or arrival waits. Their native joint-position controllers
 use torque control. Base and gripper commands persist until replaced or stopped;
 writing one device preserves all other goals.
 
@@ -90,64 +89,17 @@ uses the normal `robosuite` step, preserving physics, observables, and task hook
 It replaces the composite goal update for that call so arm/lift goals persist and
 base/gripper inputs are refreshed, then restores the hook even on failure.
 
-A successful write returns `accepted: true`, never arrival. `stop` holds the
-arm/torso/gripper or requests zero base velocity. It neither teleports joints nor
-pauses realtime physics; an in-flight synchronous interval finishes before stop.
-Actuator reads include faults and simulation acquisition `sample_time_s`. Camera
-acquisition timestamps use Unix seconds, as required by Kinex. Reads do not step.
-
-Choose the clock at launch; these mutually exclusive flags override the task YAML
-for this run without changing the catalog:
+Joint write returns `completed_actions`, `elapsed_s` and measured `state`.
+Set returns `reached`, `elapsed_s` and `state`. Stop holds arm/torso/gripper or
+requests zero base velocity without stepping. Reads include faults and acquisition
+timestamps. Only active commands advance the synchronous world.
 
 ```sh
-roboenv launch robocasa/pick-place-microwave --realtime
-roboenv launch robocasa/pick-place-microwave --sync
+roboenv launch robocasa/pick-place-microwave
 ```
 
-Without either flag, launch uses the task's `backend_kwargs.realtime`. Checked-in
-and discovered RoboCasa tasks explicitly set `realtime: true`. Python owners can
-pass `realtime=True` or `realtime=False` to `roboenv.launch`; `None` uses the task
-setting. Clock override support is backend-specific; unsupported overrides fail
-explicitly.
-
-To change the task default before launch:
-
-```yaml
-backend_kwargs:
-  task_name: PickPlaceCounterToMicrowave
-  realtime: false  # true is the default
-```
-
-| Mode | Write and time behavior |
-|---|---|
-| Realtime | Return after accepting the goal; background physics continues while the agent thinks. |
-| Synchronous | Update the goal, advance the whole world by one native control interval, then return and pause. |
-
-The service owns the control period, normally 0.05 simulated seconds, and never
-declares it: a write reports `elapsed_s`, the simulated time that call was worth,
-so a caller measures a task in the world's clock rather than in calls.
-`intrinsics.control.execution` carries only `command_timeout_s` — null to retain
-commands until replaced or stopped. Reads, recording, status, local IK/FK and
-stop never request advancement. Kinex's `move_to`, `drive` and `track` run the
-same loop in both modes, differing only in how many rounds it takes.
-
-Both modes count `action_frames`. The default `max_steps: null` is unbounded;
-a positive `max_steps` sets a hard native control-step limit. Set
-`stop_on_success: true` to freeze on native success, including success on the last
-allowed step. After termination, reads and status remain available but writes fail
-with `episode_finished`. Original task success rules remain.
-
-`roboenv status --json` uses `ROBOENV_ENDPOINT` when no run is supplied and reports
-simulation state and budget without success or failure metrics, including after
-termination. Device responses and terminal errors also omit the judgment.
-Launch with `--allow-stop` to let the assigned agent call `roboenv stop --json`;
-this seals and returns the final verdict, releases the worker, and retains an
-immutable receipt. The local owner can always stop and close its run.
-`--runtime-root` and `--run-dir` support packaged deployments without mounting a
-source checkout. Private evidence includes `terminal.json` and the action journal.
-Submission atomically freezes the terminal state. Realtime pacing is best effort:
-slow simulation or camera requests can cause lag, but physics steps are not skipped.
-Replaying commands without their simulation-frame timing does not reproduce a run.
+See [the common execution contract](../DESIGN.md#one-world-one-execution-authority)
+for schemas, timing, cancellation and native controller support.
 
 ## Catalog and generation
 
@@ -233,7 +185,7 @@ least-squares solver may fail to converge; it does not validate a motion path.
 
 ```sh
 python3 driver.py fk '{"joints": [0, 0, 0, -2, 0, 2, 0.7]}'
-python3 driver.py write '{"target": [0, 0, 0, -2, 0, 2, 0.7]}'
+python3 driver.py write '{"actions": [[0, 0, 0, -2, 0, 2, 0.7]], "freq_hz": 20}'
 ```
 
 ### Joint limits and recovery
@@ -335,6 +287,6 @@ Owner bindings are explicit: `robocasa.joint/1` (configured native arm/lift part
 `robocasa.velocity/1`, `robocasa.gripper/1`, `robocasa.camera/1`, and `robocasa.world/1`.
 They share one world and expose individual read/write/stop operations.
 Kinex devices() submits mixed reads and writes concurrently. Each write in a stepped
-world advances its own interval; realtime writes replace that device's goal. Native
+world advances pending commands through shared native intervals. Native
 world access remains serialized. The operator ensures enabled devices do not overlap;
 there is no group coordinator or automatic controller switching.

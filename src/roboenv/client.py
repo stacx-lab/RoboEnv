@@ -24,8 +24,19 @@ PROTOCOL = "roboenv/1"
 MAX_BYTES = 8 * 1024 * 1024
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:@+-]{0,127}")
 PUBLIC_OPS = (
-    frozenset({"health", "api", "observe", "call", "score.peek", "capture",
-               "simulation.status", "simulation.stop"}) | SERVICE_OPS
+    frozenset(
+        {
+            "health",
+            "api",
+            "observe",
+            "call",
+            "score.peek",
+            "capture",
+            "simulation.status",
+            "simulation.stop",
+        }
+    )
+    | SERVICE_OPS
 )
 
 
@@ -274,10 +285,10 @@ class Device:
     def read(self, **kwargs):
         return self.call("read", kwargs)
 
-    def write(self, target, *, timeout=600.0, request_id=None, **kwargs):
-        return self.call(
-            "write", {"target": target, **kwargs}, timeout=timeout, request_id=request_id
-        )
+    def write(self, values, *, freq_hz=None, timeout=600.0, request_id=None, **kwargs):
+        """Stream joint actions at freq_hz, or write a non-joint target."""
+        args = {"target": values} if freq_hz is None else {"actions": values, "freq_hz": freq_hz}
+        return self.call("write", {**args, **kwargs}, timeout=timeout, request_id=request_id)
 
     def stop(self):
         return self.call("stop")

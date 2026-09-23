@@ -5,7 +5,6 @@ robot: simple/simple-g1
 instruction: A task where the G1 robot must move forward to pick up an object .
 backend_kwargs:
   env_id: simple/G1WholebodyXMovePickTeleop-v0
-  realtime: true
   sim_mode: mujoco_isaac
   dr_level: 0
   arm_gravity_compensation: true
@@ -13,3 +12,4 @@ seed: 0
 budget_mode: practice
 action_abstraction: devices
 device_bindings: null
+execution_mode: stepped

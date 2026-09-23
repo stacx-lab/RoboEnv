@@ -1,168 +1,132 @@
-"""World ownership and a shared execution lane, independent of device types.
+"""One native owner and shared stepped or realtime execution."""
 
-The existing simulator adapter is retained as the native backend during the
-migration. Devices do not own reset/close, and this object does not own scoring.
-"""
-
-import math
 import threading
 import time
 from concurrent.futures import Future
-from typing import Protocol
 
 from roboenv.devices.model import DeviceError
 
 
-class World(Protocol):
-    backend: str
-    embodiment: str
-
-    def reset(self, seed: int) -> None: ...
-
-    def close(self) -> None: ...
-
-
 class WorldSession:
-    def __init__(self, native):
+    def __init__(self, native, mode="stepped"):
+        if mode not in {"stepped", "realtime"}:
+            raise ValueError("execution mode must be stepped or realtime")
+        self.mode = mode
+        self.next_tick = time.monotonic()
+        self.lag_s = 0.0
         self.native = native
-        self.backend = native.name
-        self.embodiment = native.embodiment
+        self.backend, self.embodiment = native.name, native.embodiment
         self.lock = threading.RLock()
         self.epoch = 0
         self._closed = False
-        self._halt = threading.Event()
-        self._thread = None
-        self.main_thread_clock = bool(getattr(native, "realtime_on_main_thread", False))
-        self._interval = None
-        self._deadline = None
-        self._owner_thread = threading.get_ident() if self.main_thread_clock else None
-        self._segments = []
+        self._frozen = False
+        self.owner_thread_required = bool(getattr(native, "owner_thread_required", False))
+        self._owner_thread = threading.get_ident()
+        self._motions = []
         self.failure = None
 
-    def schedule(self, complete, snapshot, cancel):
-        """Register a bounded result; callbacks only touch native state under lock."""
+    def _check_thread(self):
+        if self.owner_thread_required and threading.get_ident() != self._owner_thread:
+            raise RuntimeError("native operations must run on their creating thread")
+
+    def schedule(self, motion, cancel):
+        self._check_thread()
         future = Future()
-        self._segments.append((future, complete, snapshot, cancel))
-        self.poll_segments()
+        with self.lock:
+            if self._closed or self._frozen or self.failure:
+                raise DeviceError("episode_finished", "world is frozen")
+            self._resume((future, motion, cancel))
         return future
 
-    def poll_segments(self):
+    def _resume(self, job, *, error=None):
+        future, motion, cancel = job
+        try:
+            if cancel.is_set():
+                error = DeviceError("operation_interrupted", "device motion interrupted by stop")
+            if error is not None:
+                motion.throw(error)
+            else:
+                next(motion)
+            self._motions.append(job)
+        except StopIteration as done:
+            future.set_result(done.value)
+        except BaseException as exc:
+            future.set_exception(exc)
+
+    def poll_motions(self):
+        """Cancel pending work without requesting another physics step."""
+        self._check_thread()
         with self.lock:
-            # Callbacks may admit the next queued write and append another job.
-            pending, self._segments = self._segments, []
-            for future, complete, snapshot, cancel in pending:
-                try:
-                    if cancel.is_set():
-                        raise DeviceError("operation_interrupted", "device write interrupted by stop")
-                    if self.failure is not None:
-                        raise RuntimeError("world clock failed") from self.failure
-                    if self._halt.is_set() or complete():
-                        future.set_result(snapshot())
-                    else:
-                        self._segments.append((future, complete, snapshot, cancel))
-                except Exception as error:
-                    future.set_exception(error)
+            pending, self._motions = self._motions, []
+            for job in pending:
+                if job[2].is_set() or self._frozen or self.failure:
+                    self._resume(
+                        job, error=DeviceError("operation_interrupted", "world execution ended")
+                    )
+                else:
+                    self._motions.append(job)
+
+    @property
+    def pending(self):
+        return bool(self._motions)
+
+    def advance(self):
+        self._check_thread()
+        with self.lock:
+            self.poll_motions()
+            if self._closed or self._frozen or self.failure:
+                return
+            if self.mode == "stepped" and not self._motions:
+                return
+            if self.mode == "realtime":
+                now = time.monotonic()
+                if now < self.next_tick:
+                    return
+                self.lag_s = max(0.0, now - self.next_tick)
+                self.next_tick += self.native.control_interval_s
+            pending, self._motions = self._motions, []
+            error = None
+            try:
+                if self.native.budget().exhausted:
+                    raise DeviceError("episode_finished", "native episode budget exhausted")
+                self.native.advance_control()
+            except Exception as exc:
+                self.failure = error = exc
+            for job in pending:
+                self._resume(job, error=error)
+            self.poll_motions()
 
     def resolve(self, value):
         if not isinstance(value, Future):
             return value
-        # Direct owner-thread callers have no outer service loop to poll for them.
-        if self.main_thread_clock and threading.get_ident() == self._owner_thread:
-            while not value.done():
-                self.poll()
-                self.poll_segments()
-                if not value.done():
-                    time.sleep(min(self.poll_interval, 0.005))
+        while not value.done():
+            self.advance()
+            if self.mode == "realtime" and not value.done():
+                time.sleep(min(0.01, max(0, self.next_tick - time.monotonic())))
         return value.result()
 
-    @property
-    def poll_interval(self):
-        return min(0.2, self._interval) if self.main_thread_clock and self._interval else 0.2
-
-    def start(self):
-        """Start an adapter's optional wall-clock-paced simulation after binding."""
-        interval = getattr(self.native, "realtime_interval", None)
-        if interval is None:
-            return
-        if not math.isfinite(interval) or interval <= 0:
-            raise ValueError("realtime interval must be positive")
-        with self.lock:
-            if self._closed or self._interval is not None:
-                raise RuntimeError("world cannot be started twice")
-            self._interval = interval
-            if self.main_thread_clock:
-                self._owner_thread = threading.get_ident()
-                self._deadline = time.monotonic() + interval
-                return
-            self._thread = threading.Thread(
-                target=self._run, args=(interval,), name="roboenv-world", daemon=True
-            )
-            self._thread.start()
-
-    def _run(self, interval):
-        deadline = time.monotonic() + interval
-        while not self._halt.wait(max(0, deadline - time.monotonic())):
-            self._tick()
-            # Best effort 1x speed. A slow simulator never skips physics or
-            # runs an unbounded catch-up burst after a slow device read.
-            deadline = max(deadline + interval, time.monotonic())
-
-    def poll(self):
-        """Service a thread-affine native clock from the worker's execution lane."""
-        if not self.main_thread_clock or self._deadline is None or self._halt.is_set():
-            return
-        if threading.get_ident() != self._owner_thread:
-            raise RuntimeError("native clock must run on its creating thread")
-        if time.monotonic() < self._deadline:
-            return
-        self._tick()
-        self._deadline = max(self._deadline + self._interval, time.monotonic())
-
-    def _tick(self):
-        with self.lock:
-            if self._halt.is_set():
-                return
-            try:
-                if self.native.budget().exhausted:
-                    self._halt.set()
-                    return
-                self.native.realtime_tick()
-            except Exception as exc:
-                # Publish failure before releasing the state lock so submit
-                # cannot seal a partially advanced, failed physics frame.
-                self.failure = exc
-                self._halt.set()
-            finally:
-                self.poll_segments()
-
     def freeze(self):
-        """Linearize the terminal snapshot with ticks; safe while holding lock."""
         with self.lock:
-            self._halt.set()
-
-    def stop_clock(self):
-        self.freeze()
-        self.poll_segments()
-        if self._thread is not None:
-            self._thread.join()
+            self._frozen = True
 
     def reset(self, seed):
+        self._check_thread()
         with self.lock:
             if self._closed:
                 raise RuntimeError("world is closed")
-            active_main_clock = self.main_thread_clock and self._interval is not None
-            if active_main_clock and threading.get_ident() != self._owner_thread:
-                raise RuntimeError("native reset must run on its creating thread")
+            self.freeze()
+            self.poll_motions()
             self.native.reset(seed)
             self.epoch += 1
-            if active_main_clock:
-                self.failure = None
-                self._halt.clear()
-                self._deadline = time.monotonic() + self._interval
+            self._frozen = False
+            self.failure = None
+            self.next_tick = time.monotonic()
 
     def close(self):
-        self.stop_clock()
+        self._check_thread()
         with self.lock:
+            self.freeze()
+            self.poll_motions()
             if not self._closed:
                 self._closed = True
                 self.native.close()

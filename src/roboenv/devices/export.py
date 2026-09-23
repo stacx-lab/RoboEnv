@@ -92,6 +92,21 @@ def write_shared_driver(directory):
 
 
 def driver_access(kind, name, actions, endpoint, *, timeout_s=None):
+    actions = list(actions)
+    order = [
+        "read",
+        "write",
+        "stop",
+        "load",
+        "unload",
+        "status",
+        "fk",
+        "ik",
+    ]
+    if kind in {"joint", "dexterous_hand", "gripper", "suction"}:
+        actions.sort(
+            key=lambda action: (order.index(action) if action in order else len(order), action)
+        )
     driver = {
         "entry": "driver.py",
         "persistent": True,

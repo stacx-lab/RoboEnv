@@ -4,16 +4,12 @@ import math
 
 from roboenv.devices.velocity import command as base_command
 
-from roboenv_runtime.adapters.segments import finish_segment, require_scheduler
 
 from .g1_profiles import NAMES, profiles
 
 
 class Control:
-
-    def __init__(self, native, model, *, realtime=False):
-        if type(realtime) is not bool:
-            raise ValueError("realtime must be a boolean")
+    def __init__(self, native, model):
         control = model["control"]
         if (
             control["mode"] != "motion"
@@ -46,7 +42,6 @@ class Control:
         )
         self.native = native
         self.model = model
-        self.realtime = realtime
         self.profiles = profiles({**model, "control": control})
         self.targets = {"base": [0, 0, 0, height]}
         for name in NAMES[1:]:
@@ -78,20 +73,12 @@ class Control:
                 raise ValueError("Target exceeds limits")
         return list(target)
 
-    def write(self, name, args, *, for_s=None, arrived=None):
-        require_scheduler(self.realtime, for_s)
+    def write(self, name, args):
         self.native.require_active()
         target = self.validate(name, args)
         combined = {**self.targets, name: target}
-        started = self.native.steps
-        if not self.realtime:
-            self.native.advance(combined)
         self.targets = combined
-        return finish_segment(
-            started=started, frame=lambda: self.native.steps, interval=self.native.control_interval,
-            for_s=for_s, realtime=self.realtime, arrived=arrived,
-            exhausted=lambda: self.native.done, result=lambda elapsed: {"accepted": True, "elapsed_s": elapsed},
-        )
+        return {"accepted": True, "elapsed_s": 0.0}
 
     def tick(self):
         """One owner-clock interval; never step a terminal episode."""

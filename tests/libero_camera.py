@@ -24,7 +24,7 @@ def matrix(pose):
 
 
 def check(directory):
-    adapter = LiberoAdapter(enable_render=True, realtime=True)
+    adapter = LiberoAdapter(enable_render=True)
     try:
         adapter.reset(0)
         world = adapter._env

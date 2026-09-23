@@ -25,6 +25,7 @@ class ResolvedTask:
         return {
             "id": self.task.backend_task,
             "adapter": self.task.backend,
+            "execution_mode": self.task.execution_mode,
             "adapter_kwargs": self.task.backend_kwargs,
             "text": self.task.instruction,
             "seeds": [self.task.seed],
@@ -32,8 +33,7 @@ class ResolvedTask:
         }
 
 
-def resolve_task(reference, *, project=None, catalog=None, realtime=None,
-                 arm_gravity_compensation=None):
+def resolve_task(reference, *, project=None, catalog=None, arm_gravity_compensation=None):
     catalog = Path(catalog).resolve() if catalog else project_root(project) / "catalog"
     path = Path(reference)
     if not path.is_file():
@@ -54,28 +54,21 @@ def resolve_task(reference, *, project=None, catalog=None, realtime=None,
             raise ValueError("arm_gravity_compensation must be a boolean")
         if task.backend != "simple":
             raise ValueError("Arm gravity compensation selection is supported only for SIMPLE")
-        task = replace(task, backend_kwargs={
-            **task.backend_kwargs, "arm_gravity_compensation": arm_gravity_compensation,
-        })
+        task = replace(
+            task,
+            backend_kwargs={
+                **task.backend_kwargs,
+                "arm_gravity_compensation": arm_gravity_compensation,
+            },
+        )
     if task.backend == "simple":
-        task = replace(task, backend_kwargs={
-            "arm_gravity_compensation": True, **task.backend_kwargs,
-        })
-    if realtime is not None:
-        if type(realtime) is not bool:
-            raise ValueError("realtime must be a boolean")
-        selectable = task.backend in {
-            "robocasa",
-            "libero",
-            "robotwin",
-            "robodojo",
-            "behavior",
-            "isaaclab",
-            "simple",
-        }
-        if not selectable:
-            raise ValueError(f"Clock selection is not supported for {task.backend}")
-        task = replace(task, backend_kwargs={**task.backend_kwargs, "realtime": realtime})
+        task = replace(
+            task,
+            backend_kwargs={
+                "arm_gravity_compensation": True,
+                **task.backend_kwargs,
+            },
+        )
     robot = catalog / "robots" / task.robot
     if robot.is_symlink() or not robot.resolve().is_relative_to(catalog):
         raise ValueError("robot definition must remain inside the source catalog")

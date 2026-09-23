@@ -17,7 +17,7 @@ def test_replay_persists_result_before_native_shutdown_exits(monkeypatch, tmp_pa
         initialization={"requested_seed": 0},
         initial_state=state,
         owner_state=lambda: {"pose": [1.0]} if mismatch else state,
-        control=SimpleNamespace(frame=0, targets={"arm": [0.0]}, realtime=False),
+        control=SimpleNamespace(frame=0, targets={"arm": [0.0]}),
         task_completed=lambda: False,
     )
 

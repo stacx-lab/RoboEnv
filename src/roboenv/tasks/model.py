@@ -7,9 +7,18 @@ from pathlib import Path
 
 from roboenv.validation import json_value, yaml_load
 
-DEVICE_BACKENDS = frozenset({
-    "libero", "robocasa", "isaaclab", "robotwin", "robodojo", "behavior", "simple",
-})
+DEVICE_BACKENDS = frozenset(
+    {
+        "libero",
+        "robocasa",
+        "isaaclab",
+        "robotwin",
+        "robodojo",
+        "behavior",
+        "simple",
+    }
+)
+
 
 @dataclass(frozen=True)
 class Task:
@@ -23,12 +32,18 @@ class Task:
     budget_mode: str = "official"
     action_abstraction: str = "cartesian-primitives"
     device_bindings: dict | None = None
+    execution_mode: str = "stepped"
 
     @classmethod
     def load(cls, path):
         with Path(path).open() as stream:
             value = yaml_load(stream)
-        return cls.from_dict(value)
+        task = cls.from_dict(value)
+        if "execution_mode" not in value:
+            raise ValueError(
+                "task catalog entries must declare execution_mode: stepped or realtime"
+            )
+        return task
 
     @classmethod
     def from_dict(cls, value):
@@ -66,8 +81,10 @@ class Task:
         if "stop_on_success" in task.backend_kwargs:
             if type(task.backend_kwargs["stop_on_success"]) is not bool:
                 raise ValueError("stop_on_success must be a boolean")
-        if "realtime" in task.backend_kwargs and type(task.backend_kwargs["realtime"]) is not bool:
-            raise ValueError("realtime must be a boolean")
+        if "realtime" in task.backend_kwargs:
+            raise ValueError(
+                "backend_kwargs.realtime is not supported; use execution_mode: stepped or realtime"
+            )
         if "arm_gravity_compensation" in task.backend_kwargs:
             if type(task.backend_kwargs["arm_gravity_compensation"]) is not bool:
                 raise ValueError("arm_gravity_compensation must be a boolean")
@@ -88,6 +105,8 @@ class Task:
             "symbolic-primitives",
         }:
             raise ValueError("unknown control abstraction")
+        if task.execution_mode not in ("stepped", "realtime"):
+            raise ValueError("execution_mode must be stepped or realtime")
         if task.budget_mode not in {"official", "practice"}:
             raise ValueError("budget_mode must be official or explicit practice")
         for name in ("id", "backend", "backend_task", "robot"):

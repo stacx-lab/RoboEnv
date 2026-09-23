@@ -4,7 +4,9 @@ from concurrent.futures import Future
 from contextlib import contextmanager
 from contextvars import ContextVar
 
-_scheduler = ContextVar("device_segment_scheduler", default=None)
+request_identity = ContextVar("device_request_identity", default=None)
+
+_scheduler = ContextVar("device_motion_scheduler", default=None)
 
 
 @contextmanager
@@ -16,7 +18,7 @@ def scheduling(schedule):
         _scheduler.reset(token)
 
 
-def segment_scheduler():
+def motion_scheduler():
     return _scheduler.get()
 
 

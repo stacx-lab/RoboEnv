@@ -1,7 +1,8 @@
 """Chassis facts and measured spatial velocity for the native Omron controller."""
 
+from roboenv_runtime.bindings.motion import control_binding
+
 import numpy as np
-from roboenv.devices.execution import map_result
 
 
 def intrinsics(world, pose_frame="world"):
@@ -54,6 +55,7 @@ def reading(model, data, body):
     }
 
 
+@control_binding
 def bind(spec, root, context):
     from roboenv.devices.velocity import command, command_schema
 
@@ -78,13 +80,9 @@ def bind(spec, root, context):
         A base has no goal to arrive at, so it never reports reached: the caller's
         budget is what ends the segment.
         """
-        for_s = args.pop("for_s", None)
-        args.pop("arrive", None)
         value = command(facts["control"], args)
-        elapsed = world.step({"base": [value["velocity"][axis] for axis in ("vx", "vy", "wz")]},
-                             for_s=for_s)
-        return map_result(elapsed, lambda duration: {"accepted": True, "elapsed_s": duration, "reached": False,
-                "state": reading(model, data, body)})
+        world.step({"base": [value["velocity"][axis] for axis in ("vx", "vy", "wz")]})
+        return {}
 
     def stop():
         world.stop_part("base")

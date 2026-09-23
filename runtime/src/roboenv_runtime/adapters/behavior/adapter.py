@@ -4,10 +4,10 @@ from roboenv_runtime.adapters.native import NativeDeviceAdapter
 from roboenv_runtime.core.adapter import register_adapter
 from roboenv_runtime.core.types import ScoreReport
 
+
 @register_adapter
 class BehaviorAdapter(NativeDeviceAdapter):
     name = "behavior"
-    realtime_on_main_thread = True
     embodiment = "r1pro"
 
     def __init__(self, activity_name="picking_up_trash", **kwargs):
@@ -20,6 +20,13 @@ class BehaviorAdapter(NativeDeviceAdapter):
 
     def score(self):
         success = self._env.task_completed()
-        return ScoreReport(reward=float(success), raw_score=float(success), completed=success,
-                           detail={"control_protocol": "continuous_joint_and_base_velocity_30hz",
-                                   "grasping_mode": "physical", "official_action_equivalence": False})
+        return ScoreReport(
+            reward=float(success),
+            raw_score=float(success),
+            completed=success,
+            detail={
+                "control_protocol": "continuous_joint_and_base_velocity_30hz",
+                "grasping_mode": "physical",
+                "official_action_equivalence": False,
+            },
+        )

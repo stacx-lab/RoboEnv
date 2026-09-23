@@ -75,16 +75,16 @@ def export_task(
             )
     out.add_yaml("environment/sim/robot/bindings.yaml", plan.as_dict())
     if task.backend not in DEVICE_BACKENDS:
-        out.add("environment/definition/robot/devices/_roboenv.py",
-                assets.joinpath("_roboenv.py").read_bytes())
+        out.add(
+            "environment/definition/robot/devices/_roboenv.py",
+            assets.joinpath("_roboenv.py").read_bytes(),
+        )
     for spec in plan.devices:
         profile = spec.resolved_profile(robot_dir)
         access = profile.setdefault("access", {})
         driver = access.setdefault("driver", {})
         actions = driver.get("actions", ["read"])
-        driver.update(
-            entry="driver.py", interpreter="python3", persistent=True, actions=actions
-        )
+        driver.update(entry="driver.py", interpreter="python3", persistent=True, actions=actions)
         prefix = f"environment/definition/robot/devices/{spec.name}/"
         if task.backend not in DEVICE_BACKENDS:
             out.add_yaml(prefix + "profile.yaml", profile)
@@ -188,9 +188,7 @@ def export_task(
         smoke["services"]["main"]["volumes"].append("../solution:/solution:ro")
     out.add_yaml("environment/smoke-compose.yaml", smoke)
     observation_access = (
-        "sensors-only"
-        if task.backend in DEVICE_BACKENDS
-        else "benchmark-ground-truth"
+        "sensors-only" if task.backend in DEVICE_BACKENDS else "benchmark-ground-truth"
     )
     out.add(
         "task.toml",
@@ -260,11 +258,9 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
         )
     if task.backend in DEVICE_BACKENDS:
         clock_instruction = (
-            "Physics continues while you think. Writes update persistent commands; "
-            "stop stops a device, not the world. "
-            if task.backend_kwargs.get("realtime", task.backend in {"robocasa", "libero"})
-            else "Physics pauses between actions. Each write advances one native control "
-            "interval and then pauses again; reads and stop do not advance time. "
+            "Physics advances only during device commands. Joint write executes an "
+            "action sequence at freq_hz. The harness plans goal motion and checks "
+            "arrival. Reads and stop do not advance time. "
         )
         instruction = (
             task.instruction

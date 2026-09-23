@@ -67,15 +67,10 @@ class BehaviorDevices(BehaviorBackend):
         scene_model=None,
         activity_instance_id=0,
         max_steps=6000,
-        *,
-        realtime=False,
     ):
-        if type(realtime) is not bool:
-            raise ValueError("realtime must be a boolean")
         if type(max_steps) is not int or max_steps < 1:
             raise ValueError("max_steps must be a positive action-frame count")
         super().__init__(activity_name, scene_model, activity_instance_id, max_steps)
-        self.realtime = realtime
         self.frame_limit = max_steps
         self.control = None
         self._native_success = False
@@ -130,7 +125,7 @@ class BehaviorDevices(BehaviorBackend):
             )
         }
         self.device_facts, self.groups, self.rig_frames, self.cameras, provenance = describe(
-            self.robot, self.control_interval, realtime=self.realtime
+            self.robot
         )
         limits, targets = {}, {}
         lower, upper = array(self.robot.joint_lower_limits), array(self.robot.joint_upper_limits)
@@ -165,7 +160,6 @@ class BehaviorDevices(BehaviorBackend):
             targets,
             self._apply,
             self._advance,
-            realtime=self.realtime,
             exhausted=self.exhausted,
             on_write=self._release_holds,
             interval_s=self.control_interval,
@@ -195,7 +189,6 @@ class BehaviorDevices(BehaviorBackend):
                 "scene_model": self.scene_model,
                 "activity_instance_id": self.activity_instance_id,
                 "max_steps": self.frame_limit,
-                "realtime": self.realtime,
             },
             "behavior",
         )
@@ -239,8 +232,8 @@ class BehaviorDevices(BehaviorBackend):
         self._native_success = self._native_success or bool(self.goal_report()["success"])
         self._native_done = bool(terminated or truncated)
 
-    def device_write(self, name, target, *, for_s=None, arrived=None):
-        return self.control.write(name, target, for_s=for_s, arrived=arrived)
+    def device_write(self, name, target):
+        return self.control.write(name, target)
 
     def _release_holds(self, devices):
         for name in devices:
@@ -350,6 +343,6 @@ def compile_rig():
     )
     try:
         og.sim.render()
-        return describe(env.robots[0], 1 / 30)[0]
+        return describe(env.robots[0])[0]
     finally:
         og.clear()

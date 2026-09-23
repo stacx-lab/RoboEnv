@@ -31,9 +31,7 @@ def probe(suite, task, init, directory, render=False):
     sys.path.insert(0, str(Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")) / "python"))
     from kinex.joints import JointDevice
 
-    adapter = LiberoAdapter(
-        suite, task, init_state_index=init, realtime=False, enable_render=render
-    )
+    adapter = LiberoAdapter(suite, task, init_state_index=init, enable_render=render)
     adapter.run_dir = directory
     try:
         adapter.reset(0)
@@ -42,8 +40,15 @@ def probe(suite, task, init, directory, render=False):
         plan = BindingPlan.load(root, backend="libero")
         if not render:
             plan = replace(plan, devices=tuple(s for s in plan.devices if s.entity != "camera"))
+        from roboenv_runtime.runtime.world import WorldSession
+
+        session = WorldSession(adapter)
         service = default_registry().assemble(
-            plan, root, BindingContext("libero", "panda", adapter)
+            plan,
+            root,
+            BindingContext("libero", "panda", adapter),
+            motion_scheduler=session.schedule,
+            resolve=session.resolve,
         )
 
         def call(name, action, **args):
@@ -75,7 +80,7 @@ def probe(suite, task, init, directory, render=False):
         before_goal = world._robot.controller.goal_qpos.copy()
         for target in ([0] * 6, [True] * 7, [float("nan")] * 7, [float("inf")] * 7, [100] * 7):
             try:
-                call("arm", "write", target=target)
+                call("arm", "write", actions=[target], freq_hz=20)
             except Exception:
                 pass
             else:
@@ -84,11 +89,9 @@ def probe(suite, task, init, directory, render=False):
             assert np.array_equal(world._robot.controller.goal_qpos, before_goal)
         goal = np.array(q)
         goal[[0, 2, 4]] += [0.1, -0.02, 0.02]
-        world.realtime = True
-        assert call("arm", "write", target=goal.tolist()) == {"accepted": True}
-        assert np.array_equal(world.sim.get_state().flatten(), before)
+        assert call("arm", "write", actions=[goal.tolist()], freq_hz=20)["completed_actions"] == 1
         same_goal = world._robot.controller.goal_qpos
-        call("arm", "write", target=goal.tolist())
+        call("arm", "write", actions=[goal.tolist()], freq_hz=20)
         assert world._robot.controller.goal_qpos is same_goal
         for _ in range(100):
             world.tick()
@@ -106,7 +109,7 @@ def probe(suite, task, init, directory, render=False):
         opened = call("gripper", "read")["positions"]
         assert abs(opened[0] - opened[1]) > abs(closed[0] - closed[1]) + 0.01
         call("gripper", "stop")
-        call("arm", "write", target=q)
+        call("arm", "write", actions=[q], freq_hz=20)
         for _ in range(3):
             world.tick()
         stop_q = call("arm", "read")["positions"]
@@ -132,9 +135,8 @@ def probe(suite, task, init, directory, render=False):
                 assert Path(result["file"]).read_bytes().startswith(b"\x89PNG")
                 assert adapter.budget().used == budget
                 frames[camera] = result["file"]
-        world.realtime = False
         used = adapter.budget().used
-        call("arm", "write", target=q)
+        call("arm", "write", actions=[q], freq_hz=20)
         assert adapter.budget().used == used + 1
         previous = world.env.step
         world.env.step = lambda action: (_ for _ in ()).throw(RuntimeError("probe"))

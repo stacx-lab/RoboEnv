@@ -89,7 +89,7 @@ uv run python .kinex/devices/camera_left/driver.py read '{}'
 Expect `ok: true`; camera output must include an existing local RGB PNG `file`
 and aligned 16-bit PGM `depth_file`, with acquisition Unix timestamps. The profile declares
 `intrinsics.depth.scale_m_per_unit: 0.001`.
-Open that image to confirm that it depicts the initialized kitchen. Neither operation requests extra physics steps; realtime physics continues independently.
+Open that image to confirm that it depicts the initialized kitchen. Neither operation requests extra physics steps; idle simulation stays paused.
 
 ## 3. TUI recording smoke test
 
@@ -109,7 +109,7 @@ Run these built-in slash commands in the TUI:
 `:all` is deliberate: it records while the user pauses, including during this
 manual smoke test. The thin drivers do not implement native video streaming;
 Kinex uses its supported stills sampler. Requested Hz is a target; inspect
-effective rates and skipped samples. Reads do not request physics steps. Realtime simulation continues during recording;
+effective rates and skipped samples. Reads do not request physics steps. Physics advances only for active commands during recording;
 synchronous mode advances only on writes.
 
 With the recording running, use a separate terminal with the same copied workspace, `ROBOENV_ENDPOINT`, and

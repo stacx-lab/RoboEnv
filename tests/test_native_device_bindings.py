@@ -54,9 +54,8 @@ def service(tmp_path, *, embodiment="piper"):
         targets,
         lambda target: None,
         advance,
-        realtime=False,
         exhausted=lambda: world.steps >= 3,
-        interval_s=1 / 30,
+        interval_s=0.04,
     )
     world.device_write = world.control.write
     world.device_stop = lambda name: world.control.stop(name, targets[name])
@@ -65,9 +64,23 @@ def service(tmp_path, *, embodiment="piper"):
         "velocities": [0.0] * len(targets[name]),
     }
     world.device_image = lambda name: (np.zeros((240, 320, 3), dtype=np.uint8), np.ones((240, 320)))
-    owner = SimpleNamespace(_env=world, run_dir=tmp_path)
+    from roboenv_runtime.adapters.robotwin.adapter import RoboTwinAdapter
+    from roboenv_runtime.runtime.world import WorldSession
+
+    owner = RoboTwinAdapter.__new__(RoboTwinAdapter)
+    owner._env, owner.run_dir = world, tmp_path
+    world.control_interval, world.frame_limit = 0.04, 3
+    session = WorldSession(owner)
     context = BindingContext("robotwin", "piper", owner)
-    return default_registry().assemble(plan, root, context), world, plan, root, context
+    return (
+        default_registry().assemble(
+            plan, root, context, motion_scheduler=session.schedule, resolve=session.resolve
+        ),
+        world,
+        plan,
+        root,
+        context,
+    )
 
 
 def test_public_world_has_no_truth_or_mutation_shortcuts(tmp_path):
@@ -89,12 +102,12 @@ def test_independent_writes_and_read_stop_invariance(tmp_path):
         return wire.call({"device": device, "action": action, "args": args or {}})
 
     try:
-        call("left_arm", "write", {"target": [0.1] * 6})
+        call("left_arm", "write", {"actions": [[0.1] * 6], "freq_hz": 25})
         assert world.steps == 1
         with pytest.raises(DeviceError):
-            call("right_arm", "write", {"target": [float("nan")] * 6})
+            call("right_arm", "write", {"actions": [[float("nan")] * 6], "freq_hz": 25})
         assert world.steps == 1
-        call("right_arm", "write", {"target": [0.2] * 6})
+        call("right_arm", "write", {"actions": [[0.2] * 6], "freq_hz": 25})
         assert world.steps == 2
         for action in ("load", "read", "status", "stop", "unload"):
             call("left_arm", action)
@@ -150,10 +163,25 @@ def test_behavior_velocity_binding_accepts_named_commands_without_joint_feedback
         return {"accepted": True, "elapsed_s": for_s or 0.0}
 
     world.device_write = write
+    from roboenv_runtime.core.types import Budget
+    from roboenv_runtime.runtime.world import WorldSession
+
+    owner = SimpleNamespace(
+        _env=world,
+        run_dir=tmp_path,
+        control_interval_s=1 / 30,
+        name="behavior",
+        embodiment="r1pro",
+        budget=lambda: Budget(used=0, max=None),
+        advance_control=lambda: None,
+    )
+    session = WorldSession(owner)
     wire = default_registry().assemble(
         replace(plan, devices=(spec,)),
         root,
-        BindingContext("behavior", "r1pro", SimpleNamespace(_env=world, run_dir=tmp_path)),
+        BindingContext("behavior", "r1pro", owner),
+        motion_scheduler=session.schedule,
+        resolve=session.resolve,
     )
     try:
         assert wire.call({"device": "base", "action": "read", "args": {}})["data"] == {

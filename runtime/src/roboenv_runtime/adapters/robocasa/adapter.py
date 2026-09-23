@@ -13,7 +13,7 @@ class RoboCasaAdapter(AdapterBase):
     name = "robocasa"
     embodiment = "panda_omron"
     # Native graphics resources share the world's creating thread in both clocks.
-    realtime_on_main_thread = True
+    owner_thread_required = True
 
     def __init__(self, task_name="PickPlaceCounterToCabinet", **kwargs):
         from .backend import RoboCasaEnv
@@ -21,12 +21,10 @@ class RoboCasaAdapter(AdapterBase):
         self._env = RoboCasaEnv(task_name, **kwargs)
 
     @property
-    def realtime_interval(self):
-        if getattr(self._env, "realtime", False):
-            return 1 / self._env.env.control_freq
-        return None
+    def control_interval_s(self):
+        return 1 / self._env.env.control_freq
 
-    def realtime_tick(self):
+    def advance_control(self):
         self._env.tick()
 
     def reset(self, seed):

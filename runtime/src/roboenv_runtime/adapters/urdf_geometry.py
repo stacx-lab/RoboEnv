@@ -172,7 +172,6 @@ def joint_intrinsics(model, home, name):
             joint["name"]: float(value) for joint, value in zip(model["joints"], home, strict=True)
         },
         "control": {
-            "speed": None,
             "mode": "position",
         },
         "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},

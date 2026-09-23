@@ -8,17 +8,12 @@ motor application and one fixed control interval.
 import copy
 import math
 
-from roboenv_runtime.adapters.segments import finish_segment, require_scheduler
-
 
 class DeviceControl:
-
-    def __init__(self, limits, targets, apply, advance, *, realtime, exhausted,
-                 on_write=None, interval_s=None):
-        if type(realtime) is not bool:
-            raise ValueError("realtime must be a boolean")
-        # Every write reports the simulated time it spent, so the control period
-        # is needed whichever side advances the clock.
+    def __init__(
+        self, limits, targets, apply, advance, *, exhausted, on_write=None, interval_s=None
+    ):
+        # The world advances references using this native cadence.
         if interval_s is None or not math.isfinite(interval_s) or interval_s <= 0:
             raise ValueError("a controlled world must declare its control interval")
         self.interval_s = interval_s
@@ -28,7 +23,7 @@ class DeviceControl:
         self.targets = copy.deepcopy(targets)
         self.apply, self.advance = apply, advance
         self.on_write = on_write
-        self.realtime, self.exhausted = realtime, exhausted
+        self.exhausted = exhausted
         self.frame = 0
         self.commands = []
 
@@ -45,15 +40,8 @@ class DeviceControl:
                 raise ValueError("Target exceeds native joint limits")
         return [float(value) for value in target]
 
-    def write(self, device, target, *, for_s=None, arrived=None):
-        """Replace this actuator's goal and execute it; report the time spent.
-
-        Where the write is what advances physics it runs exactly one control
-        interval. Where a background clock runs the world it waits for the goal,
-        bounded by for_s. Either way the caller learns how much simulated time
-        this call was worth, which is the only clock a controller reads.
-        """
-        require_scheduler(self.realtime, for_s)
+    def write(self, device, target):
+        """Stage validated native references without advancing physics."""
         value = self._target(device, target)
         if self.exhausted():
             raise RuntimeError("Native episode budget exhausted")
@@ -62,14 +50,7 @@ class DeviceControl:
             self.on_write(tuple(commands))
         self.targets.update(copy.deepcopy(commands))
         self.commands.append({"frame": self.frame, "op": "write", "commands": commands})
-        started = self.frame
-        if not self.realtime:
-            self.tick()
-        return finish_segment(
-            started=started, frame=lambda: self.frame, interval=self.interval_s,
-            for_s=for_s, realtime=self.realtime, arrived=arrived,
-            exhausted=self.exhausted, result=lambda elapsed: {"accepted": True, "elapsed_s": elapsed},
-        )
+        return {"accepted": True, "elapsed_s": 0.0}
 
     def stop(self, device, measured_target):
         # Stop may hold measured soft-limit overshoot. Never project reported state.

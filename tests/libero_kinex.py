@@ -24,23 +24,48 @@ def check(out, kinex, bun):
     out.mkdir(parents=True, exist_ok=False)
     workspace = out / "workspace"
     tool("prepare_kinex_workspace").prepare("libero/bowl-onto-plate", workspace, project=ROOT)
-    env = {**os.environ, "KINEX_DATA_DIR": str(out / "kinex-data"),
-           "KINEX_CONFIG_DIR": str(out / "kinex-config")}
+    env = {
+        **os.environ,
+        "KINEX_DATA_DIR": str(out / "kinex-data"),
+        "KINEX_CONFIG_DIR": str(out / "kinex-config"),
+    }
     with (out / "python.log").open("w") as log:
-        subprocess.run([bun, str(kinex / "bin/kinex"), "python"], cwd=workspace,
-                       env=env, check=True, stdout=log, stderr=log, timeout=180)
-    with roboenv.launch("libero/bowl-onto-plate", project=ROOT, realtime=False,
-                        interpreter=sys.executable) as run:
+        subprocess.run(
+            [bun, str(kinex / "bin/kinex"), "python"],
+            cwd=workspace,
+            env=env,
+            check=True,
+            stdout=log,
+            stderr=log,
+            timeout=180,
+        )
+    with roboenv.launch("libero/bowl-onto-plate", project=ROOT, interpreter=sys.executable) as run:
         identity = {k: run.record[k] for k in ("session", "generation")}
         for driver in (workspace / ".kinex/devices").glob("*/driver.py"):
-            driver.with_name("connection.json").write_text(json.dumps({
-                **identity, "endpoint": run.endpoint,
-            }))
+            driver.with_name("connection.json").write_text(
+                json.dumps(
+                    {
+                        **identity,
+                        "endpoint": run.endpoint,
+                    }
+                )
+            )
         with (out / "kinex.log").open("w") as log:
-            subprocess.run([
-                bun, str(ROOT / "tests/libero_kinex_smoke.ts"), str(kinex),
-                str(workspace), str(out / "smoke.json"),
-            ], cwd=workspace, env=env, stdout=log, stderr=log, check=True, timeout=150)
+            subprocess.run(
+                [
+                    bun,
+                    str(ROOT / "tests/libero_kinex_smoke.ts"),
+                    str(kinex),
+                    str(workspace),
+                    str(out / "smoke.json"),
+                ],
+                cwd=workspace,
+                env=env,
+                stdout=log,
+                stderr=log,
+                check=True,
+                timeout=150,
+            )
         result = tool("finalize_episode").finalize(run.path, out / "owner")
         (out / "episode.json").write_text(json.dumps({**identity, "verdict": result["verdict"]}))
     # Decode every recorded camera frame, rather than accepting an encoder exit code.
@@ -68,16 +93,34 @@ def check(out, kinex, bun):
             finally:
                 cap.release()
             assert count >= 3 and not black, (file, count, black)
-            videos.append({"device": name, "file": str(file), "decoded_frames": count,
-                           "black_frames": black, "effective_hz": stats.get("effectiveHz")})
+            videos.append(
+                {
+                    "device": name,
+                    "file": str(file),
+                    "decoded_frames": count,
+                    "black_frames": black,
+                    "effective_hz": stats.get("effectiveHz"),
+                }
+            )
     assert len(videos) == 2
-    subprocess.run([
-        os.environ.get("ROBOENV_LIBERO_TEST_PYTHON", str(ROOT / ".venv-sim/libero/bin/python")),
-        str(ROOT / "tools/replay_libero_devices.py"), str(out / "owner/owner-record.json"),
-        "--out", str(out / "replay.json"),
-    ], check=True, timeout=120)
-    report = {"passed": True, "model_calls": 0, "task_success_claimed": False,
-              "videos": videos, "episode": identity}
+    subprocess.run(
+        [
+            os.environ.get("ROBOENV_LIBERO_TEST_PYTHON", str(ROOT / ".venv-sim/libero/bin/python")),
+            str(ROOT / "tools/replay_libero_devices.py"),
+            str(out / "owner/owner-record.json"),
+            "--out",
+            str(out / "replay.json"),
+        ],
+        check=True,
+        timeout=120,
+    )
+    report = {
+        "passed": True,
+        "model_calls": 0,
+        "task_success_claimed": False,
+        "videos": videos,
+        "episode": identity,
+    }
     (out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
 
 

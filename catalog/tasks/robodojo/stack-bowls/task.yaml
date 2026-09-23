@@ -1,5 +1,6 @@
 id: robodojo/stack-bowls
 backend: robodojo
+execution_mode: stepped
 backend_task: robodojo.stack_bowls
 robot: robodojo/robodojo-arx-x5
 instruction: Stack the three bowls into one pile
@@ -7,5 +8,4 @@ seed: 0
 budget_mode: practice
 backend_kwargs:
   task_name: stack_bowls
-  realtime: false
 action_abstraction: devices

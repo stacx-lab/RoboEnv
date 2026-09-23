@@ -20,7 +20,6 @@ def replay(record):
         raise ValueError("SIMPLE replay frame count differs from budget")
     world = SimpleEnv(
         env_id=metadata["env_id"],
-        realtime=metadata["realtime"],
         arm_gravity_compensation=metadata["arm_gravity_compensation"],
         sim_mode=metadata["sim_mode"],
         dr_level=metadata["dr_level"],
@@ -43,14 +42,15 @@ def replay(record):
         if world.implementation != record["implementation"]:
             raise ValueError("SIMPLE replay implementation or dependencies changed")
         # Replay accepted writes and stops without a wall-clock scheduler. Physics
-        # advances solely at the recorded interval boundaries in both modes.
-        world.control.realtime = True
+        # advances solely at the recorded interval boundaries in synchronous execution.
         events = iter(record["commands"])
         event = next(events, None)
         for frame in range(len(record["frames"]) + 1):
             while event is not None and event["frame"] == frame:
                 if event["op"] == "write":
                     world.control.write(event["device"], event["args"])
+                elif event["op"] == "plan":
+                    world.control.plan(event["device"])
                 elif event["op"] == "stop":
                     world.control.stop(event["device"], reason=event["reason"])
                 else:
@@ -74,16 +74,10 @@ def replay(record):
             if a.shape != b.shape:
                 raise ValueError("SIMPLE replay state dimensions changed")
             errors[key] = float(np.max(np.abs(a - b), initial=0))
-        for key in (
-            "history", "action", "gait", "time", "upper_target", "upper_times", "upper_poses",
-        ):
-            a, b = (
-                np.asarray(actual["controller_state"][key]),
-                np.asarray(record["controller_state"][key]),
-            )
-            if a.shape != b.shape:
-                raise ValueError("SIMPLE replay controller dimensions changed")
-            errors[key] = float(np.max(np.abs(a - b), initial=0))
+        from roboenv_runtime.adapters.native_record import compare
+
+        errors["controller"] = compare(record["controller_state"], actual["controller_state"],
+                                       atol=1e-8, path="controller_state")
         passed = (
             all(value <= 1e-8 for value in errors.values())
             and actual["budget"] == record["budget"]
@@ -93,8 +87,10 @@ def replay(record):
         )
         return {
             "passed": passed,
-            "verdict_matches": {key: actual[key] == record[key]
-                                for key in ("budget", "native_success", "done", "reward")},
+            "verdict_matches": {
+                key: actual[key] == record[key]
+                for key in ("budget", "native_success", "done", "reward")
+            },
             "max_absolute_errors": errors,
             "native_success": actual["native_success"],
             "budget": actual["budget"],

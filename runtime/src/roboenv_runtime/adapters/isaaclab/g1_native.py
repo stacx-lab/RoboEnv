@@ -1,7 +1,7 @@
 """Construct the pinned upstream task with explicit upper-body joint targets."""
 
 
-def create(paths, model, device, *, realtime=False):
+def create(paths, model, device):
     import torch
     import warp as wp
     from isaaclab.envs import ManagerBasedRLEnv
@@ -33,9 +33,6 @@ def create(paths, model, device, *, realtime=False):
     from .g1_cameras import configure
 
     cfg = LocomanipulationG1EnvCfg()
-    if realtime:
-        # Interactive runs have no time horizon; keep success/failure terms intact.
-        cfg.terminations.time_out = None
     configure(cfg.scene, model["cameras"])
     cfg.scene.num_envs = 1
     cfg.sim.device = device

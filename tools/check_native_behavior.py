@@ -73,11 +73,9 @@ def interval(world, commands):
     frame = world.control.frame
     for name, target in commands.items():
         world.device_write(name, target)
-    if world.realtime:
-        require(world.control.frame == frame, "Realtime write advanced physics")
-        world.control.tick()
-    expected = 1 if world.realtime else len(commands)
-    require(world.control.frame == frame + expected, "Unexpected control interval count")
+    require(world.control.frame == frame, "Staging targets must not advance physics")
+    world.control.tick()
+    require(world.control.frame == frame + 1, "Unexpected control interval count")
 
 
 def placement(world, models, name, frame=None):
@@ -406,7 +404,6 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--instance", type=int, required=True)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--realtime", action="store_true")
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -419,7 +416,6 @@ def main():
         "embodiment": "r1pro",
         "seed": args.seed,
         "activity_instance_id": args.instance,
-        "realtime": args.realtime,
         "scope": "owner native calibration fixtures; no task success claim",
     }
     world = None
@@ -429,7 +425,6 @@ def main():
             "house_double_floor_lower",
             args.instance,
             max_steps=500,
-            realtime=args.realtime,
         )
         world.reset(seed=args.seed)
         check(world, out, report)

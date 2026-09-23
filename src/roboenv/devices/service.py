@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from concurrent.futures import Future
 
 from roboenv.devices.contract import DEVICE_CONTRACT, READ_ACTIONS
-from roboenv.devices.execution import map_result, scheduling
+from roboenv.devices.execution import map_result, request_identity, scheduling
 from roboenv.devices.model import Device, DeviceError, ExecutionContext
 from roboenv.validation import action_validator, json_value
 
@@ -22,9 +22,12 @@ class DeviceService:
         *,
         manifest=None,
         execution_lock=None,
-        segment_scheduler=None,
+        motion_scheduler=None,
         resolve=None,
+        flush=None,
     ):
+        self._owners = {}
+        self._cancelled = {}  # Bounded tombstones prevent cancellation overtaking admission.
         self._devices = {}
         self._descriptors = {}
         self._validators = {}
@@ -43,7 +46,7 @@ class DeviceService:
                 self._output_validators[name, action] = action_validator(
                     spec.get("output_schema", {})
                 )
-            if segment_scheduler is not None and descriptor["actions"].get("stop", {}).get(
+            if motion_scheduler is not None and descriptor["actions"].get("stop", {}).get(
                 "supported"
             ):
                 descriptor["execution"]["interruptible"] = True
@@ -52,10 +55,11 @@ class DeviceService:
             raise ValueError("device server needs a nonempty registry")
         self.manifest = copy.deepcopy(manifest or {})
         self._lock = execution_lock if execution_lock is not None else threading.RLock()
-        self._schedule = segment_scheduler
+        self._schedule = motion_scheduler
         self._resolve = resolve or (
             lambda value: value.result() if isinstance(value, Future) else value
         )
+        self._flush = flush or (lambda: None)
         self._queues = {}
         self._active = {}
         self._draining = set()
@@ -80,7 +84,7 @@ class DeviceService:
             "device_contract": DEVICE_CONTRACT,
             "devices": sorted(self._devices),
             "execution": {
-                "mode": "synchronous",
+                "mode": self.manifest.get("execution_mode", "stepped"),
                 "world_serialized": False,
                 "stop_supported": any(
                     d["actions"].get("stop", {}).get("supported", False)
@@ -115,6 +119,61 @@ class DeviceService:
                 if active and current is not None:
                     current.set()
 
+    def cancel(self, args, *, submitted=False):
+        if (
+            not isinstance(args, dict)
+            or set(args) != {"execution_id"}
+            or not isinstance(args["execution_id"], str)
+            or not args["execution_id"]
+        ):
+            raise DeviceError("invalid_args", "cancel requires a nonempty execution_id")
+        identity = args["execution_id"]
+        with self._lock:
+            self._cancelled[identity] = None
+            if len(self._cancelled) > 4096:
+                self._cancelled.pop(next(iter(self._cancelled)))
+            names = [
+                name for name in self._devices if self._owners.get(self._resource(name)) == identity
+            ]
+            self.interrupt(names)
+            self._flush()
+            for name in names:
+                self.submit({"device": name, "action": "stop", "args": {}})
+            return {"data": {"stopped": bool(names)}}
+
+    def _claim(self, names):
+        identity = request_identity.get()
+        if identity in self._cancelled:
+            raise DeviceError("operation_interrupted", "motion cancelled before admission")
+        for name in names:
+            self._owners[self._resource(name)] = identity
+
+    def _validate(self, name, action, args):
+        descriptor = self.describe(name)
+        spec = descriptor["actions"].get(action) if isinstance(action, str) else None
+        if spec is None or not spec.get("supported"):
+            raise DeviceError(
+                "unsupported_action", (spec or {}).get("reason", "Action not declared")
+            )
+        try:
+            json_value(args)
+            self._validators[name, action](args)
+            validate = getattr(self._devices[name], "validate", None)
+            if validate is not None:
+                validate(action, args)
+        except ValueError as error:
+            raise DeviceError("invalid_args", str(error)) from error
+        if action not in READ_ACTIONS | {"stop"} and self._resource(name) in self._faults:
+            raise DeviceError("device_faulted", "Stop failed; owner recovery is required")
+        return descriptor
+
+    def _enqueue(self, args, submitted=False):
+        resource = self._resource(args["device"])
+        future = Future()
+        self._queues.setdefault(resource, deque()).append((future, copy.deepcopy(args), submitted))
+        self._start_next(resource)
+        return future
+
     def submit(self, args, *, submitted=False):
         with self._lock:
             if self._closed:
@@ -129,27 +188,18 @@ class DeviceService:
                     "invalid_args", "Expected exactly device, action, and object args"
                 )
             name, action = args["device"], args["action"]
-            descriptor = self.describe(name)
-            spec = descriptor["actions"].get(action) if isinstance(action, str) else None
-            if spec is None or not spec.get("supported"):
-                raise DeviceError(
-                    "unsupported_action", (spec or {}).get("reason", "Action not declared")
-                )
-            try:
-                json_value(args["args"])
-                self._validators[name, action](args["args"])
-            except ValueError as error:
-                raise DeviceError("invalid_args", str(error)) from error
+            descriptor = self._validate(name, action, args["args"])
             if submitted and action not in READ_ACTIONS:
                 raise DeviceError(
                     "already_submitted", "Mutating device calls are frozen after submit"
                 )
-            resource = self._resource(name)
             if action == "stop":
                 names = (
                     descriptor.get("intrinsics", {}).get("stop", {}).get("affected_devices", [name])
                 )
                 self.interrupt(names)
+                for peer in names:
+                    self._owners.pop(self._resource(peer), None)
                 try:
                     return self._execute(args, submitted=submitted)
                 except Exception as error:
@@ -158,14 +208,10 @@ class DeviceService:
                     raise
             if action in READ_ACTIONS:
                 return self._execute(args, submitted=submitted)
-            if resource in self._faults:
-                raise DeviceError("device_faulted", "Stop failed; owner recovery is required")
-            future = Future()
-            self._queues.setdefault(resource, deque()).append(
-                (future, copy.deepcopy(args), submitted)
-            )
-            self._start_next(resource)
-            return future
+            self._claim([name])
+            self.interrupt([name])
+            self._flush()
+            return self._enqueue(args, submitted)
 
     def _start_next(self, resource):
         if resource in self._draining:
@@ -180,14 +226,22 @@ class DeviceService:
 
     def _start(self, resource):
         future, args, submitted = self._queues[resource].popleft()
+        if resource in self._faults:
+            future.set_exception(
+                DeviceError("device_faulted", "Stop failed; owner recovery is required")
+            )
+            return
         cancel = threading.Event()
         self._active[resource] = cancel
 
         def finish(value=None, error=None):
             with self._lock:
-                self._active.pop(resource, None)
-                if cancel.is_set():
+                if self._active.get(resource) is cancel:
+                    self._active.pop(resource, None)
+                if cancel.is_set() and error is None:
                     error = DeviceError("operation_interrupted", "device write interrupted by stop")
+                if getattr(error, "code", None) == "stop_failed":
+                    self._faults[resource] = error
                 if error is None:
                     future.set_result(value)
                 else:
@@ -195,11 +249,7 @@ class DeviceService:
                 self._start_next(resource)
 
         try:
-            schedule = (
-                (lambda complete, snapshot: self._schedule(complete, snapshot, cancel))
-                if self._schedule
-                else None
-            )
+            schedule = (lambda motion: self._schedule(motion, cancel)) if self._schedule else None
             with scheduling(schedule):
                 result = self._execute(args, submitted=submitted)
             if isinstance(result, Future):
@@ -272,7 +322,11 @@ class DeviceService:
         return DeviceError(
             getattr(error, "code", "device_failed"),
             str(error),
-            details={"calls": context.calls, "effects": "read_only" if read_only else "unknown"},
+            details={
+                "calls": context.calls,
+                "effects": "read_only" if read_only else "unknown",
+                **(getattr(error, "details", None) or {}),
+            },
         )
 
     def close(self):

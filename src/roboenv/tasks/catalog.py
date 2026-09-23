@@ -46,6 +46,7 @@ def summary(project=None, tasks_root=None):
         "tasks": len(tasks),
         "backends": dict(Counter(t.backend for t, _ in tasks.values())),
         "ids": sorted(tasks),
+        "execution_modes": {key: tasks[key][0].execution_mode for key in sorted(tasks)},
     }
 
 
@@ -65,7 +66,6 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None, device_bindin
         backend=backend,
         backend_task=identifier,
         backend_kwargs={
-            **({"realtime": True} if backend in {"robocasa", "libero"} else {}),
             **kwargs,
         },
         robot=robot or ROBOTS[backend],
@@ -140,10 +140,13 @@ def _robotwin(root, issues):
         data = json.loads(description.read_text()) if description.is_file() else {}
         instruction = data.get("full_description")
         if not isinstance(instruction, str) or not instruction.strip():
-            issues.append({
-                "backend": "robotwin", "task": name,
-                "reason": "task lacks the upstream full_description instruction",
-            })
+            issues.append(
+                {
+                    "backend": "robotwin",
+                    "task": name,
+                    "reason": "task lacks the upstream full_description instruction",
+                }
+            )
             continue
         instruction = instruction.strip()
         for group, robot, embodiment in (

@@ -51,10 +51,11 @@ def handle(action, args):
                 seed = joint.project(remote("read", {})["positions"])
             return {"ok": True, **joint.ik(args["pose"], seed)}
         if action == "write":
-            value = joint.command(args)
-            data = remote(action, value)
-            if data.get("accepted") is not True:
-                raise ValueError("write did not acknowledge acceptance")
+            joint.command(args)
+            data = remote(action, args)
+            if not isinstance(data.get("state"), dict) or "elapsed_s" not in data:
+                raise ValueError("motion must return elapsed_s and measured state")
+            data["state"] = joint.reading(data["state"])
             return {"ok": True, **data}
         if action == "read":
             data = remote(action, args)
@@ -64,7 +65,8 @@ def handle(action, args):
             }
         raise ValueError(f"Unsupported joint action: {action}")
     except WireError as exc:
-        return {"ok": False, "error": str(exc), "code": exc.code, "request_id": exc.request_id}
+        return {"ok": False, "error": str(exc), "code": exc.code,
+                "request_id": exc.request_id, "details": exc.details}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 

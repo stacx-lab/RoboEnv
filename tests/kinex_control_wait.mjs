@@ -21,13 +21,12 @@ try {
   const target = [...before.positions]
   target[0] += 0.04
   const started = performance.now()
-  const motion = await call('move_to', { device: 'arm', joints: target, timeout_s: 15 })
+  const motion = await call('device', { deviceID: 'arm', action: 'set', compact: true, args: { target, for_s: 15, arrive: { joint_tolerance: target.map(() => .01) } } })
   const wall_s = (performance.now() - started) / 1000
   assert.ok(motion.elapsed_s > 0, JSON.stringify(motion))
   assert.ok(motion.reached, JSON.stringify(motion))
   assert.ok(wall_s < 60, `write hit the old timeout: ${wall_s}`)
   assert.ok(Math.abs(motion.state.positions[0] - before.positions[0]) > 0.01)
-  if (mode === 'realtime') assert.equal(motion.rounds, 1)
   const report = { mode, wall_s, motion, model_calls: 0, task_success_claimed: false }
   await writeFile(output, JSON.stringify(report, null, 2) + '\n')
   console.log(JSON.stringify({ mode, wall_s, elapsed_s: motion.elapsed_s, rounds: motion.rounds,

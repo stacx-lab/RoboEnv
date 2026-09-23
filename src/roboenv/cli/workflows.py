@@ -51,20 +51,6 @@ def add_commands(commands):
             parser.add_argument(
                 "--advertise-host", help="Service hostname reachable by attached clients"
             )
-            clock = parser.add_mutually_exclusive_group()
-            clock.add_argument(
-                "--realtime",
-                dest="realtime",
-                action="store_true",
-                help="Run wall-clock-paced physics on a supported backend",
-            )
-            clock.add_argument(
-                "--sync",
-                dest="realtime",
-                action="store_false",
-                help="Advance one control interval per write on a supported backend",
-            )
-            parser.set_defaults(realtime=None)
             gravity = parser.add_mutually_exclusive_group()
             gravity.add_argument(
                 "--arm-gravity-compensation",
@@ -82,6 +68,10 @@ def add_commands(commands):
             parser.add_argument("--host", default="127.0.0.1")
             parser.add_argument("--interpreter", type=Path)
             parser.add_argument("--timeout", type=float, default=900)
+            parser.add_argument(
+                "--execution-mode", choices=("stepped", "realtime"),
+                help="Override the task catalog execution mode"
+            )
             parser.add_argument("--detach", action="store_true")
             parser.add_argument(
                 "--port",
@@ -153,13 +143,13 @@ def execute(args):
 
         environment = launch(
             args.task,
+            execution_mode=args.execution_mode,
             project=args.project,
             catalog=args.catalog,
             interpreter=args.interpreter,
             timeout=args.timeout,
             port=args.port,
             host=args.host,
-            realtime=args.realtime,
             arm_gravity_compensation=args.arm_gravity_compensation,
             log_stream=sys.stderr,
             runtime_root=args.runtime_root,

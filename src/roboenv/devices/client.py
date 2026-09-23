@@ -107,7 +107,13 @@ class Device:
             raise AttributeError(f"{self._profile['name']} does not provide {action}")
 
         def invoke(*values, **args):
-            parameter = {"write": "target", "fk": "joints", "ik": "pose"}.get(action)
+            parameter = {
+                "write": "actions"
+                if self._profile["type"] in {"joint", "dexterous_hand"}
+                else "target",
+                "fk": "joints",
+                "ik": "pose",
+            }.get(action)
             if values:
                 if len(values) != 1 or parameter is None or parameter in args:
                     raise TypeError(f"Invalid arguments to {action}")

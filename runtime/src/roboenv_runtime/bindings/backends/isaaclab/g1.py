@@ -1,16 +1,18 @@
 """Device bindings for the shared G1 scene; the worker serializes all calls."""
 
+from roboenv_runtime.bindings.motion import control_binding
+
 from pathlib import Path
 
 from roboenv.devices.velocity import command_schema
 
 from roboenv.devices.model import Action, BoundDevice
-from roboenv_runtime.bindings.control import write_segment
 from .profile import validate
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
 
 
+@control_binding
 def bind(spec, root, context):
     if context.backend != "isaaclab" or context.embodiment != "g1":
         raise ValueError("Isaac Lab requires the G1 embodiment; Go2 joint control was removed")
@@ -52,7 +54,7 @@ def bind(spec, root, context):
     register("stop", lambda: control.stop(spec.name), mutation=True)
     register(
         "write",
-        lambda **args: write_segment(world, spec.name, **args),
+        lambda **args: world.control.write(spec.name, args),
         command_schema(control.profiles["base"]["intrinsics"]["control"])
         if spec.name == "base"
         else {

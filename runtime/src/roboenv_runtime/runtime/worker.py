@@ -197,6 +197,7 @@ class SimWorker:
         reset_adapter: bool = True,
         scorer_options: Mapping[str, Any] | None = None,
         device_root: str | os.PathLike[str] | None = None,
+        execution_mode: str = "stepped",
     ) -> None:
         if budget_mode not in {"official", "practice"}:
             raise ValueError("budget_mode must be 'official' or 'practice'")
@@ -204,7 +205,7 @@ class SimWorker:
             raise ValueError("privileged workers are practice-only")
         self.adapter = adapter
         adapter.run_dir = Path(run_dir).resolve()
-        self.world = WorldSession(adapter)
+        self.world = WorldSession(adapter, execution_mode)
         self.task_id = str(task_id)
         self.seed = int(seed)
         self.run_dir = Path(run_dir).resolve()
@@ -238,7 +239,6 @@ class SimWorker:
             self.state = "ready"
             if hasattr(self.adapter, "set_step_callback"):
                 self.adapter.set_step_callback(self._check_terminal)
-            self.world.start()
         except BaseException:
             self.close()
             raise
@@ -252,7 +252,9 @@ class SimWorker:
         if self.devices is not None:
             self.devices.close()
         self.devices = assemble_devices(
-            self._device_root, self.world, self.dispatch,
+            self._device_root,
+            self.world,
+            self.dispatch,
             manifest_path=os.environ.get("ROBOENV_SERVER_MANIFEST"),
             public_tools=self._tools,
         )
@@ -276,6 +278,7 @@ class SimWorker:
 
     def _counted_controller(self, name, fn):
         """Both device bindings and primitive RPC use this exact accounting point."""
+
         @wraps(fn)
         def invoke(*args, **kwargs):
             if self.scorer.submitted and not self.is_read_only(name):
@@ -357,11 +360,21 @@ class SimWorker:
             }
         capabilities = sorted(getattr(self.adapter, "capabilities", ()) or ())
         if self.budget_mode == "official":
-            capabilities = [value for value in capabilities if value not in {"checkpoint", "privileged"}]
+            capabilities = [
+                value for value in capabilities if value not in {"checkpoint", "privileged"}
+            ]
         return {
             "protocol": PROTOCOL_VERSION,
             "device_contract": "roboenv/devices/1" if self.devices else None,
-            "operations": sorted(WORKER_OPS - {"skill", "exec"} - ({"reset", "reset_same_task", "checkpoint", "restore"} if self.budget_mode == "official" else set())),
+            "operations": sorted(
+                WORKER_OPS
+                - {"skill", "exec"}
+                - (
+                    {"reset", "reset_same_task", "checkpoint", "restore"}
+                    if self.budget_mode == "official"
+                    else set()
+                )
+            ),
             "tools": tools,
             "context": {
                 "adapter": getattr(self.adapter, "name", ""),
@@ -423,15 +436,17 @@ class SimWorker:
             "reason": self._termination_reason,
             "budget": self._budget_snapshot(),
             "simulation_time_s": getattr(self.adapter, "simulation_time_s", None),
-            "capabilities": {"terminal_feedback": True,
-                             "bounded_episodes": bool(getattr(self.adapter, "bounded_episodes", False))},
+            "capabilities": {
+                "terminal_feedback": True,
+                "bounded_episodes": bool(getattr(self.adapter, "bounded_episodes", False)),
+            },
         }
         return status if include_verdict else status_feedback(status)
 
     def _interrupt_devices(self):
         if self.devices is not None:
             self.devices.interrupt()
-        self.world.poll_segments()
+        self.world.poll_motions()
 
     def submit(self, *, interrupt=True) -> dict[str, Any]:
         """Seal one authoritative observation, budget and verdict in the world's lane.
@@ -478,17 +493,23 @@ class SimWorker:
                     "success" if verdict["completed"] else "stopped"
                 )
                 from roboenv_runtime.runtime.atomic import atomic_write_json
-                atomic_write_json(self.run_dir / "terminal.json", {
-                    "status": self.simulation_status(include_verdict=True), "verdict": verdict,
-                    "task": self.task_id, "seed": self.seed,
-                })
+
+                atomic_write_json(
+                    self.run_dir / "terminal.json",
+                    {
+                        "status": self.simulation_status(include_verdict=True),
+                        "verdict": verdict,
+                        "task": self.task_id,
+                        "seed": self.seed,
+                    },
+                )
             except Exception:
                 # An incomplete final evaluation is not a retryable opportunity
                 # to take more actions or evaluate a different terminal state.
                 self.state = "failed"
                 raise
             # Publish the sealed verdict before completing terminal segments.
-            self.world.poll_segments()
+            self.world.poll_motions()
             return copy.deepcopy(self._final_result)
 
     def _budget_snapshot(self) -> dict[str, Any]:
@@ -556,6 +577,7 @@ class SimWorker:
         if not callable(fn):
             raise WorkerRPCError("unsupported_op", "this adapter has no checkpoint capability")
         import uuid
+
         token = uuid.uuid4().hex
         self._checkpoints[token] = fn()
         return token
@@ -597,7 +619,7 @@ class SimWorker:
             try:
                 return self._dispatch(op, args)
             finally:
-                self.world.poll_segments()
+                self.world.poll_motions()
 
     def _dispatch(self, op: str, args: Mapping[str, Any]) -> Any:
         if op == "simulation.status":
@@ -610,14 +632,31 @@ class SimWorker:
             self.submit()
             return self.simulation_status(include_verdict=True)
         if self.state == "failed" and op not in {
-            "health", "api", "environment.describe", "devices.list", "devices.describe",
-            "reset", "reset_same_task", "shutdown",
+            "health",
+            "api",
+            "environment.describe",
+            "devices.list",
+            "devices.describe",
+            "reset",
+            "reset_same_task",
+            "shutdown",
         }:
-            raise WorkerRPCError("world_failed", "World lifecycle failed; owner recovery is required")
+            raise WorkerRPCError(
+                "world_failed", "World lifecycle failed; owner recovery is required"
+            )
         if self.adapter.name in DEVICE_BACKENDS and op in {
-            "call", "skill", "exec", "reset", "reset_same_task", "checkpoint", "restore",
+            "call",
+            "skill",
+            "exec",
+            "reset",
+            "reset_same_task",
+            "checkpoint",
+            "restore",
         }:
-            raise WorkerRPCError("unsupported_op", "This backend accepts basic device operations; start a new service for a new episode")
+            raise WorkerRPCError(
+                "unsupported_op",
+                "This backend accepts basic device operations; start a new service for a new episode",
+            )
         if op not in WORKER_OPS:
             raise WorkerRPCError(
                 "unsupported_op",
@@ -633,9 +672,17 @@ class SimWorker:
             return self.api()
         if op == "observe":
             return self.observe()
-        if op in {"environment.describe", "devices.list", "devices.describe", "devices.call"}:
+        if op in {
+            "environment.describe",
+            "devices.list",
+            "devices.describe",
+            "devices.call",
+            "devices.cancel",
+        }:
             if self.devices is None:
-                raise WorkerRPCError("devices_unconfigured", "No server-owned robot catalog configured")
+                raise WorkerRPCError(
+                    "devices_unconfigured", "No server-owned robot catalog configured"
+                )
             from roboenv.devices.model import DeviceError
 
             try:
@@ -648,35 +695,60 @@ class SimWorker:
                     task = description.get("task", {})
                     if self.adapter.name in DEVICE_BACKENDS:
                         description = {
-                            "task": {"id": task.get("id", self.task_id),
-                                     "instruction": self.adapter.goal() or task.get("instruction", ""),
-                                     "context": {}},
+                            "task": {
+                                "id": task.get("id", self.task_id),
+                                "instruction": self.adapter.goal() or task.get("instruction", ""),
+                                "context": {},
+                            },
                             "devices": description["devices"],
                         }
-                        return {**description, "session": self.session, "generation": self.generation}
-                    return {**description, "session": self.session,
-                            "generation": self.generation, "task_id": self.task_id,
-                            "seed": self.seed, "budget_mode": self.budget_mode}
+                        return {
+                            **description,
+                            "session": self.session,
+                            "generation": self.generation,
+                        }
+                    return {
+                        **description,
+                        "session": self.session,
+                        "generation": self.generation,
+                        "task_id": self.task_id,
+                        "seed": self.seed,
+                        "budget_mode": self.budget_mode,
+                    }
                 if op == "devices.describe":
                     if set(args) != {"device"}:
                         raise DeviceError("invalid_args", "Expected device name only")
                     return self.devices.describe(args["device"])
-                if self._final_result is not None and getattr(self.adapter, "bounded_episodes", False):
+                if self._final_result is not None and getattr(
+                    self.adapter, "bounded_episodes", False
+                ):
                     from roboenv.devices.contract import READ_ACTIONS
+
                     if args.get("action") not in READ_ACTIONS:
-                        raise WorkerRPCError("episode_finished", "Episode finished; call roboenv stop for the final judgment",
-                                             details=self.simulation_status())
-                result = self.devices.submit(args, submitted=self.scorer.submitted)
+                        raise WorkerRPCError(
+                            "episode_finished",
+                            "Episode finished; call roboenv stop for the final judgment",
+                            details=self.simulation_status(),
+                        )
+                operation = {
+                    "devices.cancel": self.devices.cancel,
+                }.get(op, self.devices.submit)
+                result = operation(args, submitted=self.scorer.submitted)
+
                 def finish(value):
                     self._check_terminal()
                     value["budget"] = self._budget_snapshot()
                     if self._final_result is not None:
                         value["simulation"] = self.simulation_status()
                     return value
+
                 def failed(error):
                     if isinstance(error, DeviceError):
-                        raise WorkerRPCError(error.code, error.message, details=error.details) from error
+                        raise WorkerRPCError(
+                            error.code, error.message, details=error.details
+                        ) from error
                     raise error
+
                 return map_result(result, finish, failed)
             except DeviceError as exc:
                 raise WorkerRPCError(exc.code, exc.message, details=exc.details) from exc
@@ -704,7 +776,10 @@ class SimWorker:
         if op == "restore":
             return self.restore(args)
         if op == "exec":
-            raise WorkerRPCError("client_side_exec", "programs execute in the agent container, never inside the simulator")
+            raise WorkerRPCError(
+                "client_side_exec",
+                "programs execute in the agent container, never inside the simulator",
+            )
         if op == "shutdown":
             if args:
                 raise WorkerRPCError("invalid_args", "shutdown takes no arguments")
@@ -722,7 +797,8 @@ class SimWorker:
             return
         self._closed = True
         self._interrupt_devices()
-        self.world.stop_clock()
+        self.world.freeze()
+        self.world.poll_motions()
         self.state = "closed"
         try:
             if self.devices is not None:
@@ -777,14 +853,30 @@ def handle_mapping(worker: SimWorker, raw: Mapping[str, Any], *, deferred=False)
             return Response.failure(
                 request, "generation_mismatch", f"worker generation is {worker.generation}"
             ).as_dict()
+
         def failed(exc):
             if isinstance(exc, WorkerRPCError):
-                return Response.failure(request, exc.code, exc.message, details=exc.details).as_dict()
-            return Response.failure(request, "operation_failed", f"{type(exc).__name__}: {exc}").as_dict()
+                return Response.failure(
+                    request, exc.code, exc.message, details=exc.details
+                ).as_dict()
+            return Response.failure(
+                request, "operation_failed", f"{type(exc).__name__}: {exc}"
+            ).as_dict()
+
         try:
             dispatch = worker.dispatch_async if deferred else worker.dispatch
-            return map_result(dispatch(request.op, request.args),
-                              lambda value: Response.success(request, jsonable(value)).as_dict(), failed)
+            from roboenv.devices.execution import request_identity
+
+            token = request_identity.set(request.request_id)
+            try:
+                outcome = dispatch(request.op, request.args)
+            finally:
+                request_identity.reset(token)
+            return map_result(
+                outcome,
+                lambda value: Response.success(request, jsonable(value)).as_dict(),
+                failed,
+            )
         except Exception as exc:
             return failed(exc)
 
@@ -797,6 +889,7 @@ def handle_mapping(worker: SimWorker, raw: Mapping[str, Any], *, deferred=False)
             "ok": False,
             "error": {"code": "invalid_request", "message": "op and object args are required"},
         }
+
     def failed(exc):
         if isinstance(exc, WorkerRPCError):
             error = {"code": exc.code, "message": exc.message}
@@ -805,9 +898,14 @@ def handle_mapping(worker: SimWorker, raw: Mapping[str, Any], *, deferred=False)
         else:
             error = {"code": "operation_failed", "message": f"{type(exc).__name__}: {exc}"}
         return {"id": request_id, "ok": False, "error": error}
+
     try:
         dispatch = worker.dispatch_async if deferred else worker.dispatch
-        return map_result(dispatch(op, args), lambda value: {"id": request_id, "ok": True, "result": jsonable(value)}, failed)
+        return map_result(
+            dispatch(op, args),
+            lambda value: {"id": request_id, "ok": True, "result": jsonable(value)},
+            failed,
+        )
     except Exception as exc:
         return failed(exc)
 
@@ -833,13 +931,13 @@ class MainThreadWorkerUnixServer(WorkerUnixServer):
     """Decode connections in threads; run every native call on the owner thread.
 
     Native physics and graphics contexts can require their creating thread, in
-    either clock mode. Idle connections and motion waits leave that thread free
-    to service camera reads and clock ticks.
+    all backends. Idle connections and motion waits leave that thread free
+    to service reads and pending commands.
     """
 
     daemon_threads = True
     block_on_close = False
-    request_handoff_timeout = 0.02
+    request_handoff_timeout = 0.002
 
     def __init__(self, *args, **kwargs):
         self._pending = queue.SimpleQueue()
@@ -854,8 +952,10 @@ class MainThreadWorkerUnixServer(WorkerUnixServer):
         # the native loop would throttle all devices to one request per frame,
         # even when a batch could otherwise drain the pending request queue.
         acceptor = threading.Thread(
-            target=super().serve_forever, kwargs={"poll_interval": poll_interval},
-            name="roboenv-worker-accept", daemon=True,
+            target=super().serve_forever,
+            kwargs={"poll_interval": poll_interval},
+            name="roboenv-worker-accept",
+            daemon=True,
         )
         self._native_stopped.clear()
         acceptor.start()
@@ -885,7 +985,10 @@ class MainThreadWorkerUnixServer(WorkerUnixServer):
         # hand over the next request, then service the clock even under a flood.
         for _ in range(16):
             try:
-                timeout = min(self.request_handoff_timeout, self.worker.world.poll_interval)
+                timeout = self.request_handoff_timeout
+                world = self.worker.world
+                if world.mode == "realtime":
+                    timeout = min(timeout, max(0, world.next_tick - time.monotonic()))
                 future, raw = self._pending.get(timeout=timeout)
             except queue.Empty:
                 break
@@ -893,18 +996,20 @@ class MainThreadWorkerUnixServer(WorkerUnixServer):
                 try:
                     result = handle_mapping(self.worker, raw, deferred=True)
                     if isinstance(result, Future):
+
                         def completed(source, target=future):
                             try:
                                 target.set_result(source.result())
                             except Exception as error:
                                 target.set_exception(error)
+
                         result.add_done_callback(completed)
                     else:
                         future.set_result(result)
                 except Exception as exc:
                     future.set_exception(exc)
-        self.worker.world.poll()
-        self.worker.world.poll_segments()
+        self.worker.world.advance()
+        self.worker.world.poll_motions()
 
     def server_close(self):
         with self._pending_lock:
@@ -916,8 +1021,7 @@ class MainThreadWorkerUnixServer(WorkerUnixServer):
 
 
 def create_worker_server(path, worker, max_bytes=MAX_NDJSON_BYTES):
-    server_type = MainThreadWorkerUnixServer if worker.world.main_thread_clock else WorkerUnixServer
-    return server_type(path, worker, max_bytes)
+    return MainThreadWorkerUnixServer(path, worker, max_bytes)
 
 
 class WorkerRequestHandler(socketserver.StreamRequestHandler):
@@ -992,7 +1096,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=int(os.environ.get("ROBOENV_GENERATION") or os.environ.get("DOJO_GENERATION") or 0),
     )
-    parser.add_argument("--privileged", action="store_true", help="expose environment diagnostics (practice only); never server-side code")
+    parser.add_argument(
+        "--privileged",
+        action="store_true",
+        help="expose environment diagnostics (practice only); never server-side code",
+    )
+    parser.add_argument("--execution-mode", choices=("stepped", "realtime"))
     parser.add_argument("--practice-max-steps", type=int, default=240_000)
     parser.add_argument(
         "--source-lock",
@@ -1027,6 +1136,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         verify(args.source_lock, repo_root())
 
+    from roboenv_runtime.tasks.loader import find_task
+
+    execution_mode = args.execution_mode or find_task(args.task).execution_mode
     adapter, task_id = build_adapter(
         args.task, args.budget_mode, practice_max_steps=args.practice_max_steps
     )
@@ -1039,6 +1151,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=args.seed,
             run_dir=run_dir,
             budget_mode=args.budget_mode,
+            execution_mode=execution_mode,
             session=args.session,
             generation=args.generation,
             privileged=args.privileged,
@@ -1061,7 +1174,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         old_term = signal.signal(signal.SIGTERM, request_shutdown)
         old_int = signal.signal(signal.SIGINT, request_shutdown)
         try:
-            server.serve_forever(poll_interval=worker.world.poll_interval)
+            server.serve_forever(poll_interval=0.2)
         finally:
             signal.signal(signal.SIGTERM, old_term)
             signal.signal(signal.SIGINT, old_int)

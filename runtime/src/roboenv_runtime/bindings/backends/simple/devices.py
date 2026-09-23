@@ -1,16 +1,18 @@
 """Device bindings for the shared G1 scene; the worker serializes all calls."""
 
+from roboenv_runtime.bindings.motion import control_binding
+
 from pathlib import Path
 
 from roboenv.devices.velocity import command_schema
 
 from roboenv.devices.model import Action, BoundDevice
-from roboenv_runtime.bindings.control import write_segment
 from ..isaaclab.profile import validate
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
 
 
+@control_binding
 def bind(spec, root, context, *, kind):
     if context.backend != "simple" or context.embodiment != "g1":
         raise ValueError("SIMPLE requires the G1 embodiment")
@@ -62,15 +64,13 @@ def bind(spec, root, context, *, kind):
     register("stop", lambda: control.stop(spec.name), mutation=True)
     register(
         "write",
-        lambda **args: write_segment(world, spec.name, **args),
+        lambda **args: world.control.write(spec.name, args),
         command_schema(control.profiles["base"]["intrinsics"]["control"])
         if spec.name == "base"
         else {
             "type": "object",
             "properties": {
                 "target": {"type": "array", "items": {"type": "number"}},
-                "for_s": {"type": "number", "exclusiveMinimum": 0},
-                "arrive": {"type": "object"},
             },
             "required": ["target"],
             "additionalProperties": False,

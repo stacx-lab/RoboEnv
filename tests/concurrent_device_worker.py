@@ -2,12 +2,13 @@
 
 import os
 import threading
+import time
 
-from roboenv.devices.execution import map_result
 from roboenv.devices.model import Action, BoundDevice
 from roboenv_runtime.adapters.device_control import DeviceControl
 from roboenv_runtime.adapters.fakeshell import FakeShell
 from roboenv_runtime.bindings import assembly, default_registry
+from roboenv_runtime.bindings.motion import control_binding
 from roboenv_runtime.core.types import Budget
 from roboenv_runtime.runtime.worker import main
 
@@ -23,8 +24,7 @@ def initialize(self, *args, **kwargs):
         {name: [(-2, 2)] for name in self.positions},
         self.positions,
         self.apply,
-        lambda: None,
-        realtime=True,
+        lambda: time.sleep(0.01),
         exhausted=lambda: False,
         interval_s=0.02,
     )
@@ -35,6 +35,7 @@ def apply(self, targets):
     self.positions = {name: list(value) for name, value in targets.items()}
 
 
+@control_binding
 def bind(spec, root, context):
     adapter = context.native
     name = spec.name
@@ -57,10 +58,10 @@ def bind(spec, root, context):
         result = execution.perform(
             "fixture.write",
             args,
-            lambda: adapter.control.write(name, args["target"], for_s=args["for_s"]),
+            lambda: adapter.control.write(name, args["target"]),
             mutating=True,
         )
-        return map_result(result, lambda value: {**value, "reached": False, "state": read()})
+        return result
 
     def stop(args, execution):
         return execution.perform(
@@ -94,9 +95,9 @@ def registry():
 if __name__ == "__main__":
     FakeShell.__init__ = initialize
     FakeShell.apply = apply
-    FakeShell.realtime_interval = 0.02
-    FakeShell.realtime_tick = lambda self: self.control.tick()
-    FakeShell.realtime_on_main_thread = os.environ.get("TEST_OWNER_THREAD") == "1"
+    FakeShell.control_interval_s = 0.02
+    FakeShell.advance_control = lambda self: self.control.tick()
+    FakeShell.owner_thread_required = os.environ.get("TEST_OWNER_THREAD") == "1"
     FakeShell.budget = lambda self: Budget(used=self.control.frame, max=None)
     assembly.default_registry = registry
     raise SystemExit(main())

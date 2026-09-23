@@ -1,22 +1,17 @@
-"""Independent device targets; one world owns stepping, expiry and evidence."""
+"""Independent device targets; one world owns stepping and evidence."""
 
 import copy
 import math
 
 from roboenv.devices.velocity import command as velocity_command
 
-from roboenv_runtime.adapters.segments import finish_segment, require_scheduler
 
-from .profiles import CONTROL_INTERVAL_S, NAMES, profiles
+from .profiles import NAMES, profiles
 
 
 class Control:
-
-    def __init__(self, native, model, *, realtime=True):
-        if type(realtime) is not bool:
-            raise ValueError("realtime must be a boolean")
+    def __init__(self, native, model):
         self.native, self.model = native, model
-        self.realtime = realtime
         self.events = []
         self.names = NAMES
         control = copy.deepcopy(model["control"])
@@ -49,22 +44,14 @@ class Control:
                 raise ValueError("Target exceeds limits")
         return list(target)
 
-    def write(self, name, args, *, for_s=None, arrived=None):
-        require_scheduler(self.realtime, for_s)
+    def write(self, name, args):
         target = self.validate(name, args)
         self.native.require_active()
         self.targets[name] = target
         self.events.append(
             {"frame": self.native.steps, "op": "write", "device": name, "args": copy.deepcopy(args)}
         )
-        started = self.native.steps
-        if not self.realtime:
-            self.native.advance(self.targets)
-        return finish_segment(
-            started=started, frame=lambda: self.native.steps, interval=CONTROL_INTERVAL_S,
-            for_s=for_s, realtime=self.realtime, arrived=arrived,
-            exhausted=lambda: self.native.done, result=lambda elapsed: {"accepted": True, "elapsed_s": elapsed},
-        )
+        return {"accepted": True, "elapsed_s": 0.0}
 
     def stop(self, name, *, reason="requested"):
         if name not in NAMES:
@@ -75,8 +62,7 @@ class Control:
             else self.native.read_device(name)["positions"]
         )
         self.targets[name] = list(value)
-        if name == "base":
-            self.events.append(
+        self.events.append(
             {"frame": self.native.steps, "op": "stop", "device": name, "reason": reason}
         )
         return {"stopped": True, **self.profiles[name]["intrinsics"]["stop"]}

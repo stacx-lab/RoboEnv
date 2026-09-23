@@ -1,10 +1,10 @@
 id: libero/close-top-drawer
 backend: libero
+execution_mode: stepped
 backend_task: libero.90_0
 robot: libero/libero-panda-kitchen
 instruction: close the top drawer of the cabinet
 backend_kwargs:
-  realtime: true
   suite_name: libero_90
   task_id: 0
   init_state_index: 0

@@ -7,7 +7,6 @@ clients and safely deduplicate retries after a lost response.
 This module deliberately contains no simulator imports.
 """
 
-
 from __future__ import annotations
 
 import copy
@@ -41,6 +40,7 @@ ALLOWED_OPS = frozenset(
         "devices.list",
         "devices.describe",
         "devices.call",
+        "devices.cancel",
         "operations.get",
         "api",
         "observe",

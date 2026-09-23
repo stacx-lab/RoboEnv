@@ -10,10 +10,10 @@ RoboEnv owns the world, clocks, native verdict and private replay evidence.
 roboenv prepare simple
 roboenv tasks list --simulator simple
 roboenv launch simple/g1-xmove-pick
-roboenv launch simple/g1-transfer-between-tables --sync
+roboenv launch simple/g1-transfer-between-tables
 ```
 
-The default is realtime and `sim_mode: mujoco_isaac`: MuJoCo physics with Isaac
+Execution is synchronous with `sim_mode: mujoco_isaac`: MuJoCo physics with Isaac
 Sim 4.5 RGB rendering. Preparation uses an isolated Python 3.10 environment and
 checksum-verified assets (about 4.3 GB of archives). Isaac requires compatible
 NVIDIA RTX rendering hardware and Vulkan. SIMPLE launches with Isaac rendering
@@ -167,30 +167,22 @@ as a fixed arm offset when changing finger configurations.
 
 ## Time, stop and concurrent calls
 
-Realtime writes accept targets and return `accepted: true`; this does not mean
-arrival. The existing native owner advances nominal 20 ms control intervals
-(four 5 ms MuJoCo substeps), with best-effort wall-clock pacing. Rendering can
-reduce achieved wall-clock rate. Upper-body goals replace previous goals, and
-repeating a goal does not restart native interpolation.
+Joint and hand writes stream full absolute vectors at `freq_hz`, with no
+interpolation. Goal trajectories are supplied by the harness.
+The lower-body WBC continues to own legs and waist. The executor rounds action
+boundaries onto its 20 ms native interval (four 5 ms MuJoCo substeps).
 
-Base velocity expires after 0.5 seconds without refresh, while height and all
-orientation references remain latched. Arms and hands declare no command expiry.
-Stopping base zeroes velocity while retaining posture; stopping an arm or hand
-holds its measured joints. Other devices retain their targets. Realtime practice
-runs have no frame horizon; native success and non-timeout termination still apply.
-
-In synchronous mode, **each device write advances one interval** and then pauses.
-For example, a base write and an arm write advance two intervals. `kinex.devices()`
-submits independent calls; it does not make their effects atomic or their samples
-simultaneous. Inspect each result and each acquisition timestamp. There is no
-`batch_write`, `snapshot`, execution group, or public world-step operation.
-Reads, status, stop, recording and local FK/IK request no physics advancement.
+Only active commands advance physics. Independent devices share each tick;
+new commands replace prior motion on the same device. Stop cancels that device's active and
+queued commands, zeroing base travel or holding measured joints. It retains peer
+targets and posture. Native horizons and termination conditions remain active.
+Reads, status, stop, recording and local FK/IK never advance physics.
 
 ## Kinex and replay
 
 ```sh
 python tools/prepare_kinex_workspace.py simple/g1-xmove-pick --out NEW_WORKSPACE
-# Use --sync for a synchronous service.
+# Use for a synchronous service.
 ```
 
 Copied drivers use the standard portable transport, Kinex joint/velocity helpers,

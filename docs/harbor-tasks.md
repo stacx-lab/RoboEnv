@@ -51,7 +51,8 @@ roboenv tasks generate --backends libero robocasa \
 The default source is task discovery from pinned upstreams. Use `--ids` to select
 public IDs such as `robocasa/pick-place-microwave`, or `--source catalog/tasks` for
 checked-in examples. An explicit source directory contains normalized `task.yaml`
-files. Each seed produces an independent task.
+files, each declaring `execution_mode: stepped` or `execution_mode: realtime`.
+The exported worker uses that mode. Each seed produces an independent task.
 
 ```sh
 roboenv tasks discover --backends libero --out generated/libero-source
