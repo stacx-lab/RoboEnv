@@ -1,0 +1,35 @@
+diff --git a/source/isaaclab_teleop/setup.py b/source/isaaclab_teleop/setup.py
+index 358a9ca..ee1ba53 100644
+--- a/source/isaaclab_teleop/setup.py
++++ b/source/isaaclab_teleop/setup.py
+@@ -20,7 +20,7 @@ SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
+ # Minimum dependencies required prior to installation
+ INSTALL_REQUIRES = [
+     # IsaacTeleop is only available on Linux x86_64
+-    f"isaacteleop[retargeters,ui,cloudxr]~=1.3.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
++    f"isaacteleop[retargeters,ui]~=1.3.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+     # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
+     f"dex-retargeting==0.5.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
+ ]
+@@ -38,6 +38,11 @@ setup(
+     package_data={"": ["*.pyi", "*.env"]},
+     python_requires=">=3.12",
+     install_requires=INSTALL_REQUIRES,
++    extras_require={
++        "cloudxr": [
++            f"isaacteleop[cloudxr]~=1.3.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
++        ],
++    },
+     packages=find_packages(),
+     classifiers=[
+         "Natural Language :: English",
+diff --git a/source/isaaclab_teleop/changelog.d/optional-cloudxr.rst b/source/isaaclab_teleop/changelog.d/optional-cloudxr.rst
+new file mode 100644
+--- /dev/null
++++ b/source/isaaclab_teleop/changelog.d/optional-cloudxr.rst
+@@ -0,0 +1,5 @@
++Changed
++^^^^^^^
++
++* Made CloudXR dependencies optional. Install ``isaaclab_teleop[cloudxr]``
++  to enable CloudXR support.

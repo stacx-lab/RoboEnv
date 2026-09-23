@@ -6,6 +6,10 @@ license/notice at that revision. The preflight checks coverage, revisions and
 available bytes; `--verify-upstreams` also requires the actual checkouts and patches.
 This inventory covers source notices, not asset or binary redistribution approval.
 
+The managed Isaac Lab CloudXR patch makes streaming dependencies opt-in through
+``isaaclab_teleop[cloudxr]``. Default RoboEnv installs retain the teleoperation
+retargeters and UI without CloudXR's incompatible WebSocket requirement.
+
 | Locked source | Notices inspected within that checkout |
 |---|---|
 | libero | LICENSE (MIT text) |
