@@ -106,7 +106,7 @@ metres and an XYZW quaternion. The device's local `ik` action returns joint
 angles, which are then sent through `write`; it does not step physics. The HTTP
 joint interface accepts joint targets, not an RPC IK request. The native test
 also exercises the standalone URDF solver in
-`roboenv_runtime.adapters.isaaclab.go2_d1.kinematics.RobotModel`.
+`roboenv_runtime.adapters.isaaclab.go2_d1.adapter.RobotModel`.
 
 ## Clock and stop behavior
 

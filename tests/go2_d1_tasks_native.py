@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 
 import numpy as np
+from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import matrix_quat, quat_matrix
 from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
-from roboenv_runtime.adapters.isaaclab.go2_d1.kinematics import matrix_quat, quat_matrix
 from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import PICK_PLACE, REACH, TCP
 
 

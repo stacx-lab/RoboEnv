@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "runtime/src"))
 sys.path.insert(0, str(ROOT / "src"))
 from roboenv.devices.export import driver_access, write_driver  # noqa: E402
-from roboenv_runtime.adapters.isaaclab.go2_d1.kinematics import RobotModel  # noqa: E402
+from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import RobotModel  # noqa: E402
 from roboenv_runtime.adapters.isaaclab.go2_d1.profiles import profiles  # noqa: E402
 from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import (  # noqa: E402
     CONTROL,

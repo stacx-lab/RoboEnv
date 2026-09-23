@@ -10,20 +10,18 @@ import numpy as np
 import pytest
 import yaml
 from roboenv.tasks.resolve import resolve_task
-from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
-from roboenv_runtime.adapters.isaaclab.go2_d1.gait import (
+from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import (
     BOUNDS,
     DEFAULT,
+    RobotModel,
     Trot,
     leg_ik,
-    validate_command,
-)
-from roboenv_runtime.adapters.isaaclab.go2_d1.kinematics import (
-    RobotModel,
     matrix_quat,
     quat_matrix,
     rotation,
+    validate_command,
 )
+from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
 
 ROOT = Path(__file__).resolve().parents[1]
 RIG = ROOT / "catalog/robots/isaaclab/isaaclab-go2-d1"
@@ -87,18 +85,16 @@ def test_gait_feedback_and_output_scope():
 
 
 @pytest.mark.parametrize("realtime", [False, True])
-def test_complete_catalog_clock_and_bounds(realtime):
+def test_complete_catalog_clock_selection_preserves_profiles(realtime):
     resolved = resolve_task("isaaclab/go2-d1-control", project=ROOT, realtime=realtime)
+    assert resolved.task.backend_kwargs["realtime"] is realtime
     specs = {s.name: s for s in resolved.bindings.devices}
     assert set(specs) == {"base", "arm", "gripper", "camera_head", "camera_wrist", "world"}
     for name in ("base", "arm"):
         profile = specs[name].resolved_profile(resolved.robot)
-        execution = profile["intrinsics"]["control"]["execution"]
-        assert execution == (
-            {"mode": "realtime", "command_timeout_s": 0.5 if name == "base" else None}
-            if realtime
-            else {"mode": "stepped", "interval_s": 0.02}
-        )
+        # Clock selection changes the runtime configuration, not catalog resources.
+        source = yaml.safe_load((RIG / f"devices/{name}/profile.yaml").read_text())
+        assert profile == source
     wrist = specs["camera_wrist"].resolved_profile(resolved.robot)
     assert wrist["extrinsics"]["mount"]["parent"] == "arm"
     assert wrist["extrinsics"]["mount"]["parent_frame"] == "flange"
