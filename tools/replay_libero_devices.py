@@ -24,7 +24,6 @@ def replay(record):
         metadata["suite"],
         metadata["task_id"],
         init_state_index=metadata["init_state_index"],
-        realtime=True,
         enable_render=False,
         max_steps=metadata["max_steps"],
     )

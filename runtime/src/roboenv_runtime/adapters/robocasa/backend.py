@@ -8,7 +8,6 @@ from typing import Any
 
 import numpy as np
 
-from roboenv_runtime.adapters.segments import finish_segment, require_scheduler
 
 DEFAULT_ROBOT = "PandaOmron"
 DEFAULT_TASK = "PickPlaceCounterToCabinet"
@@ -38,8 +37,10 @@ def joint_controller_config(robot):
     parts = config["body_parts"]
     for arm in (name for name in ("right", "left") if name in parts):
         gripper = parts[arm].get("gripper")
-        parts[arm] = {**load_part_controller_config(default_controller="JOINT_POSITION"),
-                      "input_type": "absolute"}
+        parts[arm] = {
+            **load_part_controller_config(default_controller="JOINT_POSITION"),
+            "input_type": "absolute",
+        }
         if gripper is not None:
             parts[arm]["gripper"] = gripper
     if "torso" in parts:
@@ -48,7 +49,6 @@ def joint_controller_config(robot):
 
 
 class RoboCasaEnv:
-
     def __init__(
         self,
         task_name: str = DEFAULT_TASK,
@@ -60,7 +60,6 @@ class RoboCasaEnv:
         max_steps: int | None = None,
         stop_on_success: bool = False,
         enable_render: bool = True,
-        realtime: bool = True,
         camera_names: tuple[str, ...] = DEFAULT_CAMERAS,
         camera_size: tuple[int, int] = (256, 256),
         obj_instance_split: str | None = None,
@@ -76,9 +75,6 @@ class RoboCasaEnv:
         import robocasa  # noqa: F401  (importing it registers the kitchen environments)
         import robosuite
 
-        if type(realtime) is not bool:
-            raise ValueError("realtime must be a boolean")
-        self.realtime = realtime
         self._stream_commands = {}
         self.task_name = task_name
         self.robot = robot
@@ -303,7 +299,7 @@ class RoboCasaEnv:
         return out
 
     def get_step_budget(self) -> dict[str, int | None]:
-        """Native control frames, including idle frames in realtime mode."""
+        """Native control frames executed by pending commands."""
         return {"used": self._step_count, "max": self._max_steps}
 
     def render(self, camera: str | None = None) -> np.ndarray | None:
@@ -347,14 +343,8 @@ class RoboCasaEnv:
     def control_interval_s(self):
         return 1.0 / self.env.control_freq
 
-    def step(self, commands, *, for_s=None, arrived=None):
-        """Replace the named goals and execute them; report the time spent.
-
-        Synchronously the write is what advances physics, so it runs exactly one
-        control interval. With the wall clock running the world, it waits for the
-        background clock to carry the goal home, bounded by for_s.
-        """
-        require_scheduler(self.realtime, for_s)
+    def step(self, commands):
+        """Stage validated native references without advancing physics."""
         if self.terminal or (self._max_steps is not None and self._step_count >= self._max_steps):
             raise RuntimeError("episode_finished: no further motion is permitted")
         for part, command in commands.items():
@@ -365,14 +355,7 @@ class RoboCasaEnv:
                 continue
             if not np.array_equal(value, controller.goal_qpos):
                 controller.set_goal(value)
-        started = self._step_count
-        if not self.realtime:
-            self.tick()
-        return finish_segment(
-            started=started, frame=lambda: self._step_count, interval=1 / self.env.control_freq,
-            for_s=for_s, realtime=self.realtime, arrived=arrived,
-            exhausted=lambda: self.terminal or (self._max_steps is not None and self._step_count >= self._max_steps), result=lambda elapsed: elapsed,
-        )
+        return 0.0
 
     def stop_part(self, part):
         controller = self._robot.part_controllers[part]
@@ -388,7 +371,9 @@ class RoboCasaEnv:
             self._robot.gripper["right"].current_action = target.copy()
             controller.set_goal(target.copy())
         else:
-            controller.reset_goal()
+            # reset_goal() uses the controller's cached pre-substep state. Hold
+            # the measured terminal configuration, not that stale sample.
+            controller.set_goal(self.sim.data.qpos[controller.qpos_index].copy())
 
     def tick(self):
         """Run one native interval while retaining position targets.

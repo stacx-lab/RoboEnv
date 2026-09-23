@@ -21,7 +21,7 @@ def array(value):
     return value.detach().cpu().numpy() if hasattr(value, "detach") else np.asarray(value)
 
 
-def describe(robot, interval, *, realtime=False):
+def describe(robot):
     from pxr import UsdGeom
 
     if robot.model != "r1pro" or not robot.is_holonomic_base:

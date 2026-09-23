@@ -41,57 +41,23 @@ policy files live in `.cache/isaaclab/g1/`. The task uses project-relative paths
 The upstream bundle has some unavailable texture/deleted-reference paths, recorded
 in the manifest; geometry and runtime RGB-D output are verified separately.
 
-## Synchronous and realtime operation
+## Synchronous operation
 
-Synchronous operation remains the default. To run continuously:
-
-```sh
-.venv/bin/roboenv launch isaaclab/g1-pick-place --realtime --port 8124
-```
-
-The world owns a main-thread, wall-clock-paced 20 ms control loop. The existing
-physics substeps and policy scheduling are unchanged. Device writes replace
-retained goals; only the world clock advances physics. A batch replaces all its
-goals together, so a tick cannot observe a partially updated batch. This is
-best-effort pacing, not hard realtime: inference, rendering or slow requests can
-reduce simulation speed. There is no physics skipping or unbounded catch-up.
-
-Realtime base commands expire after 0.5 wall-clock seconds by default. Set
-`backend_kwargs.command_timeout_s` in a task YAML to a positive finite duration,
-or explicitly set it to null to disable expiry. Only a valid base write refreshes
-the deadline; reads, invalid commands and other actuator writes do not. On the
-first available tick at/after expiry, travel becomes zero while height, upper-body
-targets and the balance policy are retained. This is a software timeout on the
-simulation owner thread, not an independent safety watchdog.
-
-Reads acquire current state without requesting a step. Realtime write receipts
-acknowledge goal updates and include current state, not post-application feedback.
-`sequence` identifies accepted command/stop revisions (including expiry);
-`sample_time_s` tracks physics time independently. Use advancing sample times for
-fresh feedback. Stop changes the relevant goals without stepping or disabling
-balance. Kinex's portable driver stops the device before unloading; the native
-unload operation alone is lifecycle-only. Realtime mode disables the native 20 s
-timeout and reports an uncapped frame budget (`max: null`), so idle time does not
-exhaust the episode. Success and non-timeout termination conditions remain active:
-on termination, physics stops advancing, further writes are rejected, and final
-observations remain readable. Synchronous mode retains the original horizon.
-This does not disable the separate base-command watchdog.
-
-The checked-in robot profile remains stepped. Launch resolves realtime execution
-facts for the episode without rewriting the catalog; live exports contain those
-resolved facts. Do not copy the static stepped profile into a realtime Kinex run.
-Prepare a matching workspace instead (the output directory must be new):
+Only active commands advance the world in 20 ms native intervals. All native
+operations share the simulation creation thread, including rendering and cleanup.
+Joint writes stream absolute action vectors at `freq_hz`; goal planning and
+arrival checks belong to the harness. See [the joint contract](../DESIGN.md#one-world-one-execution-authority).
+There is no background clock or base-command expiry. Stops retain posture and
+halt travel without advancing physics. The native horizon and all termination
+conditions remain active; terminal observations remain readable.
 
 ```sh
-.venv/bin/python tools/prepare_kinex_workspace.py isaaclab/g1-pick-place \
-  --realtime --out /path/to/new-g1-workspace
+roboenv launch isaaclab/g1-pick-place --port 8124
+python tools/prepare_kinex_workspace.py isaaclab/g1-pick-place --out /path/to/new-g1-workspace
 ```
 
-Start Kinex there with `ROBOENV_ENDPOINT=http://127.0.0.1:8124`. Use `--sync` for
-both launch and workspace preparation to return to synchronous operation.
-Realtime GPU boot, pacing under camera load, balance and replay still require
-separate native validation; CPU tests are not evidence of those outcomes.
-
+Start Kinex with `ROBOENV_ENDPOINT=http://127.0.0.1:8124`. Rendering, balance and
+native replay need separate validation; CPU tests do not establish those outcomes.
 
 Regenerate the catalog and its runtime facts explicitly with the prepared Isaac Lab
 Python (USD bindings required):
@@ -120,12 +86,12 @@ uses its palm frame with the fixed wrist mount extracted from USD and accepts
 seven ordered joint positions; generated `postures.json` contains open,
 power and pinch command postures. These are reference configurations, not evidence
 of an object grasp. The upstream scene and success condition are retained;
-the upstream horizon applies only in synchronous mode.
+the upstream horizon is retained.
 Upper-body Pink control is replaced by explicit joint targets with gravity
 compensation. Reaching a terminal state prevents further motion until reset.
 
-Each device exposes read/write/stop. A synchronous write retains every other
-target and advances 20 ms; reads and stops do not advance physics. Kinex devices()
+Actuators expose read/write/stop and joints optionally expose set. Joint sequences
+consume one action period per point; reads and stops do not advance physics. Kinex devices()
 can mix concurrent reads and writes, returning individual results in input order.
 It does not promise atomic updates or identical acquisition times. The operator
 ensures enabled devices do not overlap.
@@ -133,7 +99,7 @@ ensures enabled devices do not overlap.
 Kinex can control individual arms with `servo_to` and compose independent device
 calls. The native integration check installs `tests/fixtures/device-composition/`
 only into its temporary test workspace to exercise frame conversion, arm IK,
-concurrent writes and realtime polling. This fixture is not a task-facing tool.
+concurrent commands and reads. This fixture is not a task-facing tool.
 The prepared environment must include the upstream task dependencies, including
 `isaaclab_teleop`. Native replay is a separate check from profile/CPU validation.
 

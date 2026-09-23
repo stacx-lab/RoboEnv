@@ -1,5 +1,6 @@
 id: isaaclab/g1-pick-place
 backend: isaaclab
+execution_mode: stepped
 backend_task: isaaclab.g1-pick-place
 robot: isaaclab/isaaclab-g1
 seed: 0
@@ -8,5 +9,4 @@ budget_mode: official
 action_abstraction: devices
 backend_kwargs:
   task_name: g1-pick-place
-  realtime: false
   asset_manifest: .cache/isaaclab/g1/assets.json

@@ -84,7 +84,7 @@ def select_cases(task, seeds=(0, 1), instances=None):
         require(seeds[0] != seeds[1], "Specify two distinct seeds for native layout selection")
     result = []
     for index, seed in enumerate(seeds):
-        kwargs = {**task.backend_kwargs, "realtime": False}
+        kwargs = dict(task.backend_kwargs)
         if instances is not None:
             kwargs["activity_instance_id"] = instances[index]
         result.append(dataclasses.replace(task, seed=seed, backend_kwargs=kwargs))
@@ -130,14 +130,20 @@ def exercise(owner, *, camera=None):
     with ThreadPoolExecutor(max_workers=3) as pool:
         replies = list(
             pool.map(
-                lambda client: client.device("left_arm").write(goal, request_id="dedup-motion"),
+                lambda client: client.device("left_arm").write(
+                    [goal],
+                    freq_hz=50,
+                    request_id="dedup-motion",
+                ),
                 [public, private, public],
             )
         )
     require(replies[0] == replies[1] == replies[2], "Duplicate request replies differ")
     require(private.request("observe")["budget"]["used"] == 1, "Duplicate request advanced twice")
     reject(
-        lambda: public.device("left_arm").write([0.0] * len(goal), request_id="dedup-motion"),
+        lambda: public.device("left_arm").write(
+            [[0.0] * len(goal)], freq_hz=1, request_id="dedup-motion"
+        ),
         "request_id_conflict",
     )
     # Lose a real HTTP reply after sending; recover by request ID without redoing motion.
@@ -149,7 +155,11 @@ def exercise(owner, *, camera=None):
         "request_id": identity,
         "deadline_s": 60.0,
         "op": "devices.call",
-        "args": {"device": "left_arm", "action": "write", "args": {"target": goal}},
+        "args": {
+            "device": "left_arm",
+            "action": "write",
+            "args": {"actions": [goal], "freq_hz": 50},
+        },
     }
     body = (json.dumps(request) + "\n").encode()
     url = urlsplit(owner.endpoint)
@@ -165,7 +175,11 @@ def exercise(owner, *, camera=None):
     while public.operation(identity)["state"] not in {"succeeded", "failed"}:
         require(time.monotonic() < deadline, "Lost-reply operation never settled")
         time.sleep(0.02)
-    public.device("left_arm").write(goal, request_id=identity)
+    public.device("left_arm").write(
+        [goal],
+        freq_hz=50,
+        request_id=identity,
+    )
     require(private.request("observe")["budget"]["used"] == 2, "Uncertain recovery repeated motion")
     left, right = target(public, "left_arm", 0.03), target(public, "right_arm", 0.05)
     with ThreadPoolExecutor(max_workers=2) as pool:

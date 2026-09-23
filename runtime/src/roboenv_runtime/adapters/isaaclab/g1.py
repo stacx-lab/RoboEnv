@@ -17,13 +17,11 @@ class G1Env:
         *,
         model_path=None,
         asset_manifest,
-        realtime=False,
         device="cuda:0",
         task_name="g1-pick-place",
     ):
         if task_name != "g1-pick-place":
             raise ValueError("G1 supports pick/place only")
-        self.realtime = realtime
         from roboenv_runtime.paths import repo_root
 
         model_path = (
@@ -48,17 +46,13 @@ class G1Env:
         self.images = {}
         self.steps = 0
         self.completed = self.done = False
-        self.control = Control(
-            self, self.model, realtime=realtime
-        )
+        self.control = Control(self, self.model)
         try:
             from isaaclab.app import AppLauncher
             from .g1_native import create
 
             self.app = AppLauncher(headless=True, enable_cameras=True, device=device).app
-            self.env, self.upper_names, self.control_interval = create(
-                paths, self.model, device, realtime=realtime
-            )
+            self.env, self.upper_names, self.control_interval = create(paths, self.model, device)
             self.robot = self.env.scene["robot"]
             self.ids = {
                 name: self.robot.find_joints(
@@ -86,7 +80,7 @@ class G1Env:
 
     @property
     def max_steps(self):
-        return None if self.realtime else self.env.max_episode_length
+        return self.env.max_episode_length
 
     def reset(self, seed):
         self.env.allow_reset = True
@@ -95,9 +89,7 @@ class G1Env:
         self.images = {}
         self.steps = 0
         self.completed = self.done = False
-        self.control = Control(
-            self, self.model, realtime=self.realtime
-        )
+        self.control = Control(self, self.model)
         for name in self.model["parts"]:
             self.control.targets[name] = self.read_device(name)["positions"]
 

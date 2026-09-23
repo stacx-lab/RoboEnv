@@ -32,7 +32,6 @@ intrinsics:
     left_arm_joint6: 0.0
     left_arm_joint7: 0.0
   control:
-    speed: null
     mode: position
   feedback:
     velocities: true
@@ -251,12 +250,12 @@ access:
     entry: driver.py
     persistent: true
     actions:
-    - load
-    - unload
-    - status
     - read
     - write
     - stop
+    - load
+    - unload
+    - status
     - fk
     - ik
 meta:

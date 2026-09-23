@@ -46,15 +46,14 @@ def test_removed_go2_joint_demo_is_not_discoverable():
     assert not (ROOT / "catalog/robots/isaaclab/isaaclab-go2/workspace.yaml").exists()
 
 
-@pytest.mark.parametrize("realtime", [False, True])
-def test_g1_clock_selection_leaves_profiles_alone(realtime, tmp_path):
+def test_g1_resolution_leaves_profiles_alone(tmp_path):
     import yaml
     from helpers import load_tool
 
     profile = ROOT / "catalog/robots/isaaclab/isaaclab-g1/devices/base/profile.yaml"
     original = profile.read_bytes()
-    resolved = resolve_task("isaaclab/g1-pick-place", project=ROOT, realtime=realtime)
-    assert resolved.task.backend_kwargs["realtime"] is realtime
+    resolved = resolve_task("isaaclab/g1-pick-place", project=ROOT)
+    assert "realtime" not in resolved.task.backend_kwargs
     base = next(spec for spec in resolved.bindings.devices if spec.name == "base")
     # Nothing about timing is declared any more: a write reports the device time
     # it spent, so resolving an episode leaves the control block untouched.
@@ -62,9 +61,7 @@ def test_g1_clock_selection_leaves_profiles_alone(realtime, tmp_path):
     assert profile.read_bytes() == original
     destination = tmp_path / "workspace"
     load_tool("prepare_kinex_workspace").prepare(
-        "isaaclab/g1-pick-place", destination, project=ROOT, realtime=realtime
+        "isaaclab/g1-pick-place", destination, project=ROOT
     )
     copied = yaml.safe_load((destination / ".kinex/devices/base/profile.yaml").read_text())
     assert "execution" not in copied["intrinsics"]["control"]
-
-

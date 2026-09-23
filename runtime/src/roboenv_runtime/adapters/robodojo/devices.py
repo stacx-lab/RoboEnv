@@ -31,19 +31,15 @@ class RoboDojoDevices(RoboDojoEnv):
         task_name,
         env_cfg_type="arx_x5",
         *,
-        realtime=False,
         max_steps=None,
         layout_config=None,
     ):
-        if type(realtime) is not bool:
-            raise ValueError("realtime must be a boolean")
         if max_steps is not None and (type(max_steps) is not int or max_steps < 1):
             raise ValueError("max_steps must be a positive action-frame count")
         self.embodiment = env_cfg_type
         self.layout_config = layout_config or env_cfg_type
         if self.layout_config not in {"arx_x5", "yam"}:
             raise ValueError("layout_config must name a supported native layout collection")
-        self.realtime = realtime
         self.device_facts, self.rig_frames, self.provenance = describe(
             robodojo_root(), env_cfg_type
         )
@@ -164,9 +160,9 @@ class RoboDojoDevices(RoboDojoEnv):
             targets,
             self._apply,
             self._advance,
-            realtime=self.realtime,
             exhausted=self.exhausted,
             on_write=self._release_holds,
+            interval_s=self.control_interval,
         )
         self._verify_cameras()
         self.initialization["state_sha256"] = self.owner_state()["sha256"]
@@ -178,7 +174,6 @@ class RoboDojoDevices(RoboDojoEnv):
                 "task_name": self.task_name,
                 "env_cfg_type": self.embodiment,
                 "layout_config": self.layout_config,
-                "realtime": self.realtime,
                 "max_steps": self.frame_limit,
             },
             "robodojo",
@@ -252,8 +247,8 @@ class RoboDojoDevices(RoboDojoEnv):
         if self.physics_steps - before != self.native_interval:
             raise RuntimeError("Native control cadence changed; acceptance must be revalidated")
 
-    def device_write(self, name, target, *, for_s=None, arrived=None):
-        return self.control.write(name, target, for_s=for_s, arrived=arrived)
+    def device_write(self, name, target):
+        return self.control.write(name, target)
 
     def device_stop(self, name):
         if name.endswith("_gripper"):
@@ -279,7 +274,9 @@ class RoboDojoDevices(RoboDojoEnv):
             flange = pose_matrix(manager.get_link_pose(robot, frames["flange"], [0])[0])
             result["frame_poses"] = {"flange": matrix_pose(np.linalg.inv(base) @ flange)}
         if name.endswith("_gripper"):
-            result.update(self.rig_frames[name.removesuffix("_gripper")]["gripper"].read(result["positions"]))
+            result.update(
+                self.rig_frames[name.removesuffix("_gripper")]["gripper"].read(result["positions"])
+            )
         return result
 
     def _camera(self, name):

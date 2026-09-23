@@ -80,7 +80,6 @@ intrinsics:
     mobilebase0_joint_torso_height: 0.2
   control:
     mode: position
-    speed: null
   feedback:
     velocities: true
     efforts: false

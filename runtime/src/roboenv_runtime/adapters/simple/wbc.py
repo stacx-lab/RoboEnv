@@ -55,39 +55,19 @@ class WholeBodyControl:
         }
         torso_rpy = np.asarray(targets["base"][4:7])
         velocity, height = targets["base"][:3], targets["base"][3]
-        goal = {
-            "target_upper_body_pose": np.asarray([positions[n] for n in self.upper_names]),
-            "navigate_cmd": np.asarray([*velocity, 0.0]),
-            "base_height_command": np.array([height]),
-            "target_time": self.time + 0.02,
-            "interpolation_garbage_collection_time": self.time - 0.04,
-        }
-        target = goal["target_upper_body_pose"]
-        if self.upper_target is None or not np.array_equal(target, self.upper_target):
-            # Start replacement at the current commanded reference, preserving the
-            # native rate limit. Identical references do not restart interpolation.
-            from decoupled_wbc.control.policy.interpolation_policy import PoseTrajectoryInterpolator
-
-            upper = self.policy.upper_body_policy
-            current = upper.interp(self.time)
-            upper.interp = PoseTrajectoryInterpolator(np.array([self.time]), current[None, :])
-            upper.last_waypoint_time = self.time
-            self.policy.set_goal(goal)
-            self.upper_target = target.copy()
-        upper = self.policy.upper_body_policy.get_action(self.time + 0.02)
+        self.upper_target = np.asarray([positions[n] for n in self.upper_names])
         q = np.zeros(self.model.num_dofs)
-        q[self.model.get_joint_group_indices("upper_body")] = upper["target_upper_body_pose"]
+        q[self.model.get_joint_group_indices("upper_body")] = self.upper_target
         lower = self.policy.lower_body_policy
         lower.set_metric_command(velocity, height, torso_rpy)
         self.policy.set_observation(self.observation())
-        # One target vector: upper interpolation owns arms/hands, native WBC owns
-        # legs/waist. Torso orientation now comes directly from the base command.
+        # Supplied references own arms/hands; native WBC owns legs/waist.
         lower_action = lower.get_action(
             time=self.time + 0.02,
             arms_target_pose=q[self.model.get_joint_group_indices("arms")],
             base_height_command=np.array([height]),
             torso_orientation_rpy=torso_rpy,
-            interpolated_navigate_cmd=goal["navigate_cmd"],
+            interpolated_navigate_cmd=np.asarray([*velocity, 0.0]),
         )
         indices = self.model.get_joint_group_indices("lower_body")
         q[indices] = lower_action["body_action"][0][: len(indices)]
@@ -108,6 +88,4 @@ class WholeBodyControl:
             "gait": lower.gait_indices.tolist(),
             "time": self.time,
             "upper_target": self.upper_target.tolist(),
-            "upper_times": self.policy.upper_body_policy.interp.times.tolist(),
-            "upper_poses": self.policy.upper_body_policy.interp.poses.tolist(),
         }

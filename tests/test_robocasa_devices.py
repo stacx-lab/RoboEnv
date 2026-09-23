@@ -113,7 +113,8 @@ def native_interpreter():
 
 
 def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
-    if not (ROOT.parent / "kinex/python/kinex/kinematics.py").is_file():
+    kinex, _ = kinex_sources()
+    if not (kinex / "packages/core/assets/python/kinex/kinematics.py").is_file():
         pytest.skip("Driver-local IK/FK integration requires the sibling Kinex utility")
     interpreter = native_interpreter()
     environment = {
@@ -401,7 +402,7 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         assert {p["name"] for p in second.devices()} == {"world", "base", "camera_left"}
         with pytest.raises(KeyError):
             second.device("arm")
-        first.device("arm").write(first.device("arm").read()["positions"])
+        first.device("arm").write([first.device("arm").read()["positions"]], freq_hz=20)
         assert owners[0].request("observe")["budget"]["used"] == 1
         assert owners[1].request("observe")["budget"]["used"] == 0
         image = first.device("camera_left").read()
@@ -496,17 +497,16 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         assert owners[0].request("health")["worker"]["alive"]
 
 
-@pytest.mark.parametrize(
-    "clock_mode", ["realtime", "synchronous", "bounded-realtime", "bounded-synchronous"]
-)
-def test_native_clock_modes(tmp_path, clock_mode):
+def test_native_sync_motion(tmp_path):
+    kinex, _ = kinex_sources()
+    if not (kinex / "packages/core/assets/builtin/tool/move-to/tool.py").is_file():
+        pytest.skip("requires Kinex move_to sources")
     result = subprocess.run(
         [
             native_interpreter(),
-            str(ROOT / "tests/robocasa_realtime_cpu.py"),
+            str(ROOT / "tests/robocasa_sync_cpu.py"),
             str(ROOT),
             str(tmp_path),
-            clock_mode,
         ],
         cwd=ROOT,
         env={
@@ -519,18 +519,6 @@ def test_native_clock_modes(tmp_path, clock_mode):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(result.stdout.splitlines()[-1])["passed"]
-
-
-@pytest.mark.parametrize("realtime", [True, False])
-def test_task_clock_setting_reaches_runtime_adapter(realtime):
-    from roboenv_runtime.tasks.schema import TaskSpec
-
-    task = yaml.safe_load(
-        (ROOT / "catalog/tasks/robocasa/pick-place-microwave/task.yaml").read_text()
-    )
-    task["backend_kwargs"]["realtime"] = realtime
-    spec = TaskSpec.from_dict(task)
-    assert spec.adapter_kwargs["realtime"] is realtime
 
 
 @pytest.mark.parametrize(

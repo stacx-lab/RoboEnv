@@ -8,7 +8,7 @@ from roboenv_runtime.core.types import Budget, ScoreReport
 class IsaacLabAdapter(AdapterBase):
     name = "isaaclab"
     embodiment = "g1"
-    realtime_on_main_thread = True
+    owner_thread_required = True
 
     def __init__(self, **kwargs):
         from .g1 import G1Env
@@ -16,10 +16,10 @@ class IsaacLabAdapter(AdapterBase):
         self._env = G1Env(**kwargs)
 
     @property
-    def realtime_interval(self):
-        return self._env.control_interval if self._env.realtime else None
+    def control_interval_s(self):
+        return self._env.control_interval
 
-    def realtime_tick(self):
+    def advance_control(self):
         self._env.control.tick()
 
     def reset(self, seed):
@@ -32,7 +32,7 @@ class IsaacLabAdapter(AdapterBase):
         return (
             "Pick up and place the steering wheel using the G1 humanoid. "
             "Component joint control is a practice interface; the upstream task verdict "
-            "is preserved. Realtime runs have no time horizon; synchronous runs retain "
+            "is preserved. Synchronous runs retain "
             "the upstream horizon."
         )
 

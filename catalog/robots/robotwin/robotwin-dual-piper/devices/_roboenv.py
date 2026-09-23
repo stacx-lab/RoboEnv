@@ -21,9 +21,9 @@ MAX_BYTES = 8 * 1024 * 1024
 
 
 class WireError(RuntimeError):
-    def __init__(self, message, code, request_id):
+    def __init__(self, message, code, request_id, details=None):
         super().__init__(message)
-        self.code, self.request_id = code, request_id
+        self.code, self.request_id, self.details = code, request_id, details
 
 
 class Transport:
@@ -38,6 +38,8 @@ class Transport:
         self.used = False
         self.unloaded = False
         self.deadline = None
+        self._motions = {}
+        self._motion_lock = threading.Lock()
 
     @property
     def connection(self):
@@ -204,6 +206,13 @@ class Transport:
                 destination.unlink(missing_ok=True)
             raise
 
+    def cancel_motions(self):
+        with self._motion_lock:
+            identities = set(self._motions.values())
+            self._motions.clear()
+        for identity in identities:
+            self.remote("cancel_motion", {"execution_id": identity})
+
     def remote(self, action, args):
         identity = self.identity
         request_id = f"driver-{uuid.uuid4().hex}"
@@ -211,12 +220,19 @@ class Transport:
             **identity,
             "request_id": request_id,
             "deadline_s": 600 if self.deadline is None else self.timeout(),
-            "op": "devices.call",
-            "args": {"device": self.target, "action": action, "args": args},
+            "op": {"cancel_motion": "devices.cancel"}.get(
+                action, "devices.call"
+            ),
+            "args": args
+            if action == "cancel_motion"
+            else {"device": self.target, "action": action, "args": args},
         }
         payload = json.dumps(request, allow_nan=False).encode() + b"\n"
         if len(payload) > MAX_BYTES:
             raise ValueError("Device request is too large")
+        if action == "write":
+            with self._motion_lock:
+                self._motions[self.target] = request_id
         self.used, self.unloaded = True, False
         # A broken connection never causes this request to be resubmitted.
         try:
@@ -249,7 +265,12 @@ class Transport:
             raise WireError(str(exc), "outcome_unknown", request_id) from exc
         if not response["ok"]:
             error = response["error"]
-            raise WireError(error.get("message", str(error)), error.get("code"), request_id)
+            raise WireError(
+                error.get("message", str(error)),
+                error.get("code"),
+                request_id,
+                error.get("details"),
+            )
         self.unloaded = action == "unload"
         data = response["result"]["data"]
         if "simulation" in response["result"] and isinstance(data, dict):
@@ -355,6 +376,8 @@ def main(handle, transport):
                             if request.get("interrupt") is True:
                                 for _, event in writes:
                                     event.set()
+                                if any(not future.done() for future, _ in writes):
+                                    transport.cancel_motions()
                                 with output_lock:
                                     output.write(
                                         json.dumps({"id": request["id"], "ok": True}) + "\n"
@@ -413,9 +436,7 @@ def main(handle, transport):
                         signal.setitimer(signal.ITIMER_REAL, 0.5)
                         try:
                             if transport.used and not transport.unloaded and can_stop:
-                                result = respond("stop", {})
-                                if not result.get("ok") or result.get("stopped") is not True:
-                                    raise RuntimeError(f"Driver exit stop failed: {result}")
+                                transport.cancel_motions()
                         except Exception as exc:
                             print(str(exc), file=sys.stderr)
                         finally:

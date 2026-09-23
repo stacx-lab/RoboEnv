@@ -68,7 +68,6 @@ class Native:
         self.done = False
         self.steps = 0
         self.max_steps = 10
-        self.realtime = False
         self.control_interval = 0.02
         self.closed = False
 
@@ -93,7 +92,7 @@ class Native:
         self.steps = 0
         self.sample_time_s = 0
         self.done = False
-        self.control = Control(self, model(), realtime=self.realtime)
+        self.control = Control(self, model())
 
 
 def test_policy_cannot_advertise_untracked_posture_or_other_frames():
@@ -114,10 +113,9 @@ def test_policy_cannot_advertise_untracked_posture_or_other_frames():
         assert native.received == []
 
 
-@pytest.mark.parametrize("realtime", [False, True])
-def test_write_validates_before_effects_and_preserves_other_targets(realtime):
+def test_write_validates_before_effects_and_preserves_other_targets():
     native = Native()
-    control = Control(native, model(), realtime=realtime)
+    control = Control(native, model())
     valid = {"device": "left_arm", "args": {"target": [0.4]}}
     for invalid in (
         {"device": "right_arm", "args": {"target": [2]}},
@@ -145,10 +143,9 @@ def test_write_validates_before_effects_and_preserves_other_targets(realtime):
     assert native.received == []
     receipt = control.write(valid["device"], valid["args"])
     assert receipt["accepted"] is True and receipt["elapsed_s"] >= 0
-    if realtime:
-        assert native.received == []
-        assert native.sample_time_s == 0
-        control.tick()
+    assert native.received == []
+    assert native.sample_time_s == 0
+    control.tick()
     assert native.sample_time_s == 0.02
     assert native.received[0]["right_arm"] == [0]
     native.read_device("left_arm")
@@ -162,73 +159,24 @@ def test_write_validates_before_effects_and_preserves_other_targets(realtime):
             "posture": {"height": 0.7},
         },
     )
-    if realtime:
-        control.tick()
+    control.tick()
     control.stop("base")
     assert control.targets["base"] == [0, 0, 0, 0.7]
     assert native.sample_time_s == 0.04
 
 
-@pytest.mark.parametrize(
-    "options",
-    [
-        {"realtime": "true"},
-        {"realtime": 1},
-    ],
-)
-def test_invalid_clock_settings_are_rejected_before_effects(options):
+def test_terminal_control_preserves_references_until_reset():
     native = Native()
-    with pytest.raises(ValueError):
-        Control(native, model(), **options)
-    assert native.received == []
-
-
-@pytest.mark.parametrize("early_terminal", [False, True])
-def test_g1_realtime_uses_owner_clock_and_preserves_terminal_state(monkeypatch, early_terminal):
-    from roboenv_runtime.adapters.isaaclab.adapter import IsaacLabAdapter
-    from roboenv_runtime.runtime import world as world_module
-
-    now = [0.0]
-    monkeypatch.setattr(world_module.time, "monotonic", lambda: now[0])
-    native = Native()
-    native.realtime = True
-    native.max_steps = 2
-    native.control = Control(native, model(), realtime=True)
-    adapter = IsaacLabAdapter.__new__(IsaacLabAdapter)
-    adapter._env = native
-    world = world_module.WorldSession(adapter)
-    world.start()
-    assert world.main_thread_clock and world._thread is None
-    try:
-        before = native.read_device("base")
-        native.control.write("left_arm", {"target": [0.4]})
-        assert native.steps == 0
-        now[0] = 0.021
-        world.poll()
-        assert adapter.budget().used == 1
-        after = native.read_device("base")
-        assert after["sample_time_s"] > before["sample_time_s"]
-        assert native.received[-1]["left_arm"] == [0.4]
-        if early_terminal:
-            native.done = True
-        for _ in range(4):
-            now[0] += 0.03
-            world.poll()
-        assert native.steps == (1 if early_terminal else 2)
-        assert world.failure is None
-        retained = copy.deepcopy(native.control.targets)
-        with pytest.raises(ValueError, match="terminated"):
-            native.control.write("left_arm", {"target": [0.5]})
-        assert native.control.targets == retained
-        assert adapter.budget().max == 2  # Preserve the original horizon.
-        world.reset(3)
-        assert not world._halt.is_set() and native.steps == 0
-        now[0] += 0.03
-        world.poll()
-        assert native.steps == 1 and world.failure is None
-    finally:
-        world.close()
-    assert native.closed
+    native.control = Control(native, model())
+    native.control.write("left_arm", {"target": [0.4]})
+    native.control.tick()
+    native.done = True
+    retained = copy.deepcopy(native.control.targets)
+    with pytest.raises(ValueError, match="terminated"):
+        native.control.write("left_arm", {"target": [0.5]})
+    assert native.control.targets == retained and native.steps == 1
+    native.reset(3)
+    assert native.steps == 0
 
 
 def test_asset_manifest_detects_changes_and_escape(tmp_path):
@@ -264,10 +212,8 @@ def test_live_export_uses_independent_device_driver(tmp_path):
     assert "kinex.velocity" in (tmp_path / "base/driver.py").read_text()
 
 
-@pytest.mark.parametrize("realtime", [False, True])
-def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path, realtime):
+def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path):
     from pathlib import Path
-    from types import SimpleNamespace
 
     from roboenv.devices.bindings.registry import BindingContext
     from roboenv.devices.model import DeviceError
@@ -275,7 +221,7 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path, realti
     from roboenv_runtime.bindings import default_registry
 
     root = Path(__file__).resolve().parents[1]
-    task = resolve_task("isaaclab/g1-pick-place", project=root, realtime=realtime)
+    task = resolve_task("isaaclab/g1-pick-place", project=root)
     assert {spec.name for spec in task.bindings.devices} == {
         *NAMES,
         "world",
@@ -292,10 +238,23 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path, realti
     assert digest(root / "src/roboenv/assets/isaaclab-g1.json") == data["asset_manifest_sha256"]
     world = Native()
     world.model = data
-    world.control = Control(world, data, realtime=realtime)
+    world.control = Control(world, data)
     world.read_camera = lambda name, directory: {"sample_time_s": world.sample_time_s}
-    context = BindingContext("isaaclab", "g1", SimpleNamespace(_env=world, run_dir=tmp_path))
-    service = default_registry().assemble(task.bindings, task.robot, context)
+    from roboenv_runtime.adapters.isaaclab.adapter import IsaacLabAdapter
+    from roboenv_runtime.runtime.world import WorldSession
+
+    adapter = IsaacLabAdapter.__new__(IsaacLabAdapter)
+    adapter._env = world
+    adapter.run_dir = tmp_path
+    session = WorldSession(adapter)
+    context = BindingContext("isaaclab", "g1", adapter)
+    service = default_registry().assemble(
+        task.bindings,
+        task.robot,
+        context,
+        motion_scheduler=session.schedule,
+        resolve=session.resolve,
+    )
     try:
         for name in ("camera_torso", "camera_scene"):
             assert (
@@ -319,18 +278,20 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path, realti
         )
         exported = yaml.safe_load((tmp_path / "devices/base/profile.yaml").read_text())
         assert "execution" not in exported["intrinsics"]["control"]
-        service.call(
-            {
-                "device": "base",
-                "action": "write",
-                "args": {
-                    "mode": "locomotion",
-                    "velocity": {"vx": 0.1, "vy": 0, "wz": 0},
-                    "posture": {"height": 0.75},
-                },
-            }
+        session.resolve(
+            service.call(
+                {
+                    "device": "base",
+                    "action": "write",
+                    "args": {
+                        "mode": "locomotion",
+                        "velocity": {"vx": 0.1, "vy": 0, "wz": 0},
+                        "posture": {"height": 0.75},
+                    },
+                }
+            )
         )
-        assert world.steps == (0 if realtime else 1)
+        assert world.steps == 1
         before = world.steps
         service.call({"device": "base", "action": "stop", "args": {}})
         assert service.call({"device": "base", "action": "unload", "args": {}})["data"]["unloaded"]
@@ -338,5 +299,3 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path, realti
         assert world.steps == before
     finally:
         service.close()
-
-

@@ -29,12 +29,16 @@ class FakeShell(AdapterBase):
     GOAL_X = 0.3
     PUSH_COST = 50
 
-    def __init__(self, max_budget: int = 10_000, goal_x: float | None = None,
-                 max_steps: int | None = None, stop_on_success: bool = False,
-                 realtime: bool = False) -> None:
+    def __init__(
+        self,
+        max_budget: int = 10_000,
+        goal_x: float | None = None,
+        max_steps: int | None = None,
+        stop_on_success: bool = False,
+    ) -> None:
         if max_steps is not None and (type(max_steps) is not int or max_steps <= 0):
             raise ValueError("max_steps must be positive")
-        if type(stop_on_success) is not bool or realtime is not False:
+        if type(stop_on_success) is not bool:
             raise ValueError("FakeShell supports synchronous boolean episode policies")
         self.max_budget = max_steps if max_steps is not None else max_budget
         self.stop_on_success = stop_on_success

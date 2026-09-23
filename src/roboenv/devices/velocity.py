@@ -41,11 +41,7 @@ def command(control, args):
 def command_schema(control):
     variants = []
     for name, mode in control["modes"].items():
-        # Every write is a segment: for_s bounds how long the device runs the
-        # command, and arrive is the spec it judges itself against.
-        properties = {"mode": {"const": name},
-                      "for_s": {"type": "number", "exclusiveMinimum": 0},
-                      "arrive": {"type": "object"}}
+        properties = {"mode": {"const": name}, "for_s": {"type": "number", "exclusiveMinimum": 0}}
         required = ["mode"]
         for channel in ("velocity", "posture"):
             capability = mode[channel]

@@ -90,7 +90,7 @@ def test_official_registry_and_assets_are_complete():
         assert resolved.task.action_abstraction == "devices"
         assert resolved.task.budget_mode == "practice"
         assert resolved.task.backend_kwargs["init_state_index"] == 0
-        assert resolved.task.backend_kwargs["realtime"] is True
+        assert "realtime" not in resolved.task.backend_kwargs
         kwargs = resolved.task.backend_kwargs
         assert resolved.task.robot == lookup[kwargs["suite_name"], kwargs["task_id"]]
         assert resolved.task.device_bindings is None
@@ -171,7 +171,7 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
                 assert (root / "devices/_roboenv.py").read_bytes() == transport
             if profile["type"] == "joint":
                 assert len(profile["intrinsics"]["model"]["joints"]) == 7
-                assert profile["intrinsics"]["control"]["speed"] is None
+                assert profile["intrinsics"]["control"] == {"mode": "position"}
             if profile["type"] == "rgb":
                 color = profile["intrinsics"]["color"]
                 assert (color["width"], color["height"]) == (256, 256)
@@ -263,16 +263,15 @@ def test_native_contact_stop_and_release(tmp_path):
     assert json.loads((tmp_path / "contact.json").read_text())["passed"]
 
 
-
-@pytest.mark.parametrize("realtime", [False, True])
-def test_native_camera_pixels_survive_concurrent_rpc(tmp_path, realtime):
+def test_native_camera_pixels_survive_concurrent_rpc(tmp_path):
     require(
         os.environ.get("ROBOENV_LIBERO_RENDER_TESTS") == "1",
         "Requires explicitly enabled native EGL camera tests",
     )
     run_native(
-        "tests/libero_camera_rpc.py", "--out", tmp_path,
-        *(["--realtime"] if realtime else []),
+        "tests/libero_camera_rpc.py",
+        "--out",
+        tmp_path,
         render=True,
     )
     report = json.loads((tmp_path / "report.json").read_text())

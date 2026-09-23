@@ -1,12 +1,13 @@
 """Typed Panda devices bound to one official LIBERO world."""
 
+from roboenv_runtime.bindings.motion import control_binding
+
 import time
 import uuid
 from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
-from roboenv.devices.execution import map_result
 from roboenv.devices.model import Action, BoundDevice
 
 from roboenv_runtime.adapters.robocasa.geometry import chain, pose, vector
@@ -57,6 +58,7 @@ def same_facts(expected, actual):
     return expected == actual
 
 
+@control_binding
 def bind(spec, root, context):
     if context.backend != "libero" or context.embodiment != "panda":
         raise ValueError("LIBERO binding requires the native Panda world")
@@ -164,37 +166,28 @@ def bind(spec, root, context):
                 result.update(efforts=[], frame_poses={"flange": pose(model, data, flange, base)})
             else:
                 result.update(
-                    aperture_m=max(0.0, float(np.dot(aperture["coefficients"], result["positions"]) + aperture["offset_m"])),
-                    frame_poses=contact_frames(), force_n=None, object_detected=None, pressure_pa=None,
+                    aperture_m=max(
+                        0.0,
+                        float(
+                            np.dot(aperture["coefficients"], result["positions"])
+                            + aperture["offset_m"]
+                        ),
+                    ),
+                    frame_poses=contact_frames(),
+                    force_n=None,
+                    object_detected=None,
+                    pressure_pa=None,
                 )
             return result
 
-        def write(target, for_s=None, arrive=None):
-            """Set this device's goal and execute it; report the time spent.
-
-            This layer judges arrival because it knows which joints it owns; the
-            world owns the clock. `reached` is a measurement, never a promise.
-            """
+        def write(target):
+            """Stage the native reference."""
             command = vector(
                 target, size, lower=[a["min"] for a in limits], upper=[a["max"] for a in limits]
             )
 
-            def arrived():
-                tolerance = (arrive or {}).get("joint_tolerance")
-                if not tolerance:
-                    return False
-                measured = np.asarray(data.qpos[model.jnt_qposadr[joints]], dtype=float)
-                if not np.all(np.abs(measured - np.asarray(command, dtype=float))
-                              <= np.asarray(tolerance, dtype=float)):
-                    return False
-                quiet = (arrive or {}).get("quiet_velocity")
-                if quiet is None:
-                    return True
-                speeds = np.asarray(data.qvel[model.jnt_dofadr[joints]], dtype=float)
-                return bool(np.all(np.abs(speeds) <= np.asarray(quiet, dtype=float)))
-
-            elapsed = world.step({entity: command}, for_s=for_s, arrived=arrived)
-            return map_result(elapsed, lambda duration: {"accepted": True, "elapsed_s": duration, "reached": arrived(), "state": read()})
+            world.step({entity: command})
+            return {}
 
         def stop():
             world.stop_part(entity)

@@ -7,7 +7,6 @@ anything when the evidence is inconsistent (no submit, a mutating call after
 submit, a budget that regressed, an official run over its cap ...).
 """
 
-
 from __future__ import annotations
 
 import argparse
@@ -104,14 +103,20 @@ def _normalize_budget(raw: Any, *, source: str) -> dict[str, int | None]:
     used = _nonnegative_int(raw.get("used"), field=f"{source}.budget.used")
     if "max" not in raw:
         raise FinalizationError(f"{source}.budget.max is missing")
-    maximum = None if raw["max"] is None else _positive_int(raw["max"], field=f"{source}.budget.max")
+    maximum = (
+        None if raw["max"] is None else _positive_int(raw["max"], field=f"{source}.budget.max")
+    )
     if maximum is not None and used > maximum:
         raise FinalizationError(f"{source} budget exceeds its clamp: used={used}, max={maximum}")
     expected_remaining = None if maximum is None else maximum - used
     for name in ("remaining", "remaining_steps"):
         if name not in raw:
             continue
-        observed = None if raw[name] is None else _nonnegative_int(raw[name], field=f"{source}.budget.{name}")
+        observed = (
+            None
+            if raw[name] is None
+            else _nonnegative_int(raw[name], field=f"{source}.budget.{name}")
+        )
         if observed != expected_remaining:
             raise FinalizationError(
                 f"{source}.budget.{name}={observed} conflicts with max-used={expected_remaining}"
@@ -254,7 +259,16 @@ def _action_evidence(action: Mapping[str, Any], result: Any) -> dict[str, Any]:
 def _is_read_only_call(request: Request) -> bool:
     if request.op == "devices.call":
         return request.args.get("action") in {
-            "read", "state", "status", "load", "unload", "ik", "fk", "catalog", "api", "ping"
+            "read",
+            "state",
+            "status",
+            "load",
+            "unload",
+            "ik",
+            "fk",
+            "catalog",
+            "api",
+            "ping",
         }
     name = request.args.get("name", request.args.get("fn"))
     if not isinstance(name, str):
@@ -265,7 +279,7 @@ def _is_read_only_call(request: Request) -> bool:
 
 
 def _is_physical_mutation(request: Request) -> bool:
-    if request.op in {"call", "devices.call"}:
+    if request.op in {"call", "devices.call", "devices.cancel"}:
         return not _is_read_only_call(request)
     return request.op in {"reset", "reset_same_task", "restore", "exec"}
 
@@ -397,11 +411,10 @@ def build_result(run: str | os.PathLike[str]) -> dict[str, Any]:
         if action["terminal_event"] <= submit["terminal_event"]:
             continue
         request: Request = action["request"]
-        allowed = request.op in (_POST_SUBMIT_READ_ONLY_OPS | {
-            "devices.list", "devices.describe", "environment.describe", "operations.get"
-        }) or (
-            request.op in {"call", "devices.call"} and _is_read_only_call(request)
-        )
+        allowed = request.op in (
+            _POST_SUBMIT_READ_ONLY_OPS
+            | {"devices.list", "devices.describe", "environment.describe", "operations.get"}
+        ) or (request.op in {"call", "devices.call"} and _is_read_only_call(request))
         if not allowed:
             raise FinalizationError(f"successful mutating op {request.op!r} occurred after submit")
 

@@ -147,7 +147,10 @@ def main(argv=None):
                         args.source or project_root(args.project) / "catalog/tasks"
                     )
                     ids = sorted(t.id for t, _ in entries.values() if t.backend == args.simulator)
-                    result = {"tasks": len(ids), "backends": {args.simulator: len(ids)}, "ids": ids}
+                    result = {
+                        "tasks": len(ids), "backends": {args.simulator: len(ids)}, "ids": ids,
+                        "execution_modes": {key: result["execution_modes"][key] for key in ids},
+                    }
             elif args.tasks_command == "discover":
                 result = discover(args.project, args.out, args.backends or BACKENDS)
             elif args.tasks_command == "generate":

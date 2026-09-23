@@ -7,7 +7,6 @@ per device. An uncertain mutating request deadline terminates only the process
 group owned by this supervisor. Read timeouts do not terminate the worker.
 """
 
-
 from __future__ import annotations
 
 import argparse
@@ -522,10 +521,14 @@ class Supervisor:
             if previous is not None:
                 if previous.semantic_fingerprint() != request.semantic_fingerprint():
                     raise RequestIdConflict(request.request_id)
-                return response or Response.failure(
-                    request, "indeterminate_previous_attempt",
-                    "A durable intent has no terminal result; automatic replay is unsafe",
-                ).as_dict()
+                return (
+                    response
+                    or Response.failure(
+                        request,
+                        "indeterminate_previous_attempt",
+                        "A durable intent has no terminal result; automatic replay is unsafe",
+                    ).as_dict()
+                )
         return None
 
     def _history(self, request_id):
@@ -533,7 +536,9 @@ class Supervisor:
         for event in self.journal.events():
             raw = event.get("request", {})
             if (raw.get("session"), raw.get("generation"), raw.get("request_id")) != (
-                self.config.session, self.config.generation, request_id
+                self.config.session,
+                self.config.generation,
+                request_id,
             ):
                 continue
             previous = Request.from_mapping(raw)
@@ -548,18 +553,37 @@ class Supervisor:
         with self._cache_lock:
             active = self._inflight.get(target)
         if active is not None:
-            if public and active.op not in {"devices.list", "devices.describe", "devices.call", "environment.describe"}:
+            if public and active.op not in {
+                "devices.list",
+                "devices.describe",
+                "devices.call",
+                "devices.cancel",
+                "environment.describe",
+            }:
                 raise ProtocolError("unsupported_op", "Owner operation is not public")
             return {"request_id": target, "state": "running", "op": active.op}
         request, response = self._history(target)
-        if public and request is not None and request.op not in {"devices.list", "devices.describe", "devices.call", "environment.describe"}:
+        if (
+            public
+            and request is not None
+            and request.op
+            not in {
+                "devices.list",
+                "devices.describe",
+                "devices.call",
+                "devices.cancel",
+                "environment.describe",
+            }
+        ):
             raise ProtocolError("unsupported_op", "Owner operation is not public")
         if response is not None:
             code = (response.get("error") or {}).get("code")
             state = "succeeded" if response.get("ok") else "failed"
             effects = (response.get("error") or {}).get("details", {}).get("effects")
             if effects == "unknown" or code in {
-                "worker_timeout", "worker_unavailable", "indeterminate_previous_attempt"
+                "worker_timeout",
+                "worker_unavailable",
+                "indeterminate_previous_attempt",
             }:
                 state = "indeterminate"
             return {"request_id": target, "state": state, "response": response}
@@ -592,7 +616,9 @@ class Supervisor:
             # A retry waiting behind its original must not poison the original's
             # deduplication entry or append a second intent for the same action.
             return Response.failure(
-                request, "request_in_progress", "Original request is still running",
+                request,
+                "request_in_progress",
+                "Original request is still running",
                 retryable=True,
             ).as_dict()
         raw_request = request.as_dict()
@@ -627,16 +653,30 @@ class Supervisor:
                 f"supervisor generation is {self.config.generation}",
             ).as_dict()
 
-        if public and request.op == "simulation.stop" and os.environ.get("ROBOENV_ALLOW_STOP") != "1":
-            return Response.failure(request, "permission_denied", "Service stop is owner-only").as_dict()
+        if (
+            public
+            and request.op == "simulation.stop"
+            and os.environ.get("ROBOENV_ALLOW_STOP") != "1"
+        ):
+            return Response.failure(
+                request, "permission_denied", "Service stop is owner-only"
+            ).as_dict()
         if request.op == "shutdown" and self._stopped_result is not None:
             self._schedule_server_shutdown()
             return Response.success(request, {"state": "stopped"}).as_dict()
-        if request.op in {"simulation.status", "simulation.stop"} and self._stopped_result is not None:
+        if (
+            request.op in {"simulation.status", "simulation.stop"}
+            and self._stopped_result is not None
+        ):
             if request.args:
-                return Response.failure(request, "invalid_args", "Lifecycle operations take no arguments").as_dict()
-            result = (status_feedback(self._stopped_result)
-                      if request.op == "simulation.status" else self._stopped_result)
+                return Response.failure(
+                    request, "invalid_args", "Lifecycle operations take no arguments"
+                ).as_dict()
+            result = (
+                status_feedback(self._stopped_result)
+                if request.op == "simulation.status"
+                else self._stopped_result
+            )
             return Response.success(request, result).as_dict()
 
         # Public metadata queries must not reuse cached owner responses. In
@@ -647,9 +687,17 @@ class Supervisor:
                     result = self.operation(request.args, public=True)
                 else:
                     health = self.health()
-                    result = {key: health[key] for key in (
-                        "supervisor", "endpoint", "protocol", "session", "generation", "device_service"
-                    )}
+                    result = {
+                        key: health[key]
+                        for key in (
+                            "supervisor",
+                            "endpoint",
+                            "protocol",
+                            "session",
+                            "generation",
+                            "device_service",
+                        )
+                    }
                     result["worker"] = {key: health["worker"][key] for key in ("state", "alive")}
                 return Response.success(request, result).as_dict()
             except ProtocolError as exc:
@@ -675,20 +723,36 @@ class Supervisor:
             return response
 
         remaining_for_queue = request_deadline - time.monotonic()
-        concurrent = request.op in {"devices.call", "devices.list", "devices.describe", "environment.describe", "simulation.status", "simulation.stop"}
-        acquired = remaining_for_queue > 0 and (concurrent or self._worker_lock.acquire(
-            timeout=remaining_for_queue
-        ))
+        concurrent = request.op in {
+            "devices.call",
+            "devices.cancel",
+            "devices.list",
+            "devices.describe",
+            "environment.describe",
+            "simulation.status",
+            "simulation.stop",
+        }
+        acquired = remaining_for_queue > 0 and (
+            concurrent or self._worker_lock.acquire(timeout=remaining_for_queue)
+        )
         if not acquired:
             return self._queue_timeout_response(request, received_monotonic=received)
 
         try:
             # Atomically reserve dispatch against a retry's queue-timeout result.
-            if request.op in {"simulation.status", "simulation.stop"} and self._stopped_result is not None:
+            if (
+                request.op in {"simulation.status", "simulation.stop"}
+                and self._stopped_result is not None
+            ):
                 if request.args:
-                    return Response.failure(request, "invalid_args", "Lifecycle operations take no arguments").as_dict()
-                result = (status_feedback(self._stopped_result)
-                          if request.op == "simulation.status" else self._stopped_result)
+                    return Response.failure(
+                        request, "invalid_args", "Lifecycle operations take no arguments"
+                    ).as_dict()
+                result = (
+                    status_feedback(self._stopped_result)
+                    if request.op == "simulation.status"
+                    else self._stopped_result
+                )
                 return Response.success(request, result).as_dict()
             with self._identity_lock:
                 try:
@@ -698,7 +762,12 @@ class Supervisor:
                 if cached is not None:
                     return cached
                 if request.request_id in self._inflight:
-                    return Response.failure(request, "request_in_progress", "Original request is still running", retryable=True).as_dict()
+                    return Response.failure(
+                        request,
+                        "request_in_progress",
+                        "Original request is still running",
+                        retryable=True,
+                    ).as_dict()
                 if time.monotonic() >= request_deadline:
                     return self._queue_timeout_response(request, received_monotonic=received)
 
@@ -735,22 +804,38 @@ class Supervisor:
                         and isinstance(result.get("devices"), list)
                         and bool(result["devices"])
                     )
-                    if registry_ready and not was_ready and os.environ.get("ROBOENV_PUBLISH_DEVICES"):
+                    if (
+                        registry_ready
+                        and not was_ready
+                        and os.environ.get("ROBOENV_PUBLISH_DEVICES")
+                    ):
                         from roboenv.devices.export import export_devices
 
-                        export_devices(result["devices"], os.environ["ROBOENV_PUBLISH_DEVICES"], {
-                            "endpoint": os.environ["ROBOENV_ENDPOINT"],
-                            "session": self.config.session, "generation": self.config.generation,
-                        })
+                        export_devices(
+                            result["devices"],
+                            os.environ["ROBOENV_PUBLISH_DEVICES"],
+                            {
+                                "endpoint": os.environ["ROBOENV_ENDPOINT"],
+                                "session": self.config.session,
+                                "generation": self.config.generation,
+                            },
+                        )
                     self._device_registry_ready = registry_ready
             except TimeoutError as exc:
                 worker_was_alive = self._worker_alive()
                 from roboenv.devices.contract import READ_ACTIONS
-                read_only = request.op in {"devices.list", "devices.describe", "environment.describe", "simulation.status"} or (
-                    request.op == "devices.call" and request.args.get("action") in READ_ACTIONS)
+
+                read_only = request.op in {
+                    "devices.list",
+                    "devices.describe",
+                    "environment.describe",
+                    "simulation.status",
+                } or (request.op == "devices.call" and request.args.get("action") in READ_ACTIONS)
                 if not read_only:
                     self.terminate_worker(reason=str(exc), timed_out=True)
-                worker_killed = not read_only and worker_was_alive and self._worker_state == "timed_out"
+                worker_killed = (
+                    not read_only and worker_was_alive and self._worker_state == "timed_out"
+                )
                 response = Response.failure(
                     request,
                     "worker_timeout",

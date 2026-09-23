@@ -1,6 +1,6 @@
 """Typed gripper facts; native command dimensions differ from measured joints."""
 
-from roboenv.devices.execution import map_result
+from roboenv_runtime.bindings.motion import control_binding
 
 
 def intrinsics(robot, sim, joints):
@@ -26,6 +26,7 @@ def intrinsics(robot, sim, joints):
     }
 
 
+@control_binding
 def bind(spec, root, context):
     import numpy as np
 
@@ -65,15 +66,15 @@ def bind(spec, root, context):
             "pressure_pa": None,
         }
 
-    def write(target, for_s=None, arrive=None):
+    def write(target):
         """Drive the jaws for for_s of the world's own clock and report the time.
 
         A direction-controlled gripper has no position goal to arrive at, so it
         never reports reached; the caller's budget is what ends the segment.
         """
         command = np.sign(vector(target, 1, lower=[-1], upper=[1])).tolist()
-        elapsed = world.step({"right_gripper": command}, for_s=for_s)
-        return map_result(elapsed, lambda duration: {"accepted": True, "elapsed_s": duration, "reached": False, "state": read()})
+        world.step({"right_gripper": command})
+        return {}
 
     def stop():
         world.stop_part("right_gripper")

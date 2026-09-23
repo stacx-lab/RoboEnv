@@ -11,8 +11,8 @@ from roboenv.devices.export import driver_resources, shared_driver_resources
 from roboenv.tasks.resolve import resolve_task
 
 
-def prepare(task, destination, *, project=None, catalog=None, realtime=None):
-    resolved = resolve_task(task, project=project, catalog=catalog, realtime=realtime)
+def prepare(task, destination, *, project=None, catalog=None):
+    resolved = resolve_task(task, project=project, catalog=catalog)
     destination = Path(destination).expanduser().resolve()
     if destination.exists():
         raise ValueError("Select a new workspace; existing files are preserved")
@@ -62,9 +62,5 @@ if __name__ == "__main__":
     parser.add_argument("task")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--catalog", type=Path)
-    clock = parser.add_mutually_exclusive_group()
-    clock.add_argument("--realtime", dest="realtime", action="store_true")
-    clock.add_argument("--sync", dest="realtime", action="store_false")
-    parser.set_defaults(realtime=None)
     args = parser.parse_args()
-    print(json.dumps(prepare(args.task, args.out, catalog=args.catalog, realtime=args.realtime)))
+    print(json.dumps(prepare(args.task, args.out, catalog=args.catalog)))

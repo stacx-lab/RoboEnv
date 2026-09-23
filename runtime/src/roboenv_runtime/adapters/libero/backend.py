@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 
-from roboenv_runtime.adapters.segments import finish_segment, require_scheduler
 
 from .config import CAMERA_SIZE, ensure_libero_config
 
@@ -17,14 +16,12 @@ INITIALIZATION_FRAMES = 5
 
 
 class LiberoEnv:
-
     def __init__(
         self,
         suite_name="libero_spatial",
         task_id=0,
         *,
         init_state_index=0,
-        realtime=True,
         max_steps=None,
         enable_render=True,
         camera_names=DEFAULT_CAMERAS,
@@ -36,8 +33,8 @@ class LiberoEnv:
             raise ValueError("task_id must be a nonnegative integer")
         if type(init_state_index) is not int or init_state_index < 0:
             raise ValueError("init_state_index must be a nonnegative integer")
-        if type(realtime) is not bool or type(enable_render) is not bool:
-            raise ValueError("realtime and enable_render must be booleans")
+        if type(enable_render) is not bool:
+            raise ValueError("enable_render must be a boolean")
         if max_steps is not None and (type(max_steps) is not int or max_steps <= 5):
             raise ValueError("max_steps must exceed five initialization frames, or be null")
         if not camera_names or set(camera_names) - set(DEFAULT_CAMERAS):
@@ -67,7 +64,7 @@ class LiberoEnv:
             raise ValueError("init_state_index outside the official state collection")
         self.suite_name, self.task_id = suite_name, task_id
         self.init_state_index = init_state_index
-        self.realtime, self._render = realtime, enable_render
+        self._render = enable_render
         self._camera_names, self._camera_size = tuple(camera_names), tuple(camera_size)
         self._max_steps, self._step_count = max_steps, 0
         self._success = False
@@ -133,7 +130,6 @@ class LiberoEnv:
             "initialization_frames": INITIALIZATION_FRAMES,
             "controller": "JOINT_POSITION/set_qpos",
             "control_frequency_hz": 20,
-            "realtime": self.realtime,
             "max_steps": self._max_steps,
         }
 
@@ -154,15 +150,8 @@ class LiberoEnv:
 
     CONTROL_INTERVAL_S = 1 / 20
 
-    def step(self, commands, *, for_s=None, arrived=None):
-        """Replace the named goals and execute them; report the time spent.
-
-        Synchronously the write is what advances physics, so it runs exactly one
-        control interval. With the wall clock running the world, it waits for the
-        background clock to carry the goal home, bounded by for_s. Either way the
-        caller learns how much simulated time this call was worth.
-        """
-        require_scheduler(self.realtime, for_s)
+    def step(self, commands):
+        """Stage validated native references without advancing physics."""
         if self._max_steps is not None and self._step_count >= self._max_steps:
             raise RuntimeError("LIBERO action frame budget exhausted")
         controller = self._joint_controller()
@@ -182,14 +171,7 @@ class LiberoEnv:
                 "commands": {part: np.asarray(value).tolist() for part, value in commands.items()},
             }
         )
-        started = self._step_count
-        if not self.realtime:
-            self.tick()
-        return finish_segment(
-            started=started, frame=lambda: self._step_count, interval=self.CONTROL_INTERVAL_S,
-            for_s=for_s, realtime=self.realtime, arrived=arrived,
-            exhausted=lambda: self._max_steps is not None and self._step_count >= self._max_steps, result=lambda elapsed: elapsed,
-        )
+        return 0.0
 
     def stop_part(self, part):
         if part not in {"arm", "gripper"}:

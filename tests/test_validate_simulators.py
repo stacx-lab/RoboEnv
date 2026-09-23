@@ -72,6 +72,7 @@ def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_p
     source.mkdir(parents=True)
     task = {
         "id": "explicit-behavior-case",
+        "execution_mode": "stepped",
         "backend": "behavior",
         "backend_task": "behavior.explicit",
         "robot": "behavior/behavior-r1pro",

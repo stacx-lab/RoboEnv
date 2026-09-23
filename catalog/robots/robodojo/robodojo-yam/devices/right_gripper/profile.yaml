@@ -89,12 +89,12 @@ access:
     entry: driver.py
     persistent: true
     actions:
-    - load
-    - unload
-    - status
     - read
     - write
     - stop
+    - load
+    - unload
+    - status
 meta:
   created_at: '2026-09-09T00:00:00Z'
   updated_at: '2026-09-09T00:00:00Z'

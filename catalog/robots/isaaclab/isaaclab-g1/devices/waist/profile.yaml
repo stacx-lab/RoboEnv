@@ -133,7 +133,6 @@ intrinsics:
     waist_pitch_joint: 0.0
   control:
     mode: position
-    speed: null
   feedback:
     velocities: true
     efforts: false
@@ -176,10 +175,10 @@ access:
     persistent: true
     actions:
     - read
+    - write
+    - stop
     - load
     - unload
     - status
-    - write
-    - stop
-    - ik
     - fk
+    - ik

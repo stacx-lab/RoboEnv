@@ -8,7 +8,7 @@ from roboenv_runtime.core.types import Budget, ScoreReport
 class SimpleAdapter(AdapterBase):
     name = "simple"
     embodiment = "g1"
-    realtime_on_main_thread = True
+    owner_thread_required = True
 
     def __init__(self, **kwargs):
         from .backend import SimpleEnv
@@ -16,10 +16,10 @@ class SimpleAdapter(AdapterBase):
         self._env = SimpleEnv(**kwargs)
 
     @property
-    def realtime_interval(self):
-        return 0.02 if self._env.realtime else None
+    def control_interval_s(self):
+        return 0.02
 
-    def realtime_tick(self):
+    def advance_control(self):
         self._env.control.tick()
 
     def reset(self, seed):
@@ -39,8 +39,11 @@ class SimpleAdapter(AdapterBase):
             reward=float(self._env.completed),
             raw_score=self._env.reward,
             completed=self._env.completed,
-            detail={"control_protocol": "simple-g1-metric-wbc/4", "official_equivalence": False,
-                    "arm_gravity_compensation": self._env.arm_gravity_compensation},
+            detail={
+                "control_protocol": "simple-g1-metric-wbc/4",
+                "official_equivalence": False,
+                "arm_gravity_compensation": self._env.arm_gravity_compensation,
+            },
         )
 
     def observe(self):

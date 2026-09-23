@@ -32,8 +32,11 @@ def check_geometry(world):
 
 def check(args):
     args.out.mkdir(parents=True, exist_ok=False)
-    world = SimpleEnv(env_id=args.env_id, sim_mode=args.sim_mode, realtime=args.realtime,
-                      arm_gravity_compensation=args.arm_gravity_compensation)
+    world = SimpleEnv(
+        env_id=args.env_id,
+        sim_mode=args.sim_mode,
+        arm_gravity_compensation=args.arm_gravity_compensation,
+    )
     try:
         world.reset(args.seed)
         before = {"states": {n: world.read_device(n) for n in world.control.targets}}
@@ -45,13 +48,18 @@ def check(args):
         targets = copy.deepcopy(world.control.targets)
         target = list(targets["left_arm"])
         target[0] += 0.1
-        command = {"mode": "locomotion", "velocity": {"vx": 0.15, "vy": 0, "wz": 0.1},
-                   "posture": {"height": 0.72, "roll": 0.03, "pitch": 0.05, "yaw": 0.08}}
+        command = {
+            "mode": "locomotion",
+            "velocity": {"vx": 0.15, "vy": 0, "wz": 0.1},
+            "posture": {"height": 0.72, "roll": 0.03, "pitch": 0.05, "yaw": 0.08},
+        }
         hand_target = list(targets["left_hand"])
         hand_target[0] += 0.1
-        commands = [{"device": "base", "args": command},
-                    {"device": "left_arm", "args": {"target": target}},
-                    {"device": "left_hand", "args": {"target": hand_target}}]
+        commands = [
+            {"device": "base", "args": command},
+            {"device": "left_arm", "args": {"target": target}},
+            {"device": "left_hand", "args": {"target": hand_target}},
+        ]
         try:
             world.control.write("left_arm", {"target": [0]})
         except ValueError:
@@ -59,26 +67,25 @@ def check(args):
         else:
             raise AssertionError("Malformed target accepted")
         assert world.control.targets == targets and np.array_equal(world.state(), initial)
-        for index in range(60 if args.realtime else 20):
+        for _ in range(60):
             for command in commands:
                 world.control.write(command["device"], command["args"])
-            if args.realtime:
-                world.control.tick()
-            if index == 0:
-                interpolation_times = world.wbc.policy.upper_body_policy.interp.times.copy()
-            np.testing.assert_array_equal(
-                world.wbc.policy.upper_body_policy.interp.times, interpolation_times,
-                err_msg="Repeated targets restarted interpolation",
-            )
+            world.control.tick()
         after = {"states": {n: world.read_device(n) for n in world.control.targets}}
         assert abs(world.sample_time_s - 1.2) < 1e-9
         assert world.control.targets["right_arm"] == targets["right_arm"]
-        displacement = np.linalg.norm(np.asarray(after["states"]["base"]["pose"]["translation_m"])
-                                      - before["states"]["base"]["pose"]["translation_m"])
-        arm_motion = np.linalg.norm(np.asarray(after["states"]["left_arm"]["positions"])
-                                    - before["states"]["left_arm"]["positions"])
-        hand_motion = np.linalg.norm(np.asarray(after["states"]["left_hand"]["positions"])
-                                     - before["states"]["left_hand"]["positions"])
+        displacement = np.linalg.norm(
+            np.asarray(after["states"]["base"]["pose"]["translation_m"])
+            - before["states"]["base"]["pose"]["translation_m"]
+        )
+        arm_motion = np.linalg.norm(
+            np.asarray(after["states"]["left_arm"]["positions"])
+            - before["states"]["left_arm"]["positions"]
+        )
+        hand_motion = np.linalg.norm(
+            np.asarray(after["states"]["left_hand"]["positions"])
+            - before["states"]["left_hand"]["positions"]
+        )
         assert displacement > 0.02 and arm_motion > 0.03, (displacement, arm_motion)
         assert hand_motion > 0.02, hand_motion
         geometry_after = check_geometry(world)
@@ -101,21 +108,29 @@ def check(args):
         ), "Stereo cameras returned identical images"
         np.testing.assert_allclose(world.control.targets["base"][4:], [0.03, 0.05, 0.08])
         lower = world.wbc.policy.lower_body_policy
-        np.testing.assert_allclose([lower.roll_cmd, lower.pitch_cmd, lower.yaw_cmd],
-                                   [0.03, 0.05, 0.08])
+        np.testing.assert_allclose(
+            [lower.roll_cmd, lower.pitch_cmd, lower.yaw_cmd], [0.03, 0.05, 0.08]
+        )
         assert "waist" not in world.control.targets
-        np.testing.assert_allclose(after["states"]["base"]["frame_poses"]["torso"],
-                                   world.read_device("waist")["frame_poses"]["flange"])
+        np.testing.assert_allclose(
+            after["states"]["base"]["frame_poses"]["torso"],
+            world.read_device("waist")["frame_poses"]["flange"],
+        )
         # Upper joint targets survive native lower-body inference unchanged.
-        upper = world.wbc.policy.upper_body_policy.get_action(world.wbc.time + 0.02)
         for group in ("arms", "hands"):
             indices = world.wbc.model.get_joint_group_indices(group)
-            names = [name for name in world.wbc.upper_names
-                     if world.wbc.model.joint_to_dof_index[name] in indices]
-            expected = [upper["target_upper_body_pose"][world.wbc.upper_names.index(n)]
-                        for n in names]
-            actual = [world.wbc.policy.last_action["q"][world.wbc.model.joint_to_dof_index[n]]
-                      for n in names]
+            names = [
+                name
+                for name in world.wbc.upper_names
+                if world.wbc.model.joint_to_dof_index[name] in indices
+            ]
+            expected = [
+                world.wbc.upper_target[world.wbc.upper_names.index(n)] for n in names
+            ]
+            actual = [
+                world.wbc.policy.last_action["q"][world.wbc.model.joint_to_dof_index[n]]
+                for n in names
+            ]
             np.testing.assert_array_equal(actual, expected)
         stamp = world.sample_time_s
         for name in world.control.targets:
@@ -124,13 +139,21 @@ def check(args):
         assert world.control.targets["base"][:3] == [0, 0, 0]
         assert world.mjdata.ncon > 0, "No native contacts during standing/walking"
         (args.out / "record.json").write_text(json.dumps(world.record()) + "\n")
-        report = {"passed": True, "model_calls": 0, "task_attempted": False,
-                  "native_success": world.completed, "realtime": args.realtime,
-                  "frames": world.steps, "displacement_m": float(displacement),
-                  "arm_motion_rad": float(arm_motion), "hand_motion_rad": float(hand_motion),
-                  "geometry_before": geometry_before,
-                  "hands_before": hands_before, "hands_after": hands_after,
-                  "geometry_after": geometry_after, "cameras": cameras}
+        report = {
+            "passed": True,
+            "model_calls": 0,
+            "task_attempted": False,
+            "native_success": world.completed,
+            "frames": world.steps,
+            "displacement_m": float(displacement),
+            "arm_motion_rad": float(arm_motion),
+            "hand_motion_rad": float(hand_motion),
+            "geometry_before": geometry_before,
+            "hands_before": hands_before,
+            "hands_after": hands_after,
+            "geometry_after": geometry_after,
+            "cameras": cameras,
+        }
         (args.out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     finally:
         world.close()
@@ -141,9 +164,9 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--env-id", default="simple/G1WholebodyXMovePickTeleop-v0")
     parser.add_argument("--sim-mode", choices=("mujoco", "mujoco_isaac"), default="mujoco")
-    parser.add_argument("--realtime", action="store_true")
-    parser.add_argument("--arm-gravity-compensation", action=argparse.BooleanOptionalAction,
-                        default=True)
+    parser.add_argument(
+        "--arm-gravity-compensation", action=argparse.BooleanOptionalAction, default=True
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--kinex", type=Path, default=Path(__file__).resolve().parents[2] / "kinex")
     check(parser.parse_args())

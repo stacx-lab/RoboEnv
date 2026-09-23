@@ -17,7 +17,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def check(out):
     task = yaml.safe_load(resolve_task("libero/bowl-onto-plate").path.read_text())
-    task["backend_kwargs"]["realtime"] = False
     task_path = out / "task.yaml"
     task_path.write_text(yaml.safe_dump(task))
     launch_options = {"catalog": ROOT / "catalog", "port": 0, "interpreter": sys.executable}
@@ -57,7 +56,7 @@ def check(out):
             command = {
                 "device": "arm",
                 "action": "write",
-                "args": {"target": a.device("arm").read()["positions"]},
+                "args": {"actions": [a.device("arm").read()["positions"]], "freq_hz": 20},
             }
             before = owner.request("observe")["budget"]["used"]
             x = public.request("devices.call", command, request_id="deduplicated-motion")

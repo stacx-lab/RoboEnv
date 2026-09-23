@@ -195,8 +195,14 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
     waist = {joint["name"]: joint for joint in model["parts"]["waist"]["joints"]}
     posture = model["control"]["modes"]["locomotion"]["posture"]["components"]
     for axis in ("roll", "pitch", "yaw"):
-        posture.append({"axis": axis, "units": "rad", "default": 0.0,
-                        "bounds": waist[f"waist_{axis}_joint"]["limits"]})
+        posture.append(
+            {
+                "axis": axis,
+                "units": "rad",
+                "default": 0.0,
+                "bounds": waist[f"waist_{axis}_joint"]["limits"],
+            }
+        )
     robot = out / "robots/simple/simple-g1"
     robot.mkdir(parents=True, exist_ok=True)
     obsolete = robot / "devices/waist"
@@ -239,7 +245,7 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
             if name in NAMES:
                 actions += ["write", "stop"]
             if value["type"] == "joint":
-                actions += ["fk", "ik"]
+                actions += [ "fk", "ik"]
             profile["access"] = driver_access(value["type"], name, actions, "http://127.0.0.1:8123")
             write_driver(directory, value["type"])
         (directory / "profile.yaml").write_text(
@@ -281,8 +287,10 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
                 "asset_pin_sha256": digest(ROOT / "src/roboenv/assets/simple-g1.json"),
                 "source_lock_sha256": digest(ROOT / "upstreams.lock.json"),
                 "hand_geometry": {
-                    name: {"definition": model["parts"][name]["geometry"]["description"],
-                           "sources": model["parts"][name]["geometry_sources"]}
+                    name: {
+                        "definition": model["parts"][name]["geometry"]["description"],
+                        "sources": model["parts"][name]["geometry_sources"],
+                    }
                     for name in ("left_hand", "right_hand")
                 },
             },

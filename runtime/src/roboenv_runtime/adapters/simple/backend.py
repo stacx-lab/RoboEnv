@@ -27,7 +27,6 @@ class SimpleEnv:
         self,
         *,
         env_id="simple/G1WholebodyXMovePickTeleop-v0",
-        realtime=True,
         arm_gravity_compensation=True,
         sim_mode="mujoco_isaac",
         dr_level=0,
@@ -40,11 +39,8 @@ class SimpleEnv:
         root = repo_root()
         self.root = root
         self.env = None
-        self.realtime = realtime
         self.model = json.loads(Path(__file__).with_name("g1.json").read_text())
-        self.control = Control(
-            self, self.model, realtime=realtime
-        )
+        self.control = Control(self, self.model)
         if sim_mode not in {"mujoco", "mujoco_isaac"}:
             raise ValueError("SIMPLE supports mujoco or mujoco_isaac")
         if type(dr_level) is not int or dr_level not in {0, 1, 2}:
@@ -62,7 +58,7 @@ class SimpleEnv:
         self.env_id, self.sim_mode, self.dr_level = env_id, sim_mode, dr_level
         self.initial_state = copy.deepcopy(initialization)
         self.stabilize_steps = stabilize_steps
-        self.max_steps = None if realtime else tasks[env_id]["metadata"]["max_episode_steps"]
+        self.max_steps = tasks[env_id]["metadata"]["max_episode_steps"]
         os.environ["SIMPLE_DATA_DIR"] = str(data)
         os.environ["SIMPLE_OFFLINE"] = "1"
         os.environ.setdefault("MUJOCO_GL", "egl")
@@ -147,7 +143,6 @@ class SimpleEnv:
                 "seed": seed,
                 "dr_level": self.dr_level,
                 "sim_mode": self.sim_mode,
-                "realtime": self.realtime,
                 "arm_gravity_compensation": self.arm_gravity_compensation,
                 # Actor insertion order affects native model/solver ordering. An
                 # encoded JSON value survives canonical sorting by owner transport.

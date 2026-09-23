@@ -92,10 +92,10 @@ adapter connecting it to RoboEnv. RoboCasa separates these concerns as follows:
 
 | Reference implementation | Role |
 |---|---|
-| [adapter.py](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py) | Adapter identity, reset/close, instruction, native verdict, budget, owner observation, and realtime hooks |
+| [adapter.py](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py) | Adapter identity, reset/close, instruction, native verdict, budget, owner observation, and native control hooks |
 | [backend.py](../runtime/src/roboenv_runtime/adapters/robocasa/backend.py) | One native environment, controller setup, persistent goals, native intervals, and rendering |
 | [devices.py](../runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py) | Entity selection, command validation, measurements, and basic actions |
-| [world.py](../runtime/src/roboenv_runtime/runtime/world.py) | Shared execution lock, realtime scheduling, and terminal freeze |
+| [world.py](../runtime/src/roboenv_runtime/runtime/world.py) | Shared execution lock, command scheduling, and terminal freeze |
 | Typed client assets and [_roboenv.py](../src/roboenv/assets/_roboenv.py) | Per-type validation/local utilities and shared portable transport |
 
 The backend's internal helpers are not an agent API. In particular, RoboCasa's
@@ -118,13 +118,11 @@ and output schemas and reject unsupported operations. A binding neither creates 
 second world nor calls its own locked worker through a socket. Closing it releases
 only binding resources.
 
-Manipulator writes accept absolute joint targets in profile order, radians/metres.
-A newer goal replaces the old one; repeated goals do not restart interpolation.
-Realtime writes return on acceptance; synchronous writes advance one native interval
-before returning. Both return `accepted: true`, never arrival. Keep other devices'
-goals active and document actual stop/hold behavior. Read/status/recording do not
-request steps. Manipulator profiles contain no execution clock; a mobile base
-declares realtime command expiry or its stepped interval in `control.execution`.
+Joint write streams `actions` at any positive `freq_hz`; the executor owns
+resampling onto native ticks. Goal planning and arrival checks belong to the harness. Reuse the common
+[binding executor](../runtime/src/roboenv_runtime/bindings/motion.py) for validation,
+shared ticks, cancellation and terminal snapshots. Other actuators retain their
+existing command schema. Read/status/recording do not request physics steps.
 
 Configure native controllers to implement the advertised action space. RoboCasa
 selects absolute `JOINT_POSITION` control for the arm and absolute lift goals;
@@ -134,11 +132,10 @@ Compose all active parts before one native interval; separately stepping each pa
 would change time and task dynamics. RoboCasa exposes only typed component devices; its native composite controller is
 an internal implementation detail. Do not expose a whole-robot action-vector shortcut.
 
-For a realtime backend, expose `realtime_interval` and `realtime_tick` to the shared
-world scheduler. Do not start a physics thread per binding. Serialize ticks, device
-effects, reads, and finalization through the same world authority. In synchronous
-mode, route a write through the same native interval implementation. Count physical
-intervals, including idle realtime intervals, according to the declared budget.
+Expose `control_interval_s` and `advance_control` on the adapter. Each pending
+command yields between intervals; the world advances once for all active devices.
+All native operations run on the simulation creation thread. Idle time never
+advances physics. Count native intervals against the existing episode budget.
 
 Put FK/IK in the joint driver. Export static geometry where needed; a serial
 chain can use Kinex's `kinex.kinematics`. The simulator supplies measured state
@@ -181,7 +178,7 @@ against these actual definitions in development, without adding Kinex to the
 simulator worker’s dependencies.
 
 - Manipulators own `kinematics.model` (including joint order/limits), `kinematics.ik`,
-  named `home`, `control.speed`, `feedback`, and `stop` behavior/affected devices.
+  named `home`, position `control`, `feedback`, and `stop` behavior/affected devices.
 - Mobile `base` profiles declare command axes, frame, units, bounds, execution mode,
   and measured feedback frames/clock. Fixed bases are driverless static mounts.
 - End effectors declare tool/control type, independent measured channels, stop scope,
@@ -271,9 +268,8 @@ Catalog task IDs use `SIMULATOR/TASK`, matching their directory below
 `catalog/tasks/`. `roboenv tasks list --simulator SIMULATOR` lists that backend's
 IDs; pass the same ID to launch or export. Keep native `backend_task` identifiers
 separate from these public names. Discovery must emit the same directory structure.
-RoboCasa task definitions explicitly include `backend_kwargs.realtime: true`;
-launch accepts `--realtime` or `--sync` as a per-run override. Other backends must
-implement the clock contract before accepting these overrides.
+Tasks do not select an execution clock. All backends use command-driven
+the shared stepped/realtime executor and retain native horizons and termination conditions.
 
 Add lightweight discovery and default robot mapping in `src/roboenv/tasks/catalog.py`.
 Read task IDs, arguments, instructions, and provenance from pinned registries or
@@ -355,8 +351,4 @@ evidence and keep GPU/model runs within the authorized scope. See
 ### Native clocks
 
 RoboTwin, RoboDojo and BEHAVIOR share native target validation, independent writes,
-owner recording and adapter lifecycle. RoboDojo and BEHAVIOR advance realtime
-physics on the worker's creating thread. BEHAVIOR accepts `--realtime` and `--sync`;
-its base execution profile follows the selected clock without changing geometry.
-Validate clocks through the real worker as described in
-[simulator validation](gpu-validation.md#native-device-checks).
+owner recording and adapter lifecycle. RoboDojo and BEHAVIOR use the same world executor as other backends.

@@ -14,7 +14,7 @@ def task(backend):
         "probe",
         "robot",
         "Probe devices.",
-        backend_kwargs={"scene_model": "fixture", "realtime": True},
+        backend_kwargs={"scene_model": "fixture"},
     )
 
 
@@ -26,9 +26,9 @@ def test_behavior_requires_distinct_instances_without_mutating_task():
             tool.select_cases(original, (0, 0), instances)
     cases = tool.select_cases(original, (0, 0), (2, 5))
     assert [case.backend_kwargs["activity_instance_id"] for case in cases] == [2, 5]
-    assert all(case.seed == 0 and case.backend_kwargs["realtime"] is False for case in cases)
+    assert all(case.seed == 0 for case in cases)
     assert all(case.backend_kwargs["scene_model"] == "fixture" for case in cases)
-    assert original.backend_kwargs == {"scene_model": "fixture", "realtime": True}
+    assert original.backend_kwargs == {"scene_model": "fixture"}
 
 
 @pytest.mark.parametrize("backend", ["robotwin", "robodojo"])

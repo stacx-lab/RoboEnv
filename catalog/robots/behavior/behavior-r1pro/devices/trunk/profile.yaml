@@ -29,7 +29,6 @@ intrinsics:
     torso_joint3: 0.0
     torso_joint4: 0.0
   control:
-    speed: null
     mode: position
   feedback:
     velocities: true
@@ -173,12 +172,12 @@ access:
     entry: driver.py
     persistent: true
     actions:
-    - load
-    - unload
-    - status
     - read
     - write
     - stop
+    - load
+    - unload
+    - status
     - fk
     - ik
 meta:

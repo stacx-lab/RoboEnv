@@ -83,7 +83,7 @@ def lazy_environment(monkeypatch, native_dt=0.004):
 
 def test_native_simulation_can_be_absent_until_first_reset(monkeypatch):
     native = lazy_environment(monkeypatch)
-    world = devices.RoboDojoDevices("general_pickup", realtime=True)
+    world = devices.RoboDojoDevices("general_pickup")
     assert native.sim is None
     assert world.control_interval == pytest.approx(0.04)
     assert world.physics_steps == 0
@@ -106,7 +106,7 @@ def test_rounded_source_mount_is_normalized_before_native_creation(monkeypatch):
             robots=[
                 {"default_root_rot": [0.707, 0, 0, 0.707]},
             ]
-        )
+        ),
     )
     monkeypatch.setattr(devices.RoboDojoEnv, "_assemble_config", lambda self, seed: config)
     world = devices.RoboDojoDevices.__new__(devices.RoboDojoDevices)
@@ -180,8 +180,11 @@ def test_render_projection_waits_for_ready_parameters_without_hiding_mismatch(mo
     calls = []
     camera = SimpleNamespace(get_resolution=lambda: (640, 480))
     product = object()
-    ready = {"renderProductResolution": [640, 480], "cameraModel": "pinhole",
-             "cameraProjection": np.eye(4).reshape(-1)}
+    ready = {
+        "renderProductResolution": [640, 480],
+        "cameraModel": "pinhole",
+        "cameraProjection": np.eye(4).reshape(-1),
+    }
     first = {**ready, "renderProductResolution": [0, 0]}
     if mode == "mismatch":
         first["renderProductResolution"] = [800, 480]
@@ -195,9 +198,9 @@ def test_render_projection_waits_for_ready_parameters_without_hiding_mismatch(mo
         detach=lambda selected: calls.append(("detach", selected)),
         get_data=read,
     )
-    core = SimpleNamespace(AnnotatorRegistry=SimpleNamespace(
-        get_annotator=lambda *args, **kwargs: annotator
-    ))
+    core = SimpleNamespace(
+        AnnotatorRegistry=SimpleNamespace(get_annotator=lambda *args, **kwargs: annotator)
+    )
     replicator = SimpleNamespace(core=core)
     monkeypatch.setitem(sys.modules, "omni", SimpleNamespace(replicator=replicator))
     monkeypatch.setitem(sys.modules, "omni.replicator", replicator)

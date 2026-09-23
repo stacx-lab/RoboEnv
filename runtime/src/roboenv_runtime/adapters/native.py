@@ -5,11 +5,13 @@ from roboenv_runtime.core.types import Budget
 
 
 class NativeDeviceAdapter(AdapterBase):
-    @property
-    def realtime_interval(self):
-        return self._env.control_interval if self._env.realtime else None
+    owner_thread_required = True
 
-    def realtime_tick(self):
+    @property
+    def control_interval_s(self):
+        return self._env.control_interval
+
+    def advance_control(self):
         self._env.control.tick()
 
     def reset(self, seed):
@@ -22,8 +24,9 @@ class NativeDeviceAdapter(AdapterBase):
         return Budget(used=self._env.control.frame, max=self._env.frame_limit, unit="action_frames")
 
     def capture(self):
-        camera = next(name for name, fact in self._env.device_facts.items()
-                      if fact["type"] in {"rgb", "rgbd"})
+        camera = next(
+            name for name, fact in self._env.device_facts.items() if fact["type"] in {"rgb", "rgbd"}
+        )
         return self._env.device_image(camera)[0]
 
     def observe(self):

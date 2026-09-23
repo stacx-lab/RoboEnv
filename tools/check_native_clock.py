@@ -17,45 +17,44 @@ from roboenv.tasks.resolve import resolve_task
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def check(task, interpreter, out, *, realtime, timeout=900):
+def check(task, interpreter, out, *, timeout=900):
     out = Path(out).resolve()
     out.mkdir(parents=True, exist_ok=False)
-    resolved = resolve_task(task, project=ROOT, realtime=realtime)
-    configured = replace(resolved.task, backend_kwargs={**resolved.task.backend_kwargs,
-                                                        "max_steps": 300})
+    resolved = resolve_task(task, project=ROOT)
+    configured = replace(
+        resolved.task, backend_kwargs={**resolved.task.backend_kwargs, "max_steps": 300}
+    )
     path = out / "task.yaml"
     path.write_text(yaml.safe_dump(asdict(configured), sort_keys=False))
-    report = {"passed": False, "task": configured.id, "realtime": realtime,
-              "checks": {}, "scope": "native worker regression; no model or task-success claim"}
+    report = {
+        "passed": False,
+        "task": configured.id,
+        "checks": {},
+        "scope": "native worker regression; no model or task-success claim",
+    }
     try:
         with roboenv.launch(path, project=ROOT, interpreter=interpreter, timeout=timeout) as owner:
             private, public = owner_client(owner), owner.client
             before = private.request("observe")["budget"]["used"]
             time.sleep(0.5)
             after = private.request("observe")["budget"]["used"]
-            require(after > before if realtime else after == before, "Wrong idle clock behavior")
+            require(after == before, "Wrong idle clock behavior")
             report["checks"]["idle_clock"] = True
             camera = camera_name(public)
             require(public.device(camera).read()["data"].get("file"), "Missing native camera")
             arm = public.device("left_arm")
             measured = arm.read()["data"]["positions"]
             goal = target(public, "left_arm", 0.05)
-            require(arm.write(goal)["data"]["accepted"], "Native write was not accepted")
-            if realtime:
-                deadline = time.monotonic() + 30
-                while time.monotonic() < deadline:
-                    current = arm.read()["data"]["positions"]
-                    if max(abs(a - b) for a, b in zip(current, measured, strict=True)) > 0.01:
-                        break
-                    time.sleep(0.1)
-                else:
-                    raise ValueError("Accepted target produced no measured motion")
-            else:
-                for _ in range(15):
-                    arm.write(goal)
-                current = arm.read()["data"]["positions"]
-                require(max(abs(a - b) for a, b in zip(current, measured, strict=True)) > 0.01,
-                        "Accepted target produced no measured motion")
+            frequency = 50
+            require(
+                arm.write([goal] * 16, freq_hz=frequency)["data"]["completed_actions"] == 16,
+                "Sequence did not complete",
+            )
+            current = arm.read()["data"]["positions"]
+            require(
+                max(abs(a - b) for a, b in zip(current, measured, strict=True)) > 0.01,
+                "Sequence produced no measured motion",
+            )
             arm.stop()
             report["checks"]["camera_and_motion"] = True
             finalized = finalize(owner.path, out / "final")
@@ -64,13 +63,27 @@ def check(task, interpreter, out, *, realtime, timeout=900):
             require(private.request("observe") == frozen, "Submitted world did not freeze")
             report["checks"]["terminal_freeze"] = True
             report["native_success"] = finalized["verdict"]["completed"]
-        command = [str(interpreter), str(ROOT / "tools/replay_native_devices.py"),
-                   str(out / "final/owner-record.json"), "--out", str(out / "replay.json")]
+        command = [
+            str(interpreter),
+            str(ROOT / "tools/replay_native_devices.py"),
+            str(out / "final/owner-record.json"),
+            "--out",
+            str(out / "replay.json"),
+        ]
         report["replay_command"] = command
         with (out / "replay.log").open("x") as log:
-            subprocess.run(command, cwd=ROOT, env={**os.environ, "PYTHONPATH":
-                           os.pathsep.join(str(ROOT / p) for p in ("src", "runtime/src"))},
-                           stdout=log, stderr=subprocess.STDOUT, timeout=timeout, check=True)
+            subprocess.run(
+                command,
+                cwd=ROOT,
+                env={
+                    **os.environ,
+                    "PYTHONPATH": os.pathsep.join(str(ROOT / p) for p in ("src", "runtime/src")),
+                },
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                timeout=timeout,
+                check=True,
+            )
         replay = json.loads((out / "replay.json").read_text())
         require(replay.get("passed") is True, "Replay did not produce passing evidence")
         report["checks"]["fresh_process_replay"] = True
@@ -88,8 +101,6 @@ if __name__ == "__main__":
     parser.add_argument("task")
     parser.add_argument("--interpreter", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--realtime", action="store_true")
     parser.add_argument("--timeout", type=float, default=900)
     args = parser.parse_args()
-    print(json.dumps(check(args.task, args.interpreter, args.out,
-                           realtime=args.realtime, timeout=args.timeout)))
+    print(json.dumps(check(args.task, args.interpreter, args.out, timeout=args.timeout)))

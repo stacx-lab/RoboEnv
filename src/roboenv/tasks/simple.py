@@ -69,7 +69,6 @@ def discover_tasks(root):
                 action_abstraction="devices",
                 backend_kwargs={
                     "env_id": entry["env_id"],
-                    "realtime": True,
                     "sim_mode": "mujoco_isaac",
                     "dr_level": 0,
                     "arm_gravity_compensation": True,

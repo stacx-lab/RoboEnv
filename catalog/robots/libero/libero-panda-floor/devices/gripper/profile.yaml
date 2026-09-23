@@ -88,9 +88,9 @@ access:
     entry: driver.py
     persistent: true
     actions:
-    - load
-    - unload
-    - status
     - read
     - write
     - stop
+    - load
+    - unload
+    - status

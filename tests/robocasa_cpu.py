@@ -7,7 +7,7 @@ from roboenv_runtime.adapters.robocasa.adapter import RoboCasaAdapter
 from roboenv_runtime.adapters.robocasa.backend import DEFAULT_CAMERAS, RoboCasaEnv
 
 
-def make_adapter(*, realtime=False):
+def make_adapter():
     from xml.etree import ElementTree as ET
 
     from robocasa.utils.camera_utils import get_robot_cam_configs
@@ -36,7 +36,6 @@ def make_adapter(*, realtime=False):
         use_camera_obs=False,
         ignore_done=True,
     )
-    native.realtime = realtime
     native._render = True
     native._camera_names = DEFAULT_CAMERAS
     native._camera_size = (8, 12)
@@ -72,9 +71,11 @@ def make_adapter(*, realtime=False):
 
 
 def check(root, temporary):
+    import os
     import sys
 
-    sys.path.insert(0, str(root.parent / "kinex/python"))
+    kinex = Path(os.environ.get("KINEX_ROOT", root.parent / "kinex"))
+    sys.path.insert(0, str(kinex / "packages/core/assets/python"))
     import json
     from dataclasses import replace
     from types import SimpleNamespace
@@ -141,8 +142,15 @@ def check(root, temporary):
     plan = BindingPlan.load(source, backend="robocasa")
     robot = temporary / "robot"
     shutil.copytree(source, robot)
+    from roboenv_runtime.runtime.world import WorldSession
+
+    session = WorldSession(adapter)
     service = default_registry().assemble(
-        plan, robot, BindingContext("robocasa", "panda_omron", adapter)
+        plan,
+        robot,
+        BindingContext("robocasa", "panda_omron", adapter),
+        motion_scheduler=session.schedule,
+        resolve=session.resolve,
     )
 
     def call(name, action, args=None):
@@ -309,7 +317,13 @@ def check(root, temporary):
                 [True] * size,
             ):
                 try:
-                    call(name, "write", {"target": target})
+                    call(
+                        name,
+                        "write",
+                        {"actions": [target], "freq_hz": 20}
+                        if name in {"arm", "torso"}
+                        else {"target": target},
+                    )
                 except DeviceError:
                     pass
                 else:
@@ -327,9 +341,15 @@ def check(root, temporary):
                         "mode": "drive",
                         "velocity": dict(zip(("vx", "vy", "wz"), target, strict=True)),
                     }
-                local(name, "write", command)
+                local(name, "write", {**command, "for_s": .05})
             else:
-                call(name, "write", {"target": target})
+                call(
+                    name,
+                    "write",
+                    {"actions": [target], "freq_hz": 20}
+                    if name in {"arm", "torso"}
+                    else {"target": target},
+                )
             assert native._step_count == before + 1
             expected_stop = {"stopped": True}
             if name == "base":
@@ -348,7 +368,7 @@ def check(root, temporary):
                     else native._robot.robot_model.init_torso_qpos
                 )
                 np.testing.assert_allclose(list(facts["home"].values()), expected_home)
-                assert facts["control"]["speed"] is None
+                assert facts["control"] == {"mode": "position"}
                 model_joints = facts["model"]["joints"]
                 assert all(j["max_velocity"] is None for j in model_joints)
                 controller = native._robot.part_controllers["right" if name == "arm" else "torso"]
@@ -436,9 +456,8 @@ def check(root, temporary):
         goal[0] += 0.1
         before = native.sim.data.time
         with patch.object(arm, "set_goal", wraps=arm.set_goal) as set_goal:
-            for _ in range(60):
-                call("arm", "write", {"target": goal.tolist()})
-            assert set_goal.call_count == 1
+            call("arm", "write", {"actions": [goal.tolist()] * 60, "freq_hz": 20})
+            assert set_goal.call_count == 2  # goal, then terminal measured hold
         assert abs(native.sim.data.time - before - 3) < 1e-9
         state = call("arm", "read")
         np.testing.assert_allclose(state["positions"], goal, atol=0.01)
@@ -446,9 +465,9 @@ def check(root, temporary):
         assert state["sample_time_s"] == native.sim.data.time
         replacement = goal.copy()
         replacement[0] -= 0.2
-        call("arm", "write", {"target": replacement.tolist()})
-        call("arm", "write", {"target": goal.tolist()})
-        np.testing.assert_array_equal(arm.goal_qpos, goal)
+        call("arm", "write", {"actions": [replacement.tolist()], "freq_hz": 20})
+        terminal = call("arm", "write", {"actions": [goal.tolist()], "freq_hz": 20})
+        np.testing.assert_array_equal(arm.goal_qpos, terminal["state"]["positions"])
         # A later base command preserves the previous gripper command.
         call("gripper", "write", {"target": [1]})
         fingers = native._robot.gripper["right"].current_action.copy()
@@ -543,8 +562,6 @@ if __name__ == "__main__":
         from roboenv_runtime.core.adapter import _REGISTRY
         from roboenv_runtime.runtime.worker import main
 
-        _REGISTRY["robocasa"] = lambda **kwargs: make_adapter(
-            realtime=kwargs.get("realtime", False)
-        )
+        _REGISTRY["robocasa"] = lambda **kwargs: make_adapter()
         raise SystemExit(main())
     check(Path(sys.argv[1]), Path(sys.argv[2]))

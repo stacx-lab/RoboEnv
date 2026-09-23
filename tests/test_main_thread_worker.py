@@ -9,7 +9,6 @@ from types import SimpleNamespace
 
 import pytest
 from roboenv_runtime.core.types import Budget
-from roboenv_runtime.runtime import world as world_module
 from roboenv_runtime.runtime.protocol import socket_address
 from roboenv_runtime.runtime.worker import MainThreadWorkerUnixServer
 from roboenv_runtime.runtime.world import WorldSession
@@ -18,8 +17,8 @@ from roboenv_runtime.runtime.world import WorldSession
 class Native:
     name = "thread-affine-test"
     embodiment = "test"
-    realtime_interval = 0.005
-    realtime_on_main_thread = True
+    control_interval_s = 0.005
+    owner_thread_required = True
 
     def __init__(self, maximum=None, fail=False):
         self.frames = 0
@@ -32,7 +31,7 @@ class Native:
     def budget(self):
         return Budget(used=self.frames, max=self.maximum)
 
-    def realtime_tick(self):
+    def advance_control(self):
         self.threads.append(threading.get_ident())
         if self.fail:
             raise RuntimeError("physics failed")
@@ -44,51 +43,9 @@ class Native:
         self.closed = True
 
 
-@pytest.mark.parametrize("fail", [False, True])
-def test_polled_clock_obeys_deadlines_freeze_and_failure(monkeypatch, fail):
-    now = [0.0]
-    monkeypatch.setattr(world_module.time, "monotonic", lambda: now[0])
-    native = Native(maximum=2, fail=fail)
-    world = WorldSession(native)
-    world.start()
-    assert world._thread is None
-    with pytest.raises(RuntimeError, match="twice"):
-        world.start()
-    world.poll()
-    assert native.frames == 0
-    for _ in range(4):
-        now[0] += 0.005
-        world.poll()
-    assert native.frames == (0 if fail else 2)
-    assert world._halt.is_set()
-    assert isinstance(world.failure, RuntimeError) if fail else world.failure is None
-    assert set(native.threads) == {threading.get_ident()}
-    world.close()
-    world.poll()
-    assert native.closed
-
-
-def test_poll_rejects_a_different_thread():
-    world = WorldSession(Native())
-    world.start()
-    errors = []
-
-    def wrong_thread():
-        try:
-            world.poll()
-        except RuntimeError as error:
-            errors.append(str(error))
-
-    thread = threading.Thread(target=wrong_thread)
-    thread.start()
-    thread.join(timeout=2)
-    world.close()
-    assert errors == ["native clock must run on its creating thread"]
-
-
-def test_idle_partial_connection_does_not_block_clock_or_other_rpc(tmp_path):
+def test_idle_partial_connection_does_not_block_motion_or_other_rpc(tmp_path):
     native = Native()
-    world = WorldSession(native)
+    world = None
     rpc_threads = []
 
     def dispatch(op, args):
@@ -101,10 +58,18 @@ def test_idle_partial_connection_does_not_block_clock_or_other_rpc(tmp_path):
     ready = threading.Event()
 
     def serve():
-        world.start()
+        nonlocal world
+        world = WorldSession(native)
+        worker.world = world
+
+        def motion():
+            for _ in range(100):
+                yield
+
+        world.schedule(motion(), threading.Event())
         ready.set()
         try:
-            server.serve_forever(poll_interval=world.poll_interval)
+            server.serve_forever(poll_interval=0.01)
         finally:
             server.server_close()
             world.close()
@@ -138,11 +103,14 @@ def test_idle_partial_connection_does_not_block_clock_or_other_rpc(tmp_path):
     assert not thread.is_alive() and native.closed
 
 
-def test_request_batch_is_bounded_and_still_services_clock(tmp_path):
+def test_request_batch_is_bounded_and_still_services_motion(tmp_path):
     events = []
     worker = SimpleNamespace(
         world=SimpleNamespace(
-            poll=lambda: events.append("tick"), poll_segments=lambda: None, poll_interval=0.005,
+            advance=lambda: events.append("tick"),
+            poll_motions=lambda: None,
+            pending=True,
+            mode="stepped",
         ),
         dispatch_async=lambda op, args: events.append("request"),
     )
@@ -162,26 +130,36 @@ def test_request_batch_is_bounded_and_still_services_clock(tmp_path):
 def test_new_connections_can_share_a_slow_native_frame(tmp_path):
     """Match WorkerClient's one-connection-per-request transport."""
     native = Native()
-    original_tick = native.realtime_tick
+    original_tick = native.advance_control
 
     def slow_tick():
         time.sleep(0.05)
         original_tick()
 
-    native.realtime_tick = slow_tick
-    world = WorldSession(native)
+    native.advance_control = slow_tick
+    world = None
     worker = SimpleNamespace(
-        world=world, dispatch_async=lambda op, args: native.frames, shutdown_requested=False,
+        world=world,
+        dispatch_async=lambda op, args: native.frames,
+        shutdown_requested=False,
     )
     path = str(tmp_path / "fresh-connections.sock")
     server = MainThreadWorkerUnixServer(path, worker)
     ready = threading.Event()
 
     def serve():
-        world.start()
+        nonlocal world
+        world = WorldSession(native)
+        worker.world = world
+
+        def motion():
+            for _ in range(100):
+                yield
+
+        world.schedule(motion(), threading.Event())
         ready.set()
         try:
-            server.serve_forever(poll_interval=world.poll_interval)
+            server.serve_forever(poll_interval=0.01)
         finally:
             server.server_close()
             world.close()
@@ -208,8 +186,7 @@ def test_new_connections_can_share_a_slow_native_frame(tmp_path):
 
 
 @pytest.mark.parametrize("backend", ["libero", "robocasa"])
-@pytest.mark.parametrize("realtime", [False, True])
-def test_camera_rpc_uses_the_thread_that_created_the_native_renderer(tmp_path, backend, realtime):
+def test_camera_rpc_uses_the_thread_that_created_the_native_renderer(tmp_path, backend):
     from concurrent.futures import ThreadPoolExecutor
 
     from roboenv_runtime.adapters.libero.adapter import LiberoAdapter
@@ -237,22 +214,27 @@ def test_camera_rpc_uses_the_thread_that_created_the_native_renderer(tmp_path, b
         adapter_type = LiberoAdapter if backend == "libero" else RoboCasaAdapter
         adapter = adapter_type.__new__(adapter_type)
         adapter._env = SimpleNamespace(
-            realtime=realtime, env=SimpleNamespace(control_freq=200), render=capture,
-            tick=lambda: frames.__setitem__(0, frames[0] + 1), close=close,
+            env=SimpleNamespace(control_freq=200),
+            render=capture,
+            tick=lambda: frames.__setitem__(0, frames[0] + 1),
+            close=close,
             get_step_budget=lambda: {"used": frames[0], "max": None},
         )
         world = WorldSession(adapter)
+
         def dispatch(op, args):
             return adapter.capture()
 
         worker = SimpleNamespace(
-            world=world, dispatch=dispatch, dispatch_async=dispatch, shutdown_requested=False,
+            world=world,
+            dispatch=dispatch,
+            dispatch_async=dispatch,
+            shutdown_requested=False,
         )
         server = create_worker_server(path, worker)
-        world.start()
         ready.set_result(server)
         try:
-            server.serve_forever(poll_interval=world.poll_interval)
+            server.serve_forever(poll_interval=0.01)
         finally:
             server.server_close()
             world.close()

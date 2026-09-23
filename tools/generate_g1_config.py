@@ -165,7 +165,6 @@ def generate(assets, out, *, facts_out=None, provenance=None, bindings_out=None)
                 "action_abstraction": "devices",
                 "backend_kwargs": {
                     "task_name": "g1-pick-place",
-                    "realtime": False,
                     "asset_manifest": portable(assets),
                 },
             },
@@ -223,7 +222,10 @@ if __name__ == "__main__":
     options = parser.parse_args()
     print(
         generate(
-            options.assets, options.out, facts_out=options.facts_out, provenance=options.provenance,
+            options.assets,
+            options.out,
+            facts_out=options.facts_out,
+            provenance=options.provenance,
             bindings_out=options.bindings_out,
         )
     )

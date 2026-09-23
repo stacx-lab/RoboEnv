@@ -45,11 +45,9 @@ def interval(world, commands):
     frame = world.control.frame
     for name, target in commands.items():
         world.device_write(name, target)
-    if world.realtime:
-        require(world.control.frame == frame, "Realtime writes advanced physics")
-        world.control.tick()
-    expected = 1 if world.realtime else len(commands)
-    require(world.control.frame == frame + expected, "Unexpected control interval count")
+    require(world.control.frame == frame, "Staging targets must not advance physics")
+    world.control.tick()
+    require(world.control.frame == frame + 1, "Unexpected control interval count")
 
 
 def mount_transform(fact):
@@ -440,7 +438,6 @@ def main():
     parser.add_argument("--embodiment", choices=["arx_x5", "yam"], required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--layout-config", choices=["arx_x5", "yam"])
-    parser.add_argument("--realtime", action="store_true")
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -452,7 +449,6 @@ def main():
         "checks": {},
         "embodiment": args.embodiment,
         "seed": args.seed,
-        "realtime": args.realtime,
         "scope": "owner native calibration fixtures; no task success claim",
     }
     world = None
@@ -461,7 +457,6 @@ def main():
             "stack_bowls",
             args.embodiment,
             max_steps=500,
-            realtime=args.realtime,
             layout_config=args.layout_config,
         )
         world.reset(seed=args.seed)

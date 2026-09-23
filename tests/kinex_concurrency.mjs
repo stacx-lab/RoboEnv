@@ -14,7 +14,7 @@ try {
         actions: ['load', 'unload', 'read', 'write', 'status', 'stop'], timeout_s: 5 } },
       intrinsics: {
         model: { format: 'joints', joints: [{ name: 'j0', type: 'revolute', limits: { min: -2, max: 2 }, max_velocity: 2, max_effort: null }] },
-        home: null, control: { mode: 'position', speed: null },
+        home: null, control: { mode: 'position' },
         feedback: { velocities: true, efforts: false, clock: 'simulation' },
         stop: { behavior: 'hold', affected_devices: [name] },
       },
@@ -27,9 +27,9 @@ try {
   })
   await runtime.recording.start({ specs: { left: { rate: 30 }, right: { rate: 30 } }, sessionID: 'test' })
   let finished = false
-  const left = runtime.devices.dispatch('left', 'write', { target: [.2], for_s: 1 }).then(value => { finished = true; return value })
+  const left = runtime.devices.dispatch('left', 'write', { actions: [[.2]], freq_hz: 1 }).then(value => { finished = true; return value })
   while (!(await runtime.devices.dispatch('left', 'read')).data.commands.length) await delay(5)
-  const right = await runtime.devices.dispatch('right', 'write', { target: [.6], for_s: .2 })
+  const right = await runtime.devices.dispatch('right', 'write', { actions: [[.6]], freq_hz: 5 })
   assert.equal(finished, false)
   assert.ok(right.data.elapsed_s >= .2)
   assert.ok(samples.filter(event => event.device.name === 'left').length >= 2)

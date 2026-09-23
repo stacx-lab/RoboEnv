@@ -60,7 +60,6 @@ def descriptors():
         robot.reset(deterministic=True)
         sim.forward()
         native = SimpleNamespace(
-            realtime=True,
             _robot=robot,
             sim=sim,
             env=SimpleNamespace(control_freq=20),
@@ -68,7 +67,7 @@ def descriptors():
             _camera_names=DEFAULT_CAMERAS,
             _camera_size=(256, 256),
         )
-        adapter = SimpleNamespace(_env=native)
+        adapter = SimpleNamespace(_env=native, control_interval_s=0.05)
         plan = BindingPlan.load(ROBOT, backend="robocasa")
         service = default_registry().assemble(
             plan, ROBOT, BindingContext("robocasa", "panda_omron", adapter)

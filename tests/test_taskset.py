@@ -195,8 +195,10 @@ def test_discovery_emits_namespaced_catalog_with_explicit_clock(tmp_path, monkey
         catalog.DISCOVERERS,
         "robocasa",
         lambda *a: [
-            (catalog._task("robocasa", "robocasa.Example", {"task_name": "Example"}, "Do it"),
-             ROOT / "README.md")
+            (
+                catalog._task("robocasa", "robocasa.Example", {"task_name": "Example"}, "Do it"),
+                ROOT / "README.md",
+            )
         ],
     )
     destination = tmp_path / "discovered"
@@ -204,7 +206,8 @@ def test_discovery_emits_namespaced_catalog_with_explicit_clock(tmp_path, monkey
     task, path = catalog.load_catalog(destination / "tasks")["robocasa/Example"]
     assert path == destination / "tasks/robocasa/Example/task.yaml"
     assert task.backend_task == "robocasa.Example"
-    assert task.backend_kwargs["realtime"] is True
+    assert "realtime" not in task.backend_kwargs
+    assert yaml.safe_load(path.read_text())["execution_mode"] == "stepped"
 
 
 def test_nested_catalog_duplicate_ids_are_rejected(tmp_path):
@@ -219,10 +222,15 @@ def test_nested_catalog_duplicate_ids_are_rejected(tmp_path):
         load_catalog(tmp_path)
 
 
-@pytest.mark.parametrize("identifier", [
-    "robotwin/handover-mic", "robotwin/stack-blocks-three",
-    "robodojo/general-pickup", "robodojo/stack-bowls",
-])
+@pytest.mark.parametrize(
+    "identifier",
+    [
+        "robotwin/handover-mic",
+        "robotwin/stack-blocks-three",
+        "robodojo/general-pickup",
+        "robodojo/stack-bowls",
+    ],
+)
 def test_retired_reference_cannot_be_exported(tmp_path, identifier):
     wheel, _ = inputs(tmp_path)
     source = tmp_path / "source"
@@ -234,8 +242,47 @@ def test_retired_reference_cannot_be_exported(tmp_path, identifier):
     destination = tmp_path / "retired"
     with pytest.raises(ValueError, match="reference program is retired"):
         export_task(
-            task, ROOT / "catalog", destination, wheel,
+            task,
+            ROOT / "catalog",
+            destination,
+            wheel,
             deployment_path=tmp_path / (identifier.split("/")[0] + ".json"),
             include_reference=True,
         )
     assert not destination.exists()
+
+
+def test_catalog_entries_explicitly_declare_execution_mode():
+    from roboenv.tasks.model import Task
+
+    for path in (ROOT / "catalog/tasks").rglob("task.yaml"):
+        data = yaml.safe_load(path.read_text())
+        assert data["execution_mode"] in {"stepped", "realtime"}, path
+        assert Task.load(path).execution_mode == data["execution_mode"]
+    assert set(summary(ROOT)["execution_modes"].values()) == {"stepped"}
+
+
+def test_realtime_mode_survives_harbor_export(tmp_path):
+    from roboenv_runtime.tasks.schema import TaskSpec
+
+    wheel, deployments = inputs(tmp_path)
+    data = yaml.safe_load((ROOT / "catalog/tasks/libero/drawer-and-bowl/task.yaml").read_text())
+    data["execution_mode"] = "realtime"
+    source = tmp_path / "task.yaml"
+    source.write_text(yaml.safe_dump(data))
+    destination = tmp_path / "exported"
+    export_task(source, ROOT / "catalog", destination, wheel,
+                deployment_path=tmp_path / "libero.json")
+    config = yaml.safe_load((destination / "environment/sim/tasks/libero.90_8.yaml").read_text())
+    assert config["execution_mode"] == "realtime"
+    assert TaskSpec.from_dict(config).execution_mode == "realtime"
+
+
+def test_catalog_rejects_missing_execution_mode(tmp_path):
+    from roboenv.tasks.catalog import load_catalog
+
+    data = yaml.safe_load((ROOT / "catalog/tasks/libero/drawer-and-bowl/task.yaml").read_text())
+    del data["execution_mode"]
+    (tmp_path / "task.yaml").write_text(yaml.safe_dump(data))
+    with pytest.raises(ValueError, match="must declare execution_mode"):
+        load_catalog(tmp_path)

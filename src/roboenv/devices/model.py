@@ -81,6 +81,7 @@ class Action:
     input_schema: dict = field(default_factory=lambda: {"type": "object"})
     reason: str | None = None
     output_schema: dict = field(default_factory=dict)
+    validate: Callable[[dict], None] | None = None
 
     def __post_init__(self):
         if self.handler is not None and not callable(self.handler):
@@ -121,6 +122,11 @@ class BoundDevice:
         self.implementation, self.validation = implementation, validation
         self.binding, self._on_close = copy.deepcopy(binding), on_close
         self._closed = False
+
+    def validate(self, action, args):
+        check = self.actions[action].validate
+        if check is not None:
+            check(args)
 
     def describe(self):
         definition = self.definition

@@ -67,17 +67,16 @@ def native_factory(monkeypatch):
         monkeypatch.setitem(sys.modules, name, module)
     monkeypatch.setattr(g1_cameras, "configure", lambda *args: None)
 
-    def build(realtime):
+    def build():
         model = {
             "parts": {},
             "cameras": {},
         }
         paths = {key: key for key in ("robot", "table", "object", "policy")}
-        native, names, interval = g1_native.create(paths, model, "cpu", realtime=realtime)
+        native, names, interval = g1_native.create(paths, model, "cpu")
         world = G1Env.__new__(G1Env)
         world.env, world.upper_names, world.model = native, names, model
         world.app = None
-        world.realtime = realtime
         # The control period comes from the native config, not the catalog.
         world.control_interval = interval
         world.steps = 0
@@ -87,54 +86,36 @@ def native_factory(monkeypatch):
     return build
 
 
-@pytest.mark.parametrize("realtime", [False, True])
-def test_horizon_is_removed_only_for_realtime(native_factory, monkeypatch, realtime):
-    env = native_factory(realtime)
-    terms = env.env.cfg.terminations
-    assert terms.time_out == (None if realtime else "timeout")
-    assert (terms.success, terms.object_dropping, terms.object_too_far) == (
-        "success",
-        "dropping",
-        "distance",
-    )
+def test_sync_horizon_remains_native(native_factory):
+    import threading
+
+    env = native_factory()
+    assert env.env.cfg.terminations.time_out == "timeout"
     adapter = IsaacLabAdapter.__new__(IsaacLabAdapter)
     adapter._env = env
     env.control = SimpleNamespace(tick=lambda: env.advance({"base": [0, 0, 0, 0.75]}))
-    now = [0.0]
-    monkeypatch.setattr(world_module.time, "monotonic", lambda: now[0])
-    clock = world_module.WorldSession(adapter)
-    clock.start()
-    try:
-        for _ in range(1100 if realtime else 1000):
-            if realtime:
-                now[0] += 0.021
-                clock.poll()
-                continue
-            env.control.tick()
-        budget = adapter.budget()
-        assert budget.max == (None if realtime else 1000)
-        assert budget.exhausted is (not realtime)
-        assert env.sample_time_s == (22 if realtime else 20)
-        assert env.done is (not realtime)
-        assert clock.failure is None
-        if realtime:
-            env.require_active()
-            assert not clock._halt.is_set()
-            return
-        with pytest.raises(ValueError, match="terminated"):
-            env.require_active()
-    finally:
-        clock.close()
+    world = world_module.WorldSession(adapter)
+
+    def motion():
+        for _ in range(1000):
+            yield
+
+    world.resolve(world.schedule(motion(), threading.Event()))
+    assert adapter.budget().exhausted and adapter.budget().max == 1000
+    assert env.sample_time_s == 20 and env.done
+    with pytest.raises(ValueError, match="terminated"):
+        env.require_active()
+    world.close()
 
 
 @pytest.mark.parametrize("success", [False, True])
-def test_realtime_still_honors_non_timeout_termination(native_factory, success):
-    env = native_factory(True)
-    env.steps = env.env.steps = 1100
+def test_sync_honors_non_timeout_termination(native_factory, success):
+    env = native_factory()
+    env.steps = env.env.steps = 10
     env.env.terminated = True
     env.env.success = success
     env.advance({"base": [0, 0, 0, 0.75]})
     assert env.done and env.completed is success
     with pytest.raises(ValueError, match="terminated"):
         env.advance({"base": [0, 0, 0, 0.75]})
-    assert env.steps == 1101
+    assert env.steps == 11

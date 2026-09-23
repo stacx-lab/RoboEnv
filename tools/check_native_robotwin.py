@@ -41,11 +41,9 @@ def interval(world, commands):
     frame = world.control.frame
     for name, target in commands.items():
         world.device_write(name, target)
-    if world.realtime:
-        require(world.control.frame == frame, "Realtime writes advanced physics")
-        world.control.tick()
-    expected = 1 if world.realtime else len(commands)
-    require(world.control.frame == frame + expected, "Unexpected control interval count")
+    require(world.control.frame == frame, "Staging targets must not advance physics")
+    world.control.tick()
+    require(world.control.frame == frame + 1, "Unexpected control interval count")
 
 
 def mount_transform(fact):
@@ -311,7 +309,6 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--embodiment", choices=["piper", "aloha_agilex"], required=True)
     parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--realtime", action="store_true")
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -321,12 +318,9 @@ def main():
         "schema": "roboenv/robotwin-conformance/1",
         "embodiment": args.embodiment,
         "seed": args.seed,
-        "realtime": args.realtime,
         "scope": "native device conformance with owner calibration fixtures; no task success claim",
     }
-    world = RoboTwinDevices(
-        "stack_blocks_three", args.embodiment, max_steps=320, realtime=args.realtime
-    )
+    world = RoboTwinDevices("stack_blocks_three", args.embodiment, max_steps=320)
     try:
         world.reset(seed=args.seed)
         report.update(check(world, out))

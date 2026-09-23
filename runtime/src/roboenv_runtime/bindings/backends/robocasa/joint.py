@@ -1,6 +1,6 @@
 """Joint-position devices extracted from the compiled model, in physical units."""
 
-from roboenv.devices.execution import map_result
+from roboenv_runtime.bindings.motion import control_binding
 
 
 def intrinsics(sim, indexes, chain, home, name):
@@ -46,13 +46,13 @@ def intrinsics(sim, indexes, chain, home, name):
         "home": {joint["name"]: float(value) for joint, value in zip(joints, home, strict=True)},
         "control": {
             "mode": "position",
-            "speed": None,
         },
         "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
         "stop": {"behavior": "hold", "affected_devices": [name]},
     }
 
 
+@control_binding
 def bind(spec, root, context):
     import numpy as np
 
@@ -101,12 +101,8 @@ def bind(spec, root, context):
             "frame_poses": {frame: pose(model, data, tip, base)},
         }
 
-    def write(target, for_s=None, arrive=None):
-        """Set this device's goal and execute it; report the time spent.
-
-        This layer judges arrival because it knows which joints it owns; the
-        world owns the clock. `reached` is a measurement, never a promise.
-        """
+    def write(target):
+        """Stage the native joint reference."""
         command = vector(
             target,
             len(indexes),
@@ -114,22 +110,8 @@ def bind(spec, root, context):
             upper=[v["max"] if v else np.inf for v in limits],
         )
 
-        def arrived():
-            tolerance = (arrive or {}).get("joint_tolerance")
-            if not tolerance:
-                return False
-            measured = np.asarray(data.qpos[model.jnt_qposadr[indexes]], dtype=float)
-            if not np.all(np.abs(measured - np.asarray(command, dtype=float))
-                          <= np.asarray(tolerance, dtype=float)):
-                return False
-            quiet = (arrive or {}).get("quiet_velocity")
-            if quiet is None:
-                return True
-            speeds = np.asarray(data.qvel[model.jnt_dofadr[indexes]], dtype=float)
-            return bool(np.all(np.abs(speeds) <= np.asarray(quiet, dtype=float)))
-
-        elapsed = world.step({part: command}, for_s=for_s, arrived=arrived)
-        return map_result(elapsed, lambda duration: {"accepted": True, "elapsed_s": duration, "reached": arrived(), "state": read()})
+        world.step({part: command})
+        return {}
 
     def stop():
         world.stop_part(part)

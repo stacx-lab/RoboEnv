@@ -16,7 +16,7 @@ import tempfile
 import threading
 import time
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import yaml
@@ -181,11 +181,16 @@ def status(run=None, *, endpoint=None, port=None, project=None):
         if run is not None and not str(run).startswith(("http://", "https://")):
             record = _record(run, project)
             if record.get("state") in {"stopped", "failed"}:
-                return {"state": record["state"], "id": record["id"],
-                        "simulation": status_feedback(record.get("simulation"))}
+                return {
+                    "state": record["state"],
+                    "id": record["id"],
+                    "simulation": status_feedback(record.get("simulation")),
+                }
         client = _connect(run, project=project)
-    return {**client.request("health", timeout=2),
-            "simulation": client.request("simulation.status", timeout=30)}
+    return {
+        **client.request("health", timeout=2),
+        "simulation": client.request("simulation.status", timeout=30),
+    }
 
 
 class RunningEnvironment:
@@ -274,7 +279,6 @@ def launch(
     timeout=900,
     host="127.0.0.1",
     port=0,
-    realtime=None,
     arm_gravity_compensation=None,
     log_stream=None,
     runtime_root=None,
@@ -282,16 +286,18 @@ def launch(
     allow_stop=False,
     advertise_host=None,
     python_path=(),
+    execution_mode=None,
 ):
     """Start a task in its isolated interpreter; return after device readiness.
 
-    realtime=None preserves the task clock. RoboCasa accepts either override;
-    Isaac Lab accepts False only.
     arm_gravity_compensation overrides the SIMPLE task setting; None preserves
     the task value, which defaults to True. Other backends reject this override.
+    execution_mode overrides the task setting; None preserves the catalog mode.
     Backend assets must already be prepared. No installation or download occurs.
     All run definitions and logs are retained under the selected project's cache.
     """
+    if execution_mode is not None and execution_mode not in ("stepped", "realtime"):
+        raise ValueError("execution_mode must be stepped or realtime")
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
         raise ValueError("timeout must be a positive finite number")
     if not math.isfinite(timeout) or timeout <= 0:
@@ -309,9 +315,13 @@ def launch(
         raise ValueError("python_path must be a sequence of deployment paths")
     python_path = [str(Path(path).resolve(strict=True)) for path in python_path]
     root = Path(runtime_root).resolve(strict=True) if runtime_root else project_root(project)
-    resolved = resolve_task(task, project=root, catalog=catalog, realtime=realtime,
-                            arm_gravity_compensation=arm_gravity_compensation)
+    resolved = resolve_task(
+        task, project=root, catalog=catalog, arm_gravity_compensation=arm_gravity_compensation
+    )
+    if execution_mode is not None:
+        resolved = replace(resolved, task=replace(resolved.task, execution_mode=execution_mode))
     spec = resolved.task
+    execution_mode = spec.execution_mode
     if interpreter is None and spec.backend == "fakeshell":
         interpreter = sys.executable
     interpreter = resolve_interpreter(root, spec.backend, interpreter)
@@ -323,8 +333,10 @@ def launch(
         if not source_status(root, [spec.backend])["ready"]:
             raise ValueError(f"Sources are not ready; run 'roboenv doctor {spec.backend}'")
     run_id = uuid.uuid4().hex[:16]
-    runs = Path(run_dir).resolve() if run_dir else (
-        root / ".cache/roboenv/runs" if runtime_root else _records(root)
+    runs = (
+        Path(run_dir).resolve()
+        if run_dir
+        else (root / ".cache/roboenv/runs" if runtime_root else _records(root))
     )
     directory = runs / run_id
     directory.mkdir(parents=True, mode=0o700)
@@ -391,6 +403,8 @@ def launch(
         spec.backend_task,
         "--seed",
         str(spec.seed),
+        "--worker-arg=--execution-mode",
+        f"--worker-arg={execution_mode}",
         "--budget-mode",
         spec.budget_mode,
         "--session",
@@ -438,7 +452,10 @@ def launch(
                     record["endpoint"] = health["endpoint"]
                     if advertise_host:
                         from urllib.parse import urlsplit
-                        record["endpoint"] = f"http://{advertise_host}:{urlsplit(health['endpoint']).port}"
+
+                        record["endpoint"] = (
+                            f"http://{advertise_host}:{urlsplit(health['endpoint']).port}"
+                        )
                     from roboenv.devices.export import export_devices
 
                     export_devices(
@@ -451,7 +468,11 @@ def launch(
                     running.client = _client(record)
                     return running
                 if health.get("worker", {}).get("state") in {
-                    "failed", "exited", "terminated", "timed_out", "identity_mismatch"
+                    "failed",
+                    "exited",
+                    "terminated",
+                    "timed_out",
+                    "identity_mismatch",
                 }:
                     raise RuntimeError("Simulator worker failed during startup")
             time.sleep(0.05)

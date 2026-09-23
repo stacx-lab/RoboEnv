@@ -14,6 +14,7 @@ class BindingContext:
     public_dispatch: Any = None
     public_tools: Any = None
     devices: Any = None
+    execution_mode: str = "stepped"
 
 
 class BindingRegistry:
@@ -25,8 +26,18 @@ class BindingRegistry:
             raise ValueError(f"duplicate binding or invalid factory: {name}")
         self._factories[name] = factory
 
-    def assemble(self, plan, root, context, *, manifest=None, execution_lock=None,
-                 segment_scheduler=None, resolve=None):
+    def assemble(
+        self,
+        plan,
+        root,
+        context,
+        *,
+        manifest=None,
+        execution_lock=None,
+        motion_scheduler=None,
+        resolve=None,
+        flush=None,
+    ):
         if plan.backend != context.backend:
             raise ValueError("binding backend mismatch")
         if plan.embodiment is not None and plan.embodiment != context.embodiment:
@@ -42,8 +53,14 @@ class BindingRegistry:
                 devices.append(device)
                 if device.describe().get("name") != spec.name:
                     raise ValueError("binding returned a different logical device name")
-            return DeviceService(devices, manifest=manifest, execution_lock=execution_lock,
-                                 segment_scheduler=segment_scheduler, resolve=resolve)
+            return DeviceService(
+                devices,
+                manifest=manifest,
+                execution_lock=execution_lock,
+                motion_scheduler=motion_scheduler,
+                resolve=resolve,
+                flush=flush,
+            )
         except BaseException:
             for device in reversed(devices):
                 try:

@@ -1,5 +1,6 @@
 id: native-toy-push
 backend: fakeshell
+execution_mode: stepped
 backend_task: fakeshell.native-push
 backend_kwargs: {max_budget: 1000, goal_x: 0.3}
 robot: toy-puck

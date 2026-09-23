@@ -77,7 +77,9 @@ def describe(root, embodiment, *, assets=None):
         }
         grip_config = config["gripper_name"][index]
         grip_names = [grip_config["base"], *[entry[0] for entry in grip_config["mimic"]]]
-        geometry = ParallelGripper(urdf, grip_names, flange, "piper" if embodiment == "piper" else "aloha")
+        geometry = ParallelGripper(
+            urdf, grip_names, flange, "piper" if embodiment == "piper" else "aloha"
+        )
         facts[gripper] = geometry.device(gripper, arm)
         links = {link.attrib["name"] for link in tree.findall("link")}
         camera_link = side + "_camera" if side + "_camera" in links else "camera"

@@ -24,6 +24,12 @@ see [setup](docs/setup.md) for prerequisites and diagnostics.
 
 ## Start and connect
 
+Every task catalog entry declares `execution_mode: stepped` or `realtime`.
+`stepped` freezes idle simulation; `realtime` advances it against a monotonic clock.
+`roboenv tasks list` reports each task's mode. Launch uses the catalog setting;
+`--execution-mode` (or Python `execution_mode=`) explicitly overrides it.
+
+
 ```sh
 roboenv tasks list --simulator robocasa
 roboenv launch robocasa/pick-place-microwave --port 8123
@@ -87,27 +93,21 @@ The additional `drawer-and-bowl` example maps to `libero_90` task 8: open the
 top drawer and put the bowl inside. It uses the kitchen Panda catalog.
 
 
-RoboCasa’s typed catalog contains arm, torso, base, gripper, three RGB-D cameras,
-and world, using Kinex’s current device schemas. It implements the device-first API: `env.task`, `env.devices()`, and
-`env.device(name)`. Drivers expose only their type's basic operations. The world advances
-continuously while the agent thinks. Writes update persistent controller goals;
-reads do not request extra steps. Exported arm/torso drivers solve IK/FK locally
-using Kinex utilities and static profile geometry; they do not require RoboEnv
-in the agent environment. Exported drivers default to persistent JSON-lines
-processes and reuse HTTP connections, profile data, and local kinematics. Reload
-through Kinex after changing profiles or episode connections; unloading stops only
-the device's declared scope. Transport failures never resubmit commands.
-Pass `--sync` to `roboenv launch`, or set `backend_kwargs.realtime: false`
-in the task YAML for synchronous mode, where each write advances one control period, retaining all active goals.
-Either way a write reports `elapsed_s`, the simulated time it was worth, so a
-caller measures a task in the world's own clock rather than in wall time or in
-calls: synchronously that is one control period per write, and with the wall
-clock running the world it is however long the goal took, bounded by `for_s`.
-Arm and torso targets are absolute joint positions in radians/metres; gripper
-commands keep their native signed format. Acceptance never implies arrival.
-Neither mode imposes a simulation horizon.
-Task-solving controllers belong in the agent harness. See [RoboCasa](docs/robocasa.md)
-for action spaces, task-specific device selection, and validation coverage.
+RoboCasa’s catalog contains arm, torso, base, gripper, three RGB-D cameras,
+and world. The device API is `env.task`, `env.devices()` and `env.device(name)`.
+
+Joint devices and dexterous hands accept buffered `write(actions, freq_hz=...)`
+without planning. Goal planning and measured arrival checks belong to the agent harness.
+Use concurrent writes for multiple devices; the simulator owns their shared clock. See
+[the device contract](DESIGN.md#one-world-one-execution-authority).
+
+Simulation defaults to stepped execution: idle time freezes physics. Owners can
+select `roboenv launch TASK --execution-mode realtime` to advance against a
+monotonic clock even while idle. Devices share one native tick in both modes;
+reads never advance physics. Stepped chunk completion clears pending goals;
+realtime completion retains the final reference. Bounded goal timeouts always stop.
+Exported drivers retain local IK/FK, persistent transport and scoped lifecycle.
+Transport failures never resubmit motion. Task-solving controllers belong in Kinex.
 
 All scalar grippers in RoboCasa, LIBERO, RoboTwin, RoboDojo and BEHAVIOR expose
 TCP descriptions, approach/closing axes, moving contact frames and physical
@@ -116,9 +116,7 @@ See [gripper geometry](docs/grippers.md) for frame conventions and source valida
 
 SIMPLE G1 uses a `velocity` base for legs and waist, separate `joint` arms,
 `dexterous_hand` fingers, and stereo RGB cameras. Run `roboenv prepare simple`
-and `roboenv launch simple/g1-xmove-pick`. The default is realtime with Isaac
-rendering over MuJoCo physics; `--sync` enables one control interval per device
-write. See [SIMPLE setup, contracts and validation](docs/simple.md) for requirements
+and `roboenv launch simple/g1-xmove-pick`. It uses Isaac rendering over MuJoCo physics with command-driven stepping. See [SIMPLE setup, contracts and validation](docs/simple.md) for requirements
 and the current validation limits. The metric control interface is a practice
 protocol; native success predicates are preserved.
 
@@ -128,12 +126,8 @@ RGB-D cameras. The old Go2 joint-posture demo has been removed; no Go2 locomotio
 policy is supplied. See [Isaac Lab setup and devices](docs/isaaclab.md). CPU checks
 do not establish native replay or balance.
 
-G1 defaults to synchronous stepping; `roboenv launch isaaclab/g1-pick-place --realtime`
-enables best-effort wall-clock stepping on the native owner thread. Base commands
-expire to standing after 0.5 seconds by default. Use matching realtime profiles
-when preparing a Kinex workspace; see the Isaac Lab guide. Realtime G1 has no
-episode time horizon; synchronous runs retain the upstream limit. Success and
-non-timeout termination conditions remain active.
+G1 retains its native episode horizon and termination conditions. There is no
+wall-clock stepping mode or command-expiry clock.
 
 Device reads and recording remain available during bounded writes. Independent
 devices accept concurrent writes through `env.device(name)`; writes to the same
@@ -179,7 +173,7 @@ run the separate native smoke (Node >=22.19):
 ```
 
 It starts and disposes fresh services on free ports, calls Kinex `move_to` in
-realtime and synchronous modes, and records motion outcomes without model calls
+synchronous execution, and records motion outcomes without model calls
 or a task-success claim. Existing services and workspaces are preserved.
 
 The SDK is organized by responsibility:

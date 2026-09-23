@@ -3,13 +3,14 @@
 from roboenv_runtime.core.adapter import AdapterBase, register_adapter
 from roboenv_runtime.core.types import Budget, ScoreReport
 
+
 @register_adapter
 class LiberoAdapter(AdapterBase):
     name = "libero"
     embodiment = "panda"
     # Robosuite's GL context stays current on its creating thread. This also
     # keeps synchronous camera reads on that thread, not on RPC handler threads.
-    realtime_on_main_thread = True
+    owner_thread_required = True
 
     def __init__(self, suite_name="libero_spatial", task_id=0, **kwargs):
         from .backend import LiberoEnv
@@ -17,10 +18,10 @@ class LiberoAdapter(AdapterBase):
         self._env = LiberoEnv(suite_name, task_id, **kwargs)
 
     @property
-    def realtime_interval(self):
-        return 1 / self._env.env.control_freq if self._env.realtime else None
+    def control_interval_s(self):
+        return 1 / self._env.env.control_freq
 
-    def realtime_tick(self):
+    def advance_control(self):
         self._env.tick()
 
     def reset(self, seed):
@@ -38,8 +39,13 @@ class LiberoAdapter(AdapterBase):
     def score(self):
         completed = self._env.task_completed()
         return ScoreReport(
-            reward=float(completed), raw_score=float(completed), completed=completed,
-            detail={"control_protocol": self._env.control_protocol, "native_osc_equivalence": False},
+            reward=float(completed),
+            raw_score=float(completed),
+            completed=completed,
+            detail={
+                "control_protocol": self._env.control_protocol,
+                "native_osc_equivalence": False,
+            },
         )
 
     def capture(self):

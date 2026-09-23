@@ -23,20 +23,17 @@ class RoboTwinDevices(RoboTwinEnv):
         task_name="handover_block",
         embodiment="piper",
         *,
-        realtime=False,
         max_steps=None,
         task_config="demo_clean",
         allow_seed_substitution=False,
     ):
         if embodiment not in EMBODIMENTS:
             raise ValueError("Unsupported typed RoboTwin embodiment")
-        if type(realtime) is not bool:
-            raise ValueError("realtime must be a boolean")
         if max_steps is not None and (type(max_steps) is not int or max_steps <= 0):
             raise ValueError("max_steps must be positive or null for the task horizon")
         if task_config != "demo_clean":
             raise ValueError("The exported rigs require the stable demo_clean camera mounts")
-        self.embodiment, self.realtime = embodiment, realtime
+        self.embodiment = embodiment
         self.evaluation_mode = True
         self.frame_limit = max_steps
         self.asset_roots = {
@@ -93,7 +90,6 @@ class RoboTwinDevices(RoboTwinEnv):
             targets,
             self._apply_targets,
             self._advance,
-            realtime=self.realtime,
             exhausted=self._exhausted,
             on_write=self._release_holds,
             interval_s=self.control_interval,
@@ -107,7 +103,6 @@ class RoboTwinDevices(RoboTwinEnv):
             max_steps=self.frame_limit,
             task_config="demo_clean",
             protocol="absolute_joint_position_25hz_practice",
-            realtime=self.realtime,
             loaded_state_sha256=self._state_hash(),
         )
         self._verify_cameras()
@@ -118,7 +113,6 @@ class RoboTwinDevices(RoboTwinEnv):
             {
                 "task_name": self.task_name,
                 "embodiment": self.embodiment,
-                "realtime": self.realtime,
                 "max_steps": self.frame_limit,
                 "task_config": "demo_clean",
                 "allow_seed_substitution": False,
@@ -163,8 +157,8 @@ class RoboTwinDevices(RoboTwinEnv):
             self._native_success = bool(self.task.check_success()) or self._native_success
         self.task.take_action_cnt = self.control.frame + 1
 
-    def device_write(self, name, target, *, for_s=None, arrived=None):
-        return self.control.write(name, target, for_s=for_s, arrived=arrived)
+    def device_write(self, name, target):
+        return self.control.write(name, target)
 
     def _release_holds(self, devices):
         for name in devices:

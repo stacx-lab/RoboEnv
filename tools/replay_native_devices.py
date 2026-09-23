@@ -55,7 +55,6 @@ def replay(record, *, out=None):
         )
         # Reproduce the recorded control frames explicitly. This changes only
         # who schedules the same native interval; it never restores final state.
-        native.control.realtime = True
         for event in record["commands"]:
             frame = event["frame"]
             if type(frame) is not int or frame < native.control.frame or frame > final_frame:

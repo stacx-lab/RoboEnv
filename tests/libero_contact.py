@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def check(out):
-    adapter = LiberoAdapter(enable_render=False, realtime=True)
+    adapter = LiberoAdapter(enable_render=False)
     try:
         adapter.reset(0)
         world = adapter._env
