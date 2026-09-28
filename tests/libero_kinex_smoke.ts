@@ -1,47 +1,39 @@
-// Exercise current Kinex discovery, dispatch, controller and recording without a model.
-import path from "node:path"
+// LIBERO device and recording smoke through the public core runtime.
+import assert from 'node:assert/strict'
+import { writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const [kinexRoot, cwd, output] = process.argv.slice(2)
-const { CalibrationStore } = await import(path.join(kinexRoot, "src/calibration/store.ts"))
-const { dispatchDevice, deactivateDevice } = await import(path.join(kinexRoot, "src/device/dispatch.ts"))
-const { listPyTools } = await import(path.join(kinexRoot, "src/tool/python.ts"))
-const { runPyTool } = await import(path.join(kinexRoot, "src/tool/python-runner.ts"))
-const { Recorder } = await import(path.join(kinexRoot, "src/record/recorder.ts"))
-const { Session } = await import(path.join(kinexRoot, "src/session/index.ts"))
-const devices = await CalibrationStore.listDevices(cwd)
-if (devices.length !== 5) throw new Error(`Expected five devices, found ${devices.length}`)
-const arm = devices.find((d: { name: string }) => d.name === "arm")
-const gripper = devices.find((d: { name: string }) => d.name === "gripper")
-const first = await dispatchDevice(cwd, arm, "read", {})
-const target = [...first.data.positions]
-target[0] += 0.05
-const session = await Session.create(cwd)
-const ctx = { sessionID: session.id, directory: cwd, abort: new AbortController().signal,
-  ask: async () => {}, questions: async () => ({}) }
-const found = await listPyTools(cwd)
-const servo = found.tools.find((t: { manifest: { name: string } }) => t.manifest.name === "servo_to")
-if (!servo) throw new Error("Current Kinex servo_to was not discovered")
-const started = await Recorder.start(cwd, { sessionID: session.id,
-  instruction: "LIBERO integration device smoke; no task success claim",
-  specs: { camera: { rate: 3 }, camera_wrist: { rate: 3 }, arm: { rate: 5 } } })
-try {
-  const motion = await runPyTool(cwd, servo, { device: "arm", joints: target, timeout_s: 25 }, ctx)
-  const arrived = JSON.parse(motion.output)
-  if (!arrived.reached) throw new Error(motion.output)
-  await dispatchDevice(cwd, gripper, "write", { target: [1] })
-  await dispatchDevice(cwd, gripper, "stop", {})
-  const snap = await Recorder.snap(cwd, { sessionID: session.id, devices: ["camera", "camera_wrist"] })
-  await dispatchDevice(cwd, arm, "stop", {})
-  const stopped = await Recorder.stop({ summary: "Device smoke passed; no task attempt" })
-  await Bun.write(output, JSON.stringify({ passed: true, devices: devices.map((d: { name: string }) => d.name),
-    motion: arrived, started, snap, recording: stopped }, null, 2))
-} finally {
-  await Recorder.stop()
-  await dispatchDevice(cwd, arm, "stop", {})
-  await dispatchDevice(cwd, gripper, "stop", {})
-  await Promise.all(devices.filter((device: { type: string }) => device.type !== "world")
-    .map((device: unknown) => deactivateDevice(cwd, device)))
+const { createKinexRuntime } = await import(pathToFileURL(path.join(kinexRoot, 'packages/core/dist/index.js')).href)
+const runtime = createKinexRuntime({ directory: cwd, host: {
+  ask: async () => {}, questions: async () => ({}),
+} })
+const invocation = { sessionID: 'libero-smoke', signal: AbortSignal.timeout(120_000) }
+async function call(name: string, args: object) {
+  const result = await runtime.tools.call(name, args, invocation)
+  assert.ok(!result.isError, result.output)
+  return JSON.parse(result.output)
 }
-
-// Imported harness watchers are process-scoped; all device/recording cleanup is above.
-process.exit(0)
+try {
+  const devices = await runtime.profiles.listDevices()
+  for (const device of devices) await (await runtime.devices.load(device.name)).ready
+  const first = (await runtime.devices.dispatch('arm', 'read')).data
+  const target = [...first.positions]
+  target[0] += .05
+  const started = await runtime.recording.start({ sessionID: invocation.sessionID,
+    instruction: 'LIBERO device smoke; no task success claim',
+    specs: { camera: { rate: 3 }, camera_wrist: { rate: 3 }, arm: { rate: 5 } } })
+  const motion = await call('servo', { device: 'arm', joints: target, duration_s: 2 })
+  await runtime.devices.dispatch('world', 'wait', { duration_s: 2 })
+  const measured = (await runtime.devices.dispatch('arm', 'read')).data
+  assert.ok(Math.abs(measured.positions[0] - target[0]) < .01)
+  await runtime.devices.dispatch('gripper', 'write', { actions: [1], duration_s: .2 })
+  await runtime.devices.dispatch('world', 'wait', { duration_s: .2 })
+  await runtime.devices.dispatch('gripper', 'stop')
+  const snap = await runtime.recording.snap({ sessionID: invocation.sessionID, devices: ['camera', 'camera_wrist'] })
+  const recording = await runtime.recording.stop({ summary: 'Device smoke passed; no task attempt' })
+  await writeFile(output, JSON.stringify({ passed: true, motion, measured, started, snap, recording }, null, 2))
+} finally {
+  await runtime.dispose()
+}

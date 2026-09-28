@@ -31,8 +31,8 @@ def test_robocasa_dimensions_connections_and_schemas(tmp_path):
     text = (tmp_path / "harness.md").read_text()
     for fact in ("Franka Panda", "roboenv.connect", "roboenv device", "ROBOENV_ENDPOINT",
                  "robot0_joint7", "radians", "metres", "minimum", "required",
-                 "`[-1]` opens", "`[1]` closes", "velocity.vx", "velocity.wz",
-                 "normalized", "not m/s or rad/s", "[v, u]", "0.001", "pgm16_be",
+                 "`actions: [value, ...]`", "`-1` opens", "`1` closes", "velocity.vx",
+                 "velocity.wz", "normalized", "not m/s or rad/s", "[v, u]", "0.001", "pgm16_be",
                  "+X right", "quaternion [x, y, z, w]", "## camera_left (rgbd)"):
         assert fact in text, fact
     assert "### ik" not in text

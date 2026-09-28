@@ -8,7 +8,7 @@ from roboenv.devices.model import DeviceError
 
 
 class WorldSession:
-    def __init__(self, native, mode="stepped"):
+    def __init__(self, native, mode="realtime"):
         if mode not in {"stepped", "realtime"}:
             raise ValueError("execution mode must be stepped or realtime")
         self.mode = mode
@@ -23,11 +23,40 @@ class WorldSession:
         self.owner_thread_required = bool(getattr(native, "owner_thread_required", False))
         self._owner_thread = threading.get_ident()
         self._motions = []
+        self._waiters = []
+        self.time_s = 0.0
         self.failure = None
 
     def _check_thread(self):
         if self.owner_thread_required and threading.get_ident() != self._owner_thread:
             raise RuntimeError("native operations must run on their creating thread")
+
+    def wait(self, duration_s):
+        self._check_thread()
+        future = Future()
+        with self.lock:
+            if self._closed or self._frozen or self.failure:
+                raise DeviceError("episode_finished", "world is frozen")
+            self._waiters.append((future, self.time_s, self.time_s + duration_s))
+            self._settle_waiters()
+        return future
+
+    def _settle_waiters(self):
+        pending, self._waiters = self._waiters, []
+        for future, start, end in pending:
+            if future.done():
+                continue
+            if self._closed or self._frozen or self.failure:
+                future.set_exception(
+                    DeviceError(
+                        getattr(self.failure, "code", "episode_finished"),
+                        str(self.failure) if self.failure else "world execution ended",
+                    )
+                )
+            elif self.time_s + 1e-9 >= end:
+                future.set_result({"time_s": self.time_s, "elapsed_s": self.time_s - start})
+            else:
+                self._waiters.append((future, start, end))
 
     def schedule(self, motion, cancel):
         self._check_thread()
@@ -68,7 +97,7 @@ class WorldSession:
 
     @property
     def pending(self):
-        return bool(self._motions)
+        return bool(self._motions or self._waiters)
 
     def advance(self):
         self._check_thread()
@@ -76,7 +105,8 @@ class WorldSession:
             self.poll_motions()
             if self._closed or self._frozen or self.failure:
                 return
-            if self.mode == "stepped" and not self._motions:
+            self._settle_waiters()
+            if self.mode == "stepped" and not self._waiters:
                 return
             if self.mode == "realtime":
                 now = time.monotonic()
@@ -90,11 +120,13 @@ class WorldSession:
                 if self.native.budget().exhausted:
                     raise DeviceError("episode_finished", "native episode budget exhausted")
                 self.native.advance_control()
+                self.time_s += self.native.control_interval_s
             except Exception as exc:
                 self.failure = error = exc
             for job in pending:
                 self._resume(job, error=error)
             self.poll_motions()
+            self._settle_waiters()
 
     def resolve(self, value):
         if not isinstance(value, Future):
@@ -108,6 +140,7 @@ class WorldSession:
     def freeze(self):
         with self.lock:
             self._frozen = True
+            self._settle_waiters()
 
     def reset(self, seed):
         self._check_thread()
@@ -118,6 +151,7 @@ class WorldSession:
             self.poll_motions()
             self.native.reset(seed)
             self.epoch += 1
+            self.time_s = 0.0
             self._frozen = False
             self.failure = None
             self.next_tick = time.monotonic()

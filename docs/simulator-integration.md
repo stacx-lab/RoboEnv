@@ -118,11 +118,12 @@ and output schemas and reject unsupported operations. A binding neither creates 
 second world nor calls its own locked worker through a socket. Closing it releases
 only binding resources.
 
-Joint write streams `actions` at any positive `freq_hz`; the executor owns
-resampling onto native ticks. Goal planning and arrival checks belong to the harness. Reuse the common
-[binding executor](../runtime/src/roboenv_runtime/bindings/motion.py) for validation,
-shared ticks, cancellation and terminal snapshots. Other actuators retain their
-existing command schema. Read/status/recording do not request physics steps.
+Joint writes submit `actions` with `duration_s` and return immediately.
+The executor samples buffers on native ticks. Planning and arrival checks belong
+to the harness. Reuse the [binding executor](../runtime/src/roboenv_runtime/bindings/motion.py)
+for validation, replacement and cancellation. Scalar and velocity writes use the
+same duration contract. World `read` returns `time_s`; `wait(duration_s)` waits
+on that clock. Realtime advances continuously; stepped advances during waits.
 
 Configure native controllers to implement the advertised action space. RoboCasa
 selects absolute `JOINT_POSITION` control for the arm and absolute lift goals;
@@ -189,7 +190,7 @@ simulator worker’s dependencies.
   validate aperture against measured joint positions. See [gripper geometry](grippers.md).
 - Cameras use `intrinsics.color` for projection/distortion/FOV and `intrinsics.depth`
   for encoding, dimensions, registration, scale, invalid values, and depth quantity.
-- World is profile-only with optional bounds/surfaces; it has no access or extrinsics.
+- World exposes read/wait through its driver, with optional bounds/surfaces and no extrinsics.
 
 Required missing facts use `???`; optional unavailable facts use schema-defined
 `null`. Explicit null safety caps impose no additional limit. Never infer physical

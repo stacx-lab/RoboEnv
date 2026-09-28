@@ -15,6 +15,7 @@ from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv_runtime.adapters.libero.adapter import LiberoAdapter
 from roboenv_runtime.bindings import default_registry
+from roboenv_runtime.runtime.world import WorldSession
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -50,8 +51,10 @@ def check(out):
         root = ROOT / "catalog/robots/libero/libero-panda-tabletop"
         plan = BindingPlan.load(root, backend="libero")
         plan = replace(plan, devices=tuple(s for s in plan.devices if s.entity != "camera"))
+        session = WorldSession(adapter, mode="stepped")
         devices = default_registry().assemble(
-            plan, root, BindingContext("libero", "panda", adapter)
+            plan, root, BindingContext("libero", "panda", adapter, world=session),
+            motion_scheduler=session.schedule, resolve=session.resolve,
         )
 
         def call(device, action, **args):
@@ -62,10 +65,10 @@ def check(out):
             return sum(obstacle in (c.geom1, c.geom2) for c in world.sim.data.contact)
 
         before = world.sim.get_state().flatten().copy()
-        assert call("gripper", "write", target=[1]) == {"accepted": True}
+        result = call("gripper", "write", actions=[1], duration_s=60 * adapter.control_interval_s)
+        assert result["execution_id"]
         assert np.array_equal(before, world.sim.get_state().flatten())
-        for _ in range(60):
-            world.tick()
+        session.resolve(session.wait(60 * adapter.control_interval_s))
         closed = call("gripper", "read")
         contact_count = contacts()
         assert contact_count >= 2, (closed, contact_count)
@@ -75,15 +78,13 @@ def check(out):
         call("arm", "stop")
         call("gripper", "stop")
         assert np.array_equal(before, world.sim.get_state().flatten())
-        for _ in range(40):
-            world.tick()
+        session.resolve(session.wait(40 * adapter.control_interval_s))
         stopped = call("gripper", "read")
         drift = float(np.max(np.abs(np.array(stopped["positions"]) - closed["positions"])))
         assert drift < 0.005, drift
         assert np.isfinite(world.sim.get_state().flatten()).all()
-        call("gripper", "write", target=[-1])
-        for _ in range(40):
-            world.tick()
+        call("gripper", "write", actions=[-1], duration_s=40 * adapter.control_interval_s)
+        session.resolve(session.wait(40 * adapter.control_interval_s))
         opened = call("gripper", "read")
         assert abs(opened["positions"][0] - opened["positions"][1]) > 0.06
         report = {

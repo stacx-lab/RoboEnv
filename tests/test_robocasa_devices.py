@@ -85,7 +85,7 @@ def test_type_specific_handles_and_profile_only_world(tmp_path):
                         "type": "world",
                         "intrinsics": {},
                         "extrinsics": {},
-                        "actions": {},
+                        "actions": {"read": {"supported": True}, "wait": {"supported": True}},
                     },
                 ]
             }
@@ -94,12 +94,13 @@ def test_type_specific_handles_and_profile_only_world(tmp_path):
     assert hasattr(env.device("camera"), "read")
     assert not hasattr(env.device("camera"), "write")
     assert not hasattr(env.device("camera"), "ik")
-    assert not hasattr(env.device("world"), "read")
+    assert hasattr(env.device("world"), "read")
+    assert hasattr(env.device("world"), "wait")
     with pytest.raises(TypeError):
         env.task.context["a"] = []
     export_devices([env.device("world").profile], tmp_path, {"endpoint": "http://sim:8123"})
     assert (tmp_path / "world/profile.yaml").is_file()
-    assert not (tmp_path / "world/driver.py").exists()
+    assert (tmp_path / "world/driver.py").exists()
 
 
 def native_interpreter():
@@ -280,7 +281,7 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
         "method": "unknown",
         "calibrated_at": None,
     }
-    assert "access" not in world and "extrinsics" not in world
+    assert "access" in world and "extrinsics" not in world
 
 
 @pytest.mark.parametrize("device_service", ["http"], indirect=True)
@@ -361,6 +362,7 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
                 http_host="127.0.0.1" if index == 0 else "0.0.0.0",
                 python_executable=interpreter,
                 worker_module="robocasa_cpu",
+                worker_extra_args=("--execution-mode", "stepped"),
             )
             supervisor = Supervisor(config)
             stack.callback(supervisor.close)
@@ -402,7 +404,11 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         assert {p["name"] for p in second.devices()} == {"world", "base", "camera_left"}
         with pytest.raises(KeyError):
             second.device("arm")
-        first.device("arm").write([first.device("arm").read()["positions"]], freq_hz=20)
+        first.device("arm").write(
+            duration_s=len([first.device("arm").read()["positions"]]) / 20,
+            actions=[first.device("arm").read()["positions"]],
+        )
+        first.device("world").wait(0.05)
         assert owners[0].request("observe")["budget"]["used"] == 1
         assert owners[1].request("observe")["budget"]["used"] == 0
         image = first.device("camera_left").read()
@@ -499,8 +505,8 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
 
 def test_native_sync_motion(tmp_path):
     kinex, _ = kinex_sources()
-    if not (kinex / "packages/core/assets/builtin/tool/move-to/tool.py").is_file():
-        pytest.skip("requires Kinex move_to sources")
+    if not (kinex / "packages/core/assets/builtin/tool/servo/tool.py").is_file():
+        pytest.skip("requires Kinex servo sources")
     result = subprocess.run(
         [
             native_interpreter(),
@@ -550,5 +556,5 @@ def test_world_binding_preserves_profile_geometry(tmp_path, device_type, config)
     service = registry.assemble(plan, tmp_path, context)
     descriptor = service.describe("room")
     assert descriptor["intrinsics"] == intrinsics
-    assert descriptor["actions"] == {}
+    assert {"read", "wait"} <= descriptor["actions"].keys()
     service.close()

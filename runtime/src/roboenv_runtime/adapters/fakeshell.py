@@ -26,6 +26,11 @@ class FakeShell(AdapterBase):
     situation_text: ClassVar[str] = "Toy world: one puck on a line, world frame x to the right."
     facts_text: ClassVar[str] = "Each push costs 50 budget units."
 
+    control_interval_s = 0.02
+
+    def advance_control(self):
+        pass
+
     GOAL_X = 0.3
     PUSH_COST = 50
 

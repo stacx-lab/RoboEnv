@@ -156,10 +156,15 @@ def _dimensions(device):
             "serial chain are in the detailed parameters below. Positive rotation follows "
             "the right-hand rule. Null velocity/effort limits are unspecified, not zero.",
         ]
+    if device["type"] in {"gripper", "suction"}:
+        lines.append(
+            "Write a flat `actions: [value, ...]` sequence with `duration_s`; "
+            "a single command uses `[value]`."
+        )
     if control.get("mode") == "direction":
         lines += [
-            f"The gripper's one-element `target` vector commands opening/closing direction: "
-            f"`[{control.get('open_target')}]` opens and `[{control.get('close_target')}]` "
+            f"Each gripper action commands opening/closing direction: "
+            f"`{control.get('open_target')}` opens and `{control.get('close_target')}` "
             "closes. It is a controller command, not an aperture in metres.",
             f"Physical aperture range in metres: {_value(facts.get('aperture_m'))}.",
         ]
@@ -280,8 +285,9 @@ def render_documentation(robot, devices, connection):
         "print(env.task.instruction)  # public scene goal",
         "```",
         "",
-        "Read with `env.device(name).read()`. Joint `write(actions, freq_hz)` executes "
-        "buffered references at any positive frequency; the device owns timing and resampling. "
+        "Read with `env.device(name).read()`. Joint `write(actions, duration_s=...)` submits "
+        "buffered references and returns immediately. Use `env.device(\"world\").wait(seconds)` "
+        "to wait in world time and `.read()` for time_s. The device owns resampling. "
         "Goal planning and arrival checks belong to the harness. "
         "Concurrent device writes share the world clock; starts are not atomic. "
         "Other writes use the schemas below.",

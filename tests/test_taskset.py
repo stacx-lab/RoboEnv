@@ -207,7 +207,7 @@ def test_discovery_emits_namespaced_catalog_with_explicit_clock(tmp_path, monkey
     assert path == destination / "tasks/robocasa/Example/task.yaml"
     assert task.backend_task == "robocasa.Example"
     assert "realtime" not in task.backend_kwargs
-    assert yaml.safe_load(path.read_text())["execution_mode"] == "stepped"
+    assert yaml.safe_load(path.read_text())["execution_mode"] == "realtime"
 
 
 def test_nested_catalog_duplicate_ids_are_rejected(tmp_path):
@@ -259,7 +259,7 @@ def test_catalog_entries_explicitly_declare_execution_mode():
         data = yaml.safe_load(path.read_text())
         assert data["execution_mode"] in {"stepped", "realtime"}, path
         assert Task.load(path).execution_mode == data["execution_mode"]
-    assert set(summary(ROOT)["execution_modes"].values()) == {"stepped"}
+    assert set(summary(ROOT)["execution_modes"].values()) == {"realtime"}
 
 
 def test_realtime_mode_survives_harbor_export(tmp_path):
@@ -271,8 +271,9 @@ def test_realtime_mode_survives_harbor_export(tmp_path):
     source = tmp_path / "task.yaml"
     source.write_text(yaml.safe_dump(data))
     destination = tmp_path / "exported"
-    export_task(source, ROOT / "catalog", destination, wheel,
-                deployment_path=tmp_path / "libero.json")
+    export_task(
+        source, ROOT / "catalog", destination, wheel, deployment_path=tmp_path / "libero.json"
+    )
     config = yaml.safe_load((destination / "environment/sim/tasks/libero.90_8.yaml").read_text())
     assert config["execution_mode"] == "realtime"
     assert TaskSpec.from_dict(config).execution_mode == "realtime"

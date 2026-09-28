@@ -54,12 +54,12 @@ def check(out):
         # Warm the client download directory before sharing it across requests.
         errors.extend(read(name, "initial") for name in CAMERAS)
         with ThreadPoolExecutor(max_workers=5) as pool:
-            writer = None
             target = env.device("arm").read()["positions"]
-            writer = pool.submit(
-                run.client.device("arm").write,
-                [target],
-                freq_hz=0.5,
+            run.client.device("arm").write(actions=[target], duration_s=2)
+            waiter = pool.submit(
+                run.client.device("world").call,
+                "wait",
+                {"duration_s": 2},
                 request_id="camera-overlap",
             )
             deadline = time.monotonic() + 5
@@ -68,9 +68,8 @@ def check(out):
                 time.sleep(0.005)
             reads = [pool.submit(read, name, index) for index in range(4) for name in CAMERAS]
             errors.extend(future.result(timeout=10) for future in reads)
-            if writer is not None:
-                assert not writer.done(), "Camera reads waited for the bounded write"
-                assert writer.result(timeout=10)["data"]["elapsed_s"] >= 2
+            assert not waiter.done(), "Camera reads waited for world.wait"
+            assert waiter.result(timeout=10)["data"]["elapsed_s"] >= 2
         report = {
             "passed": True,
             "camera_reads": len(errors),

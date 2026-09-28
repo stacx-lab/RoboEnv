@@ -1,6 +1,5 @@
 """Clock, admission and terminal-reference contracts without a simulator engine."""
 
-import threading
 from types import SimpleNamespace
 
 import pytest
@@ -36,7 +35,7 @@ class Engine:
         pass
 
 
-def fixture(mode="stepped", *, period=0.01):
+def fixture(mode="stepped", *, period=0.01, kind="joint", control=None):
     native = Engine()
     native.control_interval_s = period
     world = WorldSession(native, mode)
@@ -48,7 +47,7 @@ def fixture(mode="stepped", *, period=0.01):
             "model": {
                 "joints": [{"name": "j", "type": "revolute", "limits": {"min": -2, "max": 2}}]
             },
-            "control": {"mode": "position"},
+            "control": control or {"mode": "position"},
             "feedback": {"velocities": True},
             "stop": {"behavior": "hold", "affected_devices": [name]},
         }
@@ -72,7 +71,7 @@ def fixture(mode="stepped", *, period=0.01):
             return {"stopped": True, **facts["stop"]}
 
         return BoundDevice(
-            DeviceDefinition(name, "joint", facts),
+            DeviceDefinition(name, kind, facts),
             {
                 "write": Action(write),
                 "read": Action(read),
@@ -86,7 +85,7 @@ def fixture(mode="stepped", *, period=0.01):
         bind(
             SimpleNamespace(entity=name),
             None,
-            BindingContext("fixture", "fixture", native, execution_mode=mode),
+            BindingContext("fixture", "fixture", native, world=world),
         )
         for name in native.positions
     ]
@@ -104,130 +103,96 @@ def submit(service, name, action="write", **args):
     return service.submit({"device": name, "action": action, "args": args})
 
 
-def test_stepped_completion_revokes_reference_before_peer_advances_world():
+@pytest.mark.parametrize("kind,control,actions,expected,bad", [
+    ("gripper", {"mode": "position", "bounds": {"min": 0, "max": 1}, "resolution": 0.1},
+     [0.24, 0.76], 0.8, 2),
+    ("gripper", {"mode": "direction"}, [-0.3, 0.2], 1, 2),
+    ("suction", {"mode": "binary", "off_target": 0, "on_target": 1}, [0, 1], 1, 0.5),
+])
+def test_flat_end_effector_actions_validate_before_replacing_buffers(
+    kind, control, actions, expected, bad
+):
+    native, world, service = fixture(kind=kind, control=control)
+    receipt = submit(service, "left", actions=actions, duration_s=0.1)
+    assert receipt.done() and native.frame == 0
+    for args in ({"target": [0]}, {"actions": [[0]]}, {"actions": []},
+                 {"actions": [True]}, {"actions": [float("nan")]},
+                 {"actions": [float("inf")]}, {"actions": [actions[0], bad]}):
+        with pytest.raises(DeviceError):
+            submit(service, "left", **args, duration_s=0.1)
+    world.resolve(world.wait(0.1))
+    assert native.targets["left"] == expected
+    assert not any(event[2] == "stop" for event in native.events)
+    submit(service, "left", actions=[actions[0]], duration_s=0.1)
+    world.resolve(world.wait(0.1))
+    target = native.targets["left"]
+    world.resolve(world.wait(0.1))
+    assert native.targets["left"] == target
+    assert not any(event[2] == "stop" for event in native.events)
+
+
+def test_completed_reference_remains_while_a_peer_moves():
     native, world, service = fixture()
-    result = world.resolve(submit(service, "left", actions=[[1]], freq_hz=100))["data"]
-    assert result["completed_actions"] == 1 and result["reference_state"] == "stopped"
-    assert native.positions["left"] == 0.01
-    world.resolve(submit(service, "right", actions=[[1]] * 10, freq_hz=100))
-    assert native.positions["left"] == 0.01
-    assert native.frame == 11
-
-
-def test_realtime_advances_idle_and_keeps_completed_reference(monkeypatch):
-    clock = [100.0]
-    monkeypatch.setattr("roboenv_runtime.runtime.world.time.monotonic", lambda: clock[0])
-    native, world, service = fixture("realtime")
-    future = submit(service, "left", actions=[[1]], freq_hz=100)
-    world.advance()
-    assert future.result()["data"]["reference_state"] == "target"
-    for _ in range(10):
-        clock[0] += 0.011
-        world.advance()
+    first = submit(service, "left", actions=[[1]], duration_s=0.01)
+    assert first.done() and native.frame == 0
+    world.resolve(world.wait(0.01))
+    submit(service, "right", actions=[[1]] * 10, duration_s=0.1)
+    world.resolve(world.wait(0.1))
     assert native.positions["left"] == pytest.approx(0.11)
-    before = native.frame
-    submit(service, "right", "read")
-    assert native.frame == before
-    world.freeze()
-    clock[0] += 1
-    world.advance()
-    assert native.frame == before
+    assert not any(event[2] == "stop" for event in native.events)
 
 
-def test_concurrent_writes_share_ticks_and_validate_before_replacement():
+def test_concurrent_writes_and_invalid_replacement():
     native, world, service = fixture()
-    old = submit(service, "left", actions=[[1]] * 5, freq_hz=100)
+    submit(service, "left", actions=[[1]] * 5, duration_s=0.05)
     with pytest.raises(DeviceError):
-        submit(service, "left", actions=[[0.1], [99]], freq_hz=100)
-    assert not old.done()
-    left = submit(service, "left", actions=[[0.2]] * 3, freq_hz=100)
-    right = submit(service, "right", actions=[[0.3]] * 3, freq_hz=100)
-    with pytest.raises(DeviceError, match="interrupted"):
-        old.result()
-    result = world.resolve(left)["data"]
-    assert right.result()["data"]["elapsed_s"] == pytest.approx(0.03)
-    assert result["completed_actions"] == 3 and native.frame == 3
+        submit(service, "left", actions=[[0.1], [99]], duration_s=0.05)
+    submit(service, "right", actions=[[0.3]] * 3, duration_s=0.03)
+    world.resolve(world.wait(0.03))
+    assert native.frame == 3
+    assert native.positions == {"left": 0.03, "right": 0.03}
+    assert len(service._active) == 1
 
 
-def test_replacing_one_device_leaves_independent_peer_running():
+def test_replacement_preserves_peers_without_halting():
     native, world, service = fixture()
-    left = submit(service, "left", actions=[[1]] * 10, freq_hz=100)
-    right = submit(service, "right", actions=[[1]] * 10, freq_hz=100)
-    world.advance()
-    new = submit(service, "left", actions=[[-1]] * 3, freq_hz=100)
-    with pytest.raises(DeviceError):
-        left.result()
-    world.resolve(new)
-    assert not right.done() and native.positions["right"] > 0.01
-    assert native.positions["left"] < 0
-    world.resolve(right)
+    submit(service, "left", actions=[[1]], duration_s=0.1)
+    submit(service, "right", actions=[[1]], duration_s=0.1)
+    world.resolve(world.wait(0.01))
+    submit(service, "left", actions=[[-1]], duration_s=0.03)
+    world.resolve(world.wait(0.03))
+    assert native.positions["left"] < 0 < native.positions["right"]
+    assert not any(event[2] == "stop" for event in native.events)
 
 
-def test_bounded_writes_stop_at_their_own_deadlines():
+def test_faulted_background_motion_stops_and_reports_fault():
     native, world, service = fixture()
-    futures = [
-        submit(service, name, actions=[[1]] * 4, freq_hz=50, for_s=0.035)
-        for name in ("left", "right")
-    ]
-    for future in futures:
-        result = world.resolve(future)["data"]
-        assert result["completed_actions"] == 1 and result["terminated_by"] == "timeout"
-    assert native.frame == 3 and native.targets == native.positions
-
-
-
-
-def test_faulted_write_stops_its_device_without_an_extra_tick():
-    native, world, service = fixture()
-    future = submit(service, "right", actions=[[1]] * 10, freq_hz=100)
+    submit(service, "right", actions=[[1]], duration_s=0.1)
     native.fault = "right"
-    world.advance()
-    with pytest.raises(DeviceError):
-        future.result()
-    assert not world.pending and native.frame == 1
+    world.resolve(world.wait(0.01))
     assert native.targets == native.positions
+    assert service.call({"device": "right", "action": "read", "args": {}})["data"]["faults"]
+    with pytest.raises(DeviceError):
+        submit(service, "right", actions=[[1]], duration_s=0.1)
 
 
-def test_owner_thread_required_for_idle_realtime_tick():
-    _, world, _ = fixture("realtime")
-    errors = []
-
-    def other():
-        try:
-            world.advance()
-        except RuntimeError as error:
-            errors.append(str(error))
-
-    thread = threading.Thread(target=other)
-    thread.start()
-    thread.join()
-    assert len(errors) == 1
-
-
-def test_late_cleanup_cannot_stop_another_clients_replacement():
+def test_late_cleanup_cannot_stop_replacement():
     from roboenv.devices.execution import request_identity
 
     native, world, service = fixture()
-    token = request_identity.set("old-client")
-    try:
-        old = submit(service, "left", actions=[[1]] * 10, freq_hz=100)
-    finally:
-        request_identity.reset(token)
-    world.advance()
-    token = request_identity.set("new-client")
-    try:
-        new = submit(service, "left", actions=[[-1]] * 10, freq_hz=100)
-    finally:
-        request_identity.reset(token)
-    assert old.done()
-    assert service.cancel({"execution_id": "old-client"})["data"] == {"stopped": False}
-    result = world.resolve(new)["data"]
-    assert result["completed_actions"] == 10
+    for identity, goal in (("old", 1), ("new", -1)):
+        token = request_identity.set(identity)
+        try:
+            submit(service, "left", actions=[[goal]], duration_s=0.1)
+        finally:
+            request_identity.reset(token)
+    assert service.cancel({"execution_id": "old"})["data"] == {"stopped": False}
+    world.resolve(world.wait(0.1))
     assert native.positions["left"] < 0
-    assert service.cancel({"execution_id": "new-client"})["data"] == {"stopped": True}
+    assert service.cancel({"execution_id": "new"})["data"] == {"stopped": True}
 
 
-def test_cancellation_overtaking_motion_prevents_late_admission():
+def test_cancel_before_admission():
     from roboenv.devices.execution import request_identity
 
     native, _, service = fixture()
@@ -235,75 +200,76 @@ def test_cancellation_overtaking_motion_prevents_late_admission():
     token = request_identity.set("late")
     try:
         with pytest.raises(DeviceError, match="cancelled before admission"):
-            submit(service, "left", actions=[[1]], freq_hz=100)
+            submit(service, "left", actions=[[1]], duration_s=0.1)
     finally:
         request_identity.reset(token)
     assert native.events == []
 
 
-
-
-@pytest.mark.parametrize("frequency,starts", [(10, [0, 2, 4]), (3, [0, 7, 13]), (8, [0, 3, 5])])
-@pytest.mark.parametrize("mode", ["stepped", "realtime"])
-def test_arbitrary_rates_round_cumulative_boundaries(frequency, starts, mode, monkeypatch):
-    clock = [100.0]
-    monkeypatch.setattr("roboenv_runtime.runtime.world.time.monotonic", lambda: clock[0])
-    native, world, service = fixture(mode, period=0.05)
-    future = submit(service, "left", actions=[[0.1], [0.2], [0.3]], freq_hz=frequency)
-    while not future.done():
-        world.advance()
-        clock[0] += 0.05
-    result = future.result()["data"]
-    assert [event[0] for event in native.events if event[2] == "write"] == starts
-    assert native.frame == {10: 6, 3: 20, 8: 8}[frequency]
-    assert result["elapsed_s"] == pytest.approx(native.frame * 0.05)
-    assert result["completed_actions"] == 3
-
-
-def test_fractional_rate_has_no_drift_and_devices_share_one_world_clock():
+@pytest.mark.parametrize("duration,starts", [(0.3, [0, 2, 4]), (1, [0, 7, 14]), (0.375, [0, 3, 5])])
+def test_fractional_periods_have_no_accumulated_drift(duration, starts):
     native, world, service = fixture(period=0.05)
-    actions = [[0.1], [0.2], [0.3]] * 10
-    futures = [
-        submit(service, name, actions=actions, freq_hz=3, for_s=10) for name in ("left", "right")
-    ]
-    result = world.resolve(futures[0])["data"]
-    assert futures[1].result()["data"]["completed_actions"] == 30
-    left = [event[0] for event in native.events if event[1:3] == ("left", "write")]
-    right = [event[0] for event in native.events if event[1:3] == ("right", "write")]
-    assert left == right
-    assert left[:6] == [0, 7, 13, 20, 27, 33]
-    assert result["elapsed_s"] == 10 and native.frame == 200
+    for name in ("left", "right"):
+        submit(service, name, actions=[[0.1], [0.2], [0.3]], duration_s=duration)
+    world.resolve(world.wait(duration))
+    for name in ("left", "right"):
+        assert [e[0] for e in native.events if e[1] == name] == starts
+    assert native.targets == {"left": 0.3, "right": 0.3}
+    assert duration - 1e-9 <= world.time_s < duration + 0.05
 
 
-def test_faster_inputs_skip_samples_but_retain_the_final_reference(monkeypatch):
-    monkeypatch.setattr("roboenv_runtime.runtime.world.time.monotonic", lambda: 100.0)
-    native, world, service = fixture("realtime", period=0.05)
-    future = submit(service, "left", actions=[[0.1], [0.2], [0.3], [0.4]], freq_hz=100)
-    world.advance()
-    result = future.result()["data"]
-    writes = [event[3] for event in native.events if event[2] == "write"]
-    assert writes == [0.3, 0.4]
-    assert native.targets["left"] == 0.4
-    assert result["completed_actions"] == 4 and result["elapsed_s"] == 0.05
-
-
-def test_sub_tick_chunk_executes_once_and_bounded_chunk_never_exceeds_budget():
+def test_sub_tick_duration_keeps_final_reference():
     native, world, service = fixture(period=0.05)
-    result = world.resolve(submit(service, "left", actions=[[0.1]], freq_hz=1000))["data"]
-    assert native.frame == 1 and result["completed_actions"] == 1
-    result = world.resolve(submit(service, "left", actions=[[0.2]], freq_hz=3, for_s=1 / 3))["data"]
-    assert result["terminated_by"] == "timeout"
-    assert result["elapsed_s"] == pytest.approx(0.3)
-    assert result["completed_actions"] == 0
-    assert native.targets == native.positions
+    submit(service, "left", actions=[[0.1], [0.2], [0.3]], duration_s=0.001)
+    world.resolve(world.wait(0.001))
+    assert native.frame == 1
+    assert native.targets["left"] == 0.3
 
 
-@pytest.mark.parametrize("frequency", [0, -3])
-def test_invalid_frequency_does_not_replace_an_active_chunk(frequency):
-    native, world, service = fixture(period=0.05)
-    old = submit(service, "left", actions=[[0.1], [0.2]], freq_hz=3)
-    before = list(native.events)
+def test_world_wait_cancellation_leaves_peer_wait_and_motion_running():
+    from roboenv.devices.execution import request_identity
+    from roboenv_runtime.bindings.world import clock_actions
+
+    native, world, service = fixture()
+    clock = BoundDevice(
+        DeviceDefinition("world", "world", {}),
+        clock_actions(BindingContext("fixture", "fixture", native, world=world)),
+        implementation="clock",
+    )
+    clocks = DeviceService([clock], execution_lock=world.lock, resolve=world.resolve)
+    waits = []
+    for identity in ("first", "second"):
+        token = request_identity.set(identity)
+        try:
+            waits.append(
+                clocks.submit({"device": "world", "action": "wait", "args": {"duration_s": 0.1}})
+            )
+        finally:
+            request_identity.reset(token)
+    submit(service, "left", actions=[[0.2]], duration_s=0.1)
+    clocks.cancel({"execution_id": "first"})
+    assert waits[0].cancelled() and not waits[1].done()
+    world.resolve(waits[1])
+    assert native.frame == 10 and native.positions["left"] > 0
+
+
+def test_write_returns_immediately_and_wait_keeps_background_ownership():
+    native, world, service = fixture()
+    result = submit(service, "left", actions=[[1]], duration_s=0.1)
+    assert result.done() and native.frame == 0
+    assert result.result()["data"]["elapsed_s"] == 0
+    world.resolve(world.wait(0.03))
+    assert service._active
+    assert not any(event[2] == "stop" for event in native.events)
+    world.resolve(world.wait(0.07))
+    assert not service._active
+
+
+def test_write_rejects_blocking_argument_before_replacing_motion():
+    native, world, service = fixture()
+    submit(service, "left", actions=[[1]], duration_s=0.1)
     with pytest.raises(DeviceError):
-        submit(service, "left", actions=[[0.3]], freq_hz=frequency)
-    assert not old.done() and native.events == before
-    world.resolve(old)
+        submit(service, "left", actions=[[-1]], duration_s=0.1, block_s=0)
+    world.resolve(world.wait(0.1))
+    assert native.targets["left"] == 1
+    assert not any(event[2] == "stop" for event in native.events)

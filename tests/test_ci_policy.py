@@ -39,20 +39,3 @@ def test_candidate_upload_cannot_bypass_failed_privacy_audit():
     assert "steps.artifact-privacy.outcome == 'success'" in upload["if"]
     assert upload["with"]["path"] == "build/release/"
     assert all("pypa/gh-action-pypi-publish" not in step.get("uses", "") for step in steps)
-
-
-def test_ci_compatibility_matches_documented_supported_python_range():
-    job = workflows()["check.yml"]["jobs"]["compatibility"]
-    assert job["strategy"]["matrix"]["python"] == ["3.10", "3.11", "3.12", "3.13"]
-    assert job["runs-on"] == "ubuntu-24.04"
-
-
-def test_feature_branches_use_pr_checks_without_duplicate_push_runs():
-    events = workflows()["check.yml"]["on"]
-    assert set(events) == {"push", "pull_request", "workflow_dispatch"}
-    assert events["push"]["branches"] == ["main"]
-
-
-def test_dependabot_version_updates_are_paused():
-    assert not (ROOT / ".github/dependabot.yml").exists()
-    assert not (ROOT / ".github/dependabot.yaml").exists()

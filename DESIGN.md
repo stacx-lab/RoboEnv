@@ -28,7 +28,7 @@ A validated new motion replaces existing motion on its physical resources; obser
 All native calls execute on the simulation creation thread. Active commands yield
 between native control intervals, allowing camera reads, stops and peer commands.
 The world advances once for all pending devices. Task catalogs declare `execution_mode`:
-stepped (idle freezes) or realtime (idle advances against a monotonic clock).
+stepped (only world.wait advances physics) or realtime (time advances continuously).
 Launch uses that mode unless explicitly overridden. No physics steps are skipped.
 Stop cancels active and queued commands in its scope. Reset, submission and shutdown
 settle pending work before changing lifecycle state. Native budgets and failures
@@ -46,7 +46,7 @@ catalog/
     workspace.yaml
     devices/<name>/
       profile.yaml
-      driver.py          # absent for world
+      driver.py
   tasks/<simulator>/<task-name>/task.yaml
 ```
 
@@ -144,7 +144,7 @@ Robot joint state and declared robot-state measurements are allowed; they do not
 justify exposing the entire simulator state. RoboCasa currently has empty task context.
 
 There is no scene device, general object-state API, arbitrary simulator dispatcher,
-or agent-visible scoring shortcut. `world` is a reference-frame profile, not a sensor.
+or agent-visible scoring shortcut. `world` exposes its clock and static reference-frame profile.
 Any benchmark needing privileged observations requires a separately documented,
 explicit policy; never inherit ground-truth access from an older backend by accident.
 
@@ -167,7 +167,7 @@ mount alone does not make privileged data safe to expose.
 | Sensors, including `rgb` and `rgbd` | `read`, `load`, `unload`, `status` |
 | `velocity`, `gripper`, `suction` | Above, plus `write`, `stop` |
 | `joint`, `dexterous_hand` | Above, plus `write`, `stop`; optional `ik`, `fk` |
-| `world` | No driver; profile only |
+| `world` | `read`, `wait`, lifecycle |
 | Passive/specialized types | Their actual Kinex type contract |
 
 Use Kinex's schema and required-action definitions. Joint-only devices need no solver. Advertised FK/IK must actually work.
@@ -176,11 +176,10 @@ Unsupported actions fail explicitly. Do not pad devices with unrelated methods.
 - `read` samples a sensor or actuator without advancing physics. Actuator state
   includes positions, velocities, and faults. Declared `frame_poses` are expressed
   in the canonical device frame, in metres and quaternion xyzw.
-- Joint `write` streams absolute vectors at a declared frequency. Other actuator types retain
-  their existing target contract. See the execution contract below.
-- `stop` implements the declared servo stop/hold behavior. In RoboCasa's synchronous
-  stepped service, an in-flight interval finishes before stop; stop resets the goal
-  without another step. This is not a physical emergency-stop guarantee.
+- Joint `write` submits absolute vectors; gripper and suction submit flat numeric
+  sequences. Velocity devices submit velocity/posture channels. All require a duration.
+- `stop` clears the affected buffers and applies the declared hold/halt behavior
+  without advancing physics.
 - `fk(joints)` and `ik(pose, seed=...)` convert joint and flange-pose representations
   locally in the joint driver using static profile geometry and Kinex
   utilities. RoboCasa does not expose simulator IK/FK RPCs. An omitted seed requires
@@ -213,47 +212,30 @@ The standard RoboCasa devices are:
 
 ## One world, one execution authority
 
-`write({actions: [[...], ...], freq_hz})` buffers complete absolute joint
-references at any positive frequency. The executor rounds cumulative action
-boundaries to the nearest native tick (ties round up), holding each reference
-until the next boundary. For 3 Hz input on a 20 Hz world, holds last 7, 6, then
-7 ticks. Faster inputs may skip references; nonempty chunks take at least one
-tick. Profiles expose no native period. The whole sequence is validated before
-replacing motion.
-There is no planning, interpolation or arrival wait. Results report
-`completed_actions`, `elapsed_s`, measured `state`, `execution_id`, `terminated_by`
-and `reference_state`. Completion counts consumed input points, including skipped
-references; elapsed time is actual native time. Stepped completion clears the pending goal and holds measured
-state; realtime completion retains the final reference and may keep converging.
+`write({actions, duration_s})` validates and replaces a device buffer.
+Gripper and suction accept flat numeric sequences; joint and dexterous-hand
+devices accept joint-vector sequences. End-effectors have no separate target write.
+It returns immediately with `execution_id`, submission `elapsed_s` and measured `state`.
+The native executor consumes references at its fixed cadence; input frequency is
+`len(actions) / duration_s`. References may be resampled; the final reference is
+retained. Velocity commands expire to zero velocity while preserving posture.
+Replacement does not call stop. Explicit stop clears its declared scope.
 
-Goal motion belongs to the harness: stop, measure rest, plan references and check
-measured arrival. Profiles retain available source/model limits; unknown velocity
-or acceleration limits remain unknown. Kinex can use explicit planning rates for
-missing limits without misrepresenting them as hardware ratings.
+`world.read()` returns `time_s`. `world.wait(duration_s)` waits in world time and
+returns `time_s` and actual `elapsed_s`. Concurrent waits overlap; they do not
+multiply physics steps. Tick rounding may extend elapsed time by less than one
+control interval. Reads never advance physics.
 
-Optional write `for_s` bounds a buffer's execution and discards the remaining tail
-on timeout. Only full native intervals fit within the budget. Timeout, cancellation
-and faults stop the affected device. Independent writes share one world clock;
-separate admissions do not promise a common starting tick or atomic effects.
-Reads never advance physics or steal ticks.
+Realtime defaults to continuous advancement. Stepped advances only while a
+world.wait is pending, even when buffers remain. Both modes share the device
+API, native control thread, horizons and termination conditions. Goal planning
+and arrival checks belong to the harness.
 
-Launch defaults to stepped execution; owners can select
-`roboenv launch TASK --execution-mode realtime` or
-`roboenv.launch(..., execution_mode="realtime")`. The agent uses identical device
-and tool arguments in either mode. A single owner thread performs every native
-call, advances the world once per interval, and applies native horizons and terminal
-conditions. Realtime lag is measured rather than hidden by skipped physics steps.
-SIMPLE passes upper-body references directly to its controller. Lower-body WBC
-and benchmark budgets remain authoritative.
-
-All transports share motion replacement, identity and durable outcomes.
-`devices.cancel({execution_id})` cancels only references owned by that request,
-including a completed realtime reference. Late cleanup cannot stop a newer client;
-bounded cancellation tombstones also cover cancellation arriving before admission.
-A timeout does not establish that no motion occurred. Do not blindly resend an
-uncertain command with a new request ID; query the allowed original operation status.
-Device close never shuts down the world. A new episode has a new identity; backend
-reset/restore support, where present, must invalidate old bindings and handles.
+Background motion retains resource ownership after submission. Faults stop the
+affected motion and remain visible through reads. `devices.cancel` cancels only
+the named request's wait or owned motion; late cleanup cannot stop a replacement.
+Reset, freeze and shutdown settle pending waits and motion before releasing resources.
+A new episode invalidates old identities. Drivers never terminate borrowed worlds.
 
 ## Kinex and Harbor integration
 

@@ -8,6 +8,7 @@ from pathlib import Path
 import yaml
 
 DRIVERS = {
+    "world": "world-client.py",
     "rgb": "camera-client.py",
     "rgbd": "camera-client.py",
     "gripper": "gripper-client.py",
@@ -158,7 +159,7 @@ def export_devices(profiles, directory, connection):
         profile["meta"] = {"created_at": timestamp, "updated_at": timestamp}
         if descriptor["type"] == "world":
             profile.pop("extrinsics", None)
-        if descriptor["type"] != "world":
+        if descriptor["actions"]:
             actions = [key for key, value in descriptor["actions"].items() if value["supported"]]
             if descriptor["type"] == "joint" and descriptor["intrinsics"].get("kinematics"):
                 actions += [

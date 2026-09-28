@@ -96,16 +96,18 @@ top drawer and put the bowl inside. It uses the kitchen Panda catalog.
 RoboCasa’s catalog contains arm, torso, base, gripper, three RGB-D cameras,
 and world. The device API is `env.task`, `env.devices()` and `env.device(name)`.
 
-Joint devices and dexterous hands accept buffered `write(actions, freq_hz=...)`
+Joint devices and dexterous hands accept buffered `write(actions, duration_s=...)`
 without planning. Goal planning and measured arrival checks belong to the agent harness.
+Gripper and suction writes use flat `actions: [value, ...]`; joint and hand writes
+use sequences of joint vectors. A single end-effector command uses `[value]`.
 Use concurrent writes for multiple devices; the simulator owns their shared clock. See
 [the device contract](DESIGN.md#one-world-one-execution-authority).
 
-Simulation defaults to stepped execution: idle time freezes physics. Owners can
-select `roboenv launch TASK --execution-mode realtime` to advance against a
-monotonic clock even while idle. Devices share one native tick in both modes;
-reads never advance physics. Stepped chunk completion clears pending goals;
-realtime completion retains the final reference. Bounded goal timeouts always stop.
+Simulation defaults to realtime. Writes return immediately.
+Use `env.device("world").read()` for `time_s` and `.wait(duration_s)` to wait on
+simulation time. In stepped mode, pending world waits drive shared native ticks.
+Reads and writes never request ticks. Joint buffers retain their final reference;
+velocity buffers zero travel on expiry while preserving posture.
 Exported drivers retain local IK/FK, persistent transport and scoped lifecycle.
 Transport failures never resubmit motion. Task-solving controllers belong in Kinex.
 
@@ -172,8 +174,7 @@ run the separate native smoke (Node >=22.19):
   --out /tmp/libero-control-wait
 ```
 
-It starts and disposes fresh services on free ports, calls Kinex `move_to` in
-synchronous execution, and records motion outcomes without model calls
+It starts and disposes fresh services on free ports, calls Kinex `servo` and `world.wait`, and records motion outcomes without model calls
 or a task-success claim. Existing services and workspaces are preserved.
 
 The SDK is organized by responsibility:

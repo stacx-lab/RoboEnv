@@ -29,6 +29,8 @@ def map_result(value, success, failure=None):
     result = Future()
 
     def complete(source):
+        if result.cancelled():
+            return
         try:
             try:
                 output = success(source.result())
@@ -44,10 +46,13 @@ def map_result(value, success, failure=None):
             result.set_exception(error)
 
     def complete_result(source):
+        if result.cancelled():
+            return
         try:
             result.set_result(source.result())
         except Exception as error:
             result.set_exception(error)
 
+    result.add_done_callback(lambda target: value.cancel() if target.cancelled() else None)
     value.add_done_callback(complete)
     return result

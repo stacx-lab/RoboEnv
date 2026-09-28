@@ -163,7 +163,7 @@ def test_lost_http_reply_preserves_request_id_without_resending(monkeypatch):
     monkeypatch.setattr(http.client, "HTTPConnection", LostReply)
     with pytest.raises(UncertainResult) as failure:
         Client("http://127.0.0.1:8123", session="test").device("arm").write(
-            [0.3], request_id="uncertain-motion"
+            actions=[[0.3]], duration_s=0.1, request_id="uncertain-motion"
         )
     assert attempts == ["sent"]
     assert failure.value.request_id == "uncertain-motion"

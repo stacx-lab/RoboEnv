@@ -131,18 +131,19 @@ def exercise(owner, *, camera=None):
         replies = list(
             pool.map(
                 lambda client: client.device("left_arm").write(
-                    [goal],
-                    freq_hz=50,
-                    request_id="dedup-motion",
+                    duration_s=len([goal]) / 50, request_id="dedup-motion", actions=[goal]
                 ),
                 [public, private, public],
             )
         )
     require(replies[0] == replies[1] == replies[2], "Duplicate request replies differ")
+    public.device("world").wait(0.02)
     require(private.request("observe")["budget"]["used"] == 1, "Duplicate request advanced twice")
     reject(
         lambda: public.device("left_arm").write(
-            [[0.0] * len(goal)], freq_hz=1, request_id="dedup-motion"
+            duration_s=len([[0.0] * len(goal)]) / 1,
+            request_id="dedup-motion",
+            actions=[[0.0] * len(goal)],
         ),
         "request_id_conflict",
     )
@@ -158,7 +159,7 @@ def exercise(owner, *, camera=None):
         "args": {
             "device": "left_arm",
             "action": "write",
-            "args": {"actions": [goal], "freq_hz": 50},
+            "args": {"actions": [goal], "duration_s": len([goal]) / 50},
         },
     }
     body = (json.dumps(request) + "\n").encode()
@@ -176,22 +177,22 @@ def exercise(owner, *, camera=None):
         require(time.monotonic() < deadline, "Lost-reply operation never settled")
         time.sleep(0.02)
     public.device("left_arm").write(
-        [goal],
-        freq_hz=50,
-        request_id=identity,
+        duration_s=len([goal]) / 50, request_id=identity, actions=[goal]
     )
+    public.device("world").wait(0.02)
     require(private.request("observe")["budget"]["used"] == 2, "Uncertain recovery repeated motion")
     left, right = target(public, "left_arm", 0.03), target(public, "right_arm", 0.05)
     with ThreadPoolExecutor(max_workers=2) as pool:
         calls = [
-            pool.submit(public.device(name).write, goal)
+            pool.submit(public.device(name).write, actions=[goal], duration_s=0.02)
             for name, goal in (("left_arm", left), ("right_arm", right))
         ]
         for future in calls:
             future.result()
+    public.device("world").wait(0.02)
     require(
-        private.request("observe")["budget"]["used"] == 4,
-        "Each concurrent write must advance one interval",
+        private.request("observe")["budget"]["used"] == 3,
+        "Concurrent writes share one world interval",
     )
     public.device("left_arm").stop()
     public.device("right_arm").stop()
@@ -269,7 +270,11 @@ def main():
             path.write_text(yaml.safe_dump(dataclasses.asdict(selected)))
             owners.append(
                 roboenv.launch(
-                    path, project=args.project, interpreter=args.python, timeout=args.timeout
+                    path,
+                    project=args.project,
+                    interpreter=args.python,
+                    timeout=args.timeout,
+                    execution_mode="stepped",
                 )
             )
         report["episodes"] = [copy.deepcopy(owner.record) for owner in owners]

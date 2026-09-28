@@ -190,7 +190,7 @@ def generate(out, provenance=None, *, bindings_out=None):
                 device = destination / "devices" / path.parent.name
                 device.mkdir(parents=True, exist_ok=True)
                 (device / "profile.yaml").write_text(encoded)
-                if profile["type"] != "world":
+                if profile.get("access"):
                     write_driver(device, profile["type"])
         if bindings_out is not None:
             binding = bindings_out / f"{rig}.yaml"

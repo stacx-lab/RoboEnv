@@ -33,7 +33,9 @@ def check(task, interpreter, out, *, timeout=900):
         "scope": "native worker regression; no model or task-success claim",
     }
     try:
-        with roboenv.launch(path, project=ROOT, interpreter=interpreter, timeout=timeout) as owner:
+        with roboenv.launch(
+            path, project=ROOT, interpreter=interpreter, timeout=timeout, execution_mode="stepped"
+        ) as owner:
             private, public = owner_client(owner), owner.client
             before = private.request("observe")["budget"]["used"]
             time.sleep(0.5)
@@ -45,11 +47,9 @@ def check(task, interpreter, out, *, timeout=900):
             arm = public.device("left_arm")
             measured = arm.read()["data"]["positions"]
             goal = target(public, "left_arm", 0.05)
-            frequency = 50
-            require(
-                arm.write([goal] * 16, freq_hz=frequency)["data"]["completed_actions"] == 16,
-                "Sequence did not complete",
-            )
+            motion = arm.write(duration_s=0.32, actions=[goal] * 16)["data"]
+            require(bool(motion["execution_id"]), "Missing execution identity")
+            public.device("world").wait(0.32)
             current = arm.read()["data"]["positions"]
             require(
                 max(abs(a - b) for a, b in zip(current, measured, strict=True)) > 0.01,

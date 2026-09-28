@@ -62,6 +62,7 @@ class DeviceService:
         self._flush = flush or (lambda: None)
         self._queues = {}
         self._active = {}
+        self._waits = {}
         self._draining = set()
         self._faults = {}
         self.sequence = 0
@@ -84,7 +85,7 @@ class DeviceService:
             "device_contract": DEVICE_CONTRACT,
             "devices": sorted(self._devices),
             "execution": {
-                "mode": self.manifest.get("execution_mode", "stepped"),
+                "mode": self.manifest.get("execution_mode", "realtime"),
                 "world_serialized": False,
                 "stop_supported": any(
                     d["actions"].get("stop", {}).get("supported", False)
@@ -129,6 +130,10 @@ class DeviceService:
             raise DeviceError("invalid_args", "cancel requires a nonempty execution_id")
         identity = args["execution_id"]
         with self._lock:
+            waiting = self._waits.pop(identity, None)
+            if waiting is not None:
+                waiting.cancel()
+                return {"data": {"stopped": False}}
             self._cancelled[identity] = None
             if len(self._cancelled) > 4096:
                 self._cancelled.pop(next(iter(self._cancelled)))
@@ -206,6 +211,15 @@ class DeviceService:
                     for peer in names:
                         self._faults[self._resource(peer)] = error
                     raise
+            if action == "wait":
+                identity = request_identity.get()
+                if identity in self._cancelled:
+                    raise DeviceError("operation_interrupted", "wait cancelled before admission")
+                result = self._execute(args, submitted=submitted)
+                if isinstance(result, Future):
+                    self._waits[identity] = result
+                    result.add_done_callback(lambda source: self._waits.pop(identity, None))
+                return result
             if action in READ_ACTIONS:
                 return self._execute(args, submitted=submitted)
             self._claim([name])
@@ -227,46 +241,54 @@ class DeviceService:
     def _start(self, resource):
         future, args, submitted = self._queues[resource].popleft()
         if resource in self._faults:
-            future.set_exception(
-                DeviceError("device_faulted", "Stop failed; owner recovery is required")
-            )
+            future.set_exception(DeviceError("device_faulted", "Owner recovery is required"))
             return
         cancel = threading.Event()
         self._active[resource] = cancel
+        background = []
 
-        def finish(value=None, error=None):
+        def release(source=None):
             with self._lock:
+                if source is not None:
+                    error = source.exception()
+                    if (
+                        error is not None
+                        and getattr(error, "code", None) != "operation_interrupted"
+                    ):
+                        self._faults[resource] = error
                 if self._active.get(resource) is cancel:
                     self._active.pop(resource, None)
-                if cancel.is_set() and error is None:
-                    error = DeviceError("operation_interrupted", "device write interrupted by stop")
-                if getattr(error, "code", None) == "stop_failed":
-                    self._faults[resource] = error
-                if error is None:
-                    future.set_result(value)
-                else:
-                    future.set_exception(error)
                 self._start_next(resource)
 
+        def schedule(motion):
+            result = self._schedule(motion, cancel)
+            background.append(result)
+            return result
+
         try:
-            schedule = (lambda motion: self._schedule(motion, cancel)) if self._schedule else None
-            with scheduling(schedule):
+            with scheduling(schedule if self._schedule else None):
                 result = self._execute(args, submitted=submitted)
             if isinstance(result, Future):
 
                 def completed(source):
                     try:
-                        value = source.result()
+                        future.set_result(source.result())
                     except Exception as error:
-                        finish(error=error)
-                    else:
-                        finish(value)
+                        future.set_exception(error)
+                    finally:
+                        release()
 
                 result.add_done_callback(completed)
             else:
-                finish(result)
+                future.set_result(result)
+                if background:
+                    background[-1].add_done_callback(release)
+                else:
+                    release()
         except Exception as error:
-            finish(error=error)
+            future.set_exception(error)
+            cancel.set()
+            release()
 
     def _execute(self, args, *, submitted=False):
         with self._lock:
@@ -288,6 +310,11 @@ class DeviceService:
                 raise self._failure(exc, context, read_only) from exc
 
             def finish(value):
+                if action == "read" and self._resource(name) in self._faults:
+                    value = {
+                        **value,
+                        "faults": [*value.get("faults", []), {"code": "motion_failed"}],
+                    }
                 try:
                     self._output_validators[name, action](value)
                     if any(entry.get("ok") is not True for entry in context.calls):
@@ -309,7 +336,7 @@ class DeviceService:
                     "finished_unix_ns": time.time_ns(),
                     "read_only": read_only,
                     "data": value,
-                    "calls": context.calls,
+                    "calls": copy.deepcopy(context.calls),
                 }
 
             def failed(error):
@@ -333,9 +360,20 @@ class DeviceService:
         with self._lock:
             if self._closed:
                 return
-            self._closed = True
             self.interrupt()
+            for waiting in list(self._waits.values()):
+                waiting.cancel()
+            self._flush()
             failures = []
+            for name, device in self._devices.items():
+                if self._resource(name) in self._owners and device.describe()["actions"].get(
+                    "stop", {}
+                ).get("supported"):
+                    try:
+                        self._execute({"device": name, "action": "stop", "args": {}})
+                    except Exception as error:
+                        failures.append(str(error))
+            self._closed = True
             for device in reversed(list(self._devices.values())):
                 try:
                     device.close()

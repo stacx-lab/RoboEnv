@@ -167,12 +167,12 @@ as a fixed arm offset when changing finger configurations.
 
 ## Time, stop and concurrent calls
 
-Joint and hand writes stream full absolute vectors at `freq_hz`, with no
-interpolation. Goal trajectories are supplied by the harness.
+Joint and hand writes buffer full absolute vectors over `duration_s`. Goal trajectories are supplied by the harness.
 The lower-body WBC continues to own legs and waist. The executor rounds action
 boundaries onto its 20 ms native interval (four 5 ms MuJoCo substeps).
 
-Only active commands advance physics. Independent devices share each tick;
+Realtime advances continuously; stepped advances during world waits.
+Independent devices share each tick;
 new commands replace prior motion on the same device. Stop cancels that device's active and
 queued commands, zeroing base travel or holding measured joints. It retains peer
 targets and posture. Native horizons and termination conditions remain active.
@@ -182,11 +182,10 @@ Reads, status, stop, recording and local FK/IK never advance physics.
 
 ```sh
 python tools/prepare_kinex_workspace.py simple/g1-xmove-pick --out NEW_WORKSPACE
-# Use for a synchronous service.
 ```
 
 Copied drivers use the standard portable transport, Kinex joint/velocity helpers,
-and ordinary recording. Use Kinex tools such as `servo_to` for individual arms
+and ordinary recording. Use Kinex tools such as `servo` for individual arms
 and device calls for base and hand commands. The native Kinex integration check
 installs `tests/fixtures/device-composition/` only into its temporary test workspace
 to exercise these device contracts together.

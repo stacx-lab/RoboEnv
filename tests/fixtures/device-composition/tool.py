@@ -27,20 +27,19 @@ def main():
             "mode": "locomotion",
             "velocity": {"vx": 0, "vy": 0, "wz": 0},
             "posture": {
-                c["axis"]: c["default"] for c in
-                profile("base")["intrinsics"]["control"]["modes"]["locomotion"]["posture"]["components"]
+                c["axis"]: c["default"]
+                for c in profile("base")["intrinsics"]["control"]["modes"]["locomotion"]["posture"][
+                    "components"
+                ]
             },
         },
     )
     reads = [{"device": name, "action": "read"} for name in names]
     initial = readings(devices(reads))
     retained = {
-        name: JointDevice(profile(name)).project(initial[name]["positions"])
-        for name in names[1:]
+        name: JointDevice(profile(name)).project(initial[name]["positions"]) for name in names[1:]
     }
     errors = {}
-    # Each write runs the goal for this much of the device's own clock and reports
-    # what it actually spent, so the loop needs no rate and no clock of its own.
     segment_s = options.get("segment_s", 0.1)
     elapsed = 0.0
 
@@ -60,7 +59,9 @@ def main():
                 value = rt_to_pose(compose_rt(pose_to_rt(transform), xyzq_to_rt(goal["pose"])))
                 desired = [*value["translation"], *value["rotation"]]
                 targets[arm] = device(
-                    arm, "ik", pose=desired,
+                    arm,
+                    "ik",
+                    pose=desired,
                     seed=JointDevice(profile(arm)).project(before[arm]["positions"]),
                 )["data"]["joints"]
             results = devices(
@@ -68,15 +69,17 @@ def main():
                     {
                         "device": name,
                         "action": "write",
-                        "args": {**(target if name == "base" else {"target": target}),
-                                 "for_s": segment_s},
+                        "args": {
+                            **(target if name == "base" else {"actions": [target]}),
+                            "duration_s": segment_s,
+                        },
                     }
                     for name, target in targets.items()
                 ],
             )
             if any(not result["ok"] for result in results):
                 raise ValueError("A component write failed")
-            elapsed += float((results[0].get("data") or {}).get("elapsed_s") or 0.0)
+            elapsed += device("world", "wait", duration_s=segment_s)["data"]["elapsed_s"]
             # Errors describe the observations from this iteration, not write receipts.
             for arm, goal in goals.items():
                 actual = frames.pose(f"{arm}:flange", goal["frame"], readings=before)
@@ -84,8 +87,14 @@ def main():
                 errors[arm] = pose_error(goal["pose"], measured)
     finally:
         stop()
-    finish({"steps": options.get("steps", 50), "elapsed_s": elapsed,
-            "errors": errors, "grasp_confirmed": False})
+    finish(
+        {
+            "steps": options.get("steps", 50),
+            "elapsed_s": elapsed,
+            "errors": errors,
+            "grasp_confirmed": False,
+        }
+    )
 
 
 if __name__ == "__main__":

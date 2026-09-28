@@ -18,7 +18,14 @@ def assemble_devices(
     manifest["binding_contract"] = BINDING_CONTRACT
     manifest["binding_mode"] = "explicit"
     manifest["execution_mode"] = world.mode
-    context = BindingContext(world.backend, world.embodiment, world.native, dispatch, public_tools, execution_mode=world.mode)
+    context = BindingContext(
+        world.backend,
+        world.embodiment,
+        world.native,
+        dispatch,
+        public_tools,
+        world=world,
+    )
     return (registry or default_registry()).assemble(
         plan,
         root,

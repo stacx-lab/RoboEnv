@@ -70,8 +70,8 @@ def service(tmp_path, *, embodiment="piper"):
     owner = RoboTwinAdapter.__new__(RoboTwinAdapter)
     owner._env, owner.run_dir = world, tmp_path
     world.control_interval, world.frame_limit = 0.04, 3
-    session = WorldSession(owner)
-    context = BindingContext("robotwin", "piper", owner)
+    session = WorldSession(owner, mode="stepped")
+    context = BindingContext("robotwin", "piper", owner, world=session)
     return (
         default_registry().assemble(
             plan, root, context, motion_scheduler=session.schedule, resolve=session.resolve
@@ -86,8 +86,9 @@ def service(tmp_path, *, embodiment="piper"):
 def test_public_world_has_no_truth_or_mutation_shortcuts(tmp_path):
     wire, world, *_ = service(tmp_path)
     try:
-        assert wire.describe("world")["actions"] == {}
-        for action in ("read", "state", "invoke", "score", "reset", "restore"):
+        assert {"read", "wait"} <= wire.describe("world")["actions"].keys()
+        assert wire.call({"device": "world", "action": "read", "args": {}})["data"] == {"time_s": 0}
+        for action in ("state", "invoke", "score", "reset", "restore"):
             with pytest.raises(DeviceError):
                 wire.call({"device": "world", "action": action, "args": {}})
         assert world.steps == 0
@@ -102,17 +103,26 @@ def test_independent_writes_and_read_stop_invariance(tmp_path):
         return wire.call({"device": device, "action": action, "args": args or {}})
 
     try:
-        call("left_arm", "write", {"actions": [[0.1] * 6], "freq_hz": 25})
-        assert world.steps == 1
+        call("left_arm", "write", {"actions": [[0.1] * 6], "duration_s": len([[0.1] * 6]) / 25})
+        assert world.steps == 0
         with pytest.raises(DeviceError):
-            call("right_arm", "write", {"actions": [[float("nan")] * 6], "freq_hz": 25})
+            call(
+                "right_arm",
+                "write",
+                {"actions": [[float("nan")] * 6], "duration_s": len([[float("nan")] * 6]) / 25},
+            )
+        assert world.steps == 0
+        call("right_arm", "write", {"actions": [[0.2] * 6], "duration_s": len([[0.2] * 6]) / 25})
+        call("left_gripper", "write", {"actions": [0.3, 0.7], "duration_s": 0.04})
+        with pytest.raises(DeviceError):
+            call("left_gripper", "write", {"actions": [[0.2]], "duration_s": 0.04})
+        call("world", "wait", {"duration_s": 0.04})
         assert world.steps == 1
-        call("right_arm", "write", {"actions": [[0.2] * 6], "freq_hz": 25})
-        assert world.steps == 2
+        assert world.control.targets["left_gripper"] == [0.7]
         for action in ("load", "read", "status", "stop", "unload"):
             call("left_arm", action)
         call("head_camera", "read")
-        assert world.steps == 2
+        assert world.steps == 1
         assert len(list((tmp_path / "captures").glob("*.png"))) == 1
     finally:
         wire.close()
@@ -158,11 +168,12 @@ def test_behavior_velocity_binding_accepts_named_commands_without_joint_feedback
     )
     writes = []
 
-    def write(name, target, *, for_s=None, arrived=None):
+    def write(name, target):
         writes.append((name, target))
-        return {"accepted": True, "elapsed_s": for_s or 0.0}
+        return {"accepted": True}
 
     world.device_write = write
+    world.device_stop = lambda name: {"stopped": True}
     from roboenv_runtime.core.types import Budget
     from roboenv_runtime.runtime.world import WorldSession
 
@@ -175,7 +186,7 @@ def test_behavior_velocity_binding_accepts_named_commands_without_joint_feedback
         budget=lambda: Budget(used=0, max=None),
         advance_control=lambda: None,
     )
-    session = WorldSession(owner)
+    session = WorldSession(owner, mode="stepped")
     wire = default_registry().assemble(
         replace(plan, devices=(spec,)),
         root,
@@ -187,7 +198,7 @@ def test_behavior_velocity_binding_accepts_named_commands_without_joint_feedback
         assert wire.call({"device": "base", "action": "read", "args": {}})["data"] == {
             "velocities": [0, 0, 0]
         }
-        command = {"mode": "drive", "velocity": {"vx": 0.1, "vy": 0, "wz": -0.2}}
+        command = {"duration_s": 0.1, "mode": "drive", "velocity": {"vx": 0.1, "vy": 0, "wz": -0.2}}
         wire.call({"device": "base", "action": "write", "args": command})
         assert writes == [("base", [0.1, 0, -0.2])]
         for args in (

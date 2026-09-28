@@ -15,11 +15,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def check(out, kinex, node):
     out.mkdir(parents=True, exist_ok=False)
-    for mode in ("synchronous",):
+    for mode in ("realtime", "stepped"):
         workspace = out / mode
         config = workspace / ".kinex"
         config.mkdir(parents=True)
-        with roboenv.launch("libero/drawer-and-bowl", project=ROOT, port=0) as run:
+        with roboenv.launch(
+            "libero/drawer-and-bowl", project=ROOT, port=0, execution_mode=mode
+        ) as run:
             run_directory = run.path.parent
             shutil.copytree(run_directory / "devices", config / "devices")
             shutil.copy2(run_directory / "server/robot/workspace.yaml", config / "workspace.yaml")

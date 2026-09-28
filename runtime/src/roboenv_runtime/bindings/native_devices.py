@@ -134,8 +134,6 @@ def bind(spec, root, context):
                     "maxItems": size,
                     "items": {"type": "number"},
                 },
-                "for_s": {"type": "number", "exclusiveMinimum": 0},
-                "arrive": {"type": "object"},
             },
         }
         if definition.type == "velocity":

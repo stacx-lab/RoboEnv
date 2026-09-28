@@ -9,11 +9,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from roboenv.devices.bindings.registry import BindingContext
-from roboenv.devices.bindings.spec import BindingPlan
-from roboenv.tasks.libero import ROBOTS
 from roboenv_runtime.adapters.libero.adapter import LiberoAdapter
-from roboenv_runtime.bindings import default_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -40,14 +36,6 @@ def replay(record):
         ):
             if native.initialization[key] != metadata[key]:
                 raise ValueError(f"Replay initialization mismatch: {key}")
-        from dataclasses import replace
-
-        root = ROOT / "catalog/robots" / ROBOTS[native.wrapper.problem_name.lower()]
-        plan = BindingPlan.load(root, backend="libero")
-        plan = replace(plan, devices=tuple(s for s in plan.devices if s.entity != "camera"))
-        service = default_registry().assemble(
-            plan, root, BindingContext("libero", "panda", adapter)
-        )
         for event in record["commands"]:
             frame = event["frame"]
             if (
@@ -59,10 +47,9 @@ def replay(record):
             while adapter.budget().used < frame:
                 native.tick()
             if event["op"] == "write":
-                for part, target in event["commands"].items():
-                    service.call({"device": part, "action": "write", "args": {"target": target}})
+                native.step(event["commands"])
             elif event["op"] == "stop":
-                service.call({"device": event["part"], "action": "stop", "args": {}})
+                native.stop_part(event["part"])
             else:
                 raise ValueError("Unknown replay operation")
         while adapter.budget().used < record["budget"]["used"]:

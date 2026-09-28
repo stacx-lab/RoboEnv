@@ -1,4 +1,4 @@
-"""End-effector adapter: fenced RoboEnv transport and Kinex profile validation."""
+"""Submit flat end-effector action sequences through the fenced RoboEnv transport."""
 
 import sys
 from pathlib import Path
@@ -25,7 +25,7 @@ def handle(action, args):
         if action == "write":
             value = command(profile, args)
             if "native_speed" in value:
-                raise ValueError("RoboCasa does not support speedFraction")
+                raise ValueError("This device does not support speedFraction")
             return {"ok": True, **remote(action, value)}
         if action == "read":
             return {"ok": True, **reading(profile, remote(action, args))}

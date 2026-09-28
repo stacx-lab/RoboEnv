@@ -1,6 +1,6 @@
 id: robocasa/pick-place-microwave
 backend: robocasa
-execution_mode: stepped
+execution_mode: realtime
 backend_task: robocasa.PickPlaceCounterToMicrowave
 robot: robocasa/robocasa-panda-omron
 instruction: 'Drive a mobile Panda in a RoboCasa kitchen: pick the object off the

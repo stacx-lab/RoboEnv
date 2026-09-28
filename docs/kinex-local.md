@@ -109,8 +109,7 @@ Run these built-in slash commands in the TUI:
 `:all` is deliberate: it records while the user pauses, including during this
 manual smoke test. The thin drivers do not implement native video streaming;
 Kinex uses its supported stills sampler. Requested Hz is a target; inspect
-effective rates and skipped samples. Reads do not request physics steps. Physics advances only for active commands during recording;
-synchronous mode advances only on writes.
+effective rates and skipped samples. Reads do not request physics steps. Realtime continues during recording; stepped advances only during world waits.
 
 With the recording running, use a separate terminal with the same copied workspace, `ROBOENV_ENDPOINT`, and
 `PYTHONPATH`. Read the current joint configuration and send it as an absolute hold target:

@@ -41,7 +41,7 @@ def command(control, args):
 def command_schema(control):
     variants = []
     for name, mode in control["modes"].items():
-        properties = {"mode": {"const": name}, "for_s": {"type": "number", "exclusiveMinimum": 0}}
+        properties = {"mode": {"const": name}}
         required = ["mode"]
         for channel in ("velocity", "posture"):
             capability = mode[channel]

@@ -28,14 +28,14 @@ def execution_mode():
 @pytest.fixture(params=[False, True], ids=["thread-safe", "owner-thread"])
 def concurrent_service(tmp_path, monkeypatch, request, execution_mode):
     robot = tmp_path / "robot"
-    for name in ("left", "right"):
+    for name in ("left", "right", "world"):
         directory = robot / "devices" / name
         directory.mkdir(parents=True)
         (directory / "profile.yaml").write_text(
             yaml.safe_dump(
                 {
                     "name": name,
-                    "type": "joint",
+                    "type": "world" if name == "world" else "joint",
                     "intrinsics": {
                         "model": {
                             "joints": [
@@ -60,7 +60,7 @@ def concurrent_service(tmp_path, monkeypatch, request, execution_mode):
                 "backend": "fakeshell",
                 "devices": {
                     name: {"binding": "test.concurrent/1", "entity": name}
-                    for name in ("left", "right")
+                    for name in ("left", "right", "world")
                 },
             }
         )
@@ -116,63 +116,37 @@ def wait_commands(client, name, count):
     pytest.fail("write did not start")
 
 
-def test_independent_writes_overlap_and_reads_progress(concurrent_service):
+def test_independent_writes_and_concurrent_waits_share_time(concurrent_service):
     client, _, owner = concurrent_service
+    left = client.device("left").write(actions=[[0.4]], duration_s=0.8)["data"]
+    right = client.device("right").write(actions=[[0.7]], duration_s=0.2)["data"]
+    assert left["elapsed_s"] == right["elapsed_s"] == 0
+    assert client.device("world").read()["data"]["time_s"] == 0
     with ThreadPoolExecutor() as pool:
-        left = pool.submit(client.device("left").write, [[0.4]], freq_hz=1.25)
-        first = wait_commands(client, "left", 1)
-        right = pool.submit(client.device("right").write, [[0.7]], freq_hz=5.0)
-        wait_commands(client, "right", 1)
+        wait = pool.submit(client.device("world").wait, 0.8)
         samples = [client.device("left").read()["data"] for _ in range(8)]
-        assert not left.done()
         assert all(sample["owner_only"] for sample in samples) if owner else True
-        assert max(sample["sample_time_s"] for sample in samples) >= first["sample_time_s"]
-        right_result = right.result(timeout=2)["data"]
-        assert not left.done()
-        assert 0.2 <= right_result["elapsed_s"] <= 0.22
-        left_result = left.result(timeout=2)["data"]
-        assert 0.8 <= left_result["elapsed_s"] <= 0.82
-        assert right_result["state"]["sample_time_s"] < left_result["state"]["sample_time_s"]
+        assert wait.result(timeout=3)["data"]["elapsed_s"] == pytest.approx(0.8)
+    assert client.device("left").read()["data"]["positions"] == [0.4]
+    assert client.device("right").read()["data"]["positions"] == [0.7]
 
 
-def test_stop_cancels_active_and_queued_only_in_its_scope(concurrent_service):
+def test_stop_clears_only_its_scope(concurrent_service):
     client, _, _ = concurrent_service
-    with ThreadPoolExecutor() as pool:
-        active = pool.submit(client.device("left").write, [[0.3]], freq_hz=0.5)
-        wait_commands(client, "left", 1)
-        queued = pool.submit(
-            client.device("left").write, [[0.9]], freq_hz=10.0, request_id="queued"
-        )
-        peer = pool.submit(client.device("right").write, [[0.8]], freq_hz=2.5)
-        wait_commands(client, "right", 1)
-        deadline = time.monotonic() + 2
-        while client.operation("queued")["state"] != "running":
-            assert time.monotonic() < deadline
-        assert client.device("left").stop()["data"]["stopped"]
-        for future in (active, queued):
-            with pytest.raises(RemoteError, match="interrupted"):
-                future.result(timeout=1)
-        assert len(client.device("left").read()["data"]["commands"]) == 2
-        assert peer.result(timeout=2)["data"]["completed_actions"] == 1
-        assert client.device("left").write([[0.1]], freq_hz=25.0)["data"]["completed_actions"] == 1
+    client.device("left").write(actions=[[0.3]], duration_s=2)
+    client.device("left").write(actions=[[0.9]], duration_s=1)
+    client.device("right").write(actions=[[0.8]], duration_s=1)
+    client.device("left").stop()
+    client.device("world").wait(0.2)
+    assert client.device("left").read()["data"]["positions"] == [0]
+    assert client.device("right").read()["data"]["positions"] == [0.8]
 
 
-def test_concurrent_duplicate_id_executes_once(concurrent_service):
+def test_duplicate_submission_executes_once(concurrent_service):
     client, _, _ = concurrent_service
-    with ThreadPoolExecutor() as pool:
-        original = pool.submit(
-            client.device("left").write, [[0.2]], freq_hz=3.3333333333333335, request_id="once"
-        )
-        wait_commands(client, "left", 1)
-        with pytest.raises(RemoteError) as error:
-            client.device("left").write([[0.2]], freq_hz=3.3333333333333335, request_id="once")
-        assert error.value.code == "request_in_progress"
-        result = original.result(timeout=2)
-        assert (
-            client.device("left").write([[0.2]], freq_hz=3.3333333333333335, request_id="once")
-            == result
-        )
-        assert len(client.device("left").read()["data"]["commands"]) == 1
+    first = client.device("left").write(actions=[[0.2]], duration_s=0.3, request_id="once")
+    assert client.device("left").write(actions=[[0.2]], duration_s=0.3, request_id="once") == first
+    assert len(client.device("left").read()["data"]["commands"]) == 1
 
 
 def test_kinex_recording_through_portable_drivers(concurrent_service, tmp_path):
@@ -182,15 +156,16 @@ def test_kinex_recording_through_portable_drivers(concurrent_service, tmp_path):
     if not node or not (kinex / "packages/core/dist/index.js").is_file():
         pytest.skip("Set KINEX_ROOT to a built Kinex checkout and use Node >=22.19")
     workspace = tmp_path / "workspace"
-    for name in ("left", "right"):
+    for name in ("left", "right", "world"):
         directory = workspace / ".kinex/devices" / name
-        write_driver(directory, "other")
+        write_driver(directory, "world" if name == "world" else "other")
         (directory / "connection.json").write_text(
             json.dumps(
                 {
                     "endpoint": supervisor.http_endpoint,
                     "session": "concurrent",
                     "generation": 0,
+                    "device": name,
                 }
             )
         )
@@ -210,7 +185,7 @@ def test_kinex_recording_through_portable_drivers(concurrent_service, tmp_path):
     assert not client.device("left").read()["data"]["faults"]
 
 
-def test_read_timeout_does_not_kill_an_independent_write(concurrent_service, monkeypatch):
+def test_read_timeout_does_not_kill_background_motion(concurrent_service, monkeypatch):
     client, supervisor, _ = concurrent_service
     original = supervisor._proxy
 
@@ -220,23 +195,21 @@ def test_read_timeout_does_not_kill_an_independent_write(concurrent_service, mon
         return original(request, deadline)
 
     monkeypatch.setattr(supervisor, "_proxy", proxy)
-    with ThreadPoolExecutor() as pool:
-        write = pool.submit(client.device("left").write, [[0.2]], freq_hz=5.0)
-        wait_commands(client, "left", 1)
-        with pytest.raises(RemoteError) as error:
-            client.device("right").read(slow=True)
-        assert error.value.details["worker_killed"] is False
-        assert write.result(timeout=2)["data"]["completed_actions"] == 1
+    client.device("left").write(actions=[[0.2]], duration_s=0.2)
+    with pytest.raises(RemoteError) as error:
+        client.device("right").read(slow=True)
+    assert error.value.details["worker_killed"] is False
+    client.device("world").wait(0.2)
+    assert client.device("left").read()["data"]["positions"] == [0.2]
 
 
-def test_invalid_stop_and_lifecycle_requests_do_not_interrupt_motion(concurrent_service):
+def test_invalid_lifecycle_does_not_interrupt_motion(concurrent_service):
     client, _, _ = concurrent_service
-    with ThreadPoolExecutor() as pool:
-        write = pool.submit(client.device("left").write, [[0.2]], freq_hz=5.0)
-        wait_commands(client, "left", 1)
-        with pytest.raises(RemoteError):
-            client.request("simulation.stop", {"invalid": True})
-        assert write.result(timeout=2)["data"]["completed_actions"] == 1
+    client.device("left").write(actions=[[0.2]], duration_s=0.2)
+    with pytest.raises(RemoteError):
+        client.request("simulation.stop", {"invalid": True})
+    client.device("world").wait(0.2)
+    assert client.device("left").read()["data"]["positions"] == [0.2]
 
 
 def test_kinex_buffers_and_upper_layer_planning(concurrent_service, tmp_path):
@@ -246,9 +219,9 @@ def test_kinex_buffers_and_upper_layer_planning(concurrent_service, tmp_path):
     if not node or not (kinex / "packages/core/dist/index.js").is_file():
         pytest.skip("requires built Kinex and Node >=22.19")
     workspace = tmp_path / "buffer-workspace"
-    for name in ("left", "right"):
+    for name in ("left", "right", "world"):
         directory = workspace / ".kinex/devices" / name
-        write_driver(directory, "joint")
+        write_driver(directory, "world" if name == "world" else "joint")
     result = subprocess.run(
         [
             node,
@@ -269,7 +242,7 @@ def test_kinex_buffers_and_upper_layer_planning(concurrent_service, tmp_path):
     assert len(left) == len(right) == 3
     for commands in (left, right):
         start = commands[0]["frame"]
-        assert [entry["frame"] - start for entry in commands] == [0, 17, 33]
+        assert [entry["frame"] - start for entry in commands] == [0, 17, 34]
 
 
 def test_portable_cleanup_only_cancels_its_own_request(concurrent_service, tmp_path):
@@ -280,16 +253,11 @@ def test_portable_cleanup_only_cancels_its_own_request(concurrent_service, tmp_p
     wire = wire_module.Transport(tmp_path / "driver.py", device="left")
     wire.config = {"endpoint": supervisor.http_endpoint}
     try:
-        with ThreadPoolExecutor() as pool:
-            old = pool.submit(wire.remote, "write", {"actions": [[0.3]], "freq_hz": 0.5})
-            wait_commands(client, "left", 1)
-            new = pool.submit(client.device("left").write, [[0.7]], freq_hz=2)
-            wait_commands(client, "left", 2)
-            with pytest.raises(wire_module.WireError):
-                old.result(timeout=2)
-            wire.cancel_motions()
-            assert new.result(timeout=2)["data"]["completed_actions"] == 1
-            assert client.device("left").read()["data"]["positions"] == [0.7]
+        wire.remote("write", {"actions": [[0.3]], "duration_s": 1})
+        client.device("left").write(actions=[[0.7]], duration_s=1)
+        wire.cancel_motions()
+        client.device("world").wait(0.2)
+        assert client.device("left").read()["data"]["positions"] == [0.7]
     finally:
         wire.close_all()
 
@@ -302,8 +270,8 @@ def test_realtime_worker_advances_while_idle(concurrent_service):
     later = client.device("left").read()["data"]
     assert later["sample_time_s"] > first
     assert not owner or later["owner_only"]
-    result = client.device("left").write([[0.3]], freq_hz=10)["data"]
-    assert result["reference_state"] == "target"
-    assert result["elapsed_s"] == 0.1
+    result = client.device("left").write(actions=[[0.3]], duration_s=0.1)["data"]
+    assert result["execution_id"]
+    assert result["elapsed_s"] == 0
     time.sleep(0.06)
     assert client.device("left").read()["data"]["positions"] == [0.3]
