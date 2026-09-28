@@ -86,21 +86,14 @@ def native_factory(monkeypatch):
     return build
 
 
-def test_sync_horizon_remains_native(native_factory):
-    import threading
-
+def test_world_wait_honors_native_horizon(native_factory):
     env = native_factory()
     assert env.env.cfg.terminations.time_out == "timeout"
     adapter = IsaacLabAdapter.__new__(IsaacLabAdapter)
     adapter._env = env
     env.control = SimpleNamespace(tick=lambda: env.advance({"base": [0, 0, 0, 0.75]}))
-    world = world_module.WorldSession(adapter)
-
-    def motion():
-        for _ in range(1000):
-            yield
-
-    world.resolve(world.schedule(motion(), threading.Event()))
+    world = world_module.WorldSession(adapter, mode="stepped")
+    world.resolve(world.wait(20))
     assert adapter.budget().exhausted and adapter.budget().max == 1000
     assert env.sample_time_s == 20 and env.done
     with pytest.raises(ValueError, match="terminated"):
@@ -109,7 +102,7 @@ def test_sync_horizon_remains_native(native_factory):
 
 
 @pytest.mark.parametrize("success", [False, True])
-def test_sync_honors_non_timeout_termination(native_factory, success):
+def test_native_step_honors_non_timeout_termination(native_factory, success):
     env = native_factory()
     env.steps = env.env.steps = 10
     env.env.terminated = True

@@ -197,7 +197,7 @@ class SimWorker:
         reset_adapter: bool = True,
         scorer_options: Mapping[str, Any] | None = None,
         device_root: str | os.PathLike[str] | None = None,
-        execution_mode: str = "stepped",
+        execution_mode: str = "realtime",
     ) -> None:
         if budget_mode not in {"official", "practice"}:
             raise ValueError("budget_mode must be 'official' or 'practice'")

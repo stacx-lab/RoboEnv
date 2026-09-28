@@ -1,6 +1,6 @@
 id: robocasa/arrange-vegetables
 backend: robocasa
-execution_mode: stepped
+execution_mode: realtime
 backend_task: robocasa.ArrangeVegetables
 robot: robocasa/robocasa-panda-omron
 instruction: 'Arrange the vegetables: move each vegetable from the sink area onto

@@ -41,15 +41,13 @@ policy files live in `.cache/isaaclab/g1/`. The task uses project-relative paths
 The upstream bundle has some unavailable texture/deleted-reference paths, recorded
 in the manifest; geometry and runtime RGB-D output are verified separately.
 
-## Synchronous operation
+## Execution
 
-Only active commands advance the world in 20 ms native intervals. All native
-operations share the simulation creation thread, including rendering and cleanup.
-Joint writes stream absolute action vectors at `freq_hz`; goal planning and
-arrival checks belong to the harness. See [the joint contract](../DESIGN.md#one-world-one-execution-authority).
-There is no background clock or base-command expiry. Stops retain posture and
-halt travel without advancing physics. The native horizon and all termination
-conditions remain active; terminal observations remain readable.
+Native operations share the simulation creation thread, including rendering and
+cleanup. Writes submit absolute action buffers with `duration_s` and return immediately. Realtime advances continuously in 20 ms intervals; stepped advances
+while `world.wait` is pending. Velocity expiry zeroes travel and retains posture.
+Stops do not advance physics. Native horizons and termination remain active.
+See [the execution contract](../DESIGN.md#one-world-one-execution-authority).
 
 ```sh
 roboenv launch isaaclab/g1-pick-place --port 8124
@@ -96,7 +94,7 @@ can mix concurrent reads and writes, returning individual results in input order
 It does not promise atomic updates or identical acquisition times. The operator
 ensures enabled devices do not overlap.
 
-Kinex can control individual arms with `servo_to` and compose independent device
+Kinex can control individual arms with `servo` and compose independent device
 calls. The native integration check installs `tests/fixtures/device-composition/`
 only into its temporary test workspace to exercise frame conversion, arm IK,
 concurrent commands and reads. This fixture is not a task-facing tool.

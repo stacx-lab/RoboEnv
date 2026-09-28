@@ -1,6 +1,6 @@
 id: robotwin/stack-blocks-three
 backend: robotwin
-execution_mode: stepped
+execution_mode: realtime
 backend_task: robotwin.stack_blocks_three
 robot: robotwin/robotwin-dual-piper
 instruction: Stack the blocks into a tower with red on the bottom, green in the middle,

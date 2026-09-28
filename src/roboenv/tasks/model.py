@@ -32,7 +32,7 @@ class Task:
     budget_mode: str = "official"
     action_abstraction: str = "cartesian-primitives"
     device_bindings: dict | None = None
-    execution_mode: str = "stepped"
+    execution_mode: str = "realtime"
 
     @classmethod
     def load(cls, path):

@@ -56,7 +56,10 @@ def check(out):
             command = {
                 "device": "arm",
                 "action": "write",
-                "args": {"actions": [a.device("arm").read()["positions"]], "freq_hz": 20},
+                "args": {
+                    "actions": [a.device("arm").read()["positions"]],
+                    "duration_s": len([a.device("arm").read()["positions"]]) / 20,
+                },
             }
             before = owner.request("observe")["budget"]["used"]
             x = public.request("devices.call", command, request_id="deduplicated-motion")

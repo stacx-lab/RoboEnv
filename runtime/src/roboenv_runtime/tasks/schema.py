@@ -26,7 +26,7 @@ class TaskSpec:
     budget: dict[str, Any] = field(default_factory=dict)
     tags: dict[str, Any] = field(default_factory=dict)
     source: Path | None = None
-    execution_mode: str = "stepped"
+    execution_mode: str = "realtime"
 
     @classmethod
     def from_dict(cls, data, source=None):
@@ -44,7 +44,14 @@ class TaskSpec:
                 "budget": {"mode": task.budget_mode},
             }
         allowed = {
-            "id", "adapter", "adapter_kwargs", "text", "seeds", "budget", "tags", "execution_mode"
+            "id",
+            "adapter",
+            "adapter_kwargs",
+            "text",
+            "seeds",
+            "budget",
+            "tags",
+            "execution_mode",
         }
         if set(data) - allowed:
             raise ValueError("task contains non-environment or unknown fields")
@@ -67,7 +74,7 @@ class TaskSpec:
                 raise ValueError(f"{key} must be an object")
         if not isinstance(data.get("text", ""), str):
             raise ValueError("text must be a string")
-        mode = data.get("execution_mode", "stepped")
+        mode = data.get("execution_mode", "realtime")
         if mode not in ("stepped", "realtime"):
             raise ValueError("execution_mode must be stepped or realtime")
         json_value(data)

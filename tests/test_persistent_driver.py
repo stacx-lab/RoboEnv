@@ -194,7 +194,7 @@ def test_dialog_reuses_process_and_cleans_up_once(tmp_path, ending):
         assert time.monotonic() - started < 1.5
         calls = (tmp_path / "calls").read_text().splitlines()
         assert calls.count("stop") == 0
-        assert calls.count("cancel_motion") == (0 if ending in {"unload", "read-only"} else 1)
+        assert calls.count("cancel_motion") == (0 if ending == "read-only" else 1)
     finally:
         if proc.poll() is None:
             proc.kill()

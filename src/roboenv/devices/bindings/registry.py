@@ -14,7 +14,7 @@ class BindingContext:
     public_dispatch: Any = None
     public_tools: Any = None
     devices: Any = None
-    execution_mode: str = "stepped"
+    world: Any = None
 
 
 class BindingRegistry:

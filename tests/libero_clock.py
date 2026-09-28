@@ -66,6 +66,7 @@ def check(directory):
         task_id="libero-clock-probe",
         seed=0,
         run_dir=directory / "sync",
+        execution_mode="stepped",
         device_root=robot,
     )
     try:
@@ -80,12 +81,26 @@ def check(directory):
             call("read")
         assert np.array_equal(state, adapter._env.sim.get_state().flatten())
         while adapter.budget().used < 10:
-            call("write", actions=[call("read")["positions"]], freq_hz=20)
+            call(
+                "write",
+                actions=[call("read")["positions"]],
+                duration_s=len([call("read")["positions"]]) / 20,
+            )
+            worker.dispatch(
+                "devices.call", {"device": "world", "action": "wait", "args": {"duration_s": 0.05}}
+            )
         assert adapter.budget().used == 10
         time.sleep(0.1)
         assert adapter.budget().used == 10
         try:
-            call("write", actions=[call("read")["positions"]], freq_hz=20)
+            call(
+                "write",
+                actions=[call("read")["positions"]],
+                duration_s=len([call("read")["positions"]]) / 20,
+            )
+            worker.dispatch(
+                "devices.call", {"device": "world", "action": "wait", "args": {"duration_s": 0.05}}
+            )
         except WorkerRPCError:
             pass
         else:

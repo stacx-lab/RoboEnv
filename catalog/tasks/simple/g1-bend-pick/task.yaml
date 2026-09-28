@@ -12,4 +12,4 @@ seed: 0
 budget_mode: practice
 action_abstraction: devices
 device_bindings: null
-execution_mode: stepped
+execution_mode: realtime

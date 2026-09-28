@@ -10,7 +10,7 @@ const { Recorder } = await import(path.join(kinexRoot, "src/record/recorder.ts")
 const { Session } = await import(path.join(kinexRoot, "src/session/index.ts"))
 const devices = await CalibrationStore.listDevices(cwd)
 if (devices.length !== 8) throw new Error(`Expected eight devices, found ${devices.length}`)
-const active = devices.filter((d: { type: string }) => d.type !== "world")
+const active = devices
 for (const d of active) {
   await activateDevice(cwd, d)
   await CalibrationStore.writeDevice(cwd, { name: d.name, loaded: true })

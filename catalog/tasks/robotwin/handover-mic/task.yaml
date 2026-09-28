@@ -1,6 +1,6 @@
 id: robotwin/handover-mic
 backend: robotwin
-execution_mode: stepped
+execution_mode: realtime
 backend_task: robotwin.handover_mic
 robot: robotwin/robotwin-dual-piper
 instruction: Hand the microphone over from the arm on its spawn side to the other

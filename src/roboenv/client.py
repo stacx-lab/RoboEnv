@@ -285,10 +285,13 @@ class Device:
     def read(self, **kwargs):
         return self.call("read", kwargs)
 
-    def write(self, values, *, freq_hz=None, timeout=600.0, request_id=None, **kwargs):
-        """Stream joint actions at freq_hz, or write a non-joint target."""
-        args = {"target": values} if freq_hz is None else {"actions": values, "freq_hz": freq_hz}
-        return self.call("write", {**args, **kwargs}, timeout=timeout, request_id=request_id)
+    def write(self, *, duration_s, timeout=600.0, request_id=None, **kwargs):
+        return self.call(
+            "write", {**kwargs, "duration_s": duration_s}, timeout=timeout, request_id=request_id
+        )
+
+    def wait(self, duration_s):
+        return self.call("wait", {"duration_s": duration_s})
 
     def stop(self):
         return self.call("stop")

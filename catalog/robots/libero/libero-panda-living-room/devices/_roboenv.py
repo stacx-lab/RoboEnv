@@ -215,14 +215,15 @@ class Transport:
 
     def remote(self, action, args):
         identity = self.identity
-        request_id = f"driver-{uuid.uuid4().hex}"
+        request_id = uuid.uuid4().hex
+        if action == "wait":
+            request_id = getattr(self._local, "request_id", request_id)
+        request_id = f"driver-{request_id}"
         request = {
             **identity,
             "request_id": request_id,
             "deadline_s": 600 if self.deadline is None else self.timeout(),
-            "op": {"cancel_motion": "devices.cancel"}.get(
-                action, "devices.call"
-            ),
+            "op": {"cancel_motion": "devices.cancel"}.get(action, "devices.call"),
             "args": args
             if action == "cancel_motion"
             else {"device": self.target, "action": action, "args": args},
@@ -230,9 +231,9 @@ class Transport:
         payload = json.dumps(request, allow_nan=False).encode() + b"\n"
         if len(payload) > MAX_BYTES:
             raise ValueError("Device request is too large")
-        if action == "write":
+        if action in {"write", "wait"}:
             with self._motion_lock:
-                self._motions[self.target] = request_id
+                self._motions[request_id if action == "wait" else self.target] = request_id
         self.used, self.unloaded = True, False
         # A broken connection never causes this request to be resubmitted.
         try:
@@ -263,6 +264,9 @@ class Transport:
         except Exception as exc:
             self.close()
             raise WireError(str(exc), "outcome_unknown", request_id) from exc
+        if action == "wait":
+            with self._motion_lock:
+                self._motions.pop(request_id, None)
         if not response["ok"]:
             error = response["error"]
             raise WireError(
@@ -340,6 +344,7 @@ def main(handle, transport):
                         }
 
                         def send(request, cancel=None, predecessor=None):
+                            transport._local.request_id = request["id"]
                             if predecessor is not None:
                                 predecessor.result()
                             if cancel is not None and cancel.is_set():
@@ -373,7 +378,18 @@ def main(handle, transport):
                                     )
                                     output.flush()
                                 break
-                            if request.get("interrupt") is True:
+                            target = request.get("interrupt")
+                            if isinstance(target, str):
+                                transport.remote(
+                                    "cancel_motion", {"execution_id": f"driver-{target}"}
+                                )
+                                with output_lock:
+                                    output.write(
+                                        json.dumps({"id": request["id"], "ok": True}) + "\n"
+                                    )
+                                    output.flush()
+                                continue
+                            if target is True:
                                 for _, event in writes:
                                     event.set()
                                 if any(not future.done() for future, _ in writes):
@@ -399,19 +415,23 @@ def main(handle, transport):
                                     and any(not future.done() for future, _ in writes)
                                 ):
                                     respond("stop", {})
+                                if action == "unload":
+                                    transport.cancel_motions()
                                 wait(pending)
                                 send(request)
                                 continue
                             kind = (
                                 "read"
-                                if action in {"read", "status", "fk", "ik"}
+                                if action in {"read", "wait", "status", "fk", "ik"}
                                 else "stop"
                                 if action == "stop"
                                 else "capture"
                                 if action in {"record_start", "record_stop"}
                                 else "write"
                             )
-                            cancel = threading.Event() if kind == "write" else None
+                            cancel = (
+                                threading.Event() if kind == "write" or action == "wait" else None
+                            )
                             future = pools[kind].submit(
                                 send, request, cancel, stop_tail if kind == "write" else None
                             )
@@ -435,7 +455,7 @@ def main(handle, transport):
                         transport.deadline = time.monotonic() + 0.5
                         signal.setitimer(signal.ITIMER_REAL, 0.5)
                         try:
-                            if transport.used and not transport.unloaded and can_stop:
+                            if transport.used and not transport.unloaded:
                                 transport.cancel_motions()
                         except Exception as exc:
                             print(str(exc), file=sys.stderr)

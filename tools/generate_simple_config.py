@@ -240,12 +240,14 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
             **value,
             "meta": {"created_at": "2026-09-14T00:00:00Z", "updated_at": "2026-09-14T00:00:00Z"},
         }
-        if name != "world":
+        if value["type"]:
             actions = ["read", "load", "unload", "status"]
+            if name == "world":
+                actions.insert(1, "wait")
             if name in NAMES:
                 actions += ["write", "stop"]
             if value["type"] == "joint":
-                actions += [ "fk", "ik"]
+                actions += ["fk", "ik"]
             profile["access"] = driver_access(value["type"], name, actions, "http://127.0.0.1:8123")
             write_driver(directory, value["type"])
         (directory / "profile.yaml").write_text(

@@ -130,6 +130,7 @@ def test_request_batch_is_bounded_and_still_services_motion(tmp_path):
 def test_new_connections_can_share_a_slow_native_frame(tmp_path):
     """Match WorkerClient's one-connection-per-request transport."""
     native = Native()
+    native.control_interval_s = 0.2
     original_tick = native.advance_control
 
     def slow_tick():

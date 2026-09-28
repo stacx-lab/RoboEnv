@@ -111,6 +111,7 @@ class Device:
                 "write": "actions"
                 if self._profile["type"] in {"joint", "dexterous_hand"}
                 else "target",
+                "wait": "duration_s",
                 "fk": "joints",
                 "ik": "pose",
             }.get(action)

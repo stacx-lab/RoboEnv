@@ -208,8 +208,6 @@ def bind(spec, root, context):
                         "maxItems": size,
                         "items": {"type": "number"},
                     },
-                    "for_s": {"type": "number"},
-                    "arrive": {"type": "object"},
                 },
             },
             mutation=True,

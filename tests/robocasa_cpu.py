@@ -144,11 +144,11 @@ def check(root, temporary):
     shutil.copytree(source, robot)
     from roboenv_runtime.runtime.world import WorldSession
 
-    session = WorldSession(adapter)
+    session = WorldSession(adapter, mode="stepped")
     service = default_registry().assemble(
         plan,
         robot,
-        BindingContext("robocasa", "panda_omron", adapter),
+        BindingContext("robocasa", "panda_omron", adapter, world=session),
         motion_scheduler=session.schedule,
         resolve=session.resolve,
     )
@@ -192,7 +192,7 @@ def check(root, temporary):
                 else:
                     raise AssertionError("Simulation exposes a local kinematics operation")
         assert adapter.tools() == {}
-        assert service.describe("world")["actions"] == {}
+        assert {"read", "wait"} <= service.describe("world")["actions"].keys()
         assert "mount" not in service.describe("base")["extrinsics"]
         assert "needs_calibration" not in service.describe("base")["extrinsics"]
         base_facts = service.describe("base")["intrinsics"]
@@ -276,7 +276,7 @@ def check(root, temporary):
                 default_registry().assemble(
                     replace(plan, devices=(camera_spec,)),
                     robot,
-                    BindingContext("robocasa", "panda_omron", adapter),
+                    BindingContext("robocasa", "panda_omron", adapter, world=session),
                 )
             except ValueError as exc:
                 assert "Camera must be enabled" in str(exc)
@@ -289,7 +289,7 @@ def check(root, temporary):
                 plan, devices=tuple(s for s in plan.devices if s.name in {"arm", "camera_left"})
             ),
             robot,
-            BindingContext("robocasa", "panda_omron", adapter),
+            BindingContext("robocasa", "panda_omron", adapter, world=session),
         )
         try:
             mount = subset.describe("camera_left")["extrinsics"]["mount"]
@@ -311,7 +311,7 @@ def check(root, temporary):
             )
             before = native._step_count
             for target in (
-                [0.0] * (size + 1),
+                [[0.0]] if name == "gripper" else [0.0] * (size + 1),
                 [100.0] * size,
                 [float("nan")] * size,
                 [True] * size,
@@ -320,8 +320,10 @@ def check(root, temporary):
                     call(
                         name,
                         "write",
-                        {"actions": [target], "freq_hz": 20}
+                        {"actions": [target], "duration_s": 0.05}
                         if name in {"arm", "torso"}
+                        else {"actions": target, "duration_s": 0.05}
+                        if name == "gripper"
                         else {"target": target},
                     )
                 except DeviceError:
@@ -335,21 +337,21 @@ def check(root, temporary):
                 else [0.1] * size
             )
             if name in {"gripper", "base"}:
-                command = {"target": target}
                 if name == "base":
                     command = {
                         "mode": "drive",
                         "velocity": dict(zip(("vx", "vy", "wz"), target, strict=True)),
                     }
-                local(name, "write", {**command, "for_s": .05})
+                else:
+                    command = {"actions": target}
+                local(name, "write", {**command, "duration_s": 0.05})
             else:
                 call(
                     name,
                     "write",
-                    {"actions": [target], "freq_hz": 20}
-                    if name in {"arm", "torso"}
-                    else {"target": target},
+                    {"actions": [target], "duration_s": 0.05},
                 )
+            call("world", "wait", {"duration_s": 0.05})
             assert native._step_count == before + 1
             expected_stop = {"stopped": True}
             if name == "base":
@@ -456,8 +458,13 @@ def check(root, temporary):
         goal[0] += 0.1
         before = native.sim.data.time
         with patch.object(arm, "set_goal", wraps=arm.set_goal) as set_goal:
-            call("arm", "write", {"actions": [goal.tolist()] * 60, "freq_hz": 20})
-            assert set_goal.call_count == 2  # goal, then terminal measured hold
+            call(
+                "arm",
+                "write",
+                {"actions": [goal.tolist()] * 60, "duration_s": 3},
+            )
+            call("world", "wait", {"duration_s": 3})
+            assert set_goal.call_count == 1
         assert abs(native.sim.data.time - before - 3) < 1e-9
         state = call("arm", "read")
         np.testing.assert_allclose(state["positions"], goal, atol=0.01)
@@ -465,13 +472,25 @@ def check(root, temporary):
         assert state["sample_time_s"] == native.sim.data.time
         replacement = goal.copy()
         replacement[0] -= 0.2
-        call("arm", "write", {"actions": [replacement.tolist()], "freq_hz": 20})
-        terminal = call("arm", "write", {"actions": [goal.tolist()], "freq_hz": 20})
-        np.testing.assert_array_equal(arm.goal_qpos, terminal["state"]["positions"])
+        call(
+            "arm",
+            "write",
+            {"actions": [replacement.tolist()], "duration_s": 0.05},
+        )
+        terminal = call(
+            "arm", "write", {"actions": [goal.tolist()], "duration_s": 0.05}
+        )
+        assert terminal["execution_id"]
+        np.testing.assert_array_equal(arm.goal_qpos, goal)
         # A later base command preserves the previous gripper command.
-        call("gripper", "write", {"target": [1]})
+        call("gripper", "write", {"actions": [1], "duration_s": 0.05})
         fingers = native._robot.gripper["right"].current_action.copy()
-        call("base", "write", {"mode": "drive", "velocity": {"vx": 0, "vy": 0, "wz": 0}})
+        call(
+            "base",
+            "write",
+            {"mode": "drive", "velocity": {"vx": 0, "vy": 0, "wz": 0}, "duration_s": 0.05},
+        )
+        call("world", "wait", {"duration_s": 0.05})
         increment = np.array([-1, 1]) * native._robot.gripper["right"].speed
         np.testing.assert_allclose(
             native._robot.gripper["right"].current_action, np.clip(fingers + increment, -1, 1)
@@ -534,7 +553,7 @@ def check(root, temporary):
             default_registry().assemble(
                 replace(plan, devices=(*plan.devices, composite_spec)),
                 robot,
-                BindingContext("robocasa", "panda_omron", adapter),
+                BindingContext("robocasa", "panda_omron", adapter, world=session),
             )
         except ValueError as exc:
             assert "unknown registered binding" in str(exc)

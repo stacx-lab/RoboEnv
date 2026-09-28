@@ -42,11 +42,11 @@ def probe(suite, task, init, directory, render=False):
             plan = replace(plan, devices=tuple(s for s in plan.devices if s.entity != "camera"))
         from roboenv_runtime.runtime.world import WorldSession
 
-        session = WorldSession(adapter)
+        session = WorldSession(adapter, mode="stepped")
         service = default_registry().assemble(
             plan,
             root,
-            BindingContext("libero", "panda", adapter),
+            BindingContext("libero", "panda", adapter, world=session),
             motion_scheduler=session.schedule,
             resolve=session.resolve,
         )
@@ -80,7 +80,7 @@ def probe(suite, task, init, directory, render=False):
         before_goal = world._robot.controller.goal_qpos.copy()
         for target in ([0] * 6, [True] * 7, [float("nan")] * 7, [float("inf")] * 7, [100] * 7):
             try:
-                call("arm", "write", actions=[target], freq_hz=20)
+                call("arm", "write", actions=[target], duration_s=len([target]) / 20)
             except Exception:
                 pass
             else:
@@ -89,36 +89,31 @@ def probe(suite, task, init, directory, render=False):
             assert np.array_equal(world._robot.controller.goal_qpos, before_goal)
         goal = np.array(q)
         goal[[0, 2, 4]] += [0.1, -0.02, 0.02]
-        assert call("arm", "write", actions=[goal.tolist()], freq_hz=20)["completed_actions"] == 1
+        assert call("arm", "write", actions=[goal.tolist()], duration_s=0.05)["execution_id"]
         same_goal = world._robot.controller.goal_qpos
-        call("arm", "write", actions=[goal.tolist()], freq_hz=20)
+        call("arm", "write", actions=[goal.tolist()], duration_s=len([goal.tolist()]) / 20)
         assert world._robot.controller.goal_qpos is same_goal
-        for _ in range(100):
-            world.tick()
+        call("world", "wait", duration_s=5)
         measured = call("arm", "read")
         error = float(np.max(np.abs(np.array(measured["positions"]) - goal)))
         assert error < 0.01, (suite, task, error)
-        call("gripper", "write", target=[1])
-        for _ in range(20):
-            world.tick()
+        call("gripper", "write", actions=[1], duration_s=1)
+        call("world", "wait", duration_s=1)
         closed = call("gripper", "read")["positions"]
         assert np.array_equal(world._robot.controller.goal_qpos, goal)
-        call("gripper", "write", target=[-1])
-        for _ in range(20):
-            world.tick()
+        call("gripper", "write", actions=[-1], duration_s=1)
+        call("world", "wait", duration_s=1)
         opened = call("gripper", "read")["positions"]
         assert abs(opened[0] - opened[1]) > abs(closed[0] - closed[1]) + 0.01
         call("gripper", "stop")
-        call("arm", "write", actions=[q], freq_hz=20)
-        for _ in range(3):
-            world.tick()
+        call("arm", "write", actions=[q], duration_s=len([q]) / 20)
+        call("world", "wait", duration_s=0.15)
         stop_q = call("arm", "read")["positions"]
         budget = adapter.budget().used
         call("arm", "stop")
         assert adapter.budget().used == budget
         assert np.allclose(world._robot.controller.goal_qpos, stop_q, atol=1e-12)
-        for _ in range(100):
-            world.tick()
+        call("world", "wait", duration_s=5)
         stop_error = float(np.max(np.abs(np.array(call("arm", "read")["positions"]) - stop_q)))
         assert stop_error < 0.01
         for name in ("arm", "gripper"):
@@ -136,7 +131,8 @@ def probe(suite, task, init, directory, render=False):
                 assert adapter.budget().used == budget
                 frames[camera] = result["file"]
         used = adapter.budget().used
-        call("arm", "write", actions=[q], freq_hz=20)
+        call("arm", "write", actions=[q], duration_s=len([q]) / 20)
+        call("world", "wait", duration_s=0.05)
         assert adapter.budget().used == used + 1
         previous = world.env.step
         world.env.step = lambda action: (_ for _ in ()).throw(RuntimeError("probe"))

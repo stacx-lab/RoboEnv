@@ -61,8 +61,6 @@ def bind(spec, root, context):
             "type": "object",
             "properties": {
                 "target": {"type": "array", "items": {"type": "number"}},
-                "for_s": {"type": "number", "exclusiveMinimum": 0},
-                "arrive": {"type": "object"},
             },
             "required": ["target"],
             "additionalProperties": False,

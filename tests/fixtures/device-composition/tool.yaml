@@ -33,12 +33,10 @@ parameters:
             yaw: {type: number}
       description: Base motion command; defaults to zero velocity and profile-declared posture references.
     steps: {type: integer, minimum: 1, maximum: 1000, default: 50}
-    rate_hz:
+    segment_s:
       type: number
       exclusiveMinimum: 0
-      maximum: 50
-      default: 20
-      description: Realtime polling/update rate cap; ignored in synchronous mode. Refresh base commands before their timeout.
+      default: 0.1
     goals:
       type: object
       additionalProperties:
@@ -53,5 +51,5 @@ parameters:
             minItems: 7
             maxItems: 7
             description: wrist position and unit xyzw quaternion in frame.
-devices: [velocity, joint, dexterous_hand]
+devices: [world, velocity, joint, dexterous_hand]
 timeout_s: 110

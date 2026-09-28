@@ -3,7 +3,7 @@
   "robot_sha256": "8d120ef823a27c96eae88aec07796e224615afe0f289a5a3ab4eaf6c3cf72c91",
   "facts_sha256": "bae6a63581823c7c2e7010b2e6be186f976aa3a27968beddcc8bd89f7ea7d4f1",
   "asset_pin_sha256": "962d8f69a994c1bf813521cb2f2df85051ae8f0d6c631523bab820a5389cc5fe",
-  "source_lock_sha256": "b773ee8cbb817e57a3af5685dd5f05510ad52572ed64572d48d2fdbe019c254b",
+  "source_lock_sha256": "4c0e2cf89b6f21c74b62e9fad8ab1ac64eb8973b39514b6806c1898a70cbd63e",
   "hand_geometry": {
     "left_hand": {
       "definition": "Nominal mesh-distal fingertip references; grasp_center is the midpoint between thumb and opposing-finger midpoint, with hand-aligned axes. grasp_reference fixes that center at home. These are geometric references, not contacts.",

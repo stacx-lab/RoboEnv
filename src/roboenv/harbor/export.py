@@ -258,8 +258,9 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
         )
     if task.backend in DEVICE_BACKENDS:
         clock_instruction = (
-            "Physics advances only during device commands. Joint write executes an "
-            "action sequence at freq_hz. The harness plans goal motion and checks "
+            "Device write submits an "
+            "action sequence with duration_s and returns immediately. "
+            "Use world.wait for world-time delays. The harness plans motion and checks "
             "arrival. Reads and stop do not advance time. "
         )
         instruction = (

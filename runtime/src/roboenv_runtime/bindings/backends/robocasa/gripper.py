@@ -67,11 +67,6 @@ def bind(spec, root, context):
         }
 
     def write(target):
-        """Drive the jaws for for_s of the world's own clock and report the time.
-
-        A direction-controlled gripper has no position goal to arrive at, so it
-        never reports reached; the caller's budget is what ends the segment.
-        """
         command = np.sign(vector(target, 1, lower=[-1], upper=[1])).tolist()
         world.step({"right_gripper": command})
         return {}

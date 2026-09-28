@@ -76,7 +76,7 @@ these do not reset or close the world.
 | `base` | `velocity` | World pose and measured chassis-origin twist; normalized body-frame `vx`, `vy`, `wz` commands |
 | `gripper` | `gripper` | Finger joint state; one signed command in `[-1,1]`, positive closes |
 | `camera_left`, `camera_right`, `camera_wrist` | `rgbd` | Aligned RGB and metric depth files; no write |
-| `world` | `world` | Profile only; reference frame and open workspace bounds |
+| `world` | `world` | World clock, reference frame and optional workspace bounds |
 
 Actuators implement `write` and `stop`. Arm/torso targets follow
 `intrinsics.model.joints` order and replace the active goal. Joint write streams complete action vectors without planning or arrival waits. Their native joint-position controllers
@@ -89,10 +89,11 @@ uses the normal `robosuite` step, preserving physics, observables, and task hook
 It replaces the composite goal update for that call so arm/lift goals persist and
 base/gripper inputs are refreshed, then restores the hook even on failure.
 
-Joint write returns `completed_actions`, `elapsed_s` and measured `state`.
-Set returns `reached`, `elapsed_s` and `state`. Stop holds arm/torso/gripper or
-requests zero base velocity without stepping. Reads include faults and acquisition
-timestamps. Only active commands advance the synchronous world.
+Writes return `execution_id`, `elapsed_s` and a measured `state` snapshot.
+Wait for execution with `world.wait(duration_s)`.
+Stop holds arm/torso/gripper or zeroes base velocity without stepping. Reads
+include faults and acquisition timestamps. Realtime continues while idle;
+stepped advances during world waits.
 
 ```sh
 roboenv launch robocasa/pick-place-microwave
@@ -111,7 +112,7 @@ resolutions, or camera arrangements require a matching catalog configuration.
 catalog/robots/robocasa/robocasa-panda-omron/
   workspace.yaml
   devices/<name>/profile.yaml
-  devices/<name>/driver.py       # except world
+  devices/<name>/driver.py
   devices/_roboenv.py             # one shared portable transport per collection
 src/roboenv/devices/bindings/defaults/robocasa/robocasa-panda-omron.yaml
 catalog/tasks/<simulator>/<task-name>/task.yaml
@@ -185,7 +186,7 @@ least-squares solver may fail to converge; it does not validate a motion path.
 
 ```sh
 python3 driver.py fk '{"joints": [0, 0, 0, -2, 0, 2, 0.7]}'
-python3 driver.py write '{"actions": [[0, 0, 0, -2, 0, 2, 0.7]], "freq_hz": 20}'
+python3 driver.py write '{"actions": [[0, 0, 0, -2, 0, 2, 0.7]], "duration_s": 0.05}'
 ```
 
 ### Joint limits and recovery

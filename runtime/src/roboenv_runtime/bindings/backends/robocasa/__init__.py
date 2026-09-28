@@ -13,6 +13,9 @@ def register(registry):
     ):
         registry.register(f"robocasa.{name}/1", factory)
 
+    from roboenv_runtime.bindings.motion import control_binding
+
+    @control_binding
     def world(spec, root, context):
         definition = spec.definition(root)
         if definition.type != "world" or spec.config:

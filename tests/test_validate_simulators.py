@@ -86,7 +86,8 @@ def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_p
     )
     assert len(cases) == 8
     assert {task.robot for _, task, _, _ in cases if task.backend == "libero"} == {
-        "libero/libero-panda-tabletop", "libero/libero-panda-kitchen",
+        "libero/libero-panda-tabletop",
+        "libero/libero-panda-kitchen",
     }
     yam = next(task for _, task, _, _ in cases if task.robot == "robodojo/robodojo-yam")
     assert yam.backend_kwargs["env_cfg_type"] == "yam"
@@ -329,34 +330,51 @@ def test_failed_advertised_device_read_has_a_failure_category_without_harbor_exc
     assert evidence["failed_device_reads"] == ["world"]
 
 
-@pytest.mark.parametrize("backend,world_readable", [("libero", False), ("robocasa", False),
-                                                   ("robotwin", False)])
+@pytest.mark.parametrize(
+    "backend,world_readable", [("libero", True), ("robocasa", True), ("robotwin", True)]
+)
 def test_probe_reads_match_evidence_for_native_and_controller_worlds(
-    tmp_path, monkeypatch, backend, world_readable,
+    tmp_path,
+    monkeypatch,
+    backend,
+    world_readable,
 ):
     tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
-    receipt = tool.prepare(deployments, wheel, tmp_path / "prepared", backends=[backend],
-                           modes=["probe"], seeds=[0])
+    receipt = tool.prepare(
+        deployments, wheel, tmp_path / "prepared", backends=[backend], modes=["probe"], seeds=[0]
+    )
     record = next(r for r in receipt["cases"] if "world" in r["expected_devices"])
     assert "world" in record["expected_devices"]
     assert ("world" in record["expected_reads"]) == world_readable
     reads = []
-    inventory = {"schema_version": "roboenv/devices/1", "devices": [
-        {"name": name, "type": "world" if name == "world" else "other", "actions": {
-            "read": {"supported": True, "read_only": True},
-        } if name in record["expected_reads"] else {}}
-        for name in record["expected_devices"]
-    ]}
+    inventory = {
+        "schema_version": "roboenv/devices/1",
+        "devices": [
+            {
+                "name": name,
+                "type": "world" if name == "world" else "other",
+                "actions": {
+                    "read": {"supported": True, "read_only": True},
+                }
+                if name in record["expected_reads"]
+                else {},
+            }
+            for name in record["expected_devices"]
+        ],
+    }
 
     def read(name):
         reads.append(name)
         return {"read_only": True}
 
-    monkeypatch.setattr("roboenv.client.Client", lambda: SimpleNamespace(
-        devices=lambda: inventory,
-        device=lambda name: SimpleNamespace(read=lambda: read(name)),
-    ))
+    monkeypatch.setattr(
+        "roboenv.client.Client",
+        lambda: SimpleNamespace(
+            devices=lambda: inventory,
+            device=lambda name: SimpleNamespace(read=lambda: read(name)),
+        ),
+    )
     exec(tool._probe_program(record["expected_devices"], record["expected_reads"]), {})
     assert reads == record["expected_reads"]
     trial = write_trial(tmp_path / "evidence", record, reward=0)
@@ -366,23 +384,33 @@ def test_probe_reads_match_evidence_for_native_and_controller_worlds(
 def test_original_version_one_probe_receipts_keep_their_read_requirements(tmp_path):
     tool = load_tool("validate_simulators")
     record = {
-        "id": "original-probe", "name": "roboenv/original-probe", "seed": 0,
-        "backend_task": "robotwin.handover_mic", "program_sha256": "a" * 64,
-        "mode": "probe", "expected_devices": ["left_arm", "world"],
+        "id": "original-probe",
+        "name": "roboenv/original-probe",
+        "seed": 0,
+        "backend_task": "robotwin.handover_mic",
+        "program_sha256": "a" * 64,
+        "mode": "probe",
+        "expected_devices": ["left_arm", "world"],
     }
     for reads in (["left_arm", "world"], ["left_arm"]):
-        trial = write_trial(tmp_path / str(len(reads)), {**record, "expected_reads": reads},
-                            reward=0)
+        trial = write_trial(
+            tmp_path / str(len(reads)), {**record, "expected_reads": reads}, reward=0
+        )
         evidence = tool._trial_evidence(record, trial / "result.json")
         assert evidence["device_read_probe_passed"] == (len(reads) == 2)
         if len(reads) == 1:
             assert evidence["failure_category"] == "incomplete-device-read-evidence"
 
 
-@pytest.mark.parametrize("identifier", [
-    "robotwin/handover-mic", "robotwin/stack-blocks-three",
-    "robodojo/general-pickup", "robodojo/stack-bowls",
-])
+@pytest.mark.parametrize(
+    "identifier",
+    [
+        "robotwin/handover-mic",
+        "robotwin/stack-blocks-three",
+        "robodojo/general-pickup",
+        "robodojo/stack-bowls",
+    ],
+)
 def test_removed_native_reference_cannot_be_selected(identifier):
     tool = load_tool("validate_simulators")
     with pytest.raises(ValueError, match="requires an explicit regular solution.py"):

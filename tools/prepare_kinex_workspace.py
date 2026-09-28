@@ -27,7 +27,7 @@ def prepare(task, destination, *, project=None, catalog=None):
             device.mkdir(parents=True)
             profile = spec.resolved_profile(resolved.robot)
             (device / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
-            if profile["type"] != "world":
+            if profile.get("access"):
                 source = resolved.robot / Path(spec.profile).parent
                 for support in shared_driver_resources(source.parent):
                     target = device.parent / support

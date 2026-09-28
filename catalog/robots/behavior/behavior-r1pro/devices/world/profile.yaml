@@ -9,3 +9,18 @@ intrinsics:
 meta:
   created_at: '2026-09-09T00:00:00Z'
   updated_at: '2026-09-09T00:00:00Z'
+access:
+  source: default
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: world
+  driver:
+    entry: driver.py
+    persistent: true
+    actions:
+    - read
+    - wait
+    - load
+    - unload
+    - status

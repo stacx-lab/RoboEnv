@@ -125,7 +125,7 @@ def test_multiple_runs_require_selection(monkeypatch):
         assert first.client.session != second.client.session
         assert connect(first.endpoint).task.id == "native-toy-push"
         assert first.record["endpoint"] != second.record["endpoint"]
-        first.device("controller").write([0.3])
+        first.device("controller").call("write", {"target": [0.3]})
         assert second.device("controller").read()["budget"]["used"] == 0
         stop(first.record["endpoint"], project=ROOT)
         first.process.wait(timeout=10)
@@ -440,7 +440,7 @@ def test_grouped_catalog_ids_and_listing(capsys):
     assert main(["tasks", "list", "--simulator", "robocasa", "--project", str(ROOT)]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["ids"] == ["robocasa/arrange-vegetables", "robocasa/pick-place-microwave"]
-    assert result["execution_modes"] == {key: "stepped" for key in result["ids"]}
+    assert result["execution_modes"] == {key: "realtime" for key in result["ids"]}
     with pytest.raises(ValueError, match="tasks list"):
         resolve_task("robocasa-pick-place-microwave", project=ROOT)
 
@@ -496,8 +496,13 @@ def test_launch_uses_catalog_mode_unless_overridden(tmp_path, monkeypatch, overr
 
     monkeypatch.setattr("roboenv.environment.subprocess.Popen", capture)
     with pytest.raises(OSError, match="stop before starting"):
-        launch(path, project=ROOT, catalog=FIXTURE / "catalog", execution_mode=override,
-               run_dir=tmp_path / "runs")
+        launch(
+            path,
+            project=ROOT,
+            catalog=FIXTURE / "catalog",
+            execution_mode=override,
+            run_dir=tmp_path / "runs",
+        )
     command, env = seen[0]
     index = command.index("--worker-arg=--execution-mode")
     assert command[index + 1] == "--worker-arg=" + expected

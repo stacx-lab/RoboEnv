@@ -287,10 +287,12 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path):
                         "mode": "locomotion",
                         "velocity": {"vx": 0.1, "vy": 0, "wz": 0},
                         "posture": {"height": 0.75},
+                        "duration_s": 0.02,
                     },
                 }
             )
         )
+        session.resolve(session.wait(0.02))
         assert world.steps == 1
         before = world.steps
         service.call({"device": "base", "action": "stop", "args": {}})

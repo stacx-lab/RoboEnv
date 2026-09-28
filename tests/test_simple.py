@@ -230,7 +230,9 @@ def test_contract_bindings_have_only_basic_actions():
         motion_scheduler=session.schedule,
         resolve=session.resolve,
     )
-    service.call({"device": "base", "action": "write", "args": base()})
+    service.call({"device": "base", "action": "write", "args": {**base(), "duration_s": 0.02}})
+    assert world.steps == 0
+    session.resolve(session.wait(0.02))
     assert world.steps == 1
     for action in ("batch_write", "snapshot"):
         with pytest.raises(DeviceError, match="Action not declared"):
@@ -487,4 +489,3 @@ def test_joint_stop_keeps_measured_soft_limit_overshoot_without_stepping():
     world.control.stop("left_arm")
     assert world.steps == 0
     assert world.control.targets == {**original, "left_arm": measured}
-

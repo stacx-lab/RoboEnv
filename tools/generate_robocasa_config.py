@@ -128,7 +128,7 @@ def generate(out, provenance=None):
             destination = out / "devices" / path.parent.name
             destination.mkdir(parents=True, exist_ok=True)
             (destination / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
-            if profile["type"] != "world":
+            if profile.get("access"):
                 write_driver(destination, profile["type"])
             # There is deliberately no task or session connection file.
     (out / "workspace.yaml").write_bytes((ROBOT / "workspace.yaml").read_bytes())

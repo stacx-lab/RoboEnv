@@ -75,11 +75,7 @@ def bind(spec, root, context):
     facts["stop"]["affected_devices"] = [definition.name]
 
     def write(**args):
-        """Hold the commanded body velocity for for_s of the world's own clock.
 
-        A base has no goal to arrive at, so it never reports reached: the caller's
-        budget is what ends the segment.
-        """
         value = command(facts["control"], args)
         world.step({"base": [value["velocity"][axis] for axis in ("vx", "vy", "wz")]})
         return {}
