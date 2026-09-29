@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$DEPLOYMENT_MAP" || { echo 'Configure the protected deployment map variable.'; exit 1; }
-          args=(--deployments "$DEPLOYMENT_MAP" --sdk-wheel build/wheels/roboenv-0.2.0-py3-none-any.whl)
+          args=(--deployments "$DEPLOYMENT_MAP" --sdk-wheel build/wheels/roboenv-0.9.0-py3-none-any.whl)
           args+=(--out "$VALIDATION_OUT" --backends "$VALIDATION_BACKEND" --modes "$VALIDATION_MODE" --seeds "$VALIDATION_SEED")
           if [[ -n "$VALIDATION_CASE" ]]; then args+=(--cases "$VALIDATION_CASE"); fi
           if [[ -n "$TASK_SOURCE" ]]; then args+=(--source "$TASK_SOURCE"); fi
