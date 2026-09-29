@@ -39,8 +39,8 @@ jobs:
       VALIDATION_MODE: ${{ inputs.mode }}
       VALIDATION_CASE: ${{ inputs.case }}
       VALIDATION_SEED: ${{ inputs.seed }}
-      DEPLOYMENT_MAP: ${{ vars.ROBOENV_GPU_DEPLOYMENT_MAP }}
       TASK_SOURCE: ${{ vars.ROBOENV_GPU_TASK_SOURCE }}
+      SIMULATOR_INTERPRETER: ${{ vars.ROBOENV_GPU_INTERPRETER }}
       ROBOENV_GPU: ${{ vars.ROBOENV_GPU_DEVICE }}
       VALIDATION_OUT: .cache/gpu-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
@@ -53,17 +53,22 @@ jobs:
         run: |
           bash tools/bootstrap.sh
           bash tools/check.sh
-      - name: Validate one selected backend using standard Harbor Oracle
+      - name: Launch, replay and verify one prepared backend without a model
         id: validation
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$DEPLOYMENT_MAP" || { echo 'Configure the protected deployment map variable.'; exit 1; }
-          args=(--deployments "$DEPLOYMENT_MAP" --sdk-wheel build/wheels/roboenv-0.9.0-py3-none-any.whl)
-          args+=(--out "$VALIDATION_OUT" --backends "$VALIDATION_BACKEND" --modes "$VALIDATION_MODE" --seeds "$VALIDATION_SEED")
+          # The runner prepares its simulators with `roboenv prepare BACKEND`; an operator may
+          # instead name one prepared interpreter for the selected backend.
+          if [[ -n "${ROBOENV_GPU:-}" ]]; then
+            export CUDA_VISIBLE_DEVICES="$ROBOENV_GPU" MUJOCO_EGL_DEVICE_ID="$ROBOENV_GPU"
+          fi
+          args=(--out "$VALIDATION_OUT" --backends "$VALIDATION_BACKEND")
+          args+=(--modes "$VALIDATION_MODE" --seeds "$VALIDATION_SEED")
           if [[ -n "$VALIDATION_CASE" ]]; then args+=(--cases "$VALIDATION_CASE"); fi
           if [[ -n "$TASK_SOURCE" ]]; then args+=(--source "$TASK_SOURCE"); fi
+          if [[ -n "$SIMULATOR_INTERPRETER" ]]; then args+=(--interpreter "$SIMULATOR_INTERPRETER"); fi
           .venv/bin/python tools/validate_simulators.py "${args[@]}" --run
       - name: Audit the sanitized receipt before upload
         id: privacy
@@ -71,10 +76,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          .venv/bin/python -c 'import json, os; from pathlib import Path; from roboenv.privacy import validate_public_text; p=Path(os.environ["VALIDATION_OUT"])/"receipt.json"; data=p.read_text(); validate_public_text(data,"receipt.json"); assert json.loads(data)["schema"] == "roboenv/gpu-validation/1"'
+          .venv/bin/python -c 'import json, os; from pathlib import Path; from roboenv.privacy import validate_public_text; p=Path(os.environ["VALIDATION_OUT"])/"receipt.json"; data=p.read_text(); validate_public_text(data,"receipt.json"); assert json.loads(data)["schema"] == "roboenv/simulator-validation/1"'
           mkdir -p build/gpu-validation
           cp "$VALIDATION_OUT/receipt.json" build/gpu-validation/receipt.json
-      - name: Upload receipt only, never raw Harbor logs or deployment maps
+      - name: Upload the receipt only, never the private log, journals or run records
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always() && steps.privacy.outcome == 'success'
         with:
