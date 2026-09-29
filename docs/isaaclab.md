@@ -13,6 +13,4 @@ profiles, bindings, runtime and task-specific asset tools have been removed.
 SIMPLE's G1 integration is separate and remains supported.
 
 Existing environments, cached assets and user workspaces are preserved.
-The [historical G1 generation receipt](isaaclab-g1-config.provenance.json) records
-the retired interface; it is not evidence for a current task.
 See [setup](setup.md) for installation requirements.

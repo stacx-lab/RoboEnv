@@ -15,7 +15,6 @@ import os
 import signal
 import socket
 import socketserver
-import stat
 import subprocess
 import sys
 import threading
@@ -38,6 +37,7 @@ from roboenv_runtime.runtime.protocol import (
     RequestCache,
     RequestIdConflict,
     Response,
+    _remove_socket,
     encode_ndjson,
     read_ndjson,
     socket_address,
@@ -55,16 +55,6 @@ def _inside(root: Path, candidate: str | os.PathLike[str]) -> Path:
     except ValueError as exc:
         raise ValueError(f"path {path} escapes run directory {root}") from exc
     return path
-
-
-def _remove_stale_socket(path: Path) -> None:
-    try:
-        mode = path.lstat().st_mode
-    except FileNotFoundError:
-        return
-    if not stat.S_ISSOCK(mode):
-        raise RuntimeError(f"refusing to replace non-socket path: {path}")
-    path.unlink()
 
 
 @dataclass
@@ -293,7 +283,7 @@ class Supervisor:
     def start_worker(self) -> None:
         if self._worker is not None:
             raise RuntimeError("worker already started")
-        _remove_stale_socket(self.config.worker_socket)
+        _remove_socket(self.config.worker_socket)
         log_path = self.config.run_dir / "logs" / "worker.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         self._worker_log = log_path.open("ab", buffering=0)
@@ -939,7 +929,7 @@ class Supervisor:
     def open_server(self) -> None:
         if self._server is not None:
             raise RuntimeError("server already open")
-        _remove_stale_socket(self.config.public_socket)
+        _remove_socket(self.config.public_socket)
         self._server = _ThreadingUnixServer(
             socket_address(self.config.public_socket), self._handler_type()
         )

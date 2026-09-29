@@ -81,8 +81,15 @@ support. Keep observations explicit and owner-only. Register the adapter
 with `@register_adapter` and add its lazy module path to `BUILTIN_ADAPTERS`; import
 heavy packages only when starting the backend.
 
+The runtime no longer exports `Capability` or exposes adapter `capabilities`
+metadata. `AdapterBase.describe()` returns only `name` and `embodiment`; update
+consumers that imported those constants or read that field. Optional practice
+snapshots use `checkpoint()` and `restore(token)` methods (the
+`SupportsCheckpoint` protocol); the worker detects these methods directly.
+Simulation-status and Harbor-manifest capability fields are separate and unchanged.
+
 Use [RoboCasa's adapter](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py)
-and [native binding](../runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py)
+and [native bindings](../runtime/src/roboenv_runtime/bindings/backends/robocasa/)
 as examples. Register a fixed binding ID in the
 [runtime registry](../runtime/src/roboenv_runtime/bindings/__init__.py). Configuration
 must not select arbitrary Python imports.
@@ -94,7 +101,7 @@ adapter connecting it to RoboEnv. RoboCasa separates these concerns as follows:
 |---|---|
 | [adapter.py](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py) | Adapter identity, reset/close, instruction, native verdict, budget, owner observation, and native control hooks |
 | [backend.py](../runtime/src/roboenv_runtime/adapters/robocasa/backend.py) | One native environment, controller setup, persistent goals, native intervals, and rendering |
-| [devices.py](../runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py) | Entity selection, command validation, measurements, and basic actions |
+| [bindings/backends/robocasa/](../runtime/src/roboenv_runtime/bindings/backends/robocasa/) | Per-type bindings (joint, velocity, gripper, camera, world): entity selection, command validation, measurements, and basic actions |
 | [world.py](../runtime/src/roboenv_runtime/runtime/world.py) | Shared execution lock, command scheduling, and terminal freeze |
 | Typed client assets and [_roboenv.py](../src/roboenv/assets/_roboenv.py) | Per-type validation/local utilities and shared portable transport |
 
@@ -174,8 +181,9 @@ requested facts or receipts. To maintain built-in defaults, pass
 | `meta` | Required creation/update metadata |
 
 Use the actual Kinex schemas and required-action definitions to validate exports.
-Kinex’s type templates live in `builtin/device/templates/<type>/`; schemas and
-required actions live in `src/device/profile/` and `src/device/interface.ts`. Validate
+Kinex’s type templates live in `packages/core/assets/builtin/device/templates/<type>/`;
+schemas and required actions live in `packages/core/src/device/profile/` and
+`packages/core/src/device/interface.ts`. Validate
 against these actual definitions in development, without adding Kinex to the
 simulator worker’s dependencies.
 
@@ -213,7 +221,7 @@ See the [source audit](simulator-limits.md).
 Extract stable facts from pinned robot/controller/camera sources, using a standalone
 CPU model if necessary. Home joints come from initialization defaults. Do not export
 random task placements or scene geometry as calibration. Support generation into a
-temporary directory, record source hashes, and test deterministic output. The
+temporary directory and test deterministic output. The
 [RoboCasa generator](../tools/generate_robocasa_config.py) demonstrates this process.
 
 Mount poses use metres and quaternion xyzw. Cameras use OpenCV optical axes
@@ -290,6 +298,24 @@ configured horizons. Native non-timeout failures, success policies, explicit sto
 request deadlines and Harbor trial timeouts remain active. World initialization
 applies the selected mode before reset; configured horizons are retained separately
 from effective limits. Budget mode does not select the clock.
+
+The worker owns episode policy. Adapters expose native `score()` and `budget()`;
+adapters supporting `stop_on_success` consume and validate that boolean before
+constructing the native environment. It defaults to false and must not be passed
+to a native constructor that does not support it. LIBERO, RoboTwin, BEHAVIOR,
+RoboDojo, RoboCasa, SIMPLE and FakeShell support this option in `backend_kwargs`.
+The worker checks enabled success stopping and stepped budget exhaustion after
+each world control interval, then seals the terminal verdict automatically.
+Adapters do not declare `bounded_episodes` or install additional tick callbacks
+for this policy. Status derives the capability from success stopping and the
+effective stepped budget.
+
+Natural termination ends pending buffers and waits with `episode_finished` and
+known effects. Buffer cleanup runs without an extra tick and precedes the final
+observation and score; cleanup failure prevents certification. A buffer or wait
+that completes exactly at the terminal frame may still return normally. Final
+reads and repeated submit/stop use the sealed verdict. Existing native success
+predicates, non-timeout termination and Harbor reward budget rules remain intact.
 
 ### Device bindings
 

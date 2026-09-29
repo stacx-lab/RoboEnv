@@ -5,6 +5,7 @@ import socket
 import threading
 import time
 from concurrent.futures import Future
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -46,22 +47,13 @@ class Native:
         self.closed = True
 
 
-def test_idle_partial_connection_does_not_block_motion_or_other_rpc(tmp_path):
-    native = Native()
-    world = None
-    rpc_threads = []
-
-    def dispatch(op, args):
-        rpc_threads.append(threading.get_ident())
-        return {"op": op, "frames": native.frames}
-
-    worker = SimpleNamespace(world=world, dispatch_async=dispatch, shutdown_requested=False)
-    path = str(tmp_path / "worker.sock")
+@contextmanager
+def running_server(native, path, dispatch):
+    worker = SimpleNamespace(world=None, dispatch_async=dispatch, shutdown_requested=False)
     server = MainThreadWorkerUnixServer(path, worker)
     ready = threading.Event()
 
     def serve():
-        nonlocal world
         world = WorldSession(native)
         worker.world = world
 
@@ -79,31 +71,40 @@ def test_idle_partial_connection_does_not_block_motion_or_other_rpc(tmp_path):
 
     thread = threading.Thread(target=serve)
     thread.start()
-    assert ready.wait(2)
-    idle = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    active = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-        idle.connect(socket_address(path))
-        idle.sendall(b'{"id": "unfinished"')
-        assert native.progress.wait(2)
-        active.settimeout(2)
-        active.connect(socket_address(path))
-        stream = active.makefile("rb")
-        try:
-            for index in range(2):
-                active.sendall(json.dumps({"id": index, "op": "read", "args": {}}).encode() + b"\n")
-                response = json.loads(stream.readline())
-                assert response["ok"] and response["result"]["frames"] >= 5
-        finally:
-            stream.close()
-        assert rpc_threads == [thread.ident, thread.ident]
-        assert set(native.threads) == {thread.ident}
+        assert ready.wait(2)
+        yield thread
     finally:
-        idle.close()
-        active.close()
         server.shutdown()
         thread.join(timeout=2)
     assert not thread.is_alive() and native.closed
+
+
+def test_idle_partial_connection_does_not_block_motion_or_other_rpc(tmp_path):
+    native = Native()
+    rpc_threads = []
+
+    def dispatch(op, args):
+        rpc_threads.append(threading.get_ident())
+        return {"op": op, "frames": native.frames}
+
+    path = str(tmp_path / "worker.sock")
+    with running_server(native, path, dispatch) as thread:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as idle:
+            idle.connect(socket_address(path))
+            idle.sendall(b'{"id": "unfinished"')
+            assert native.progress.wait(2)
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as active:
+                active.settimeout(2)
+                active.connect(socket_address(path))
+                with active.makefile("rb") as stream:
+                    for index in range(2):
+                        request = {"id": index, "op": "read", "args": {}}
+                        active.sendall(json.dumps(request).encode() + b"\n")
+                        response = json.loads(stream.readline())
+                        assert response["ok"] and response["result"]["frames"] >= 5
+            assert rpc_threads == [thread.ident, thread.ident]
+            assert set(native.threads) == {thread.ident}
 
 
 def test_request_batch_is_bounded_and_still_services_motion(tmp_path):
@@ -141,38 +142,9 @@ def test_new_connections_can_share_a_slow_native_frame(tmp_path):
         original_tick()
 
     native.advance_control = slow_tick
-    world = None
-    worker = SimpleNamespace(
-        world=world,
-        dispatch_async=lambda op, args: native.frames,
-        shutdown_requested=False,
-    )
     path = str(tmp_path / "fresh-connections.sock")
-    server = MainThreadWorkerUnixServer(path, worker)
-    ready = threading.Event()
-
-    def serve():
-        nonlocal world
-        world = WorldSession(native)
-        worker.world = world
-
-        def motion():
-            for _ in range(100):
-                yield
-
-        world.schedule(motion(), threading.Event())
-        ready.set()
-        try:
-            server.serve_forever(poll_interval=0.01)
-        finally:
-            server.server_close()
-            world.close()
-
-    thread = threading.Thread(target=serve)
-    thread.start()
     frames = []
-    try:
-        assert ready.wait(2)
+    with running_server(native, path, lambda op, args: native.frames) as thread:
         assert native.progress.wait(2)
         for index in range(8):
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
@@ -183,10 +155,6 @@ def test_new_connections_can_share_a_slow_native_frame(tmp_path):
                     frames.append(json.loads(stream.readline())["result"])
         assert len(set(frames)) < len(frames)
         assert set(native.threads) == {thread.ident}
-    finally:
-        server.shutdown()
-        thread.join(timeout=2)
-    assert not thread.is_alive() and native.closed
 
 
 @pytest.mark.parametrize("backend", ["libero", "robocasa"])

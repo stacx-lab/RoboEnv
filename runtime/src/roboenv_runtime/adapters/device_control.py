@@ -8,6 +8,8 @@ motor application and one fixed control interval.
 import copy
 import math
 
+from roboenv.devices.model import DeviceError
+
 
 class DeviceControl:
     def __init__(
@@ -42,7 +44,8 @@ class DeviceControl:
         """Stage validated native references without advancing physics."""
         value = self._target(device, target)
         if self.exhausted():
-            raise RuntimeError("Native episode budget exhausted")
+            raise DeviceError("episode_finished", "Native episode budget exhausted",
+                              details={"effects": "none"})
         commands = {device: value}
         if self.on_write is not None:
             self.on_write(tuple(commands))
@@ -65,7 +68,8 @@ class DeviceControl:
 
     def tick(self):
         if self.exhausted():
-            raise RuntimeError("Native episode budget exhausted")
+            raise DeviceError("episode_finished", "Native episode budget exhausted",
+                              details={"effects": "none"})
         self.apply(copy.deepcopy(self.targets))
         self.advance()
         self.frame += 1

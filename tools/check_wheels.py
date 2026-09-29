@@ -6,7 +6,13 @@ import zipfile
 from pathlib import Path
 
 root = Path(sys.argv[1])
-wheels = [root / f"{name}-0.9.0-py3-none-any.whl" for name in ("roboenv", "roboenv_runtime")]
+wheels = []
+for name in ("roboenv", "roboenv_runtime"):
+    # One freshly built wheel of each, whatever the version: no copy of it to bump by hand.
+    found = sorted(root.glob(f"{name}-*-py3-none-any.whl"))
+    if len(found) != 1:
+        raise SystemExit(f"Expected one {name} wheel in {root}, found {len(found)}")
+    wheels.append(found[0])
 for wheel in wheels:
     with zipfile.ZipFile(wheel) as package:
         names = package.namelist()

@@ -31,3 +31,12 @@ def load_tool(name, monkeypatch=None):
     if monkeypatch is not None:
         monkeypatch.syspath_prepend(str(ROOT / "tools"))
     return load_script(f"tools/{name}.py")
+
+
+def kinex_python():
+    """Python assets from the explicitly selected or sibling Kinex checkout."""
+    root = Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")).expanduser().resolve()
+    library = root / "packages/core/assets/python"
+    if "KINEX_ROOT" in os.environ and not (library / "kinex").is_dir():
+        raise FileNotFoundError(f"Selected Kinex Python library is missing: {library}")
+    return library

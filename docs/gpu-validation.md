@@ -21,9 +21,10 @@ No Docker or GPU command runs during preparation. Generated task directories are
 checked by Harbor's actual loader, contain the ordinary environment and verifier,
 and use the existing task generator and taskset runner. Inspect `receipt.json`
 and `taskset/`. Select backends and modes explicitly. `--modes reference` requires
-a supplied `solution.py`. The two checked-in RoboCasa references are retired (they were
-written for the tool API that typed devices replaced), so supply a source with a
-current reference program.
+a supplied `solution.py` beside a task in an explicit `--source` catalog. The
+checked-in catalog contains no reference solutions. Use `--modes probe` for
+device connectivity checks, or supply a controller using the current public
+device API for reference validation.
 
 Execution requires another new output directory; existing evidence is never
 overwritten. Select the permitted GPU using `ROBOENV_GPU` as for any Roboenv task:
@@ -141,3 +142,9 @@ not repository content. No API key is needed. The workflow uploads only the
 sanitized receipt after a successful privacy check and preserves a failed check's
 red status. Creating the YAML does not configure GitHub protection rules or prove
 that the external runner has executed it.
+
+Kinex smoke and rig checks use the built `packages/core` runtime with Node >=22.19.
+Select a checkout with `--kinex` (or `KINEX_ROOT`) and a Node executable with
+`--node` (or `NODE`) in the LIBERO and SIMPLE acceptance runners. Rebuild Kinex core
+after updating its source before running these checks. Python driver tests use
+that checkout's `packages/core/assets/python` library.

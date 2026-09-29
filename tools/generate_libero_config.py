@@ -1,9 +1,7 @@
 """Generate complete native LIBERO scene rigs without task objects or physics."""
 
 import argparse
-import hashlib
 import inspect
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -136,7 +134,10 @@ def descriptors(problem):
                 _camera_names=("agentview", "robot0_eye_in_hand"),
                 _camera_size=CAMERA_SIZE,
             )
-            context = BindingContext("libero", "panda", SimpleNamespace(_env=native))
+            context = BindingContext(
+                "libero", "panda",
+                SimpleNamespace(_env=native, control_interval_s=1 / robot.control_freq),
+            )
             parsed = BindingPlan.load(root, backend="libero")
             before = default_registry().assemble(parsed, root, context).inventory()["devices"]
             sim.data.qpos[robot._ref_joint_pos_indexes] += 0.01
@@ -151,7 +152,7 @@ def descriptors(problem):
         sim.free()
 
 
-def generate(out, provenance=None, *, bindings_out=None):
+def generate(out, *, bindings_out=None):
     for problem, rig in ROBOTS.items():
         facts = {d["name"]: canonical(d) for d in descriptors(problem)}
         destination = out / "robots" / rig
@@ -172,10 +173,10 @@ def generate(out, provenance=None, *, bindings_out=None):
                 "max_cartesian_velocity": None,
                 "max_joint_velocity": None,
                 "keep_out_zones": [],
-                "notes": "Native physical joint constraints and torque clipping apply. Absolute "
+                "notes": "Physical joint constraints and native torque clipping apply. Absolute "
                 "joint targets have no added range rejection. Gripper direction commands "
                 "must be in [-1, 1] and use their sign. "
-                "Stop affects only its device, not the world clock.",
+                "Stop affects only its device; the world owns simulation time.",
             },
             "meta": META,
         }
@@ -185,6 +186,10 @@ def generate(out, provenance=None, *, bindings_out=None):
             for path in sorted(Path(temporary).glob("*/profile.yaml")):
                 profile = canonical(yaml.safe_load(path.read_text()))
                 profile["meta"] = META
+                if profile["type"] == "world":
+                    profile["access"]["source"] = "default"
+                    profile["access"].pop("method", None)
+                    profile["access"].pop("calibrated_at", None)
                 encoded = yaml.safe_dump(profile, sort_keys=False)
                 if "???" in encoded:
                     raise ValueError("Unresolved native catalog facts")
@@ -197,61 +202,11 @@ def generate(out, provenance=None, *, bindings_out=None):
             binding = bindings_out / f"{rig}.yaml"
             binding.parent.mkdir(parents=True, exist_ok=True)
             binding.write_text(yaml.safe_dump(binding_plan(), sort_keys=False))
-    if provenance:
-        import robosuite
-
-        native = Path(robosuite.__file__).parent
-        source_paths = [
-            ROOT / "tools/generate_libero_config.py",
-            ROOT / "runtime/src/roboenv_runtime/bindings/backends/libero/devices.py",
-            ROOT / "runtime/src/roboenv_runtime/adapters/robocasa/geometry.py",
-            ROOT / "src/roboenv/assets/_roboenv.py",
-            ROOT / "src/roboenv/assets/joint-client.py",
-            ROOT / "src/roboenv/assets/gripper-client.py",
-            ROOT / "src/roboenv/assets/camera-client.py",
-        ]
-        source_paths += sorted((ROOT / "third_party/LIBERO/libero/libero/envs/robots").glob("*.py"))
-        source_paths += sorted(
-            (ROOT / "third_party/LIBERO/libero/libero/envs/problems").glob("*.py")
-        )
-        source_paths += [ROOT / "third_party/LIBERO/libero/libero/envs/bddl_base_domain.py"]
-        hashes = {
-            str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in source_paths
-        }
-        for rel in [
-            "models/assets/robots/panda/robot.xml",
-            "models/assets/grippers/panda_gripper.xml",
-            "models/assets/mounts/rethink_mount.xml",
-            "models/grippers/panda_gripper.py",
-            "controllers/config/joint_position.json",
-            "controllers/joint_pos.py",
-        ]:
-            hashes["robosuite-1.4.0/" + rel] = hashlib.sha256(
-                (native / rel).read_bytes()
-            ).hexdigest()
-        provenance.write_text(
-            json.dumps(
-                {
-                    "generator": "tools/generate_libero_config.py",
-                    "sources": hashes,
-                    "method": "CPU native model assembly; no task objects, sampling, "
-                    "renderer, or physics",
-                    "camera_size": list(CAMERA_SIZE),
-                    "control_frequency_hz": 20,
-                    "robots": ROBOTS,
-                    "robosuite_version": robosuite.__version__,
-                },
-                indent=2,
-            )
-            + "\n"
-        )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=ROOT / "catalog")
-    parser.add_argument("--provenance", type=Path)
     parser.add_argument("--bindings-out", type=Path, help="Separate internal binding resource root")
     args = parser.parse_args()
-    generate(args.out, args.provenance, bindings_out=args.bindings_out)
+    generate(args.out, bindings_out=args.bindings_out)

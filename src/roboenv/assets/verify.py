@@ -175,17 +175,26 @@ def validate_journal(raw, *, session, submit_id, verdict, practice=False):
                 "ik",
                 "fk",
             }
-            if (
-                phase == "error"
-                and response.get("error", {}).get("details", {}).get("effects") == "none"
-            ):
-                read_only = True  # explicit server-side rejection before dispatch
+        if (
+            phase == "error"
+            and isinstance(response.get("error", {}).get("details"), dict)
+            and response["error"]["details"].get("effects") == "none"
+        ):
+            read_only = True  # explicit server-side rejection before dispatch, any operation
         if submitted and not read_only:
             raise ValueError("mutation or repeated submit after final verdict")
         if phase == "error":
             if response.get("ok") is not False:
                 raise ValueError("journal error has a successful response")
-            if not read_only:
+            error = response.get("error", {})
+            details = error.get("details")
+            ended = (
+                op == "devices.call"
+                and error.get("code") == "episode_finished"
+                and isinstance(details, dict)
+                and details.get("effects") in ("none", "partial")
+            )
+            if not read_only and not ended:
                 raise ValueError("failed motion leaves its effects indeterminate")
             continue
         if response.get("ok") is not True:

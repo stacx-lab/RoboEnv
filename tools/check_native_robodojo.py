@@ -353,7 +353,9 @@ def check(world, out, report):
                 margin = min(0.05, (high - low) / 4)
                 goals[name][index] = min(high - margin, max(low + margin, goals[name][index]))
     state = copy.deepcopy((world.owner_state(), world.control.targets, world.control.commands))
-    for target in ([float("nan")] * 6, [float("inf")] * 6, [0.0], [True] * 6, [1e9] * 6):
+    # Joint ranges are the simulator's to enforce (limit_handling: native); malformed
+    # targets are still refused before any effect.
+    for target in ([float("nan")] * 6, [float("inf")] * 6, [0.0], [True] * 6):
         try:
             world.device_write("left_arm", target)
         except ValueError:
@@ -441,7 +443,7 @@ def main():
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    sys.path.insert(0, str(args.kinex.resolve() / "python"))
+    sys.path.insert(0, str(args.kinex.resolve() / "packages/core/assets/python"))
     faulthandler.dump_traceback_later(180, repeat=True)
     report = {
         "passed": False,

@@ -28,7 +28,8 @@ CASES = [
 
 
 def probe(suite, task, init, directory, render=False):
-    sys.path.insert(0, str(Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")) / "python"))
+    kinex = Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex"))
+    sys.path.insert(0, str(kinex / "packages/core/assets/python"))
     from kinex.joints import JointDevice
 
     adapter = LiberoAdapter(suite, task, init_state_index=init, enable_render=render)

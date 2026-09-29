@@ -66,6 +66,6 @@ Shared preflight, Python helpers and Kinex command tests cover native passthroug
 and retained malformed-input rejection.
 
 These checks do not certify benchmark boot, task success or fresh-process GPU
-replay. Existing assets, environments, copied workspaces and historical receipts
-are preserved. The [new SIMPLE generation receipt](simple-native-limits.provenance.json)
-records updated facts; the previous receipt remains historical evidence.
+replay. Existing assets, environments, copied workspaces and historical validation
+results are preserved. Generator tests compare regenerated SIMPLE catalogs,
+bindings and model facts with the checked-in files.

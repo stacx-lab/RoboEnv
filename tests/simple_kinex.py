@@ -27,6 +27,7 @@ def check(args):
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     definition = yaml.safe_load(resolve_task(args.task, project=ROOT).path.read_text())
+    definition["execution_mode"] = "stepped"
     definition["backend_kwargs"]["sim_mode"] = args.sim_mode
     definition["backend_kwargs"]["arm_gravity_compensation"] = args.arm_gravity_compensation
     task = out / "task.yaml"
@@ -61,7 +62,7 @@ def check(args):
         "KINEX_CONFIG_DIR": str(out / "kinex-config"),
     }
     subprocess.run(
-        [args.bun, str(ROOT / "tests/native_rigs_kinex.ts"), str(args.kinex), str(workspace)],
+        [args.node, str(ROOT / "tests/native_rigs_kinex.mjs"), str(args.kinex), str(workspace)],
         check=True,
         env=env,
         timeout=60,
@@ -79,12 +80,12 @@ def check(args):
         with (out / "kinex.log").open("x") as log:
             subprocess.run(
                 [
-                    args.bun,
-                    str(ROOT / "tests/simple_kinex_smoke.ts"),
+                    args.node,
+                    str(ROOT / "tests/simple_kinex_smoke.mjs"),
                     str(args.kinex),
                     str(workspace),
                     str(out / "smoke.json"),
-                    "sync",
+                    "stepped",
                 ],
                 cwd=workspace,
                 env=env,
@@ -151,8 +152,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--task", default="simple/g1-xmove-pick")
-    parser.add_argument("--kinex", type=Path, default=ROOT.parent / "kinex")
-    parser.add_argument("--bun", default="bun")
+    parser.add_argument(
+        "--kinex", type=Path,
+        default=Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")),
+    )
+    parser.add_argument("--node", default=os.environ.get("NODE", "node"))
     parser.add_argument("--sim-mode", choices=("mujoco", "mujoco_isaac"), default="mujoco")
     parser.add_argument(
         "--arm-gravity-compensation", action=argparse.BooleanOptionalAction, default=True

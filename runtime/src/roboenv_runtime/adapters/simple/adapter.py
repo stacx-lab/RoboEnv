@@ -10,7 +10,8 @@ class SimpleAdapter(AdapterBase):
     embodiment = "g1"
     owner_thread_required = True
 
-    def __init__(self, **kwargs):
+    def __init__(self, *, stop_on_success=False, **kwargs):
+        self._set_stop_on_success(stop_on_success)
         from .backend import SimpleEnv
 
         self._env = SimpleEnv(**kwargs)

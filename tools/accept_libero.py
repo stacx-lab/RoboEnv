@@ -23,7 +23,8 @@ def run(args):
         "PYTHONPATH": os.pathsep.join(str(ROOT / p) for p in ("src", "runtime/src")),
         "ROBOENV_LIBERO_TEST_PYTHON": str(args.python),
         "ROBOENV_LIBERO_ACCEPTANCE": "1",
-        "BUN": args.bun,
+        "ROBOENV_LIBERO_RENDER_TESTS": "1",
+        "NODE": args.node,
         "KINEX_ROOT": str(args.kinex),
         "LIBERO_CONFIG_PATH": str(args.out / "native-config"),
         "MUJOCO_GL": "egl",
@@ -59,8 +60,8 @@ def run(args):
                 str(args.out / "kinex"),
                 "--kinex",
                 str(args.kinex),
-                "--bun",
-                args.bun,
+                "--node",
+                args.node,
             ],
             360,
         ),
@@ -111,8 +112,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--python", type=Path, default=ROOT / ".venv-sim/libero/bin/python")
-    parser.add_argument("--kinex", type=Path, default=ROOT.parent / "kinex")
-    parser.add_argument("--bun", default="bun")
+    parser.add_argument(
+        "--kinex", type=Path,
+        default=Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")),
+    )
+    parser.add_argument("--node", default=os.environ.get("NODE", "node"))
     args = parser.parse_args()
     args.out, args.python, args.kinex = (
         args.out.resolve(),
