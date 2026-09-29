@@ -13,11 +13,12 @@ def replay(record, assets, out, video=None):
         raise ValueError("Unsupported Go2–D1 record")
     world = Go2Env(
         asset_manifest=assets,
-        realtime=True,
-        command_timeout_s=None,
         cameras=video is not None,
         task_name=record.get("task_name", "go2-d1-control"),
-        max_steps=record.get("max_steps") or 1500,
+        max_steps=record.get("max_steps"),
+        execution_mode=record.get(
+            "execution_mode", "realtime" if record.get("max_steps") is None else "stepped"
+        ),
     )
     recorder = None
     try:
@@ -36,7 +37,7 @@ def replay(record, assets, out, video=None):
         for frame in range(steps + 1):
             while event is not None and event["frame"] == frame:
                 if event["op"] == "write":
-                    world.write(event["device"], event["args"])
+                    world.set_target(event["device"], event["args"])
                 elif event["op"] == "stop":
                     world.stop(event["device"], event["reason"])
                 else:

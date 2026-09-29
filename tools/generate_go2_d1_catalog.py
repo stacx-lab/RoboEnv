@@ -8,16 +8,52 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+PROFILE_TIMESTAMP = "2026-09-23T00:00:00Z"
+GO2_ARM_READING = """def kinex_reading(state):
+    frames = state.get("frame_poses", {})
+    return {
+        **state,
+        "frame_poses": {
+            name: [*value["translation_m"], *value["rotation_xyzw"]]
+            if isinstance(value, dict)
+            else value
+            for name, value in frames.items()
+        },
+    }
+"""
 sys.path.insert(0, str(ROOT / "runtime/src"))
 sys.path.insert(0, str(ROOT / "src"))
 from roboenv.devices.export import driver_access, write_driver  # noqa: E402
 from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import RobotModel  # noqa: E402
 from roboenv_runtime.adapters.isaaclab.go2_d1.profiles import profiles  # noqa: E402
 from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import (  # noqa: E402
-    CONTROL,
     INSTRUCTIONS,
     TASKS,
 )
+
+
+def adapt_go2_arm_driver(path):
+    """Translate Go2's native pose mappings at the Kinex driver boundary."""
+    source = path.read_text()
+    replacements = (
+        (
+            "\n\ndef handle(action, args):",
+            "\n\n" + GO2_ARM_READING.rstrip() + "\n\n\ndef handle(action, args):",
+        ),
+        (
+            'joint.reading(data["state"])',
+            'joint.reading(kinex_reading(data["state"]))',
+        ),
+        (
+            'joint.reading({**data, "frame_poses": data.get("frame_poses", {})})',
+            'joint.reading(kinex_reading(data))',
+        ),
+    )
+    for before, after in replacements:
+        if source.count(before) != 1:
+            raise RuntimeError("The portable joint driver changed; update the Go2 arm adapter")
+        source = source.replace(before, after)
+    path.write_text(source)
 
 
 def generate(assets, out, *, bindings_out=None):
@@ -37,24 +73,31 @@ def generate(assets, out, *, bindings_out=None):
         },
         "sim": {"simulator": "isaaclab", "source": "introspected"},
         "devices": {"source": "introspected"},
+        "meta": {"created_at": PROFILE_TIMESTAMP, "updated_at": PROFILE_TIMESTAMP},
     }
     (rig / "workspace.yaml").write_text(yaml.safe_dump(workspace, sort_keys=False))
     for name, value in values.items():
         dest = rig / "devices" / name
         dest.mkdir(parents=True, exist_ok=True)
-        descriptor = {"name": name, **value}
+        descriptor = {
+            "name": name,
+            **value,
+            "meta": {"created_at": PROFILE_TIMESTAMP, "updated_at": PROFILE_TIMESTAMP},
+        }
+        actions = ["read", "load", "unload", "status"]
         if name == "world":
             descriptor.pop("extrinsics", None)
-        else:
-            actions = ["read", "load", "unload", "status"]
-            if not name.startswith("camera_"):
-                actions += ["write", "stop"]
-            if name == "arm":
-                actions += ["fk", "ik"]
-            descriptor["access"] = driver_access(
-                value["type"], name, actions, "http://127.0.0.1:8123"
-            )
-            write_driver(dest, value["type"])
+            actions.append("wait")
+        elif not name.startswith("camera_"):
+            actions += ["write", "stop"]
+        if name == "arm":
+            actions += ["fk", "ik"]
+        descriptor["access"] = driver_access(
+            value["type"], name, actions, "http://127.0.0.1:8123"
+        )
+        write_driver(dest, value["type"])
+        if name == "arm":
+            adapt_go2_arm_driver(dest / "driver.py")
         (dest / "profile.yaml").write_text(yaml.safe_dump(descriptor, sort_keys=False))
     if bindings_out is not None:
         bindings = bindings_out / "isaaclab/isaaclab-go2-d1.yaml"
@@ -78,18 +121,16 @@ def generate(assets, out, *, bindings_out=None):
                 {
                     "id": f"isaaclab/{name}",
                     "backend": "isaaclab",
+                    "execution_mode": "realtime",
                     "backend_task": f"isaaclab.{name}",
                     "robot": "isaaclab/isaaclab-go2-d1",
                     "instruction": INSTRUCTIONS[name],
                     "seed": 0,
                     "budget_mode": "practice",
-                    "action_abstraction": "devices",
                     "backend_kwargs": {
                         "task_name": name,
                         "asset_manifest": ".cache/isaaclab/go2-d1/assets.json",
-                        "realtime": False,
-                        "command_timeout_s": 0.5,
-                        "max_steps": 1500 if name == CONTROL else 6000,
+                        "max_steps": 6000,
                     },
                 },
                 sort_keys=False,

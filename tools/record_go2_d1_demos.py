@@ -89,7 +89,7 @@ def compose(rgb, title, axis, units, history, limit, duration=DURATION, center=0
 def run(out, cases, smoke=False, high_speed=False, posture=False, walk_speed=0.0):
     out.mkdir(parents=True, exist_ok=False)
     duration = 24 if high_speed or posture else DURATION
-    world = Go2Env(realtime=True, command_timeout_s=None)
+    world = Go2Env()
     native = world.native
     try:
         import isaaclab.sim as sim
@@ -176,7 +176,7 @@ def run(out, cases, smoke=False, high_speed=False, posture=False, walk_speed=0.0
                             velocity[0] = walk_speed if 2 <= t < 21 else 0.0
                         else:
                             velocity[index] = goal
-                        world.write(
+                        world.set_target(
                             "base",
                             {
                                 "mode": "locomotion",
