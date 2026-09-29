@@ -230,6 +230,31 @@ def test_catalog_execution_is_not_a_registered_backend(robot):
         )
 
 
+def test_fakeshell_puck_publishes_a_profile_that_kinex_accepts(robot):
+    from roboenv_runtime.bindings import default_registry
+
+    context = BindingContext("fakeshell", "general", FakeShell())
+    service = default_registry().assemble(
+        BindingPlan.load(robot, backend="fakeshell"), robot, context
+    )
+    try:
+        puck = service.describe("controller")
+    finally:
+        service.close()
+    # Kinex rejects unknown intrinsics of "other" devices; the write schema has the target.
+    assert puck["type"] == "other" and "actions" not in puck["intrinsics"]
+    assert puck["actions"]["write"]["input_schema"]["required"] == ["target"]
+    # Kinex drivers must declare the activation lifecycle, which leaves the world alone.
+    for action in ("read", "load", "unload", "status"):
+        assert puck["actions"][action]["supported"] and puck["actions"][action]["read_only"]
+    profile = robot / "devices/controller/profile.yaml"
+    value = yaml.safe_load(profile.read_text())
+    value["intrinsics"]["actions"] = [{"component": "x", "units": "m"}]
+    profile.write_text(yaml.safe_dump(value))
+    with pytest.raises(ValueError, match="write schema"):
+        default_registry().assemble(BindingPlan.load(robot, backend="fakeshell"), robot, context)
+
+
 def test_native_read_context_refuses_effectful_backend_operation(robot):
     registry = BindingRegistry()
     moved = []

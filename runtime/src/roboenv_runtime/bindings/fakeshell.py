@@ -1,7 +1,6 @@
 """Native reference binding: existing puck entity, no Client/tools()/primitive RPC."""
 
 import math
-from dataclasses import replace
 
 from roboenv.devices.model import Action, BoundDevice, DeviceError
 
@@ -23,10 +22,10 @@ def bind_puck(spec, root, context):
     if spec.config:
         raise ValueError("fakeshell.puck/1 has no binding-specific configuration")
     definition = spec.definition(root)
-    action_space = [{"component": "x", "units": "m"}]
-    if definition.intrinsics.get("actions", action_space) != action_space:
-        raise ValueError("fakeshell puck action space is x in metres")
-    definition = replace(definition, intrinsics={**definition.intrinsics, "actions": action_space})
+    # Published profiles must satisfy Kinex, whose "other" devices have no action
+    # space intrinsics; the write schema below declares the target instead.
+    if "actions" in definition.intrinsics:
+        raise ValueError("fakeshell puck declares its action space in the write schema")
 
     def read(args, execution):
         if args:
@@ -79,6 +78,7 @@ def bind_puck(spec, root, context):
                 "properties": {
                     "target": {
                         "type": "array",
+                        "description": "Absolute puck x position in metres",
                         "minItems": 1,
                         "maxItems": 1,
                         "items": {"type": "number"},
@@ -88,7 +88,8 @@ def bind_puck(spec, root, context):
             },
         ),
         "stop": Action(reason="Discrete synchronous puck motion has no interrupt controller"),
-        "unload": Action(reason="The environment owner controls world lifecycle"),
+        # Kinex requires load/unload/status on every driver; neither changes the world.
+        "unload": Action(lambda args, execution: {"unloaded": True}, empty),
     }
     return BoundDevice(
         definition,
