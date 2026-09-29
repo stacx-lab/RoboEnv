@@ -114,42 +114,6 @@ def atomic_write_json(
                 tmp.unlink()
 
 
-def atomic_write_text(
-    path: str | os.PathLike[str],
-    text: str,
-    *,
-    mode: int = 0o600,
-) -> None:
-    """Durably replace a UTF-8 text file without exposing partial content."""
-
-    if not isinstance(text, str):
-        raise TypeError("text must be a string")
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    prefix = f".{target.name}."
-    fd, tmp_name = tempfile.mkstemp(prefix=prefix, suffix=".tmp", dir=target.parent)
-    tmp = Path(tmp_name)
-    replaced = False
-    try:
-        os.fchmod(fd, mode)
-        with os.fdopen(fd, "w", encoding="utf-8", newline="", closefd=True) as handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp, target)
-        replaced = True
-        _fsync_directory(target.parent)
-    finally:
-        if not replaced:
-            with contextlib.suppress(FileNotFoundError):
-                tmp.unlink()
-
-
-def read_json(path: str | os.PathLike[str]) -> Any:
-    with Path(path).open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
 def iter_jsonl(
     path: str | os.PathLike[str], *, tolerate_truncated_tail: bool = True
 ) -> Iterator[dict[str, Any]]:
@@ -220,25 +184,3 @@ class AtomicJournal:
     def events(self) -> list[dict[str, Any]]:
         with self._lock:
             return list(iter_jsonl(self.path))
-
-    def completed(self) -> dict[tuple[str, int, str], dict[str, Any]]:
-        """Latest durable terminal response for each deduplication key."""
-
-        out: dict[tuple[str, int, str], dict[str, Any]] = {}
-        for event in iter_jsonl(self.path):
-            if event.get("phase") not in {"commit", "error"}:
-                continue
-            request = event.get("request")
-            response = event.get("response")
-            if not isinstance(request, dict) or not isinstance(response, dict):
-                continue
-            try:
-                key = (
-                    str(request["session"]),
-                    int(request["generation"]),
-                    str(request["request_id"]),
-                )
-            except (KeyError, TypeError, ValueError):
-                continue
-            out[key] = {"request": request, "response": response}
-        return out

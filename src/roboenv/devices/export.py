@@ -19,7 +19,6 @@ DRIVERS = {
     "force_torque": "sensor-client.py",
     "imu": "sensor-client.py",
 }
-PORTABLE_TYPES = frozenset(DRIVERS)
 
 
 def driver_resources(directory):

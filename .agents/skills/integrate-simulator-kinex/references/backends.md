@@ -36,7 +36,7 @@ and native success rules. Do not restore primitive dispatch or a second driver p
 
 ## RoboTwin
 
-- Inspect `adapters/robotwin/{adapter,devices,rig,backend,embodiments}.py`
+- Inspect `adapters/robotwin/{adapter,devices,rig,backend}.py`
   under `runtime/src/roboenv_runtime/`, its selected upstream robot configs, and
   `catalog/robots/robotwin/robotwin-dual-piper` / `robotwin-aloha-agilex` if still present.
   Confirm the intended upstream edition; RoboTwin and RoboTwin2.0-Plus are not
@@ -54,9 +54,9 @@ and native success rules. Do not restore primitive dispatch or a second driver p
   If retained, isolate the expert prepass as owner initialization, record its
   time/work and errors, and rebuild the evaluated initial state afterward. Its
   actions/state are never candidate inputs or evidence of candidate success.
-  Record requested seed, `actual_seed` and every internal retry; predeclare whether
-  seed substitution is allowed. Replay uses the effective state identity. Two
-  requested seeds that fall back to the same state are not distinct cases.
+  Record requested seed, `initialization["effective_seed"]` and every internal retry;
+  predeclare whether seed substitution is allowed. Replay uses the effective state
+  identity. Two requested seeds that fall back to the same state are not distinct cases.
 - Extract both arms' actual joint order, limits, flange/TCP transforms, gripper
   mapping and cameras from the selected embodiment. Prevent alias/composite
   commands from controlling the same joints twice. Verify atomic left/right/hand

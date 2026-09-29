@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import os
 from typing import Any
 
@@ -16,16 +15,6 @@ DEFAULT_CAMERAS = ("robot0_agentview_left", "robot0_agentview_right", "robot0_ey
 def _ensure_offscreen_rendering():
     os.environ.setdefault("MUJOCO_GL", "egl")
     os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
-
-
-def list_robocasa_tasks():
-    from robocasa.environments import ALL_KITCHEN_ENVIRONMENTS
-
-    return sorted(ALL_KITCHEN_ENVIRONMENTS)
-
-
-def _xyzw(q):
-    return np.asarray(q)[[1, 2, 3, 0]]
 
 
 def joint_controller_config(robot):
@@ -82,8 +71,6 @@ class RoboCasaEnv:
         self.configured_max_steps = max_steps
         self._max_steps = max_steps
         self._step_count = 0
-        self._frames: list[np.ndarray] = []
-        self._capture = False
         controller_config = joint_controller_config(robot)
         env_kwargs: dict[str, Any] = {
             "robots": robot,
@@ -142,54 +129,6 @@ class RoboCasaEnv:
         """The task's language instruction for this episode."""
         return str(self.episode_meta().get("lang", ""))
 
-    def task_fixtures(self) -> dict[str, str]:
-        """Role → fixture name for the fixtures this task is about.
-
-        The benchmark's registered ``fixture_refs`` come first (``cab``, ``fxtr``,
-        ``counter`` ...).  Then every Fixture the task class keeps as a plain attribute of
-        the environment is ADDED under its attribute name (``blender``, ``toaster_oven``,
-        ``cab2`` ...) — tasks that register some refs and keep the appliance as an
-        attribute (PickPlaceCounterToBlender: ``counter`` registered, ``blender`` not)
-        used to hide it.  An auxiliary fixture hanging off one of those (a blender's lid,
-        a jar's lid, the vinegar bottle of an oil bottle) is listed as
-        ``<attribute>_<part>`` when the fixture keeps it as an attribute, or
-        ``<attribute>_auxiliary`` when RoboCasa only placed it as ``<name>_auxiliary_*``.
-        """
-        try:
-            refs = self.episode_meta().get("fixture_refs") or {}
-        except Exception:
-            refs = {}
-        out = {str(k): str(v) for k, v in refs.items()}
-        self._ensure_built()
-        from robocasa.models.fixtures import Fixture
-
-        listed = set(out.values())
-        for attr, value in vars(self.env).items():
-            if attr.startswith(("_", "init_")) or not isinstance(value, Fixture):
-                continue
-            name = getattr(value, "name", None)
-            if name not in self.env.fixtures:
-                continue
-            if name not in listed:
-                out[attr] = str(name)
-                listed.add(name)
-            # auxiliary parts: Fixture attributes of the fixture itself ...
-            for sub_attr, part in vars(value).items():
-                pname = getattr(part, "name", None)
-                if not isinstance(part, Fixture) or pname not in self.env.fixtures:
-                    continue
-                if pname in listed:
-                    continue
-                key = sub_attr[len(attr) + 1 :] if sub_attr.startswith(f"{attr}_") else sub_attr
-                out[f"{attr}_{key}"] = str(pname)
-                listed.add(pname)
-            # ... or fixtures RoboCasa's scene builder named after it
-            for other in self.env.fixtures:
-                if other.startswith(f"{name}_auxiliary") and other not in listed:
-                    out[f"{attr}_auxiliary"] = str(other)
-                    listed.add(other)
-        return out
-
     def task_completed(self) -> bool:
         """The benchmark's own success check."""
         return bool(self.env._check_success())
@@ -198,11 +137,6 @@ class RoboCasaEnv:
         """Names of the task's movable objects."""
         self._ensure_built()
         return sorted(self.env.objects)
-
-    def list_fixtures(self) -> list[str]:
-        """Names of the kitchen fixtures (counters, cabinets, appliances ...)."""
-        self._ensure_built()
-        return sorted(self.env.fixtures)
 
     def get_object_pose(self, name: str) -> tuple[np.ndarray, np.ndarray]:
         """World pose ``(position, quaternion_wxyz)`` of an object or fixture."""
@@ -221,80 +155,6 @@ class RoboCasaEnv:
         pos = np.array(self.sim.data.body_xpos[body_id], dtype=float)
         quat = np.array(self.sim.data.body_xquat[body_id], dtype=float)  # MuJoCo: wxyz
         return pos, quat
-
-    def fixture_extent(self, name: str) -> dict[str, Any]:
-        """Footprint of a fixture: world ``pos``, ``yaw``, ``width/depth/height`` and its
-        8 bounding-box corners (world), so an agent can pick a standing spot beside it.
-        """
-        fixture = self.env.fixtures.get(name)
-        if fixture is None:
-            raise KeyError(f"unknown fixture {name!r}")
-        try:
-            bbox = [np.asarray(pt, dtype=float).tolist() for pt in fixture.get_bbox_points()]
-        except Exception:
-            bbox = []
-        return {
-            "pos": np.asarray(fixture.pos, dtype=float).tolist(),
-            "yaw": float(getattr(fixture, "rot", 0.0) or 0.0),
-            "width": fixture.width,
-            "depth": fixture.depth,
-            "height": fixture.height,
-            "bbox": bbox,
-        }
-
-    def object_extent(self, name: str) -> dict[str, Any]:
-        """Size of an object along its own axes and where those axes point in the world."""
-        import robosuite.utils.transform_utils as tu
-
-        obj = self.env.objects.get(name)
-        if obj is None:
-            raise KeyError(f"unknown object {name!r}")
-        pos, quat = self.get_object_pose(name)
-        axes = tu.quat2mat(_xyzw(quat)).T  # rows: local x, y, z in world coordinates
-        return {
-            "size": np.asarray(obj.size, dtype=float).tolist(),
-            "axes_world": np.round(axes, 4).tolist(),
-            "bottom_z": float(pos[2] + obj.bottom_offset[2]),
-            "top_z": float(pos[2] + obj.top_offset[2]),
-        }
-
-    def fixture_regions(self, name: str) -> dict[str, Any]:
-        """Interior placement regions of a fixture (tray, shelf, rack ...) as world boxes:
-        the exact volumes RoboCasa samples and checks objects in.
-        """
-        import robosuite.utils.transform_utils as tu
-
-        fixture = self.env.fixtures[name]
-        regions = (
-            fixture.get_reset_regions(self.env) if hasattr(fixture, "get_reset_regions") else {}
-        )
-        pos = np.asarray(fixture.pos, dtype=float)
-        rot = tu.euler2mat(np.array([0.0, 0.0, float(getattr(fixture, "rot", 0.0) or 0.0)]))
-        out: dict[str, Any] = {}
-        for tag, spec in (regions or {}).items():
-            offset = np.asarray(spec.get("offset", (0, 0, 0)), dtype=float)
-            centre = pos + rot @ offset
-            out[tag] = {
-                "center": centre.round(4).tolist(),
-                "size_xy": [float(v) for v in np.asarray(spec.get("size", (0, 0)), dtype=float)],
-                "height": float(spec.get("height", 0.0)),
-            }
-        anchor = getattr(fixture, "anchor_offset", None)
-        if anchor is not None:
-            with contextlib.suppress(Exception):
-                from robocasa.utils import object_utils
-
-                out["anchor"] = {
-                    "center": np.asarray(
-                        object_utils.get_pos_after_rel_offset(fixture, anchor), dtype=float
-                    )
-                    .round(4)
-                    .tolist(),
-                    "size_xy": [0.0, 0.0],
-                    "height": 0.0,
-                    "note": "where an auxiliary part (e.g. a lid) sits when in place",
-                }
-        return out
 
     def get_step_budget(self) -> dict[str, int | None]:
         """Native control frames executed by pending commands."""
@@ -331,7 +191,6 @@ class RoboCasaEnv:
         self._obs = self.env.reset()
         self._step_count = 0
         self._stream_commands = {}
-        self._frames.clear()
         for part in self._robot.part_controllers:
             self.stop_part(part)
         return self._obs

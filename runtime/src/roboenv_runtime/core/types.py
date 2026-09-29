@@ -42,13 +42,6 @@ class ScoreReport:
         """A JSON-serialisable view."""
         return asdict(self)
 
-    def summary(self) -> str:
-        """Compact one-line rendering used in agent feedback."""
-        return (
-            f"{{reward: {self.reward}, raw: {self.raw_score}, tier: {self.tier}, "
-            f"completed: {self.completed}}}"
-        )
-
 
 @dataclass
 class Budget:
