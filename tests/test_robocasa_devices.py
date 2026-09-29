@@ -1,6 +1,5 @@
 """Task-specific devices and the small endpoint client. No GPU or model runs."""
 
-import ast
 import json
 import os
 import subprocess
@@ -567,20 +566,3 @@ def test_world_binding_preserves_profile_geometry(tmp_path, device_type, config)
     assert descriptor["intrinsics"] == intrinsics
     assert {"read", "wait"} <= descriptor["actions"].keys()
     service.close()
-
-
-def test_config_provenance_names_only_existing_sources():
-    # A removed module left in the receipt's source list made --provenance crash after the
-    # catalog was written; every in-repository input must still exist.
-    tree = ast.parse((ROOT / "tools/generate_robocasa_config.py").read_text())
-    sources = next(
-        node.value
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Assign)
-        and any(getattr(target, "id", None) == "sources" for target in node.targets)
-    )
-    paths = [ast.literal_eval(item) for item in sources.elts]
-    local = [path for path in paths if not path.startswith("third_party/")]
-    assert local and all((ROOT / path).is_file() for path in local)
-    receipt = json.loads((ROOT / "docs/robocasa-config.provenance.json").read_text())
-    assert set(receipt["sources"]) == set(paths)

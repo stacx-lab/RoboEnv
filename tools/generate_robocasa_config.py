@@ -5,8 +5,6 @@ called by launch. Facts come from the pinned robot/controller and camera sources
 """
 
 import argparse
-import hashlib
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -106,7 +104,7 @@ def canonical(value):
     return value
 
 
-def generate(out, provenance=None):
+def generate(out):
     out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as temporary:
         export_devices(descriptors(), temporary, {"endpoint": "http://127.0.0.1:8123"})
@@ -132,66 +130,10 @@ def generate(out, provenance=None):
                 write_driver(destination, profile["type"])
             # There is deliberately no task or session connection file.
     (out / "workspace.yaml").write_bytes((ROBOT / "workspace.yaml").read_bytes())
-    if provenance is None:
-        return
-    sources = [
-        "third_party/robocasa/robocasa/utils/camera_utils.py",
-        "third_party/robocasa/robocasa/environments/kitchen/kitchen.py",
-        "third_party/robosuite/robosuite/models/robots/compositional.py",
-        "third_party/robosuite/robosuite/models/assets/robots/panda/robot.xml",
-        "third_party/robosuite/robosuite/models/assets/bases/omron_mobile_base.xml",
-        "third_party/robosuite/robosuite/models/assets/grippers/panda_gripper.xml",
-        "third_party/robosuite/robosuite/controllers/config/robots/default_pandaomron.json",
-        "third_party/robosuite/robosuite/controllers/config/default/parts/joint_position.json",
-        "third_party/robosuite/robosuite/controllers/parts/generic/joint_pos.py",
-        "third_party/robosuite/robosuite/controllers/parts/mobile_base/joint_vel.py",
-        "third_party/robosuite/robosuite/models/grippers/panda_gripper.py",
-        "third_party/robosuite/robosuite/utils/camera_utils.py",
-        # af08c09 split the RoboCasa native binding into one module per device type.
-        "runtime/src/roboenv_runtime/bindings/backends/robocasa/__init__.py",
-        "runtime/src/roboenv_runtime/bindings/backends/robocasa/common.py",
-        "runtime/src/roboenv_runtime/bindings/backends/robocasa/geometry.py",
-        "runtime/src/roboenv_runtime/bindings/backends/robocasa/gripper_geometry.py",
-        "runtime/src/roboenv_runtime/adapters/robocasa/geometry.py",
-        "runtime/src/roboenv_runtime/adapters/robocasa/base.py",
-        "src/roboenv/assets/_roboenv.py",
-        "src/roboenv/assets/joint-client.py",
-        "runtime/src/roboenv_runtime/bindings/backends/robocasa/joint.py",
-        "src/roboenv/assets/camera-client.py",
-        "src/roboenv/assets/gripper-client.py",
-        "src/roboenv/assets/velocity-client.py",
-        "runtime/src/roboenv_runtime/bindings/backends/robocasa/velocity.py",
-        "runtime/src/roboenv_runtime/bindings/backends/robocasa/gripper.py",
-        "runtime/src/roboenv_runtime/bindings/backends/robocasa/camera.py",
-        "src/roboenv/devices/export.py",
-        "runtime/src/roboenv_runtime/adapters/robocasa/depth.py",
-        "runtime/src/roboenv_runtime/adapters/robocasa/backend.py",
-    ]
-    provenance.write_text(
-        json.dumps(
-            {
-                "generator": "tools/generate_robocasa_config.py",
-                "method": "CPU model assembly; zero physics steps; no task",
-                "robot": "PandaOmron",
-                "cameras": list(DEFAULT_CAMERAS),
-                "camera_size": [256, 256],
-                "control_frequency_hz": 20,
-                "randomize_cameras": False,
-                "sources": {
-                    p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest() for p in sources
-                },
-            },
-            indent=2,
-        )
-        + "\n"
-    )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=ROBOT)
-    parser.add_argument(
-        "--provenance", type=Path, help="Optional source receipt outside the robot directory"
-    )
     args = parser.parse_args()
-    generate(args.out, args.provenance)
+    generate(args.out)
