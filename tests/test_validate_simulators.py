@@ -47,16 +47,25 @@ def typed_reference_fixture(tmp_path):
     return source
 
 
-def test_default_preparation_selects_available_references_without_execution(tmp_path, monkeypatch):
+def test_default_reference_preparation_requires_a_supplied_program(tmp_path):
+    tool = load_tool("validate_simulators")
+    wheel, deployments = inputs(tmp_path)
+    out = tmp_path / "validation"
+    with pytest.raises(ValueError, match="no validation cases matched"):
+        tool.prepare(deployments, wheel, out)
+    assert not out.exists()
+
+
+def test_preparation_selects_supplied_reference_without_execution(tmp_path, monkeypatch):
     tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     monkeypatch.setattr(
         tool.subprocess, "run", lambda *args, **kwargs: pytest.fail("must not execute")
     )
     out = tmp_path / "validation"
-    receipt = tool.prepare(deployments, wheel, out)
-    assert len(receipt["cases"]) == 2
-    assert {case["backend"] for case in receipt["cases"]} == {"robocasa"}
+    receipt = tool.prepare(deployments, wheel, out, source=typed_reference_fixture(tmp_path))
+    assert len(receipt["cases"]) == 1
+    assert {case["backend"] for case in receipt["cases"]} == {"robotwin"}
     assert receipt["phase"] == "prepared" and receipt["model_calls"] == 0
     assert receipt["reference_official"] is False
     assert receipt["harbor_loader_validated"] is True
@@ -399,8 +408,12 @@ def test_probe_evidence_requires_every_declared_read(tmp_path):
             assert evidence["failure_category"] == "incomplete-device-read-evidence"
 
 
-def test_reference_selection_requires_a_solution():
-    identifier = "robotwin/handover-mic"
+@pytest.mark.parametrize("identifier", [
+    "robotwin/handover-mic",
+    "robocasa/pick-place-microwave",
+    "robocasa/arrange-vegetables",
+])
+def test_reference_selection_requires_a_solution(identifier):
     tool = load_tool("validate_simulators")
     with pytest.raises(ValueError, match="requires an explicit regular solution.py"):
         tool.select_cases(backends=[identifier.split("/")[0]], cases=[identifier])

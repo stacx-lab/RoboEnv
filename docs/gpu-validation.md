@@ -21,7 +21,10 @@ No Docker or GPU command runs during preparation. Generated task directories are
 checked by Harbor's actual loader, contain the ordinary environment and verifier,
 and use the existing task generator and taskset runner. Inspect `receipt.json`
 and `taskset/`. Select backends and modes explicitly. `--modes reference` requires
-a supplied `solution.py`; the checked-in references are the two RoboCasa examples.
+a supplied `solution.py` beside a task in an explicit `--source` catalog. The
+checked-in catalog contains no reference solutions. Use `--modes probe` for
+device connectivity checks, or supply a controller using the current public
+device API for reference validation.
 
 Execution requires another new output directory; existing evidence is never
 overwritten. Select the permitted GPU using `ROBOENV_GPU` as for any Roboenv task:
