@@ -10,3 +10,4 @@ backend_kwargs:
   task_name: go2-d1-control
   asset_manifest: .cache/isaaclab/go2-d1/assets.json
   max_steps: 6000
+  task_spec: {}

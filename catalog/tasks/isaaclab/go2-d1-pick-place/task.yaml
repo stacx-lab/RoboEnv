@@ -10,3 +10,24 @@ backend_kwargs:
   task_name: go2-d1-pick-place
   asset_manifest: .cache/isaaclab/go2-d1/assets.json
   max_steps: 6000
+  task_spec:
+    object_position: [1.25, 0.0, 0.03]
+    object_size: [0.04, 0.04, 0.06]
+    object_mass_kg: 0.08
+    destination: [2.5, 0.0, 0.0]
+    destination_half_size_m: 0.15
+    minimum_carry_base_displacement_m: 0.6
+    lift_center_height_m: 0.12
+    lift_hold_steps: 10
+    contact_loss_grace_steps: 10
+    minimum_contact_force_n: 0.01
+    maximum_object_tcp_distance_m: 0.07
+    release_center_height_m: 0.1
+    drop_bottom_height_m: 0.008
+    settled_bottom_min_m: -0.005
+    settled_bottom_max_m: 0.012
+    maximum_object_speed_m_s: 0.03
+    maximum_object_angular_speed_rad_s: 0.15
+    minimum_gripper_opening: 0.8
+    hold_steps: 50
+    maximum_base_speed_m_s: 0.08

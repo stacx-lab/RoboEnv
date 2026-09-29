@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import math
 import os
 import sys
 import traceback
@@ -12,7 +11,7 @@ import numpy as np
 
 from .adapter import DEFAULT, LEG_NAMES, RobotModel, Trot, matrix_quat, quat_matrix
 from .limits import ARM_EFFORT_LIMITS, ARM_VELOCITY_LIMIT_SIM
-from .tasks import PICK_PLACE
+from .tasks import PICK_PLACE, definition
 
 
 class Native:
@@ -25,8 +24,10 @@ class Native:
         device="cuda:0",
         cameras=True,
         task_name="go2-d1-control",
-        payload_mass_kg=0.08,
+        task_spec=None,
+        device_profiles=None,
     ):
+        self.task_spec = definition(task_name) if task_spec is None else task_spec
         manifest = Path(asset_manifest).resolve()
         facts = json.loads(manifest.read_text())
         if facts.get("schema") != "roboenv/go2-d1-assets/1":
@@ -39,11 +40,17 @@ class Native:
             ):
                 raise ValueError(f"Changed or missing Go2–D1 asset: {name}")
         self.task_name = task_name
-        self.payload_mass_kg = payload_mass_kg
+        self.payload_mass_kg = self.task_spec.get("object_mass_kg")
         self.asset_manifest = manifest
         self.asset_sha = hashlib.sha256(manifest.read_bytes()).hexdigest()
         self.model = RobotModel(manifest.parent / "robot.urdf")
         self.home = json.loads((manifest.parent / "home.json").read_text())
+        if device_profiles is None:
+            from .environment import load_profiles
+
+            device_profiles = load_profiles()
+        validate_robot_profiles(device_profiles, self.model, self.home)
+        self.device_profiles = device_profiles
         self.app = self.sim = None
         self.cameras = {}
         os.environ.setdefault("OMNI_KIT_ACCEPT_EULA", "YES")
@@ -137,18 +144,23 @@ class Native:
             from isaaclab.sensors import Camera, CameraCfg
 
             for name in ("camera_head", "camera_wrist"):
-                aperture = 48 * math.tan(math.radians(87 / 2 if name == "camera_wrist" else 69 / 2))
+                intrinsics = self.device_profiles[name]["intrinsics"]
+                color = intrinsics["color"]
+                projection = color["projection"]
+                width, height = color["width"], color["height"]
+                aperture = width * 24.0 / projection["fx"]
+                depth_range = intrinsics["depth"]["reliable_range_m"]
                 camera = Camera(
                     CameraCfg(
                         prim_path="/World/" + name,
-                        width=480,
-                        height=270,
+                        width=width,
+                        height=height,
                         data_types=["rgb", "distance_to_image_plane"],
                         spawn=sim.PinholeCameraCfg(
                             focal_length=24.0,
                             horizontal_aperture=aperture,
-                            vertical_aperture=aperture * 270 / 480,
-                            clipping_range=(0.015, 20.0),
+                            vertical_aperture=height * 24.0 / projection["fy"],
+                            clipping_range=(depth_range["min"], depth_range["max"]),
                         ),
                     )
                 )
@@ -286,3 +298,84 @@ class Native:
                 traceback.print_exc()
             self.app.close(exit_code=1 if error is not None else 0)
             self.app = None
+
+
+def validate_robot_profiles(profiles, model, home):
+    """Check YAML geometry against the prepared URDF before Isaac is started."""
+    from .adapter import transform
+
+    def same(actual, expected, label):
+        a, b = np.asarray(actual), np.asarray(expected)
+        if a.shape != b.shape or not np.allclose(a, b, atol=1e-9, rtol=1e-7):
+            raise ValueError(f"Go2 profile differs from native model: {label}")
+
+    expected_types = {
+        "base": "velocity",
+        "arm": "joint",
+        "gripper": "gripper",
+        "camera_head": "rgbd",
+        "camera_wrist": "rgbd",
+        "world": "world",
+    }
+    if {n: p["type"] for n, p in profiles.items()} != expected_types:
+        raise ValueError("Go2 device inventory differs from the native model")
+    gripper_mount = profiles["gripper"]["extrinsics"]["mount"]
+    if (gripper_mount["parent"], gripper_mount["parent_frame"]) != ("arm", "flange"):
+        raise ValueError("Go2 gripper must be mounted on the arm flange")
+    same(gripper_mount["rotation_xyzw"], [0, 0, 0, 1], "gripper orientation")
+    for name in ("camera_head", "camera_wrist"):
+        intrinsic = profiles[name]["intrinsics"]
+        color, depth = intrinsic["color"], intrinsic["depth"]
+        width, height = color["width"], color["height"]
+        projection = color["projection"]
+        if any(type(v) is not int or v <= 0 for v in (width, height)) or (
+            depth["width"],
+            depth["height"],
+        ) != (width, height):
+            raise ValueError("Go2 cameras require matching positive RGB-D dimensions")
+        if (
+            not np.isfinite([projection["fx"], projection["fy"]]).all()
+            or min(projection["fx"], projection["fy"]) <= 0
+        ):
+            raise ValueError("Go2 camera focal lengths must be positive and finite")
+        same(
+            [projection["cx"], projection["cy"], projection["skew"]],
+            [width / 2, height / 2, 0],
+            name + " centered projection",
+        )
+    arm = profiles["arm"]["intrinsics"]
+    joints, chain = arm["model"]["joints"], arm["model"]["chain"]
+    if [j["name"] for j in joints] != model.arm_names or len(chain) != len(joints):
+        raise ValueError("Go2 arm joint order differs from the native model")
+    for index, (joint, link) in enumerate(zip(joints, chain, strict=True)):
+        name = joint["name"]
+        native = model.joints[name]
+        same([joint["limits"]["min"], joint["limits"]["max"]], native["limits"], name)
+        same(joint["max_effort"], ARM_EFFORT_LIMITS[name], name + " effort")
+        if joint["max_velocity"] is not None or joint["type"] != "revolute":
+            raise ValueError("Go2 arm requires revolute joints with native velocity limits")
+        if link["joint"] != index or link["reference"] != 0:
+            raise ValueError("Go2 arm chain order/reference differs from native")
+        same(link["anchor"], [0, 0, 0], name + " anchor")
+        same(link["axis"], native["axis"], name + " axis")
+        same(
+            transform({"translation_m": link["origin"][:3], "rotation_xyzw": link["origin"][3:]}),
+            native["origin"],
+            name + " origin",
+        )
+        same(arm["home"][name], home[name], name + " home")
+    frames = model.forward({})
+    for device, parent, parent_frame, frame in (
+        ("arm", "base", "base", frames["d1_base_link"]),
+        ("camera_head", "base", "base", frames["head_d435_color_optical_frame"]),
+        (
+            "camera_wrist",
+            "arm",
+            "flange",
+            np.linalg.inv(frames["d1_Link6"]) @ frames["wrist_d405_color_optical_frame"],
+        ),
+    ):
+        mount = profiles[device]["extrinsics"]["mount"]
+        if (mount["parent"], mount["parent_frame"]) != (parent, parent_frame):
+            raise ValueError(f"Go2 {device} mount parent differs from native")
+        same(transform(mount), frame, device + " mount")

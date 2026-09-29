@@ -10,3 +10,11 @@ backend_kwargs:
   task_name: go2-d1-reach
   asset_manifest: .cache/isaaclab/go2-d1/assets.json
   max_steps: 6000
+  task_spec:
+    reach_position: [1.4, 0.0, 0.65]
+    reach_quaternion_xyzw: [0.0, 0.7071067811865476, 0.0, 0.7071067811865476]
+    reach_position_tolerance_m: 0.025
+    reach_rotation_tolerance_rad: 0.1
+    minimum_reach_base_displacement_m: 0.5
+    hold_steps: 50
+    maximum_base_speed_m_s: 0.08

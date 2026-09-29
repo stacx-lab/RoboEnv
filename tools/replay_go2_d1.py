@@ -15,6 +15,13 @@ def replay(record, assets, out, video=None):
         asset_manifest=assets,
         cameras=video is not None,
         task_name=record.get("task_name", "go2-d1-control"),
+        task_spec={
+            k: v
+            for k, v in record["task_definition"].items()
+            if k not in {"name", "version", "tcp_in_flange_m"}
+        },
+        tcp_in_flange_m=record["task_definition"].get("tcp_in_flange_m"),
+        device_profiles=record.get("device_profiles"),
         max_steps=record.get("max_steps"),
         execution_mode=record.get(
             "execution_mode", "realtime" if record.get("max_steps") is None else "stepped"
@@ -24,7 +31,7 @@ def replay(record, assets, out, video=None):
     try:
         world.reset(record["seed"])
         initial = world.record()
-        for field in ("asset_sha256", "sources", "task_definition"):
+        for field in ("asset_sha256", "sources", "task_definition", "device_profiles"):
             if initial[field] != record[field]:
                 raise ValueError(f"Replay identity mismatch: {field}")
         if video is not None:
@@ -62,7 +69,12 @@ def replay(record, assets, out, video=None):
         task_match = all(
             actual["task"][k] == expected["task"][k]
             for k in (
-                "placement_started", "completed", "failure", "hold", "lift_hold", "contact_loss",
+                "placement_started",
+                "completed",
+                "failure",
+                "hold",
+                "lift_hold",
+                "contact_loss",
             )
         )
         object_error = 0.0

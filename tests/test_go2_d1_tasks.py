@@ -8,13 +8,15 @@ import pytest
 from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import (
     CONTROL,
-    OBJECT_SIZE,
     PICK_PLACE,
     REACH,
-    REACH_POSITION,
-    REACH_QUAT,
     TaskState,
+    definition,
 )
+
+REACH_POSITION = definition(REACH)["reach_position"]
+REACH_QUAT = definition(REACH)["reach_quaternion_xyzw"]
+OBJECT_SIZE = definition(PICK_PLACE)["object_size"]
 
 
 def reach_sample(**changes):
@@ -171,3 +173,135 @@ def test_placement_latch_preserves_destination_failure_after_block_is_raised():
     assert state.placement_started and state.failure is None
     state.update(payload_sample(x=2.7, z=0.2, base_x=2.13))
     assert state.failure == "object_left_destination"
+
+
+def test_custom_reach_spec_controls_goal_tolerance_hold_and_snapshot():
+    from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import catalog_definition
+
+    spec = catalog_definition(REACH)
+    spec.update(
+        reach_position=[2.0, 0.0, 0.8],
+        reach_quaternion_xyzw=[0, 0, 0, 1],
+        reach_position_tolerance_m=0.01,
+        hold_steps=2,
+    )
+    state = TaskState(REACH, spec, [0, 0, 0.2])
+    update(state, reach_sample(), 50)
+    assert not state.completed
+    sample = reach_sample(tcp_position=[2.02, 0, 0.8], tcp_quaternion=[0, 0, 0, 1])
+    update(state, sample, 2)
+    assert not state.completed
+    sample["tcp_position"] = [2.005, 0, 0.8]
+    state.update(sample)
+    assert not state.completed
+    state.update(sample)
+    assert state.completed
+    spec["reach_position"][0] = 99
+    assert state.snapshot()["spec"]["reach_position"] == [2.0, 0.0, 0.8]
+    assert state.snapshot()["spec"]["tcp_in_flange_m"] == [0, 0, 0.2]
+
+
+def test_custom_destination_and_pick_hold_are_used():
+    from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import catalog_definition
+
+    spec = catalog_definition(PICK_PLACE)
+    spec.update(destination=[3, 0, 0], destination_half_size_m=0.1, lift_hold_steps=2, hold_steps=2)
+    state = TaskState(PICK_PLACE, spec)
+    update(state, payload_sample(), 2)
+    assert state.pickup_base is not None
+    release = payload_sample(x=3, z=0.03, base_x=2.5, finger_forces=[0, 0], gripper_opening=1)
+    update(state, release, 2)
+    assert state.completed
+
+
+@pytest.mark.parametrize(
+    "name,changes",
+    [
+        (REACH, {"reach_position": [1, 2]}),
+        (REACH, {"reach_position": [1, float("nan"), 3]}),
+        (REACH, {"reach_quaternion_xyzw": [0, 0, 0, 0]}),
+        (REACH, {"hold_steps": True}),
+        (REACH, {"hold_steps": 1.5}),
+        (REACH, {"reach_position_tolerance_m": -1}),
+        (REACH, {"unknown": 1}),
+        (PICK_PLACE, {"object_size": [0, 1, 1]}),
+        (PICK_PLACE, {"object_mass_kg": 6}),
+        (PICK_PLACE, {"minimum_gripper_opening": 1}),
+        (PICK_PLACE, {"settled_bottom_min_m": 1}),
+        (PICK_PLACE, {"destination": [1, 0, 1]}),
+    ],
+)
+def test_invalid_task_spec_is_rejected_before_native_start(monkeypatch, name, changes):
+    from roboenv_runtime.adapters.isaaclab.go2_d1 import native
+    from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
+    from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import catalog_definition
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Invalid configuration started Isaac")
+
+    monkeypatch.setattr(native, "Native", forbidden)
+    with pytest.raises(ValueError):
+        Go2Env(task_name=name, task_spec={**catalog_definition(name), **changes})
+
+
+def test_resolved_configuration_is_portable_and_uses_selected_robot(tmp_path, monkeypatch):
+    import shutil
+
+    import yaml
+    from roboenv_runtime.adapters.isaaclab.go2_d1 import tasks
+
+    original = resolve_task("isaaclab/" + REACH)
+    catalog = tmp_path / "catalog"
+    shutil.copytree(original.robot, catalog / "robots" / original.task.robot)
+    target = catalog / "tasks/isaaclab" / REACH / "task.yaml"
+    target.parent.mkdir(parents=True)
+    shutil.copyfile(original.path, target)
+    profile = catalog / "robots" / original.task.robot / "devices/gripper/profile.yaml"
+    data = yaml.safe_load(profile.read_text())
+    data["extrinsics"]["mount"]["translation_m"] = [0, 0, 0.2]
+    profile.write_text(yaml.safe_dump(data))
+    resolved = resolve_task("isaaclab/" + REACH, catalog=catalog)
+
+    def forbidden(*args):
+        pytest.fail("Portable configuration attempted to read the source catalog")
+
+    monkeypatch.setattr(tasks, "catalog_definition", forbidden)
+    monkeypatch.setattr(tasks, "catalog_tcp", forbidden)
+    kwargs = resolved.task.backend_kwargs
+    spec = definition(REACH, kwargs["task_spec"], kwargs["tcp_in_flange_m"])
+    assert spec["tcp_in_flange_m"] == [0, 0, 0.2]
+    assert spec["reach_position"] == REACH_POSITION
+
+
+def test_scene_measurements_use_configured_tcp_and_object_dimensions():
+    from types import SimpleNamespace
+
+    from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import TaskScene, catalog_definition
+
+    config = catalog_definition(PICK_PLACE)
+    config["object_size"] = [0.1, 0.2, 0.3]
+    scene = TaskScene.__new__(TaskScene)
+    scene.name = PICK_PLACE
+    scene.spec = definition(PICK_PLACE, config, [0, 0, 0.2])
+    samples = []
+    scene.state = SimpleNamespace(update=samples.append)
+    scene.forces = [1, 2]
+    scene.object = SimpleNamespace(
+        data=SimpleNamespace(
+            root_link_pose_w=np.array([1.0, 0, 0.15, 0, 0, 0, 1]),
+            root_lin_vel_w=np.zeros(3),
+            root_ang_vel_w=np.zeros(3),
+        )
+    )
+    scene.native = SimpleNamespace(
+        root_pose=lambda: np.array([0.0, 0, 0, 0, 0, 0, 1]),
+        model=SimpleNamespace(forward=lambda q: {"d1_Link6": np.eye(4)}),
+        joints=lambda: {"d1_Joint7_1": 0.03, "d1_Joint7_2": -0.03},
+        array=lambda v: v,
+        robot=SimpleNamespace(data=SimpleNamespace(root_lin_vel_b=np.zeros(3))),
+    )
+    scene.update(False)
+    assert np.allclose(samples[0]["tcp_position"], [0, 0, 0.2])
+    corners = samples[0]["object_corners"]
+    assert np.allclose(corners.max(axis=0) - corners.min(axis=0), config["object_size"])
+    assert corners[:, 2].min() == pytest.approx(0)

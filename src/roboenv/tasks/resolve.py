@@ -47,4 +47,30 @@ def resolve_task(reference, *, project=None, catalog=None, arm_gravity_compensat
     if not (robot / "workspace.yaml").is_file():
         raise ValueError(f"Robot {task.robot!r} is missing from the selected catalog")
     bindings = BindingPlan.load(robot, backend=task.backend, devices=task.device_bindings)
+    if task.backend == "isaaclab" and task.backend_kwargs.get("task_name", "").startswith(
+        "go2-d1-"
+    ):
+        gripper = next(device for device in bindings.devices if device.name == "gripper")
+        mount = gripper.resolved_profile(robot)["extrinsics"]["mount"]
+        if (mount["parent"], mount["parent_frame"], mount["rotation_xyzw"]) != (
+            "arm",
+            "flange",
+            [0, 0, 0, 1],
+        ):
+            raise ValueError("Go2 task TCP requires an aligned gripper mount on the arm flange")
+        task = replace(
+            task,
+            backend_kwargs={
+                **task.backend_kwargs,
+                "tcp_in_flange_m": mount["translation_m"],
+                "device_profiles": {
+                    device.name: {
+                        key: value
+                        for key, value in device.resolved_profile(robot).items()
+                        if key in {"type", "intrinsics", "extrinsics"}
+                    }
+                    for device in bindings.devices
+                },
+            },
+        )
     return ResolvedTask(task, path.resolve(), catalog, robot, bindings)

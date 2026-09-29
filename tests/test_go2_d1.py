@@ -52,6 +52,7 @@ def test_native_defaults_eula_before_isaac_import(monkeypatch, tmp_path, existin
     manifest = tmp_path / "assets.json"
     manifest.write_text(json.dumps({"schema": "roboenv/go2-d1-assets/1", "files": {}}))
     monkeypatch.setattr(native, "RobotModel", lambda path: object())
+    monkeypatch.setattr(native, "validate_robot_profiles", lambda *args: None)
     monkeypatch.setattr(native.Native, "_create", lambda *args: None)
 
     class AppModule(ModuleType):
@@ -198,6 +199,35 @@ def test_invalid_write_and_stop_do_not_step_or_change_other_goals():
     assert env.steps == 0 and env.targets["base"][0] == 0
     assert np.array_equal(env.targets["arm"], before["arm"])
     assert np.array_equal(env.targets["gripper"], before["gripper"])
+
+
+def test_stop_holds_measured_overshoot_inside_limits():
+    env = Go2Env.__new__(Go2Env)
+    profile = yaml.safe_load((RIG / "devices/arm/profile.yaml").read_text())
+    limits = {
+        j["name"]: [j["limits"]["min"], j["limits"]["max"]]
+        for j in profile["intrinsics"]["model"]["joints"]
+    }
+    names = list(limits)
+    env.native = SimpleNamespace(
+        steps=0,
+        model=SimpleNamespace(
+            arm_names=names, joints={n: {"limits": b} for n, b in limits.items()}
+        ),
+    )
+    env.targets = {"arm": np.zeros(6)}
+    env.events = []
+    measured = [0.0, limits[names[1]][1] + 1.6e-5, 0.1, 0.0, -0.5, 0.0]
+    env.read_device = lambda name: {"positions": measured}
+    env.stop("arm")
+    assert env.targets["arm"][1] == limits[names[1]][1]
+    assert np.array_equal(np.delete(env.targets["arm"], 1), np.delete(measured, 1))
+
+
+def test_camera_observation_helper_is_importable():
+    from roboenv_runtime.adapters.isaaclab.observations import camera_state
+
+    assert callable(camera_state)
 
 
 def test_center_of_mass_includes_fixed_payload_and_origin(tmp_path):

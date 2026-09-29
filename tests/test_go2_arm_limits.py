@@ -4,16 +4,13 @@ import json
 import math
 import sys
 import xml.etree.ElementTree as ET
-from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import pytest
-import yaml
 from helpers import load_tool
 from roboenv_runtime.adapters.isaaclab.go2_d1 import native
 
-ROOT = Path(__file__).resolve().parents[1]
 TORQUES = [3.3, 3.3, 1.7, 1.7, 1.7, 1.7]
 BOUNDS = [2.35, 1.57, 1.57, 2.35, 1.57, 2.35]
 
@@ -58,15 +55,37 @@ def test_preparation_and_catalog_preserve_positions_and_use_motor_torques(tmp_pa
         assert actual == [-bound, bound, torque]
         assert math.isinf(float(limit.get("velocity")))
         assert manifest["practice_assumptions"][f"d1_Joint{index}"]["velocity"] is None
-    catalog = tmp_path / "catalog"
-    load_tool("generate_go2_d1_catalog").generate(prepared, catalog)
-    relative = "robots/isaaclab/isaaclab-go2-d1/devices/arm/profile.yaml"
-    generated = yaml.safe_load((catalog / relative).read_text())["intrinsics"]["model"]["joints"]
-    checked_in = yaml.safe_load((ROOT / "catalog" / relative).read_text())
-    checked_in = checked_in["intrinsics"]["model"]["joints"]
-    assert generated == checked_in
-    assert [joint["max_effort"] for joint in generated] == TORQUES
-    assert all(joint["max_velocity"] is None for joint in generated)
+    from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import RobotModel
+    from roboenv_runtime.adapters.isaaclab.go2_d1.environment import load_profiles
+
+    values = load_profiles()
+    joints = values["arm"]["intrinsics"]["model"]["joints"]
+    assert [joint["max_effort"] for joint in joints] == TORQUES
+    assert all(joint["max_velocity"] is None for joint in joints)
+    assert [[j["limits"]["min"], j["limits"]["max"]] for j in joints] == [
+        [-bound, bound] for bound in BOUNDS
+    ]
+    # Match this test's straight, zero-offset synthetic robot; production YAML
+    # retains its real geometry. Exercise native validation without a generator.
+    arm = values["arm"]["intrinsics"]
+    for link in arm["model"]["chain"]:
+        link["origin"] = [0, 0, 0, 0, 0, 0, 1]
+        link["axis"] = [0, 0, 1]
+    for name in ("arm", "camera_head", "camera_wrist"):
+        mount = values[name]["extrinsics"]["mount"]
+        mount["translation_m"] = [0, 0, 0]
+        mount["rotation_xyzw"] = [0, 0, 0, 1]
+    model = RobotModel(prepared / "robot.urdf")
+    home = json.loads((prepared / "home.json").read_text())
+    native.validate_robot_profiles(values, model, home)
+    values["arm"]["intrinsics"]["model"]["joints"][0]["limits"]["max"] += 0.1
+    with pytest.raises(ValueError, match="d1_Joint1"):
+        native.validate_robot_profiles(values, model, home)
+    values["arm"]["intrinsics"]["model"]["joints"][0]["limits"]["max"] -= 0.1
+    values["camera_wrist"]["extrinsics"]["mount"]["translation_m"][0] += 0.1
+    with pytest.raises(ValueError, match="camera_wrist"):
+        native.validate_robot_profiles(values, model, home)
+
 
 
 def test_native_arm_overrides_imported_velocity_and_effort_limits(tmp_path, monkeypatch):

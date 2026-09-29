@@ -228,7 +228,7 @@ def test_episode_budget_interrupts_wait_stops_base_without_device_fault(rig):
 
 @pytest.fixture
 def native_stub(rig, monkeypatch):
-    from roboenv_runtime.adapters.isaaclab.go2_d1 import native, profiles
+    from roboenv_runtime.adapters.isaaclab.go2_d1 import native
 
     env = rig[0]
     env.native.arm_target = np.zeros(6)
@@ -236,7 +236,6 @@ def native_stub(rig, monkeypatch):
     env.native.reset = lambda seed: None
     env.native.home = {}
     monkeypatch.setattr(native, "Native", lambda *args, **kwargs: env.native)
-    monkeypatch.setattr(profiles, "profiles", lambda *args: env.profiles)
     monkeypatch.setattr(Go2Env, "source_identity", staticmethod(lambda: {}))
 
 
@@ -311,13 +310,18 @@ def test_default_budget_and_recorded_mode_survive_reset(native_stub, mode):
     assert env.max_steps == (6000 if mode == "stepped" else None)
 
 
-def test_realtime_replay_does_not_restore_a_step_cap(native_stub, tmp_path):
+def test_realtime_replay_does_not_restore_a_step_cap(native_stub, tmp_path, monkeypatch):
     env = Go2Env(task_name="go2-d1-pick-place", execution_mode="realtime")
     native = env.native
     native.asset_sha, native.seed, native.payload_mass_kg = "fixture", 0, 0.08
     task = dict(placement_started=False, completed=False, failure=None,
                 hold=0, lift_hold=0, contact_loss=0)
-    native.task = SimpleNamespace(spec={})
+    from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import definition
+
+    spec = definition("go2-d1-pick-place")
+    spec.update(destination=[3, 0, 0], object_mass_kg=0.2, tcp_in_flange_m=[0, 0, 0.15])
+    native.task = SimpleNamespace(spec=spec)
+    env.profiles["gripper"]["extrinsics"]["mount"]["translation_m"] = spec["tcp_in_flange_m"]
     native.snapshot = lambda: {
         "steps": native.steps, "root": [0.0], "joints": {"joint": 0.0},
         "task": task, "done": native.done,
@@ -328,7 +332,18 @@ def test_realtime_replay_does_not_restore_a_step_cap(native_stub, tmp_path):
         env.tick()
     record = env.record()
     assert record["max_steps"] is None and record["execution_mode"] == "realtime"
-    result = load_tool("replay_go2_d1").replay(record, "unused", tmp_path / "replay.json")
+    replay_tool = load_tool("replay_go2_d1")
+    observed = {}
+
+    def start(**kwargs):
+        observed.update(kwargs)
+        return Go2Env(**kwargs)
+
+    monkeypatch.setattr(replay_tool, "Go2Env", start)
+    result = replay_tool.replay(record, "unused", tmp_path / "replay.json")
+    assert observed["task_spec"]["destination"] == [3, 0, 0]
+    assert observed["task_spec"]["object_mass_kg"] == 0.2
+    assert observed["tcp_in_flange_m"] == [0, 0, 0.15]
     assert result["passed"] and result["steps"] == 6001
 
 
@@ -449,3 +464,21 @@ def test_base_public_write_preserves_commands_outside_former_bounds(rig):
     assert np.array_equal(samples[0][0], expected)
     mode = env.profiles["base"]["intrinsics"]["control"]["modes"]["locomotion"]
     assert all(c["bounds"] is None for group in mode.values() for c in group["components"])
+
+
+def test_resolved_profiles_start_without_source_catalog(native_stub, monkeypatch):
+    from roboenv_runtime.adapters.isaaclab.go2_d1 import environment, tasks
+
+    resolved = resolve_task("isaaclab/go2-d1-reach", project=ROOT)
+    expected = copy.deepcopy(resolved.task.backend_kwargs["device_profiles"])
+
+    def forbidden(*args):
+        pytest.fail("Resolved worker read the source catalog")
+
+    monkeypatch.setattr(environment, "load_profiles", forbidden)
+    monkeypatch.setattr(tasks, "catalog_definition", forbidden)
+    monkeypatch.setattr(tasks, "catalog_tcp", forbidden)
+    env = Go2Env(**resolved.task.backend_kwargs)
+    assert env.profiles == expected
+    resolved.task.backend_kwargs["device_profiles"]["arm"]["intrinsics"]["home"].clear()
+    assert env.profiles == expected

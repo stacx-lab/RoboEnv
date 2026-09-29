@@ -8,7 +8,27 @@ import numpy as np
 from roboenv.devices.model import DeviceError
 
 from .adapter import DEFAULT, pose, validate_command
-from .tasks import PICK_PLACE, TASKS
+from .tasks import PICK_PLACE, TASKS, catalog_definition, definition
+
+
+def load_profiles(robot=None):
+    """Load device facts from the catalog, without constructing a second definition."""
+    import yaml
+    from roboenv_runtime.paths import repo_root
+
+    robot = (
+        Path(robot)
+        if robot is not None
+        else (repo_root() / "catalog/robots/isaaclab/isaaclab-go2-d1")
+    )
+    return {
+        path.parent.name: {
+            key: value
+            for key, value in yaml.safe_load(path.read_text()).items()
+            if key in {"type", "intrinsics", "extrinsics"}
+        }
+        for path in sorted((robot / "devices").glob("*/profile.yaml"))
+    }
 
 
 class Go2Env:
@@ -21,19 +41,29 @@ class Go2Env:
         cameras=True,
         task_name="go2-d1-control",
         max_steps=None,
-        payload_mass_kg=0.08,
+        payload_mass_kg=None,
+        task_spec=None,
+        tcp_in_flange_m=None,
+        device_profiles=None,
         execution_mode="stepped",
     ):
         if task_name not in TASKS:
             raise ValueError("Unknown Go2 task")
-        if (
-            type(payload_mass_kg) not in (int, float)
-            or not math.isfinite(payload_mass_kg)
-            or not 0 < payload_mass_kg <= 5
-        ):
-            raise ValueError("Payload mass must be finite and in (0, 5] kg")
-        if task_name != PICK_PLACE and payload_mass_kg != 0.08:
-            raise ValueError("Payload mass applies only to pick-and-place")
+        if payload_mass_kg is not None:
+            if task_name != PICK_PLACE:
+                raise ValueError("Payload mass applies only to pick-and-place")
+            task_spec = copy.deepcopy(
+                catalog_definition(task_name) if task_spec is None else task_spec
+            )
+            if not isinstance(task_spec, dict):
+                raise ValueError("task_spec must be a mapping")
+            task_spec["object_mass_kg"] = payload_mass_kg
+        self.profiles = copy.deepcopy(
+            load_profiles() if device_profiles is None else device_profiles
+        )
+        if tcp_in_flange_m is None:
+            tcp_in_flange_m = self.profiles["gripper"]["extrinsics"]["mount"]["translation_m"]
+        spec = definition(task_name, task_spec, tcp_in_flange_m)
         if type(cameras) is not bool:
             raise ValueError("cameras must be a boolean")
         max_steps = 6000 if max_steps is None else max_steps
@@ -45,17 +75,16 @@ class Go2Env:
 
         from .native import Native
 
+        self.profiles["gripper"]["extrinsics"]["mount"]["translation_m"] = spec["tcp_in_flange_m"]
         self.task_name = task_name
         self.native = Native(
             repo_root() / asset_manifest,
             device=device,
             cameras=cameras,
             task_name=task_name,
-            payload_mass_kg=float(payload_mass_kg),
+            task_spec=spec,
+            device_profiles=self.profiles,
         )
-        from .profiles import profiles
-
-        self.profiles = profiles(self.native.model, self.native.home)
         self.implementation = self.source_identity()
         self.reset(0)
 
@@ -135,7 +164,10 @@ class Go2Env:
         if name == "base":
             self.targets[name][:3] = 0
         else:
-            self.targets[name] = np.array(self.read_device(name)["positions"])
+            # Measured positions may overshoot a limit slightly; hold inside it.
+            names = self.native.model.arm_names if name == "arm" else ["d1_Joint7_1", "d1_Joint7_2"]
+            lo, hi = np.array([self.native.model.joints[n]["limits"] for n in names]).T
+            self.targets[name] = np.clip(self.read_device(name)["positions"], lo, hi)
         self.events.append({"frame": self.steps, "op": "stop", "device": name, "reason": reason})
         return {
             "stopped": True,
@@ -203,7 +235,7 @@ class Go2Env:
     def source_identity():
         import hashlib
 
-        from . import adapter, limits, native, profiles, tasks
+        from . import adapter, limits, native, tasks
 
         sources = {
             Path(p).name: hashlib.sha256(Path(p).read_bytes()).hexdigest()
@@ -211,7 +243,6 @@ class Go2Env:
                 adapter.__file__,
                 native.__file__,
                 limits.__file__,
-                profiles.__file__,
                 tasks.__file__,
                 __file__,
             )
@@ -231,6 +262,7 @@ class Go2Env:
             "task_name": self.task_name,
             "payload_mass_kg": self.native.payload_mass_kg,
             "task_definition": self.native.task.spec,
+            "device_profiles": copy.deepcopy(self.profiles),
             "max_steps": self.max_steps,
             "execution_mode": self.execution_mode,
             "events": copy.deepcopy(self.events),
