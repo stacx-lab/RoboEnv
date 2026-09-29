@@ -239,8 +239,8 @@ configured host; MuJoCo checks alone do not establish Isaac support or visual pa
 Full Harbor deployment certification and task-performance evaluation remain separate.
 
 Source and asset pins, managed patch checksums and dependency locks are versioned.
-`tools/generate_simple_config.py` regenerates the catalog, private model facts and
-provenance from pinned robot geometry and camera definitions. Pass
+`tools/generate_simple_config.py` regenerates the catalog and private model facts
+from pinned robot geometry and camera definitions. Pass
 `--bindings-out src/roboenv/devices/bindings/defaults` separately when maintaining
 internal binding defaults. Startup checks native
 geometry against those facts without rewriting static profiles.

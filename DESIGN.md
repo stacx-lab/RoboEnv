@@ -77,8 +77,8 @@ are not a reason to copy the simulator or its scene assets into the agent worksp
 
 Profiles come from authoritative model/controller/sensor definitions. An explicit
 maintenance generator may compile an isolated robot model on CPU to resolve stable
-facts; it must not bake a sampled kitchen or task state into those facts. Record
-source revisions/hashes separately and verify reproducible output. Unknown facts
+facts; it must not bake a sampled kitchen or task state into those facts. Verify
+reproducible output from the pinned sources. Unknown facts
 remain unknown; an identity transform is not a substitute for missing calibration.
 
 Different embodiments or sensor arrangements need different configurations. Standard

@@ -221,7 +221,7 @@ See the [source audit](simulator-limits.md).
 Extract stable facts from pinned robot/controller/camera sources, using a standalone
 CPU model if necessary. Home joints come from initialization defaults. Do not export
 random task placements or scene geometry as calibration. Support generation into a
-temporary directory, record source hashes, and test deterministic output. The
+temporary directory and test deterministic output. The
 [RoboCasa generator](../tools/generate_robocasa_config.py) demonstrates this process.
 
 Mount poses use metres and quaternion xyzw. Cameras use OpenCV optical axes
