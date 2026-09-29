@@ -1,5 +1,6 @@
 // Observe the real request at the provider boundary without storing credentials.
 import { createHash } from "node:crypto"
+import { zstdDecompressSync } from "node:zlib"
 import { z } from "zod"
 
 const Body = z.object({
@@ -38,14 +39,23 @@ export function requestEvidence(body: string, expected: { id: string; effort: st
   return { model: parsed.model, effort: parsed.reasoning.effort, images }
 }
 
+// The OpenAI SDK sends JSON text; Codex compresses its request with zstd.
+export function requestText(init: RequestInit | undefined): string {
+  const encoding = new Headers(init?.headers).get("content-encoding")
+  const body = init?.body
+  if (typeof body === "string" && !encoding) return body
+  if (body instanceof Uint8Array && (!encoding || encoding === "zstd"))
+    return (encoding ? zstdDecompressSync(body) : Buffer.from(body)).toString("utf8")
+  throw new Error("Expected a JSON provider request body")
+}
+
 export function observeProvider(expected: { id: string; effort: string }) {
   const original = globalThis.fetch
   const requests: (ReturnType<typeof requestEvidence> & { status?: number })[] = []
   globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input)
     if (!Endpoint.test(url)) return original(input, init)
-    if (typeof init?.body !== "string") throw new Error("Expected a JSON provider request body")
-    const record: ReturnType<typeof requestEvidence> & { status?: number } = requestEvidence(init.body, expected)
+    const record: ReturnType<typeof requestEvidence> & { status?: number } = requestEvidence(requestText(init), expected)
     requests.push(record)
     const response = await original(input, init)
     record.status = response.status

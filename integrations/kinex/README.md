@@ -71,20 +71,22 @@ task success are checked independently.
 ## Development and frozen controllers
 
 Live development requires authorized model use, `mode: "develop"`,
-`--model openai/MODEL` and an explicit `effort` (`minimal`, `low`, `medium`, `high`
-or `xhigh`) in agent kwargs. Supply the login through Harbor's agent environment:
-`KINEX_AUTH_JSON_PATH` names a Kinex `auth.json` on the owner's host, such as
-`{"openai": {"type": "api_key", "key": "..."}}` or the one Kinex's `/login` writes to
-`$KINEX_DATA_DIR/agent/auth.json`. The agent copies only the selected provider's
-entry into the trial, readable only by the agent user, and removes it after the run;
-it never enters bundles, tasks, logs or the exported workspace. The development
-session runs as that user, so its tools can read the login while the trial runs.
+`--model openai-codex/MODEL` (a ChatGPT login) or `--model openai/MODEL` (an API key)
+and an explicit `effort` (`minimal`, `low`, `medium`, `high` or `xhigh`) in agent
+kwargs. Supply the login through Harbor's agent environment: `KINEX_AUTH_JSON_PATH`
+names a Kinex `auth.json` on the owner's host, such as the one Kinex's `/login` writes
+to `$KINEX_DATA_DIR/agent/auth.json` or `{"openai": {"type": "api_key", "key": "..."}}`.
+The agent copies only the selected provider's entry into the trial, readable only by
+the agent user, and removes it after the run; it never enters bundles, tasks, logs or
+the exported workspace. The development session runs as that user, so its tools can
+read the login while the trial runs.
 
 The bridge runs the Kinex application in-process in headless JSON mode; its event
 stream is `agent/kinex.log`. It allows device, Python tool, file and shell
 permissions and denies calibration writes; agent questions receive Kinex's headless
 reply that no owner answer is available. It checks the actual model, effort and
-camera images of the provider requests.
+camera images of the provider requests; Codex requests use SSE so that they pass the
+observed boundary.
 
 Extract the trial's `agent/workspace.tar.gz` into a new directory; it contains
 tools, skills, the Python lock and recordings, excluding the venv.

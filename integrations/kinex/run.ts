@@ -25,7 +25,7 @@ const Input = z.strictObject({
   prompt: z.string().optional(),
   // Kinex's thinking levels except off: development always states an effort.
   model: z.strictObject({
-    provider: z.literal("openai"), id: z.string().min(1),
+    provider: z.enum(["openai", "openai-codex"]), id: z.string().min(1),
     effort: z.enum(["minimal", "low", "medium", "high", "xhigh"]),
   }).optional(),
 })
@@ -60,12 +60,15 @@ async function checkRoots(directory: string) {
 }
 
 // A headless session has no owner to approve requests, so Kinex's ask mode denies
-// every permission these rules do not allow.
+// every permission these rules do not allow. Codex requests use SSE because its
+// default WebSocket transport bypasses fetch, where the provider is observed.
 async function configureDevelopment() {
   const permission = Object.fromEntries([...allowed, "write", "edit", "shell"].map((name) => [name, "allow"]))
   await fs.mkdir(path.join(Global.Path.config, "agent"), { recursive: true })
   await fs.writeFile(path.join(Global.Path.config, "kinex.json"),
     JSON.stringify({ permission: { ...permission, calib_write: "deny", device_calibrate: "deny" } }, null, 2) + "\n", { flag: "wx" })
+  await fs.writeFile(path.join(Global.Path.config, "agent", "settings.json"),
+    JSON.stringify({ transport: "sse" }, null, 2) + "\n", { flag: "wx" })
 }
 
 // The same environment as Kinex's own entrypoint (bin/kinex.mjs).

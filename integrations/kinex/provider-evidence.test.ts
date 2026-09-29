@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { requestEvidence } from "./provider-evidence.ts"
+import { zstdCompressSync } from "node:zlib"
+import { requestEvidence, requestText } from "./provider-evidence.ts"
 
 const expected = { id: "gpt-6-astra", effort: "medium" }
 const image = { type: "input_image", detail: "auto", image_url: "data:image/png;base64,iVBORw0KGgo=" }
@@ -33,4 +34,13 @@ test("provider evidence rejects substituted configuration and remote-only images
   assert.throws(() => requestEvidence(JSON.stringify({ ...body, input: [{ content: [
     { type: "input_image", image_url: "https://example.com/picture.png" },
   ] }] }), expected), /encoded sensor bytes/)
+})
+
+test("request bodies are read as sent by the OpenAI SDK and the Codex backend", () => {
+  const text = JSON.stringify(body)
+  assert.equal(requestText({ body: text }), text)
+  const compressed = new Uint8Array(zstdCompressSync(text))
+  assert.equal(requestText({ body: compressed, headers: { "content-encoding": "zstd" } }), text)
+  assert.throws(() => requestText({ body: text, headers: { "content-encoding": "gzip" } }), /JSON provider request/)
+  assert.throws(() => requestText(undefined), /JSON provider request/)
 })

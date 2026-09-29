@@ -15,7 +15,7 @@ from roboenv.validation import json_loads
 
 # Pi providers that development accepts, and Kinex's thinking levels except off:
 # development always states an explicit effort.
-PROVIDERS = ("openai",)
+PROVIDERS = ("openai", "openai-codex")
 EFFORTS = ("minimal", "low", "medium", "high", "xhigh")
 # Names a Kinex agent auth.json on the owner's host, like Harbor's CODEX_AUTH_JSON_PATH.
 AUTH = "KINEX_AUTH_JSON_PATH"
@@ -94,7 +94,9 @@ class KinexAgent(BaseAgent):
             raise ValueError("No-model execution must not select a model or effort")
         provider, _, model = (model_name or "").partition("/")
         if mode == "develop" and (provider not in PROVIDERS or not model or effort not in EFFORTS):
-            raise ValueError("Development requires an explicit openai/MODEL and effort")
+            raise ValueError(
+                "Development requires an explicit openai/MODEL or openai-codex/MODEL and effort"
+            )
         # Credentials come only from Harbor's agent environment, never bundles or tasks.
         self.login = self._get_env(AUTH) if mode == "develop" else None
         if mode == "develop":

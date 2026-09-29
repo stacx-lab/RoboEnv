@@ -67,9 +67,11 @@ def test_bundle_requires_node_kinex_and_the_bridge(tmp_path):
 
 LOGINS = {
     "openai": {"type": "api_key", "key": "openai-secret"},
+    "openai-codex": {"type": "oauth", "access": "codex-token", "expires": 1},
     "anthropic": {"type": "api_key", "key": "other-secret"},
 }
-SECRETS = ("openai-secret", "other-secret")
+SECRETS = ("openai-secret", "codex-token", "other-secret")
+MODELS = ("openai/gpt-6", "openai-codex/gpt-6-astra")
 
 
 def login(tmp_path, content=LOGINS):
@@ -103,8 +105,8 @@ def test_invalid_agent_configuration_fails_before_setup(tmp_path, options):
     "override",
     [
         {"model_name": "anthropic/claude"},
-        {"model_name": "openai-codex/gpt-6-astra"},
         {"model_name": "openai/"},
+        {"model_name": "openai-codex/"},
         {"model_name": None},
         {"effort": None},
         {"effort": "off"},
@@ -122,9 +124,12 @@ def test_invalid_development_configuration_fails_before_setup(tmp_path, monkeypa
         )
 
 
-def test_development_runs_the_selected_model_and_effort(tmp_path):
+@pytest.mark.parametrize("model", MODELS)
+def test_development_runs_the_selected_model_and_effort(tmp_path, model):
     agent = KinexAgent(
-        logs_dir=tmp_path / "logs", bundle=bundle(tmp_path / "agent.tar.gz"), **develop(tmp_path)
+        logs_dir=tmp_path / "logs",
+        bundle=bundle(tmp_path / "agent.tar.gz"),
+        **develop(tmp_path, model_name=model),
     )
     agent.logs_dir.mkdir()
     uploads = {}
@@ -142,7 +147,8 @@ def test_development_runs_the_selected_model_and_effort(tmp_path):
     asyncio.run(agent.run("Fixture instruction", Environment(), AgentContext()))
     runner = json.loads(uploads[agent.root + "/runner.json"])
     assert runner["prompt"] == "Fixture instruction"
-    assert runner["model"] == {"provider": "openai", "id": "gpt-6", "effort": "high"}
+    provider, name = model.split("/")
+    assert runner["model"] == {"provider": provider, "id": name, "effort": "high"}
 
 
 def test_development_login_must_exist_for_the_selected_provider(tmp_path, monkeypatch):
@@ -150,16 +156,20 @@ def test_development_login_must_exist_for_the_selected_provider(tmp_path, monkey
     # Like Harbor's own agents, the owner's process environment may name the login.
     monkeypatch.setenv("KINEX_AUTH_JSON_PATH", login(tmp_path)["KINEX_AUTH_JSON_PATH"])
     KinexAgent(logs_dir=tmp_path, bundle=agent, **develop(tmp_path, extra_env={}))
-    for content in ({"anthropic": {"type": "api_key", "key": "k"}}, {"openai": "key"}, []):
-        with pytest.raises(ValueError, match="KINEX_AUTH_JSON_PATH"):
-            KinexAgent(
-                logs_dir=tmp_path,
-                bundle=agent,
-                **develop(tmp_path, extra_env=login(tmp_path, content)),
-            )
+    # Each provider needs its own entry; a login for the other one is not used.
+    for model in MODELS:
+        provider = model.split("/")[0]
+        other = "openai-codex" if provider == "openai" else "openai"
+        for content in ({other: LOGINS[other]}, {provider: "key"}, []):
+            with pytest.raises(ValueError, match="KINEX_AUTH_JSON_PATH"):
+                KinexAgent(
+                    logs_dir=tmp_path,
+                    bundle=agent,
+                    **develop(tmp_path, model_name=model, extra_env=login(tmp_path, content)),
+                )
 
 
-@pytest.mark.parametrize("model", ["openai/gpt-6"])
+@pytest.mark.parametrize("model", MODELS)
 def test_development_installs_only_the_selected_login_and_removes_it(tmp_path, model):
     agent = KinexAgent(
         logs_dir=tmp_path / "logs",
