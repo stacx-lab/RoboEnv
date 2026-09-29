@@ -59,7 +59,7 @@ def rig():
         "positions": env.targets[name].tolist(),
     }
     owner = IsaacLabAdapter.__new__(IsaacLabAdapter)
-    owner.go2, owner.embodiment, owner._env = True, "go2_d1", env
+    owner._env = env
     session = WorldSession(owner, "stepped")
     service = default_registry().assemble(
         task.bindings,
@@ -253,7 +253,7 @@ def test_catalog_episode_limits_in_both_clocks(native_stub, monkeypatch, mode, t
     resolved = resolve_task(f"isaaclab/go2-d1-{task}", project=ROOT)
     env = Go2Env(**resolved.task.backend_kwargs)
     owner = IsaacLabAdapter.__new__(IsaacLabAdapter)
-    owner.go2, owner.embodiment, owner._env = True, "go2_d1", env
+    owner._env = env
     now = [100.0]
     monkeypatch.setattr("roboenv_runtime.runtime.world.time.monotonic", lambda: now[0])
     session = WorldSession(owner, mode)
@@ -268,7 +268,8 @@ def test_catalog_episode_limits_in_both_clocks(native_stub, monkeypatch, mode, t
             assert pending.result()["elapsed_s"] == pytest.approx(300.04)
         # Unlimited practice still respects native failure/termination.
         env.native.done = True
-        env.tick()
+        with pytest.raises(DeviceError, match="episode terminated"):
+            env.tick()
         assert env.done and env.steps == 15002
     else:
         assert env.max_steps == 6000 and env.steps == 6000 and env.done
@@ -326,3 +327,85 @@ def test_removed_modes_and_invalid_budgets_fail_before_native_start(monkeypatch,
     monkeypatch.setattr(native, "Native", forbidden)
     with pytest.raises(error):
         Go2Env(**kwargs)
+
+
+@pytest.mark.parametrize("mode", ["stepped", "realtime"])
+@pytest.mark.parametrize("already_done", [False, True])
+def test_native_termination_freezes_clock_and_settles_peer_waits(
+    rig, monkeypatch, mode, already_done
+):
+    env, session, service, samples = rig
+    now = [100.0]
+    monkeypatch.setattr("roboenv_runtime.runtime.world.time.monotonic", lambda: now[0])
+    session.mode = mode
+    session.native.configure_execution_mode(mode)
+    session.next_tick = now[0]
+    call(service, "base", "write", **COMMAND)
+    call(service, "arm", "write", actions=[[0.1] * 6, [0.2] * 6], duration_s=0.04)
+    short, long = session.wait(0.02), session.wait(1)
+    advance = env.native.advance
+
+    def terminal_tick(*targets):
+        advance(*targets)
+        env.native.done = True
+
+    env.native.advance = terminal_tick
+    env.native.done = already_done
+    session.advance()
+    # A completed physical tick is counted; the next attempted tick reports
+    # native termination through the existing no-effects protocol.
+    now[0] += 0.021
+    session.advance()
+    expected = 0 if already_done else 0.02
+    assert session.time_s == pytest.approx(expected)
+    assert env.steps == len(samples) == (0 if already_done else 1)
+    assert long.done() and short.done()
+    with pytest.raises(DeviceError) as caught:
+        long.result()
+    assert caught.value.code == "episode_finished"
+    assert caught.value.details["elapsed_s"] == pytest.approx(expected)
+    assert caught.value.details["effects"] == ("none" if already_done else "partial")
+    if already_done:
+        with pytest.raises(DeviceError):
+            short.result()
+    else:
+        assert short.result()["elapsed_s"] == pytest.approx(0.02)
+    assert session.failure is None and not session.pending
+    assert np.array_equal(env.targets["base"][:3], [0, 0, 0])
+    assert np.allclose(env.targets["arm"], [0.1] * 6)
+    snapshot = copy.deepcopy(env.events)
+    for _ in range(5):
+        now[0] += 1
+        session.advance()
+    assert env.events == snapshot
+    assert call(service, "world")["time_s"] == pytest.approx(expected)
+    assert call(service, "arm")["sample_time_s"] == pytest.approx(expected)
+    with pytest.raises(DeviceError) as refused:
+        wait(service, 0.1)
+    assert refused.value.code == "episode_finished"
+    with pytest.raises(DeviceError):
+        call(service, "base", "write", **COMMAND)
+    assert env.events == snapshot
+
+    def reset(seed):
+        env.native.steps = 0
+        env.native.done = False
+
+    env.reset = reset
+    env.native.advance = advance
+    session.reset(1)
+    assert wait(service, 0.02)["elapsed_s"] == pytest.approx(0.02)
+    assert env.steps == 1
+
+
+@pytest.mark.parametrize("mode", ["stepped", "realtime"])
+def test_wait_admission_after_native_termination_never_ticks(rig, mode):
+    env, session, service, samples = rig
+    session.mode = mode
+    session.native.configure_execution_mode(mode)
+    env.native.done = True
+    with pytest.raises(DeviceError) as caught:
+        wait(service, 0.1)
+    assert caught.value.code == "episode_finished"
+    assert session.time_s == env.steps == 0 and not samples
+    assert session.failure is None

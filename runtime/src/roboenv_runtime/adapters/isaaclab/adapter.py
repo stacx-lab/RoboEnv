@@ -7,8 +7,6 @@ from roboenv_runtime.core.types import Budget, ScoreReport
 @register_adapter
 class IsaacLabAdapter(AdapterBase):
     name = "isaaclab"
-    embodiment = "go2_d1"
-    go2 = True
     owner_thread_required = True
 
     def __init__(self, **kwargs):
@@ -21,12 +19,11 @@ class IsaacLabAdapter(AdapterBase):
         return self._env.control_interval
 
     def advance_control(self):
-        self._env.tick() if self.go2 else self._env.control.tick()
+        self._env.tick()
 
     def configure_execution_mode(self, mode):
         """Apply the shared world's mode to the Go2 practice horizon."""
-        if self.go2:
-            self._env.configure_execution_mode(mode)
+        self._env.configure_execution_mode(mode)
 
     def reset(self, seed):
         self._env.reset(seed)
@@ -48,6 +45,4 @@ class IsaacLabAdapter(AdapterBase):
         return Budget(used=self._env.steps, max=self._env.max_steps, unit="action_frames")
 
     def observe(self):
-        if self.go2:
-            return self._env.record()
-        return {"budget": self.budget().as_dict()}
+        return self._env.record()

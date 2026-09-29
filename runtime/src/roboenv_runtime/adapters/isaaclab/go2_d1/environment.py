@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+from roboenv.devices.model import DeviceError
 
 from .adapter import DEFAULT, pose, validate_command
 from .tasks import INSTRUCTIONS, PICK_PLACE, TASKS
@@ -116,7 +117,9 @@ class Go2Env:
         """Set a reference without stepping; the shared scheduler owns its duration."""
         target = self._validate(name, args)
         if self.done:
-            raise ValueError("Episode terminated; final observations remain readable")
+            raise DeviceError(
+                "episode_finished", "Go2 episode terminated", details={"effects": "none"}
+            )
         self.targets[name] = target
         self.events.append(
             {"frame": self.steps, "op": "write", "device": name, "args": copy.deepcopy(args)}
@@ -153,6 +156,12 @@ class Go2Env:
         self.images = {}
 
     def tick(self):
+        # The shared clock counts every successful tick as a physical interval.
+        # Report a terminal no-op explicitly so it cannot advance world time.
+        if self.done:
+            raise DeviceError(
+                "episode_finished", "Go2 episode terminated", details={"effects": "none"}
+            )
         self.advance()
 
     def read_device(self, name):

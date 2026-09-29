@@ -31,12 +31,13 @@ def bind(spec, root, context):
         validate(getattr(definition, section), expected.get(section, {}), spec.name + "." + section)
     actions = {}
 
-    def register(name, fn, schema=EMPTY, mutation=False):
+    def register(name, fn, schema=EMPTY, mutation=False, preflight=None):
         actions[name] = Action(
             lambda args, execution: execution.perform(
                 "isaaclab.go2_d1." + name, args, lambda: fn(**args), mutating=mutation
             ),
             schema,
+            validate=preflight,
         )
 
     if spec.name == "world":
@@ -73,11 +74,13 @@ def bind(spec, root, context):
                 args = {"target": args["target"][0]}
             return world.set_target(spec.name, args)
 
-        register("write", set_target, schema, True)
         # Keep native Go2 validation ahead of replacing an active buffer.
-        actions["write"].validate = lambda args: world._validate(
-            spec.name, {"target": args["target"][0]} if spec.name == "gripper" else args
-        )
+        def preflight(args):
+            world._validate(
+                spec.name, {"target": args["target"][0]} if spec.name == "gripper" else args
+            )
+
+        register("write", set_target, schema, True, preflight)
     return BoundDevice(
         definition,
         actions,
