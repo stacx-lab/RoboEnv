@@ -12,6 +12,11 @@ from pathlib import Path, PurePosixPath
 from harbor.agents.base import BaseAgent
 from roboenv.validation import json_loads
 
+# Pi providers that development accepts, and Kinex's thinking levels except off:
+# development always states an explicit effort.
+PROVIDERS = ("openai",)
+EFFORTS = ("minimal", "low", "medium", "high", "xhigh")
+
 
 def inspect_bundle(path):
     """Check the complete immutable input before uploading or executing anything."""
@@ -37,7 +42,13 @@ def inspect_bundle(path):
         }
         if hashes != manifest["files"] or identity != manifest["identity"]:
             raise ValueError("Kinex bundle contents differ from the manifest")
-        required = {"bin/bun", "bin/uv", "kinex/bin/kinex", "kinex/integrations/roboenv/run.ts"}
+        required = {
+            "bin/node",
+            "bin/uv",
+            "kinex/dist/application.js",
+            "kinex/node_modules/@kinex/core/dist/index.js",
+            "kinex/integrations/roboenv/run.ts",
+        }
         if not required <= hashes.keys():
             raise ValueError("Kinex bundle lacks its runtime entrypoints")
         return identity
@@ -69,10 +80,9 @@ class KinexAgent(BaseAgent):
             raise ValueError("Kinex mode must be no-model or develop")
         if mode == "no-model" and (model_name or effort):
             raise ValueError("No-model execution must not select a model or effort")
-        if mode == "develop" and (
-            not model_name or not model_name.startswith("openai/") or not effort
-        ):
-            raise ValueError("Development requires explicit openai/MODEL and effort")
+        provider, _, model = (model_name or "").partition("/")
+        if mode == "develop" and (provider not in PROVIDERS or not model or effort not in EFFORTS):
+            raise ValueError("Development requires an explicit openai/MODEL and effort")
         for timeout in (agent_timeout_sec or 300, setup_timeout_sec):
             if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
                 raise ValueError("Kinex timeouts must be positive finite seconds")
@@ -182,7 +192,7 @@ class KinexAgent(BaseAgent):
         )
         await self.checked(
             environment,
-            f"{self.root}/bin/bun {self.bridge}/run.ts --prepare-python "
+            f"{self.root}/bin/node {self.bridge}/run.ts --prepare-python "
             f"{self.workspace} > {output}/python.log 2>&1",
             timeout=self.setup_timeout,
         )
@@ -197,13 +207,10 @@ class KinexAgent(BaseAgent):
             "require_completion": self.require_completion,
         }
         if self.mode == "develop":
+            provider, model = self.model_name.split("/", 1)
             runner.update(
                 prompt=instruction,
-                model={
-                    "provider": "openai",
-                    "id": self.model_name.split("/", 1)[1],
-                    "effort": self.effort,
-                },
+                model={"provider": provider, "id": model, "effort": self.effort},
             )
         await self.upload_json(environment, "runner.json", runner)
         context.metadata = {
@@ -215,7 +222,7 @@ class KinexAgent(BaseAgent):
         try:
             await self.checked(
                 environment,
-                f"{self.root}/bin/bun {self.bridge}/run.ts "
+                f"{self.root}/bin/node {self.bridge}/run.ts "
                 f"{self.root}/runner.json > {output}/kinex.log 2>&1",
                 timeout=self.timeout + 60,
             )
@@ -225,7 +232,7 @@ class KinexAgent(BaseAgent):
             if self.recording:
                 await self.checked(
                     environment,
-                    f"{self.workspace}/.venv/bin/python "
+                    f"{self.workspace}/.kinex/python/.venv/bin/python "
                     f"{self.bridge}/verify_media.py {self.workspace} "
                     f"{self.root}/runner.json {output}/media.json",
                     timeout=120,
@@ -233,10 +240,11 @@ class KinexAgent(BaseAgent):
                 await self.receipt(environment, "media.json")
             context.metadata["completed"] = True
         finally:
-            # Preserve agent code, recordings and sessions for review/freeze. Never export auth.
+            # Preserve agent code, recordings and the Python lock for review/freeze.
+            # Never export auth.
             await self.checked(
                 environment,
-                "tar --exclude=./.venv -czf "
+                "tar --exclude=./.kinex/python/.venv -czf "
                 f"{shlex.quote(output)}/workspace.tar.gz "
                 f"-C {self.workspace} .",
                 timeout=120,

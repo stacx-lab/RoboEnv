@@ -16,11 +16,17 @@ from roboenv.harbor.kinex import KinexAgent, inspect_bundle
 from roboenv.harbor.taskset import export_taskset, run_taskset
 from test_taskset import ROOT, inputs
 
+ENTRYPOINTS = (
+    "bin/node",
+    "bin/uv",
+    "kinex/dist/application.js",
+    "kinex/node_modules/@kinex/core/dist/index.js",
+    "kinex/integrations/roboenv/run.ts",
+)
 
-def bundle(path, *, extra=None, corrupt=False):
-    contents = dict.fromkeys(
-        ("bin/bun", "bin/uv", "kinex/bin/kinex", "kinex/integrations/roboenv/run.ts"), b"fixture"
-    )
+
+def bundle(path, *, extra=None, corrupt=False, entrypoints=ENTRYPOINTS):
+    contents = dict.fromkeys(entrypoints, b"fixture")
     if extra:
         contents[extra] = b"bad path"
     hashes = {name: hashlib.sha256(value).hexdigest() for name, value in contents.items()}
@@ -28,7 +34,7 @@ def bundle(path, *, extra=None, corrupt=False):
         "kinex_sha256": hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
     }
     if corrupt:
-        contents["bin/bun"] = b"changed"
+        contents["bin/node"] = b"changed"
     contents["bundle.json"] = json.dumps(
         {"schema": "roboenv/kinex-agent-bundle/1", "files": hashes, "identity": identity}
     ).encode()
@@ -49,6 +55,20 @@ def test_bundle_rejects_unsafe_paths_and_changed_bytes_before_effects(tmp_path, 
         inspect_bundle(path)
 
 
+def test_bundle_requires_node_kinex_and_the_bridge(tmp_path):
+    assert inspect_bundle(bundle(tmp_path / "complete.tar.gz"))
+    for missing in ENTRYPOINTS:
+        entrypoints = tuple(name for name in ENTRYPOINTS if name != missing)
+        path = bundle(tmp_path / "partial.tar.gz", entrypoints=entrypoints)
+        with pytest.raises(ValueError, match="entrypoints"):
+            inspect_bundle(path)
+        path.unlink()
+
+
+def develop(**options):
+    return {"mode": "develop", "model_name": "openai/gpt-6", "effort": "high", **options}
+
+
 @pytest.mark.parametrize(
     "options",
     [
@@ -62,6 +82,132 @@ def test_bundle_rejects_unsafe_paths_and_changed_bytes_before_effects(tmp_path, 
 def test_invalid_agent_configuration_fails_before_setup(tmp_path, options):
     with pytest.raises(ValueError):
         KinexAgent(logs_dir=tmp_path, bundle=bundle(tmp_path / "agent.tar.gz"), **options)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"model_name": "anthropic/claude"},
+        {"model_name": "openai-codex/gpt-6-astra"},
+        {"model_name": "openai/"},
+        {"model_name": None},
+        {"effort": None},
+        {"effort": "off"},
+        {"effort": "max"},
+    ],
+)
+def test_invalid_development_configuration_fails_before_setup(tmp_path, override):
+    with pytest.raises(ValueError):
+        KinexAgent(
+            logs_dir=tmp_path, bundle=bundle(tmp_path / "agent.tar.gz"), **develop(**override)
+        )
+
+
+def test_development_runs_the_selected_model_and_effort(tmp_path):
+    agent = KinexAgent(
+        logs_dir=tmp_path / "logs", bundle=bundle(tmp_path / "agent.tar.gz"), **develop()
+    )
+    agent.logs_dir.mkdir()
+    uploads = {}
+
+    class Environment:
+        async def exec(self, command, **kwargs):
+            return SimpleNamespace(return_code=0, stdout="", stderr="")
+
+        async def upload_file(self, source, target):
+            uploads[target] = Path(source).read_text()
+
+        async def download_file(self, source, target):
+            Path(target).write_text(json.dumps({"passed": True, "mode": "develop"}))
+
+    asyncio.run(agent.run("Fixture instruction", Environment(), AgentContext()))
+    runner = json.loads(uploads[agent.root + "/runner.json"])
+    assert runner["prompt"] == "Fixture instruction"
+    assert runner["model"] == {"provider": "openai", "id": "gpt-6", "effort": "high"}
+
+
+def fake_kinex(root, *, installed="1.0.0"):
+    def write(relative, content=""):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content if isinstance(content, str) else json.dumps(content))
+
+    agent = "node_modules/@earendil-works/pi-coding-agent"
+    write("package.json", {"name": "kinex", "engines": {"node": ">=22.19.0"}})
+    write(
+        "package-lock.json",
+        {
+            "lockfileVersion": 3,
+            "packages": {
+                "": {"name": "kinex"},
+                agent: {"version": "1.0.0"},
+                agent + "/node_modules/nested": {"version": "2.0.0"},
+                "node_modules/@esbuild/other-platform": {"version": "1.0.0", "optional": True},
+                "node_modules/typescript": {"version": "5.9.3", "dev": True},
+                "node_modules/@kinex/core": {"resolved": "packages/core", "link": True},
+                "packages/core": {"version": "0.9.0"},
+            },
+        },
+    )
+    write("bin/kinex.mjs")
+    write("dist/application.js")
+    write(agent + "/package.json", {"version": installed})
+    write(agent + "/dist/index.js")
+    write(agent + "/node_modules/nested/package.json", {"version": "2.0.0"})
+    write("node_modules/typescript/package.json", {"version": "5.9.3"})
+    write("packages/core/package.json", {"version": "0.9.0"})
+    write("packages/core/dist/index.js")
+    write("packages/core/src/index.ts")
+    write("packages/core/assets/python/kinex/__init__.py")
+    write("packages/core/assets/python/kinex/__pycache__/cached.pyc")
+    write(".git/config", "never packaged")
+    (root / "node_modules/@kinex").mkdir()
+    (root / "node_modules/@kinex/core").symlink_to("../../packages/core")
+    return root
+
+
+def executable(path, output):
+    path.write_text(f"#!/bin/sh\necho {output}\n")
+    path.chmod(0o755)
+    return path
+
+
+def test_packaged_kinex_contains_its_production_runtime_only(tmp_path):
+    package = load_tool("package_kinex_agent").package
+    node = executable(tmp_path / "node", "v22.19.0")
+    result = package(
+        fake_kinex(tmp_path / "kinex"), node, executable(tmp_path / "uv", "uv"), tmp_path / "a.tgz"
+    )
+    assert inspect_bundle(result["bundle"]) == {"kinex_sha256": result["kinex_sha256"]}
+    with tarfile.open(result["bundle"]) as archive:
+        names = set(archive.getnames())
+    assert {
+        "bin/node",
+        "bin/uv",
+        "kinex/package-lock.json",
+        "kinex/node_modules/@kinex/core/package.json",
+        "kinex/node_modules/@kinex/core/assets/python/kinex/__init__.py",
+        "kinex/node_modules/@earendil-works/pi-coding-agent/node_modules/nested/package.json",
+        "kinex/integrations/roboenv/run.ts",
+    } <= names
+    excluded = ("typescript", ".git", "/src/", "__pycache__", "kinex/packages/", "other-platform")
+    assert not [name for name in names if any(part in name for part in excluded)]
+
+
+@pytest.mark.parametrize("problem", ["unlocked", "old-node", "unbuilt", "external-link"])
+def test_packaging_rejects_unlocked_old_unbuilt_or_linked_kinex(tmp_path, problem):
+    package = load_tool("package_kinex_agent").package
+    kinex = fake_kinex(tmp_path / "kinex", installed="1.0.1" if problem == "unlocked" else "1.0.0")
+    if problem == "unbuilt":
+        (kinex / "dist/application.js").unlink()
+    if problem == "external-link":
+        (tmp_path / "outside.js").write_text("")
+        target = kinex / "node_modules/@earendil-works/pi-coding-agent/dist/linked.js"
+        target.symlink_to(tmp_path / "outside.js")
+    node = executable(tmp_path / "node", "v22.18.0" if problem == "old-node" else "v22.19.0")
+    with pytest.raises(ValueError):
+        package(kinex, node, executable(tmp_path / "uv", "uv"), tmp_path / "agent.tar.gz")
+    assert not (tmp_path / "agent.tar.gz").exists()
 
 
 def test_harbor_taskset_preserves_scheduler_settings_and_external_agent_config(
