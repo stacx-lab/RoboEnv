@@ -56,16 +56,6 @@ def _boot_isaac(headless: bool = True, enable_cameras: bool = True):
     return _APP
 
 
-def list_robodojo_tasks() -> list[str]:
-    """Task names = the module stems under task/RoboDojo/tasks (class == module)."""
-    tasks_dir = os.path.join(ROBODOJO_ROOT, "task", "RoboDojo", "tasks")
-    if not os.path.isdir(tasks_dir):
-        return []
-    return sorted(
-        f[:-3] for f in os.listdir(tasks_dir) if f.endswith(".py") and not f.startswith("_")
-    )
-
-
 class _NoopModelClient:
     """Stands in for XPolicyLab's WsModelClient so no policy server is needed."""
 

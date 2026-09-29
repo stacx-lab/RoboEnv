@@ -432,7 +432,6 @@ class SimWorker:
             if self.devices is not None:
                 self.devices.close()
             fn(self._checkpoints[token])
-            self.world.epoch += 1
             self._bind_devices()
             self.state = "ready"
         except Exception:
@@ -861,12 +860,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=int(os.environ.get("ROBOENV_GENERATION") or 0),
     )
     parser.add_argument("--execution-mode", choices=("stepped", "realtime"))
-    parser.add_argument(
-        "--source-lock",
-        type=Path,
-        default=None,
-        help="verify dependency hashes before booting",
-    )
     parser.add_argument("--max-ndjson-bytes", type=int, default=MAX_NDJSON_BYTES)
     return parser
 
@@ -888,11 +881,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit(str(exc)) from exc
     socket_path.parent.mkdir(parents=True, exist_ok=True)
     _remove_socket(socket_path)
-    if args.source_lock is not None:
-        from roboenv_runtime.paths import repo_root
-        from roboenv_runtime.runtime.source_lock import verify
-
-        verify(args.source_lock, repo_root())
 
     from roboenv.tasks.model import Task, task_path
 

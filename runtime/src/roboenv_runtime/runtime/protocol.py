@@ -15,7 +15,6 @@ import json
 import math
 import os
 import re
-import socket
 import stat
 from collections import OrderedDict
 from collections.abc import Mapping
@@ -435,26 +434,6 @@ def read_ndjson(stream: BinaryIO, *, max_bytes: int = MAX_NDJSON_BYTES) -> dict[
     if len(line) > max_bytes:
         raise ProtocolError("message_too_large", f"message exceeds {max_bytes} bytes")
     return decode_ndjson(line, max_bytes=max_bytes)
-
-
-def recv_ndjson(sock: socket.socket, *, max_bytes: int = MAX_NDJSON_BYTES) -> dict[str, Any]:
-    """Receive one message without consuming bytes from a following message."""
-
-    chunks = bytearray()
-    while True:
-        part = sock.recv(min(65536, max_bytes + 1 - len(chunks)))
-        if not part:
-            raise EOFError("peer closed before sending an NDJSON message")
-        chunks.extend(part)
-        newline = chunks.find(b"\n")
-        if newline >= 0:
-            if newline != len(chunks) - 1:
-                # This helper represents one-request-per-connection.  Server
-                # handlers that support multiple lines use ``read_ndjson``.
-                raise ProtocolError("invalid_ndjson", "unexpected bytes after first message")
-            return decode_ndjson(bytes(chunks), max_bytes=max_bytes)
-        if len(chunks) > max_bytes:
-            raise ProtocolError("message_too_large", f"message exceeds {max_bytes} bytes")
 
 
 @dataclass(frozen=True)

@@ -21,8 +21,6 @@ class FakeShell(AdapterBase):
 
     name: ClassVar[str] = "fakeshell"
     embodiment: ClassVar[str] = "general"
-    situation_text: ClassVar[str] = "Toy world: one puck on a line, world frame x to the right."
-    facts_text: ClassVar[str] = "Each push costs 50 budget units."
 
     control_interval_s = 0.02
 
@@ -76,11 +74,7 @@ class FakeShell(AdapterBase):
         """The language goal."""
         return f"Push the puck to x >= {self.goal_x}."
 
-    # ------------------------------------------------------------ tools
-
-    def list_objects(self) -> list[str]:
-        """Names of the objects in the world."""
-        return ["puck"]
+    # ------------------------------------------------------------ owner-side state
 
     def get_object_pose(self, name: str) -> tuple[list[float], list[float]]:
         """Ground-truth pose: ``(position xyz, quaternion wxyz)``."""
