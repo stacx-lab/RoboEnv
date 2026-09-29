@@ -134,6 +134,11 @@ class Transport:
     def can_stop(self):
         return "stop" in self.settings()["access"]["driver"]["actions"]
 
+    @cached_property
+    def is_world(self):
+        # Typed drivers route by profile; an explicit device name is a generic client.
+        return self.device is None and self.settings()["type"] == "world"
+
     def close(self):
         if self.connection is not None:
             with self._connections_lock:
@@ -279,6 +284,15 @@ class Transport:
         data = response["result"]["data"]
         if "simulation" in response["result"] and isinstance(data, dict):
             data = {**data, "simulation": response["result"]["simulation"]}
+        # Agents see only this data, so the world clock also reports the episode budget
+        # to let them pace waits; other devices' readings stay free of it.
+        if (
+            action in {"read", "wait", "status"}
+            and isinstance(data, dict)
+            and "budget" in response["result"]
+            and self.is_world
+        ):
+            data = {**data, "budget": response["result"]["budget"]}
         if action == "read" and isinstance(data, dict):
             data["received_time_s"] = time.time()
         if self.endpoint and action == "read" and isinstance(data, dict) and data.get("file"):
