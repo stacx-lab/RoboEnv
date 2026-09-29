@@ -81,29 +81,6 @@ HTTP stop requires launch with `--allow-stop`. Local owners can instead stop a
 run by ID or `run.json` path. `launch` owns the environment until Ctrl-C;
 `--detach` leaves it running until stopped.
 
-### Certify a run
-
-`roboenv verify` is the owner's fail-closed certificate for one local run. It reads
-the launch record, checks that the live service still has the recorded task, seed
-and budget mode, submits, and validates the final score and the supervisor journal:
-
-```sh
-roboenv verify --run RUN_ID_OR_RUN_JSON --out verdict/
-```
-
-`verdict/` receives `submit.json` (the report), `reward.json` (`1.0` only for a
-completed, in-budget success) and the retained `actions.jsonl`. Any failure, including
-an unreachable service or a mismatching identity, replaces stale outputs with
-`valid: false` and reward `0.0`; the command exits 0 only for a valid run. The
-verifier's submit must be the run's only evaluation, so a run is certified once: an
-earlier submit, a reset or restore, or a mutation that took effect after the verdict
-invalidates the journal, while requests refused before dispatch (`effects: none`) do not.
-
-The rules live in `roboenv.verify` (`validate_journal`, `validate_score`,
-`attach_budget`, `certify`), a standard-library-only module with no other package
-imports. It is the reference validator: harnesses and benchmarks (rsi, RLE-Bench)
-should import it, or copy that one file into a verifier container, rather than
-re-implement journal validation. See [harness integration](docs/harness-integration.md).
 Python owners use `with roboenv.launch(task="TASK_ID", port=8123) as run:`
 and connect to `run.endpoint`. Use
 `--host 0.0.0.0` when serving a task across an isolated container network.
@@ -177,6 +154,30 @@ Portable persistent drivers now use correlated JSONL requests and may reply out 
 order. Refresh existing workspace drivers from the updated catalog/export, then
 reload Kinex devices. Restart simulator services you own to pick up runtime changes;
 borrowed services remain under their owner's lifecycle control.
+
+### Certify a run
+
+`roboenv verify` is the owner's fail-closed certificate for one local run. It reads
+the launch record, checks that the live service still has the recorded task, seed
+and budget mode, submits, and validates the final score and the supervisor journal:
+
+```sh
+roboenv verify --run RUN_ID_OR_RUN_JSON --out verdict/
+```
+
+`verdict/` receives `submit.json` (the report), `reward.json` (`1.0` only for a
+completed, in-budget success) and the retained `actions.jsonl`. Any failure, including
+an unreachable service or a mismatching identity, replaces stale outputs with
+`valid: false` and reward `0.0`; the command exits 0 only for a valid run. The
+verifier's submit must be the run's only evaluation, so a run is certified once: an
+earlier submit, a reset or restore, or a mutation that took effect after the verdict
+invalidates the journal, while requests refused before dispatch (`effects: none`) do not.
+
+The rules live in `roboenv.verify` (`validate_journal`, `validate_score`,
+`attach_budget`, `certify`), a standard-library-only module with no other package
+imports. It is the reference validator: harnesses and benchmarks (rsi, RLE-Bench)
+should import it, or copy that one file into a verifier container, rather than
+re-implement journal validation. See [harness integration](docs/harness-integration.md).
 
 ## Build a harness or benchmark on it
 

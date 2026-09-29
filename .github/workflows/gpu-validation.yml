@@ -41,18 +41,25 @@ jobs:
       VALIDATION_SEED: ${{ inputs.seed }}
       TASK_SOURCE: ${{ vars.ROBOENV_GPU_TASK_SOURCE }}
       SIMULATOR_INTERPRETER: ${{ vars.ROBOENV_GPU_INTERPRETER }}
-      ROBOENV_GPU: ${{ vars.ROBOENV_GPU_DEVICE }}
+      # Exported below as CUDA_VISIBLE_DEVICES and MUJOCO_EGL_DEVICE_ID. A ROBOENV_* name
+      # would never reach the world: launch strips every ROBOENV_* variable.
+      VALIDATION_GPU: ${{ vars.ROBOENV_GPU_DEVICE }}
       VALIDATION_OUT: .cache/gpu-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: false
           persist-credentials: false
+          # Worlds launch from this checkout: keep the runner's prepared interpreters
+          # (.venv-sim/) and their registrations (.cache/) instead of wiping them per run.
+          clean: false
       - uses: astral-sh/setup-uv@c7f87aa956e4c323abf06d5dec078e358f6b4d04 # v6.0.0
       - name: Bootstrap and verify CPU/package contracts
         run: |
           bash tools/bootstrap.sh
           bash tools/check.sh
+      - name: Sync the selected backend's pinned upstream sources
+        run: .venv/bin/roboenv sources sync --backends "$VALIDATION_BACKEND"
       - name: Launch, replay and verify one prepared backend without a model
         id: validation
         continue-on-error: true
@@ -61,8 +68,8 @@ jobs:
           set -euo pipefail
           # The runner prepares its simulators with `roboenv prepare BACKEND`; an operator may
           # instead name one prepared interpreter for the selected backend.
-          if [[ -n "${ROBOENV_GPU:-}" ]]; then
-            export CUDA_VISIBLE_DEVICES="$ROBOENV_GPU" MUJOCO_EGL_DEVICE_ID="$ROBOENV_GPU"
+          if [[ -n "${VALIDATION_GPU:-}" ]]; then
+            export CUDA_VISIBLE_DEVICES="$VALIDATION_GPU" MUJOCO_EGL_DEVICE_ID="$VALIDATION_GPU"
           fi
           args=(--out "$VALIDATION_OUT" --backends "$VALIDATION_BACKEND")
           args+=(--modes "$VALIDATION_MODE" --seeds "$VALIDATION_SEED")

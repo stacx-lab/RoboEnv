@@ -154,14 +154,24 @@ configure the `gpu-validation` environment with required reviewers and a
 default-branch deployment policy, and provide an isolated, trusted runner labeled
 `roboenv-gpu` with NVIDIA support and simulators prepared with `roboenv prepare`.
 
+The workflow launches worlds from its checkout, so it needs that checkout's pinned
+upstream sources and the runner's prepared interpreters: it runs
+`roboenv sources sync --backends BACKEND` for the selected backend before
+validation, and it checks out with `clean: false` so that the interpreters under
+`.venv-sim/` and their registrations under `.cache/` survive between runs. An
+operator who keeps the interpreter outside the workspace names it with
+`ROBOENV_GPU_INTERPRETER` instead.
+
 Protected environment variables name an optional additional task source
 (`ROBOENV_GPU_TASK_SOURCE`), an optional explicit simulator interpreter for the
 selected backend (`ROBOENV_GPU_INTERPRETER`) and the device (`ROBOENV_GPU_DEVICE`,
-exported as `CUDA_VISIBLE_DEVICES` and `MUJOCO_EGL_DEVICE_ID`). These locations are
-not repository content. No API key is needed. The workflow uploads only the
-sanitized receipt after a successful privacy check and preserves a failed check's
-red status. Creating the YAML does not configure GitHub protection rules or prove
-that the external runner has executed it.
+carried by the job as `VALIDATION_GPU` and exported as `CUDA_VISIBLE_DEVICES` and
+`MUJOCO_EGL_DEVICE_ID`; a `ROBOENV_*` name would never reach the world, because
+launch strips every `ROBOENV_*` variable). These locations are not repository
+content. No API key is needed. The workflow uploads only the sanitized receipt
+after a successful privacy check and preserves a failed check's red status.
+Creating the YAML does not configure GitHub protection rules or prove that the
+external runner has executed it.
 
 Kinex smoke and rig checks use the built `packages/core` runtime with Node >=22.19.
 Select a checkout with `--kinex` (or `KINEX_ROOT`) and a Node executable with

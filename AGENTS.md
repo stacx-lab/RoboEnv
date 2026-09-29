@@ -54,8 +54,10 @@ are never overwritten. Clean-install verification is for developers, not users.
 Discovery reads pinned upstream task metadata without importing simulator engines
 and does not install assets or start an agent. Task bundles, trial scheduling and
 agent execution belong to the benchmark harness (see docs/harness-integration.md).
-Large interpreters may use a separately copied, read-only, content-verified depot;
-never mount the original project tree.
+The depot interpreter mode of `tools/build_simulator_image.py` (`runtime/packaging/`)
+has no current consumer and is retained pending a maintainer decision; where it is
+used, a depot is a separately copied, read-only, content-verified tree, never a
+mount of the original project tree.
 
 Every discovered task must resolve against the checked-in robot catalog. Keep only
 the discovery code and small examples in Git. Project reference programs are not

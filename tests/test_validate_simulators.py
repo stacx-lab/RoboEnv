@@ -293,6 +293,20 @@ def test_gpu_workflow_requires_trusted_manual_context_and_privacy_gate():
     validation = next(step for step in job["steps"] if step.get("id") == "validation")
     assert "tools/validate_simulators.py" in validation["run"] and "--run" in validation["run"]
     assert "--deployments" not in validation["run"]
+    # Worlds launch from the checkout: its pinned sources are synced first, and the
+    # runner's prepared interpreters and registrations survive the checkout.
+    checkout = next(
+        step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout@")
+    )
+    assert checkout["with"]["submodules"] == "false" and checkout["with"]["clean"] == "false"
+    sync = next(step for step in job["steps"] if "roboenv sources sync" in step.get("run", ""))
+    assert '--backends "$VALIDATION_BACKEND"' in sync["run"]
+    assert job["steps"].index(sync) < job["steps"].index(validation)
+    # launch strips ROBOENV_* from the world's environment; the device selection must not
+    # travel under such a name.
+    assert "VALIDATION_GPU" in job["env"]
+    assert not any(key.startswith("ROBOENV_") for key in job["env"])
+    assert "ROBOENV_GPU" not in validation["run"] and '"$VALIDATION_GPU"' in validation["run"]
     upload = next(
         step for step in job["steps"] if step.get("uses", "").startswith("actions/upload-artifact@")
     )
