@@ -20,7 +20,7 @@ def tool(name):
     return module
 
 
-def check(out, kinex, bun):
+def check(out, kinex, node):
     out.mkdir(parents=True, exist_ok=False)
     workspace = out / "workspace"
     tool("prepare_kinex_workspace").prepare("libero/bowl-onto-plate", workspace, project=ROOT)
@@ -29,16 +29,6 @@ def check(out, kinex, bun):
         "KINEX_DATA_DIR": str(out / "kinex-data"),
         "KINEX_CONFIG_DIR": str(out / "kinex-config"),
     }
-    with (out / "python.log").open("w") as log:
-        subprocess.run(
-            [bun, str(kinex / "bin/kinex"), "python"],
-            cwd=workspace,
-            env=env,
-            check=True,
-            stdout=log,
-            stderr=log,
-            timeout=180,
-        )
     with roboenv.launch("libero/bowl-onto-plate", project=ROOT, interpreter=sys.executable) as run:
         identity = {k: run.record[k] for k in ("session", "generation")}
         for driver in (workspace / ".kinex/devices").glob("*/driver.py"):
@@ -53,8 +43,8 @@ def check(out, kinex, bun):
         with (out / "kinex.log").open("w") as log:
             subprocess.run(
                 [
-                    bun,
-                    str(ROOT / "tests/libero_kinex_smoke.ts"),
+                    node,
+                    str(ROOT / "tests/libero_kinex_smoke.mjs"),
                     str(kinex),
                     str(workspace),
                     str(out / "smoke.json"),
@@ -127,7 +117,10 @@ def check(out, kinex, bun):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--kinex", type=Path, default=ROOT.parent / "kinex")
-    parser.add_argument("--bun", default="bun")
+    parser.add_argument(
+        "--kinex", type=Path,
+        default=Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")),
+    )
+    parser.add_argument("--node", default=os.environ.get("NODE", "node"))
     args = parser.parse_args()
-    check(args.out.resolve(), args.kinex.resolve(), args.bun)
+    check(args.out.resolve(), args.kinex.resolve(), args.node)

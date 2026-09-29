@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from helpers import kinex_python
 
 ROOT = Path(__file__).resolve().parents[1]
 GRIPPER = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices/gripper"
@@ -12,7 +13,7 @@ GRIPPER = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices/gripper"
 
 @pytest.fixture
 def gripper(monkeypatch):
-    library = ROOT.parent / "kinex/packages/core/assets/python"
+    library = kinex_python()
     if not (library / "kinex/scalar_control.py").is_file():
         pytest.skip("Requires the Kinex Python library used by exported drivers")
     monkeypatch.syspath_prepend(str(library))

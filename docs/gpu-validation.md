@@ -139,3 +139,9 @@ not repository content. No API key is needed. The workflow uploads only the
 sanitized receipt after a successful privacy check and preserves a failed check's
 red status. Creating the YAML does not configure GitHub protection rules or prove
 that the external runner has executed it.
+
+Kinex smoke and rig checks use the built `packages/core` runtime with Node >=22.19.
+Select a checkout with `--kinex` (or `KINEX_ROOT`) and a Node executable with
+`--node` (or `NODE`) in the LIBERO and SIMPLE acceptance runners. Rebuild Kinex core
+after updating its source before running these checks. Python driver tests use
+that checkout's `packages/core/assets/python` library.

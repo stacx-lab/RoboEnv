@@ -251,9 +251,15 @@ class DeviceService:
             with self._lock:
                 if source is not None:
                     error = source.exception()
+                    ended = (
+                        getattr(error, "code", None) == "episode_finished"
+                        and (getattr(error, "details", None) or {}).get("effects")
+                        in ("none", "partial")
+                    )
                     if (
                         error is not None
                         and getattr(error, "code", None) != "operation_interrupted"
+                        and not ended
                     ):
                         self._faults[resource] = error
                 if self._active.get(resource) is cancel:
@@ -298,7 +304,8 @@ class DeviceService:
             read_only = action in READ_ACTIONS
             if submitted and not read_only:
                 raise DeviceError(
-                    "already_submitted", "Mutating device calls are frozen after submit"
+                    "already_submitted", "Mutating device calls are frozen after submit",
+                    details={"effects": "none"},
                 )
             context = ExecutionContext(read_only=read_only)
             self.sequence += 1

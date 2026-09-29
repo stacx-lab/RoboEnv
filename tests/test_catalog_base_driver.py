@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from helpers import kinex_python
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices/base"
@@ -12,8 +13,8 @@ BASE = ROOT / "catalog/robots/robocasa/robocasa-panda-omron/devices/base"
 
 @pytest.fixture
 def base(monkeypatch):
-    library = ROOT.parent / "kinex/python"
-    if not (library / "kinex/base.py").is_file():
+    library = kinex_python()
+    if not (library / "kinex/velocity.py").is_file():
         pytest.skip("Requires Kinex's Python library for exported drivers")
     monkeypatch.syspath_prepend(str(library))
     monkeypatch.syspath_prepend(str(BASE))
@@ -41,10 +42,10 @@ def base(monkeypatch):
 
 def test_base_keeps_normalized_commands_and_measured_physical_readings(base):
     module, calls = base
-    assert module.handle("write", {"mode": "drive", "velocity": {"vx": 0.3, "vy": 0, "wz": -0.1}})[
-        "accepted"
-    ]
-    assert calls == [("write", {"mode": "drive", "velocity": {"vx": 0.3, "vy": 0, "wz": -0.1}})]
+    command = {"mode": "drive", "velocity": {"vx": 0.3, "vy": 0, "wz": -0.1},
+               "duration_s": 0.5}
+    assert module.handle("write", command)["accepted"]
+    assert calls == [("write", command)]
     measured = module.handle("read", {})
     assert measured["ok"] and measured["velocities"] == [0.1, 0.2, 0.3]
     assert measured["pose"]["translation_m"] == [1, 2, 3]
@@ -59,7 +60,6 @@ def test_base_rejects_bad_commands_before_transport(base):
     module, calls = base
     for args in (
         {"mode": "unsupported", "velocity": {"vx": 0, "vy": 0, "wz": 0}},
-        {"mode": "drive", "velocity": {"vx": 2, "vy": 0, "wz": 0}},
         {"mode": "drive", "velocity": {"vx": 0, "vy": 0}},
         {"mode": "drive", "velocity": {"vx": 0, "vy": 0, "wz": 0}, "posture": {"pitch": True}},
         {
@@ -74,20 +74,21 @@ def test_base_rejects_bad_commands_before_transport(base):
         {"target": [float("nan"), 0, 0]},
         {"target": [0, 0, 0], "speedFraction": 0.1},
     ):
-        assert not module.handle("write", args)["ok"]
+        assert not module.handle("write", {**args, "duration_s": 0.5})["ok"]
     assert not module.handle("ik", {})["ok"]
     assert not module.handle("stop", {"target": []})["ok"]
     assert calls == []
 
 
-def test_wheels_ignore_posture_before_transport(base):
+def test_wheels_reject_unsupported_posture_before_transport(base):
     module, calls = base
     velocity = {"vx": 0.1, "vy": 0, "wz": 0}
-    assert module.handle(
+    assert not module.handle(
         "write",
         {
             "mode": "drive",
             "velocity": velocity,
+            "duration_s": 0.5,
             "posture": {
                 "height": 0.7,
                 "roll": 0.1,
@@ -96,7 +97,7 @@ def test_wheels_ignore_posture_before_transport(base):
             },
         },
     )["ok"]
-    assert calls == [("write", {"mode": "drive", "velocity": velocity})]
+    assert calls == []
 
 
 def test_stop_and_unload_do_not_require_control_metadata(base, monkeypatch):
@@ -129,3 +130,14 @@ def test_catalog_base_is_minimal_and_adapter_matches_export_asset():
     assert profile["access"]["connection"]["device"] == "base"
     asset = ROOT / "src/roboenv/assets/velocity-client.py"
     assert (BASE / "driver.py").read_bytes() == asset.read_bytes()
+
+
+def test_duration_is_required_and_native_limits_remain_native(base):
+    module, calls = base
+    args = {"mode": "drive", "velocity": {"vx": 2, "vy": 0, "wz": 0}}
+    assert not module.handle("write", args)["ok"]
+    for duration in (0, -1, True, float("nan")):
+        assert not module.handle("write", {**args, "duration_s": duration})["ok"]
+    assert not calls
+    assert module.handle("write", {**args, "duration_s": 0.1})["ok"]
+    assert calls == [("write", {**args, "duration_s": 0.1})]

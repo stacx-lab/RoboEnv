@@ -176,6 +176,7 @@ class SimWorker:
         try:
             self._bind_devices()
             self.state = "ready"
+            self.world.after_advance = self._check_terminal
             if hasattr(self.adapter, "set_step_callback"):
                 self.adapter.set_step_callback(self._check_terminal)
         except BaseException:
@@ -236,6 +237,10 @@ class SimWorker:
 
     def _check_terminal(self):
         """Called in the world's lane after each native control interval."""
+        # Native callbacks run inside the tick. Seal only after the shared clock
+        # and pending buffers have settled, including any terminal cleanup.
+        if self.world._advancing:
+            return
         if self._final_result is not None or not getattr(self.adapter, "bounded_episodes", False):
             return
         success = getattr(self.adapter, "stop_on_success", False) and self.adapter.score().completed
@@ -310,7 +315,8 @@ class SimWorker:
                 self._final_observation = copy.deepcopy(observation)
                 self._final_result = copy.deepcopy(verdict)
                 self._termination_reason = self._termination_reason or (
-                    "success" if verdict["completed"] else "stopped"
+                    "success" if verdict["completed"] else
+                    "step_limit" if self.adapter.budget().exhausted else "stopped"
                 )
                 from roboenv_runtime.runtime.atomic import atomic_write_json
 
@@ -517,7 +523,7 @@ class SimWorker:
                         raise WorkerRPCError(
                             "episode_finished",
                             "Episode finished; call roboenv stop for the final judgment",
-                            details=self.simulation_status(),
+                            details={**self.simulation_status(), "effects": "none"},
                         )
                 operation = {
                     "devices.cancel": self.devices.cancel,

@@ -136,7 +136,10 @@ def descriptors(problem):
                 _camera_names=("agentview", "robot0_eye_in_hand"),
                 _camera_size=CAMERA_SIZE,
             )
-            context = BindingContext("libero", "panda", SimpleNamespace(_env=native))
+            context = BindingContext(
+                "libero", "panda",
+                SimpleNamespace(_env=native, control_interval_s=1 / robot.control_freq),
+            )
             parsed = BindingPlan.load(root, backend="libero")
             before = default_registry().assemble(parsed, root, context).inventory()["devices"]
             sim.data.qpos[robot._ref_joint_pos_indexes] += 0.01
@@ -172,10 +175,10 @@ def generate(out, provenance=None, *, bindings_out=None):
                 "max_cartesian_velocity": None,
                 "max_joint_velocity": None,
                 "keep_out_zones": [],
-                "notes": "Native physical joint constraints and torque clipping apply. Absolute "
+                "notes": "Physical joint constraints and native torque clipping apply. Absolute "
                 "joint targets have no added range rejection. Gripper direction commands "
                 "must be in [-1, 1] and use their sign. "
-                "Stop affects only its device, not the world clock.",
+                "Stop affects only its device; the world owns simulation time.",
             },
             "meta": META,
         }
@@ -185,6 +188,10 @@ def generate(out, provenance=None, *, bindings_out=None):
             for path in sorted(Path(temporary).glob("*/profile.yaml")):
                 profile = canonical(yaml.safe_load(path.read_text()))
                 profile["meta"] = META
+                if profile["type"] == "world":
+                    profile["access"]["source"] = "default"
+                    profile["access"].pop("method", None)
+                    profile["access"].pop("calibrated_at", None)
                 encoded = yaml.safe_dump(profile, sort_keys=False)
                 if "???" in encoded:
                     raise ValueError("Unresolved native catalog facts")

@@ -224,6 +224,7 @@ def test_contract_bindings_have_only_basic_actions():
     owner._env = world
     world.max_steps = None
     session = WorldSession(owner)
+    context = BindingContext("simple", "g1", owner, world=session)
     service = default_registry().assemble(
         resolved.bindings,
         resolved.robot,

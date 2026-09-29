@@ -32,6 +32,9 @@ def fix_cache_env() -> None:
         fallback.mkdir(parents=True, exist_ok=True)
         os.environ[var] = str(fallback)
     os.environ.setdefault("OMNIGIBSON_HEADLESS", "1")
+    depot = repo_root() / "third_party/BEHAVIOR-1K/OmniGibson/datasets"
+    if depot.is_dir():
+        os.environ.setdefault("OMNIGIBSON_DATA_PATH", str(depot))
 
 
 def load_challenge_index() -> dict[str, dict[str, Any]]:

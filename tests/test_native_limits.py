@@ -67,7 +67,9 @@ def test_gripper_profile_bounds_are_enforced_before_any_effect(path, monkeypatch
         result.set_result(None)
         return result
 
-    device = bind(None, None, SimpleNamespace(native=SimpleNamespace(control_interval_s=.02)))
+    device = bind(None, None, SimpleNamespace(native=SimpleNamespace(
+        control_interval_s=.02, budget=lambda: SimpleNamespace(exhausted=False),
+    )))
     service = DeviceService([device], motion_scheduler=schedule)
 
     def call(actions):
