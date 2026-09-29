@@ -13,6 +13,8 @@ This certifies one run; it is not a fresh-process replay certificate.
 import hashlib
 import json
 import math
+import os
+import re
 import socket
 import uuid
 from pathlib import Path
@@ -21,7 +23,8 @@ PROTOCOL = "roboenv/1"
 JOURNAL_VERSION = 1
 BUDGET_MODES = frozenset({"official", "practice"})
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
-# Operations that never dispatch to the world, and devices/1 actions that cannot mutate.
+# Operations that cannot mutate the world (answered by the supervisor itself or proxied
+# to a pure read in the worker), and devices/1 actions that cannot mutate.
 READ_ONLY_OPS = frozenset(
     {
         "observe",
@@ -32,12 +35,28 @@ READ_ONLY_OPS = frozenset(
         "devices.list",
         "devices.describe",
         "operations.get",
+        "simulation.status",
     }
 )
 READ_ONLY_ACTIONS = frozenset({"read", "state", "status", "load", "unload", "ik", "fk"})
 # Never certifiable in an official episode; practice runs may reset, restore and checkpoint.
 FORBIDDEN_OPS = frozenset({"reset", "restore", "checkpoint", "shutdown"})
 PRACTICE_OPS = frozenset({"reset", "restore", "checkpoint"})
+# A quoted or bare token containing a path separator: the shape of a host path in a message.
+_PATH_LIKE = re.compile(r"""(['"])[^'"]*[/\\][^'"]*\1|\S*[/\\]\S*""")
+
+
+def public_error(exc):
+    """Name a failure without naming the host: the exception type and a path-free detail.
+
+    The verdict directory is published with the run while an OSError message carries
+    the run directory, so the report keeps an OSError's errno text and strips every
+    path-like token from any other message. A caller that needs the full text logs
+    it separately; the certificate stays fail-closed either way.
+    """
+    detail = exc.strerror if isinstance(exc, OSError) and exc.strerror else str(exc)
+    detail = " ".join(_PATH_LIKE.sub("<path>", detail).split())
+    return f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
 
 
 def strict_json(raw):
@@ -221,16 +240,29 @@ def validate_journal(raw, *, session, submit_id, verdict, practice=False, genera
     return {"sha256": hashlib.sha256(raw).hexdigest(), "requests": count}
 
 
+def _replace(path, data):
+    """Write a sibling temporary file, then rename it over path: a reader sees old or new."""
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_bytes(data)
+    os.replace(temporary, path)
+
+
 def retain_journal(journal, out):
     """Copy the journal's original bytes into out, even when certification rejects them."""
     raw = Path(journal).read_bytes()
-    (Path(out) / "actions.jsonl").write_bytes(raw)
+    _replace(Path(out) / "actions.jsonl", raw)
     return raw
 
 
 def _write_verdict(out, report, reward):
-    (out / "submit.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
-    (out / "reward.json").write_text(json.dumps({"reward": reward}) + "\n")
+    _replace(out / "submit.json", (json.dumps(report, indent=2, allow_nan=False) + "\n").encode())
+    _replace(out / "reward.json", (json.dumps({"reward": reward}) + "\n").encode())
+
+
+def _log(log, exc):
+    """The full failure text, paths included, for the caller's private diagnostics only."""
+    if log is not None:
+        log.write(f"{type(exc).__name__}: {exc}\n")
 
 
 def _reset_outputs(out):
@@ -249,14 +281,18 @@ def refuse(out, error):
     return report
 
 
-def certify(*, socket_path, session, task_id, seed, budget_mode, journal, out, generation=0):
+def certify(
+    *, socket_path, session, task_id, seed, budget_mode, journal, out, generation=0, log=None
+):
     """Certify one run end to end and write its verdict into out; fail closed.
 
     Checks that the service at socket_path still runs the expected task, seed and
     budget mode, submits, observes the frozen world, retains the journal as
     ``actions.jsonl``, then validates the score and the journal. ``submit.json`` holds
     the returned report and ``reward.json`` the reward: 1.0 only for a valid, completed,
-    in-budget success. Any failure leaves ``valid: false`` and reward 0.0.
+    in-budget success. Any failure leaves ``valid: false`` and reward 0.0. The report
+    names a failure by type and a path-free detail (``public_error``); ``log``, a text
+    stream, receives the full message.
     """
     out = Path(out)
     _reset_outputs(out)
@@ -301,12 +337,14 @@ def certify(*, socket_path, session, task_id, seed, budget_mode, journal, out, g
         )
         valid, reward = True, float(success)
     except Exception as exc:
-        report["error"] = f"{type(exc).__name__}: {exc}"
+        report["error"] = public_error(exc)
+        _log(log, exc)
     if raw is None:
         try:
             raw = retain_journal(journal, out)
         except OSError as exc:
-            report["journal_capture_error"] = f"{type(exc).__name__}: {exc}"
+            report["journal_capture_error"] = public_error(exc)
+            _log(log, exc)
     if raw is not None:
         report["journal_artifact"] = {
             "sha256": hashlib.sha256(raw).hexdigest(),

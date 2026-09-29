@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -89,7 +90,13 @@ def test_cli_verify_certifies_a_successful_run(tmp_path):
             agent.device("controller").write([0.3])
         assert refused.value.code == "episode_finished"
         assert refused.value.details["effects"] == "none"
+        # A status poll after the verdict, as `roboenv replay` makes on completion, is a
+        # pure read that the supervisor proxies to the worker and journals: accepted.
+        assert agent.status()["terminal"] is True
         later = (run.path.parent / "evidence/journal/actions.jsonl").read_bytes()
+        committed = [json.loads(line) for line in later.splitlines()]
+        ops = [e["request"]["op"] for e in committed if e["phase"] == "commit"]
+        assert "simulation.status" in ops[ops.index("submit") + 1:]
         identity = {"session": run.record["session"], "submit_id": report["submit_request_id"],
                     "verdict": report["submit"]}
         assert validate_journal(later, **identity)["requests"] > report["journal"]["requests"]
@@ -198,3 +205,46 @@ def test_cli_verify_refuses_a_stopped_or_unknown_run(tmp_path, capsys):
     files = verdict_files(out)
     assert files["reward"] == {"reward": 0.0} and files["report"] == report
     assert files["names"] == ["reward.json", "submit.json"]
+
+
+def test_cli_verify_keeps_host_paths_out_of_the_verdict(tmp_path, capsys):
+    # submit.json travels with the run; the run directory does not. A failure is
+    # named by its type and errno text there, and in full on stderr.
+    out = tmp_path / "verdict"
+    with toy(tmp_path) as run:
+        roboenv.connect(run.endpoint).device("controller").write([0.3])
+        orphan = tmp_path / "orphan"
+        orphan.mkdir()
+        shutil.copy2(run.path, orphan / "run.json")  # no launch manifest beside it
+        stale_success(out)
+        assert main(["verify", "--run", str(orphan / "run.json"), "--out", str(out)]) == 1
+        captured = capsys.readouterr()
+        report = json.loads(captured.out)
+        assert report == {
+            "valid": False, "trial_success": False,
+            "error": "FileNotFoundError: No such file or directory",
+        }
+        assert str(tmp_path) not in (out / "submit.json").read_text()
+        assert str(orphan / "environment.json") in captured.err
+        assert verdict_files(out)["names"] == ["reward.json", "submit.json"]
+        # A record whose evidence directory is gone passes the identity check and is
+        # submitted, but not certified: the verdict still names no path.
+        moved = tmp_path / "moved"
+        moved.mkdir()
+        shutil.copy2(run.path.parent / "environment.json", moved / "environment.json")
+        record = json.loads(run.path.read_text())
+        record["directory"] = str(tmp_path / "missing-evidence")
+        (moved / "run.json").write_text(json.dumps(record))
+        stale_success(out)
+        assert main(["verify", "--run", str(moved / "run.json"), "--out", str(out)]) == 1
+        captured = capsys.readouterr()
+        report = json.loads(captured.out)
+        assert report["valid"] is False and report["submit"]["submitted"] is True
+        assert report["error"] == "FileNotFoundError: No such file or directory"
+        assert report["journal_capture_error"] == report["error"]
+        assert "journal_artifact" not in report
+        assert str(tmp_path) not in (out / "submit.json").read_text()
+        assert str(tmp_path / "missing-evidence/evidence/journal/actions.jsonl") in captured.err
+        files = verdict_files(out)
+        assert files["reward"] == {"reward": 0.0} and files["report"] == report
+        assert files["names"] == ["reward.json", "submit.json"]

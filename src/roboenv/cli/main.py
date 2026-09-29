@@ -33,13 +33,12 @@ def replay(path, client):
 
 def verify(run, out, project=None):
     """Certify one local run from its launch record: owner socket, identity and journal."""
-    from roboenv.verify import certify, refuse
+    from roboenv.verify import certify, public_error, refuse
 
     try:
-        from roboenv.environment import _record, _record_path
+        from roboenv.environment import load_run_record
 
-        path = _record_path(run, project)
-        record = _record(path, project)
+        path, record = load_run_record(run, project)
         # The manifest beside run.json is the task as launch resolved it, seed and mode included.
         task = json_loads((path.parent / "environment.json").read_text())["task"]
         if task["id"] != record["task"]:
@@ -55,8 +54,10 @@ def verify(run, out, project=None):
         }
     except Exception as exc:
         # A run that cannot be identified is not certified; stale outputs are still replaced.
-        return refuse(out, f"{type(exc).__name__}: {exc}")
-    return certify(out=out, **identity)
+        # The verdict names the failure without host paths; the full text goes to stderr.
+        print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        return refuse(out, public_error(exc))
+    return certify(out=out, log=sys.stderr, **identity)
 
 
 def main(argv=None):

@@ -71,11 +71,21 @@ def _record_path(run, project):
     return path
 
 
-def _record(run, project):
-    value = json_loads(_record_path(run, project).read_text())
+def load_run_record(run, project=None):
+    """Resolve a run ID, run directory, run.json path or endpoint to its launch record.
+
+    Returns the record's path and content (schema ``roboenv/local-run/1``); the launch
+    manifest ``environment.json`` sits beside that path.
+    """
+    path = _record_path(run, project)
+    value = json_loads(path.read_text())
     if value.get("schema") != "roboenv/local-run/1":
         raise ValueError("Unsupported local run manifest")
-    return value
+    return path, value
+
+
+def _record(run, project):
+    return load_run_record(run, project)[1]
 
 
 def _connect(
@@ -157,8 +167,7 @@ def stop(run=None, *, endpoint=None, port=None, project=None):
         raise ValueError("Select a run, use --port PORT / --endpoint URL, or set ROBOENV_ENDPOINT")
     if str(run).startswith(("http://", "https://")) and project is None:
         return Client(endpoint=run).request("simulation.stop")
-    path = _record_path(run, project)
-    record = _record(path, project)
+    path, record = load_run_record(run, project)
     if record.get("state") == "stopped":
         return {"state": "stopped", "id": record["id"], "simulation": record.get("simulation")}
     owner = _OwnerClient(

@@ -41,10 +41,9 @@ ROBOTS = {
     "behavior/behavior-r1pro": ("behavior", {}),
 }
 DEFAULT_BACKENDS = ("libero", "robocasa", "robotwin", "robodojo")
-# Besides the reference read-only operations, a probe journal may contain the status query
-# `roboenv replay` makes on completion (answered by the supervisor without dispatch) and
-# the verifier's own submit.
-PROBE_OPS = READ_ONLY_OPS | {"simulation.status", "submit"}
+# A probe journal holds the reference read-only operations (the status query `roboenv
+# replay` makes on completion is one of them) and the verifier's own submit.
+PROBE_OPS = READ_ONLY_OPS | {"submit"}
 
 
 def digest(path):

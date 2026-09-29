@@ -17,7 +17,7 @@ from roboenv.devices.service import DeviceService
 from roboenv.tasks.artifacts import Bundle
 from roboenv.tasks.model import Task
 from roboenv.validation import action_validator, json_loads, json_value, yaml_load
-from roboenv.verify import certify, refuse, strict_json
+from roboenv.verify import certify, public_error, refuse, strict_json
 from roboenv_runtime.runtime.protocol import ProtocolError, decode_ndjson
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -304,16 +304,25 @@ def test_certify_unreachable_run_overwrites_stale_success(tmp_path):
     (out / "reward.json").write_text('{"reward": 1.0}')
     (out / "submit.json").write_text('{"valid": true, "trial_success": true}')
     (out / "actions.jsonl").write_text("stale evidence\n")
+    log = io.StringIO()
     report = certify(
         socket_path=tmp_path / "absent.sock", session="s", task_id="t", seed=0,
         budget_mode="official", journal=tmp_path / "absent-run/journal/actions.jsonl", out=out,
+        log=log,
     )
     assert report["valid"] is False and report["trial_success"] is False
     assert report["error"] and "health" not in report and "submit" not in report
     assert "journal_capture_error" in report and "journal_artifact" not in report
+    # The verdict names the failures without the host's paths; the log has them. The
+    # socket error depends on the host (absent path, or one too long for AF_UNIX).
+    assert report["error"].split(":")[0] in {"FileNotFoundError", "OSError"}
+    assert report["journal_capture_error"] == "FileNotFoundError: No such file or directory"
+    assert str(tmp_path) not in (out / "submit.json").read_text()
+    assert str(tmp_path / "absent-run/journal/actions.jsonl") in log.getvalue()
     assert json.loads((out / "reward.json").read_text()) == {"reward": 0.0}
     assert json.loads((out / "submit.json").read_text()) == report
     assert not (out / "actions.jsonl").exists() and not (out / "reward.txt").exists()
+    assert not list(out.glob("*.tmp"))
     # Garbage identity fails before any connection is attempted.
     (out / "reward.json").write_text('{"reward": 1.0}')
     report = certify(
@@ -327,6 +336,29 @@ def test_certify_unreachable_run_overwrites_stale_success(tmp_path):
     assert refuse(out, "KeyError: 'session'")["valid"] is False
     assert json.loads((out / "reward.json").read_text()) == {"reward": 0.0}
     assert json.loads((out / "submit.json").read_text())["error"] == "KeyError: 'session'"
+
+
+@pytest.mark.parametrize(
+    ("exc", "expected"),
+    [
+        (
+            FileNotFoundError(2, "No such file or directory", "/private/run/actions.jsonl"),
+            "FileNotFoundError: No such file or directory",
+        ),
+        (
+            ValueError("manifest '/private/run/environment.json' names another task"),
+            "ValueError: manifest <path> names another task",
+        ),
+        (ValueError("Select a run ID or an existing run.json"),
+         "ValueError: Select a run ID or an existing run.json"),
+        (ValueError("submit was not the verifier's sole evaluation"),
+         "ValueError: submit was not the verifier's sole evaluation"),
+        (RuntimeError(""), "RuntimeError"),
+    ],
+)
+def test_public_error_keeps_the_type_and_drops_host_paths(exc, expected):
+    assert public_error(exc) == expected
+    assert "/" not in public_error(exc)
 
 
 @pytest.mark.parametrize("operation", ["submit", "reset", "restore", "shutdown", "exec"])

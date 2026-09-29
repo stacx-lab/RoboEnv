@@ -22,7 +22,7 @@ maintainers.
 | Give a coding agent a language reference | `roboenv.devices.documentation.export_documentation(robot, devices, directory, connection)` and `robot_description` |
 | Find and resolve tasks | `roboenv.tasks.catalog.load_catalog` / `discover`, `roboenv tasks list|discover`, `roboenv.tasks.resolve.resolve_task` (task, robot directory and frozen binding plan), `roboenv.tasks.model.Task` |
 | Run a reference program as an agent | `roboenv replay PROGRAM --endpoint URL`: public operations only, no verdict |
-| Certify a run | `roboenv.verify.certify(...)` and `roboenv verify --run RUN --out DIR`: identity check over the owner socket, one submit, `observe`, score validation and journal validation, fail-closed `submit.json` / `reward.json` / retained `actions.jsonl`; `validate_journal`, `validate_score`, `attach_budget`, `strict_json` and `refuse` are public |
+| Certify a run | `roboenv.verify.certify(...)` and `roboenv verify --run RUN --out DIR`: identity check over the owner socket, one submit, `observe`, score validation and journal validation, fail-closed `submit.json` / `reward.json` / retained `actions.jsonl`; `validate_journal`, `validate_score`, `attach_budget`, `strict_json`, `public_error` and `refuse` are public |
 | Stop a world | `roboenv.environment.stop`, `roboenv stop`, `RunningEnvironment.close()`; `simulation.stop` over HTTP only with `--allow-stop` |
 | Prepare a simulator | `roboenv prepare BACKEND`, `roboenv.provisioning.setup.install` / `prepare`, `roboenv.provisioning.sources.sync`, `roboenv.provisioning.robocasa_assets.prepare_assets`, `roboenv.provisioning.robodojo_assets.prepare_assets`, the executable-depot verification under `runtime/packaging/` |
 | Build an immutable simulator image | `tools/build_simulator_image.py` writes `deployment.json` (schema `roboenv/deployment/1`: image digest, runtime wheel hash, source revisions, depot manifests); its consumer is the harness |
@@ -124,10 +124,15 @@ audit.
   `_roboenv.py`; it is a historical receipt of the last RoboCasa catalog generation
   and is refreshed by the next `tools/generate_robocasa_config.py --provenance` run
   with the prepared interpreter, not by this change.
-- `roboenv.verify.READ_ONLY_OPS` does not list `simulation.status`. The validation
-  tool tolerates that query in a probe journal because the supervisor answers it
-  without dispatching to the world; whether the reference rules should too is a
-  verifier change for separate review.
+- `roboenv.verify.READ_ONLY_OPS` lists `simulation.status`. The supervisor proxies
+  it to the worker, whose status is a pure read, and counts it among its own
+  read-only operations; a status poll after the verifier's submit, which
+  `roboenv replay` makes on completion, no longer voids the certificate.
+- `submit.json` names a certification failure by exception type and a path-free
+  detail (`roboenv.verify.public_error`); the full message, which may carry the run
+  directory, goes to `roboenv verify`'s stderr or to `certify(log=...)`.
+  `submit.json`, `reward.json` and the retained `actions.jsonl` are replaced
+  atomically, so a reader never sees a torn verdict.
 
 ## What RLE must close before RoboEnv drops the layer
 
