@@ -1,0 +1,15 @@
+--- a/robocasa/models/fixtures/counter.py
++++ b/robocasa/models/fixtures/counter.py
+@@ -809,8 +809,10 @@
+             geom_i = 0
+ 
+             if len(valid_geoms) > 0:
+-                # remove duplicates as needed
+-                valid_geoms = list(set(valid_geoms))
++                # remove duplicates as needed, in first-seen order: a set of XML
++                # elements iterates in memory-address order, so the region that
++                # rng.choice picks would change between runs at the same seed
++                valid_geoms = list(dict.fromkeys(valid_geoms))
+ 
+             for g in valid_geoms:
+                 top_pos = s2a(g.get("pos"))

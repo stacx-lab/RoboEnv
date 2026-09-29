@@ -51,8 +51,13 @@ RoboCasa tracks upstream `main` in `.gitmodules`, while the gitlink and source
 lock pin an exact upstream commit for reproducibility. The refresh from
 `a07e365` to `4f8a298` changes only three upstream test scripts (robosuite API,
 task names, and fixture-style coverage); its MIT license bytes are unchanged.
-The sole RoboCasa patch remains `robocasa-readonly-assets.patch`, unchanged:
-it redirects temporary object XML through RoboEnv's writable staging helper.
+RoboCasa carries two patches. `robocasa-readonly-assets.patch` redirects
+temporary object XML through RoboEnv's writable staging helper.
+`robocasa-deterministic-counter-regions.patch` de-duplicates candidate
+counter-top regions in their original order instead of through a `set`: a set
+of XML elements iterates in memory-address order, so at a fixed seed the
+region picked for an object (and so the kitchen) changed from one build or
+process to the next. Upstream `main` still has the `set`.
 Device profiles, RGB-D transport, kinematics and control bindings live in
 RoboEnv. No downstream commits are created in the RoboCasa submodule.
 Fresh CPU/source/packaging checks for this base are recorded in
