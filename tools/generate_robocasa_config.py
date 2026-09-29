@@ -147,7 +147,11 @@ def generate(out, provenance=None):
         "third_party/robosuite/robosuite/controllers/parts/mobile_base/joint_vel.py",
         "third_party/robosuite/robosuite/models/grippers/panda_gripper.py",
         "third_party/robosuite/robosuite/utils/camera_utils.py",
-        "runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py",
+        # af08c09 split the RoboCasa native binding into one module per device type.
+        "runtime/src/roboenv_runtime/bindings/backends/robocasa/__init__.py",
+        "runtime/src/roboenv_runtime/bindings/backends/robocasa/common.py",
+        "runtime/src/roboenv_runtime/bindings/backends/robocasa/geometry.py",
+        "runtime/src/roboenv_runtime/bindings/backends/robocasa/gripper_geometry.py",
         "runtime/src/roboenv_runtime/adapters/robocasa/geometry.py",
         "runtime/src/roboenv_runtime/adapters/robocasa/base.py",
         "src/roboenv/assets/_roboenv.py",
