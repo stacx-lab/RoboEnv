@@ -1,6 +1,7 @@
 """Go2 public asynchronous motion and world time without GPU physics."""
 
 import copy
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -241,11 +242,17 @@ def native_stub(rig, monkeypatch):
 
 @pytest.mark.parametrize("mode", ["stepped", "realtime"])
 @pytest.mark.parametrize("task", ["control", "reach", "pick-place"])
-def test_catalog_worker_binds_go2_devices(native_stub, monkeypatch, tmp_path, mode, task):
+@pytest.mark.parametrize("custom_instruction", [False, True])
+def test_catalog_worker_binds_go2_devices(
+    native_stub, monkeypatch, tmp_path, mode, task, custom_instruction,
+):
     resolved = resolve_task(f"isaaclab/go2-d1-{task}", project=ROOT)
     owner = IsaacLabAdapter(**resolved.task.backend_kwargs)
     monkeypatch.setattr(owner._env, "close", lambda: None)
-    monkeypatch.delenv("ROBOENV_SERVER_MANIFEST", raising=False)
+    instruction = "Custom task instruction." if custom_instruction else resolved.task.instruction
+    manifest = tmp_path / "environment.json"
+    manifest.write_text(json.dumps({"task": {"id": resolved.task.id, "instruction": instruction}}))
+    monkeypatch.setenv("ROBOENV_SERVER_MANIFEST", str(manifest))
     worker = SimWorker(
         owner, task_id=resolved.task.id, seed=0, run_dir=tmp_path,
         device_root=resolved.robot, execution_mode=mode,
@@ -254,6 +261,8 @@ def test_catalog_worker_binds_go2_devices(native_stub, monkeypatch, tmp_path, mo
         assert worker.state == "ready"
         assert worker.world.embodiment == resolved.bindings.embodiment == "go2_d1"
         assert call(worker.devices, "world")["time_s"] == 0
+        description = worker.dispatch("environment.describe", {})
+        assert description["task"]["instruction"] == instruction
     finally:
         worker.close()
 
@@ -306,7 +315,8 @@ def test_realtime_replay_does_not_restore_a_step_cap(native_stub, tmp_path):
     env = Go2Env(task_name="go2-d1-pick-place", execution_mode="realtime")
     native = env.native
     native.asset_sha, native.seed, native.payload_mass_kg = "fixture", 0, 0.08
-    task = dict(stage="pickup", completed=False, failure=None, hold=0, lift_hold=0, contact_loss=0)
+    task = dict(placement_started=False, completed=False, failure=None,
+                hold=0, lift_hold=0, contact_loss=0)
     native.task = SimpleNamespace(spec={})
     native.snapshot = lambda: {
         "steps": native.steps, "root": [0.0], "joints": {"joint": 0.0},

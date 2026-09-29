@@ -26,10 +26,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from roboenv.devices.export import driver_access, write_driver  # noqa: E402
 from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import RobotModel  # noqa: E402
 from roboenv_runtime.adapters.isaaclab.go2_d1.profiles import profiles  # noqa: E402
-from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import (  # noqa: E402
-    INSTRUCTIONS,
-    TASKS,
-)
+from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import TASKS  # noqa: E402
 
 
 def adapt_go2_arm_driver(path):
@@ -116,26 +113,9 @@ def generate(assets, out, *, bindings_out=None):
     for name in TASKS:
         task = out / f"tasks/isaaclab/{name}/task.yaml"
         task.parent.mkdir(parents=True, exist_ok=True)
-        task.write_text(
-            yaml.safe_dump(
-                {
-                    "id": f"isaaclab/{name}",
-                    "backend": "isaaclab",
-                    "execution_mode": "realtime",
-                    "backend_task": f"isaaclab.{name}",
-                    "robot": "isaaclab/isaaclab-go2-d1",
-                    "instruction": INSTRUCTIONS[name],
-                    "seed": 0,
-                    "budget_mode": "practice",
-                    "backend_kwargs": {
-                        "task_name": name,
-                        "asset_manifest": ".cache/isaaclab/go2-d1/assets.json",
-                        "max_steps": 6000,
-                    },
-                },
-                sort_keys=False,
-            )
-        )
+        # Task YAML owns instructions and task settings; regeneration preserves both.
+        source = ROOT / f"catalog/tasks/isaaclab/{name}/task.yaml"
+        task.write_text(source.read_text())
 
 
 if __name__ == "__main__":

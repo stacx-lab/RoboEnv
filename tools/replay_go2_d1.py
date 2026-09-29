@@ -61,7 +61,9 @@ def replay(record, assets, out, video=None):
         joint_error = max(abs(actual["joints"][n] - q) for n, q in expected["joints"].items())
         task_match = all(
             actual["task"][k] == expected["task"][k]
-            for k in ("stage", "completed", "failure", "hold", "lift_hold", "contact_loss")
+            for k in (
+                "placement_started", "completed", "failure", "hold", "lift_hold", "contact_loss",
+            )
         )
         object_error = 0.0
         object_velocity_error = 0.0

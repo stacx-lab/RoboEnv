@@ -14,43 +14,43 @@ intrinsics:
       limits:
         min: -2.35
         max: 2.35
-      max_velocity: 1.5
-      max_effort: 30.0
+      max_velocity: null
+      max_effort: 3.3
     - name: d1_Joint2
       type: revolute
       limits:
         min: -1.57
         max: 1.57
-      max_velocity: 1.5
-      max_effort: 30.0
+      max_velocity: null
+      max_effort: 3.3
     - name: d1_Joint3
       type: revolute
       limits:
         min: -1.57
         max: 1.57
-      max_velocity: 1.5
-      max_effort: 30.0
+      max_velocity: null
+      max_effort: 1.7
     - name: d1_Joint4
       type: revolute
       limits:
         min: -2.35
         max: 2.35
-      max_velocity: 1.5
-      max_effort: 30.0
+      max_velocity: null
+      max_effort: 1.7
     - name: d1_Joint5
       type: revolute
       limits:
         min: -1.57
         max: 1.57
-      max_velocity: 1.5
-      max_effort: 30.0
+      max_velocity: null
+      max_effort: 1.7
     - name: d1_Joint6
       type: revolute
       limits:
         min: -2.35
         max: 2.35
-      max_velocity: 1.5
-      max_effort: 30.0
+      max_velocity: null
+      max_effort: 1.7
     chain:
     - origin:
       - 0.0

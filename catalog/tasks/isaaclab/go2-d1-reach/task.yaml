@@ -3,10 +3,7 @@ backend: isaaclab
 execution_mode: realtime
 backend_task: isaaclab.go2-d1-reach
 robot: isaaclab/isaaclab-go2-d1
-instruction: Move the base and use independent arm IK to reach the cyan gripper TCP
-  target at world position [1.4, 0, 0.65] m, orientation xyzw [0, 0.70710678, 0, 0.70710678].
-  TCP is [0, 0, 0.105] m from the arm flange. Move the base at least 0.5 m from start,
-  then hold within 0.025 m and 0.10 rad for 1 s with base speed below 0.08 m/s.
+instruction: Move the base and use independent arm IK to reach the cyan gripper TCP target
 seed: 0
 budget_mode: practice
 backend_kwargs:

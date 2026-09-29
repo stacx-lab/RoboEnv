@@ -95,6 +95,14 @@ def test_go2_generator_keeps_bindings_private_and_drivers_portable(tmp_path, mon
     from roboenv.tasks.catalog import load_catalog
 
     generator = load_tool("generate_go2_d1_catalog")
+    template_root = tmp_path / "source"
+    task_templates = template_root / "catalog/tasks/isaaclab"
+    shutil.copytree(CATALOG / "tasks/isaaclab", task_templates)
+    for path in task_templates.glob("*/task.yaml"):
+        task = yaml.safe_load(path.read_text())
+        task["instruction"] = f"Updated instruction for {task['id']}."
+        path.write_text(yaml.safe_dump(task, sort_keys=False))
+    monkeypatch.setattr(generator, "ROOT", template_root)
     source = CATALOG / "robots/isaaclab/isaaclab-go2-d1"
     facts = {}
     for path in (source / "devices").glob("*/profile.yaml"):
@@ -115,6 +123,10 @@ def test_go2_generator_keeps_bindings_private_and_drivers_portable(tmp_path, mon
     for task, _ in tasks.values():
         assert task.execution_mode == "realtime"
         assert "realtime" not in task.backend_kwargs
+        assert task.instruction == f"Updated instruction for {task.id}."
+    for template in task_templates.glob("*/task.yaml"):
+        generated_task = catalog / "tasks/isaaclab" / template.relative_to(task_templates)
+        assert generated_task.read_bytes() == template.read_bytes()
     rig = catalog / "robots/isaaclab/isaaclab-go2-d1"
     assert list(rig.rglob("_roboenv.py")) == [rig / "devices/_roboenv.py"]
     manifest = yaml.safe_load((rig / "workspace.yaml").read_text())

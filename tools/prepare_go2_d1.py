@@ -7,8 +7,16 @@ import argparse
 import hashlib
 import json
 import shutil
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runtime/src"))
+from roboenv_runtime.adapters.isaaclab.go2_d1.limits import (  # noqa: E402
+    ARM_EFFORT_LIMITS,
+    ARM_VELOCITY_LIMIT_SIM,
+    D1_SPECIFICATION_URL,
+)
 
 
 def prepare(source, out):
@@ -35,14 +43,16 @@ def prepare(source, out):
         name = joint.get("name")
         if name.startswith("d1_Joint"):
             limit = joint.find("limit")
-            effort = 40 if name.startswith("d1_Joint7") else 30
-            velocity = 0.1 if name.startswith("d1_Joint7") else 1.5
+            finger = name.startswith("d1_Joint7")
+            effort = 40 if finger else ARM_EFFORT_LIMITS[name]
+            velocity = 0.1 if finger else ARM_VELOCITY_LIMIT_SIM
             limit.set("effort", str(effort))
             limit.set("velocity", str(velocity))
             assumptions[name] = {
                 "effort": effort,
-                "velocity": velocity,
-                "source": "practice approximation",
+                "velocity": velocity if finger else None,
+                "source": "practice approximation" if finger else D1_SPECIFICATION_URL,
+                **({} if finger else {"velocity_policy": "uncapped simulation"}),
             }
     for name, size in [
         ("wrist_d405_link", [0.023, 0.042, 0.042]),

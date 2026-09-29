@@ -7,6 +7,7 @@ import numpy as np
 from roboenv_runtime.bindings.backends.shared.depth import DEPTH_SCALE
 
 from .adapter import COMMAND_FIELDS, DEFAULT, matrix_quat, pose
+from .limits import ARM_EFFORT_LIMITS
 
 META = {"source": "introspected", "method": "introspection", "calibrated_at": None}
 IDENTITY = [0, 0, 0, 0, 0, 0, 1]
@@ -74,8 +75,8 @@ def profiles(model, home):
                 "name": name,
                 "type": "revolute",
                 "limits": {"min": lo, "max": hi},
-                "max_velocity": 1.5,
-                "max_effort": 30.0,
+                "max_velocity": None,
+                "max_effort": ARM_EFFORT_LIMITS[name],
             }
         )
         t = j["origin"]

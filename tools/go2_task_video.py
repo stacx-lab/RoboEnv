@@ -71,7 +71,7 @@ class TaskVideo:
             stdin=subprocess.PIPE,
         )
         self.font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18)
-        self.stages = set()
+        self.statuses = set()
 
     def capture(self):
         n = self.world.native
@@ -88,10 +88,10 @@ class TaskVideo:
         frame = Image.new("RGB", (960, 600), "#111827")
         frame.paste(Image.fromarray(rgb), (0, 0))
         draw = ImageDraw.Draw(frame)
-        stage = n.task.stage
+        status = "success" if n.task.completed else "failed" if n.task.failure else "running"
         draw.text(
             (15, 548),
-            f"{self.world.task_name} | {stage} | t={n.steps * 0.02:.2f}s",
+            f"{self.world.task_name} | {status} | t={n.steps * 0.02:.2f}s",
             font=self.font,
             fill="white",
         )
@@ -102,9 +102,9 @@ class TaskVideo:
             fill="#bbc7db",
         )
         self.encoder.stdin.write(frame.tobytes())
-        if stage not in self.stages or n.steps == 1600:
-            frame.save(self.path.with_name(self.path.stem + f"-{stage}-{n.steps}.png"))
-            self.stages.add(stage)
+        if status not in self.statuses or n.steps == 1600:
+            frame.save(self.path.with_name(self.path.stem + f"-{status}-{n.steps}.png"))
+            self.statuses.add(status)
 
     def close(self):
         self.encoder.stdin.close()

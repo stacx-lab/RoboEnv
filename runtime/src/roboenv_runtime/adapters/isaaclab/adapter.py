@@ -32,9 +32,6 @@ class IsaacLabAdapter(AdapterBase):
     def close(self):
         self._env.close()
 
-    def goal(self):
-        return self._env.instruction
-
     def score(self):
         return ScoreReport(
             reward=float(self._env.completed),

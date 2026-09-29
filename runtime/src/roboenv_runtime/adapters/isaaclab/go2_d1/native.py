@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from .adapter import DEFAULT, LEG_NAMES, RobotModel, Trot, matrix_quat, quat_matrix
+from .limits import ARM_EFFORT_LIMITS, ARM_VELOCITY_LIMIT_SIM
 from .tasks import PICK_PLACE
 
 
@@ -116,8 +117,8 @@ class Native:
                     joint_names_expr=self.model.arm_names,
                     stiffness=120.0,
                     damping=5.0,
-                    effort_limit_sim=30.0,
-                    velocity_limit_sim=1.5,
+                    effort_limit_sim=dict(ARM_EFFORT_LIMITS),
+                    velocity_limit_sim=ARM_VELOCITY_LIMIT_SIM,
                 ),
                 "fingers": ImplicitActuatorCfg(
                     joint_names_expr=["d1_Joint7_.*"],

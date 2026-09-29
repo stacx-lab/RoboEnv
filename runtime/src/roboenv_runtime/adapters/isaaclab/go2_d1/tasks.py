@@ -18,23 +18,6 @@ REACH_QUAT = [0.0, math.sqrt(0.5), 0.0, math.sqrt(0.5)]
 OBJECT_POSITION = [1.25, 0.0, 0.03]
 OBJECT_SIZE = [0.04, 0.04, 0.06]
 DESTINATION = [2.5, 0.0, 0.0]
-INSTRUCTIONS = {
-    CONTROL: "Practice Go2 base velocity/posture control and independent D1 arm manipulation.",
-    REACH: (
-        "Move the base and use independent arm IK to reach the cyan gripper TCP target "
-        "at world position [1.4, 0, 0.65] m, orientation xyzw [0, 0.70710678, 0, 0.70710678]. "
-        "TCP is [0, 0, 0.105] m from the arm flange. Move the base at least 0.5 m from start, "
-        "then hold within 0.025 m and 0.10 rad for 1 s with base speed below 0.08 m/s."
-    ),
-    PICK_PLACE: (
-        "Walk to the orange 4 x 4 x 6 cm, 80 g block on the ground near [1.25, 0, 0] m. "
-        "Grasp it with both fingers, lift its center above 0.12 m, and carry it while walking "
-        "at least 0.6 m to the green ground destination centered at [2.5, 0, 0] m. "
-        "Do not drop it during transport. Place the entire block inside the 0.30 x 0.30 m "
-        "destination, open the gripper, and let the block settle for 1 s. "
-        "Use the RGB-D cameras and robot feedback; all coordinates are in the world frame."
-    ),
-}
 
 
 def definition(name):
@@ -68,7 +51,7 @@ class TaskState:
         self.spec = copy.deepcopy(definition(name))
         self.completed = False
         self.failure = None
-        self.stage = "practice" if name == CONTROL else "reach" if name == REACH else "pickup"
+        self.placement_started = False
         self.hold = self.contact_loss = self.lift_hold = 0
         self.pickup_base = None
         self.carried_distance = 0.0
@@ -109,27 +92,26 @@ class TaskState:
             corners = np.asarray(sample["object_corners"])
             in_zone = bool(np.max(np.abs(corners[:, :2] - np.array(DESTINATION[:2]))) <= 0.15)
             bottom = float(corners[:, 2].min())
-            if self.stage == "pickup":
+            if self.pickup_base is None:
                 lifted = grasped and obj[2] >= 0.12
                 self.lift_hold = self.lift_hold + 1 if lifted else 0
                 if self.lift_hold >= 10:
-                    self.stage = "carry"
                     self.pickup_base = base[:2].tolist()
-            if self.stage in ("carry", "place"):
+            if self.pickup_base is not None:
                 self.carried_distance = max(
                     self.carried_distance, float(np.linalg.norm(base[:2] - self.pickup_base))
                 )
                 release_zone = in_zone and obj[2] < 0.10 and self.carried_distance >= 0.6
                 if release_zone:
-                    self.stage = "place"
-                if self.stage == "carry":
+                    self.placement_started = True
+                if not self.placement_started:
                     self.contact_loss = 0 if grasped else self.contact_loss + 1
                     if bottom < 0.008 or self.contact_loss > 10:
                         self.failure = "object_dropped"
                 elif not in_zone:
                     self.failure = "object_left_destination"
                 settled = (
-                    self.stage == "place"
+                    self.placement_started
                     and in_zone
                     and -0.005 <= bottom <= 0.012
                     and sample["object_speed"] < 0.03
@@ -147,7 +129,6 @@ class TaskState:
             }
         if self.hold >= 50 and self.failure is None:
             self.completed = True
-            self.stage = "success"
 
     def snapshot(self):
         return copy.deepcopy(vars(self))

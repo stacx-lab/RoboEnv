@@ -8,7 +8,7 @@ import numpy as np
 from roboenv.devices.model import DeviceError
 
 from .adapter import DEFAULT, pose, validate_command
-from .tasks import INSTRUCTIONS, PICK_PLACE, TASKS
+from .tasks import PICK_PLACE, TASKS
 
 
 class Go2Env:
@@ -77,12 +77,6 @@ class Go2Env:
     @property
     def completed(self):
         return self.native.task.completed
-
-    @property
-    def instruction(self):
-        return INSTRUCTIONS[self.task_name].replace(
-            "80 g", f"{self.native.payload_mass_kg * 1000:g} g"
-        )
 
     def reset(self, seed):
         self.native.reset(seed)
@@ -209,13 +203,14 @@ class Go2Env:
     def source_identity():
         import hashlib
 
-        from . import adapter, native, profiles, tasks
+        from . import adapter, limits, native, profiles, tasks
 
         sources = {
             Path(p).name: hashlib.sha256(Path(p).read_bytes()).hexdigest()
             for p in (
                 adapter.__file__,
                 native.__file__,
+                limits.__file__,
                 profiles.__file__,
                 tasks.__file__,
                 __file__,

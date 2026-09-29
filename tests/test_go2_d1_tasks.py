@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import (
+    CONTROL,
     OBJECT_SIZE,
     PICK_PLACE,
     REACH,
@@ -65,6 +66,7 @@ def test_reach_requires_base_motion_orientation_and_continuous_hold():
     assert s.hold == 0
     update(s, reach_sample(), 50)
     assert s.completed and s.done
+    assert "stage" not in s.snapshot()
     before = copy.deepcopy(s.snapshot())
     s.update(reach_sample(fallen=True))
     assert s.snapshot() == before
@@ -73,16 +75,16 @@ def test_reach_requires_base_motion_orientation_and_continuous_hold():
 def test_pick_place_requires_bilateral_lift_carry_release_and_settle():
     s = TaskState(PICK_PLACE)
     update(s, payload_sample(z=0.03), 60)
-    assert s.stage == "pickup"
+    assert s.pickup_base is None
     update(s, payload_sample(finger_forces=[2, 0]), 60)
-    assert s.stage == "pickup"
+    assert s.pickup_base is None
     update(s, payload_sample(), 10)
-    assert s.stage == "carry"
+    assert s.pickup_base is not None and not s.placement_started
     # Reaching the destination with the arm alone is insufficient.
     update(s, payload_sample(x=2.5, z=0.06), 5)
-    assert s.stage == "carry"
+    assert s.pickup_base is not None and not s.placement_started
     update(s, payload_sample(x=2.5, z=0.06, base_x=2.13), 1)
-    assert s.stage == "place"
+    assert s.placement_started
     release = payload_sample(x=2.5, z=0.03, base_x=2.13, finger_forces=[0, 0], gripper_opening=1.0)
     update(s, {**release, "object_speed": 0.1}, 60)
     assert not s.completed
@@ -90,6 +92,7 @@ def test_pick_place_requires_bilateral_lift_carry_release_and_settle():
     assert not s.completed
     update(s, release, 1)
     assert s.completed and s.carried_distance >= 0.6
+    assert "stage" not in s.snapshot()
 
 
 @pytest.mark.parametrize("failure", [{"finger_forces": [0, 0]}, {"z": 0.03}])
@@ -106,7 +109,7 @@ def test_destination_checks_entire_object_and_no_success_before_pickup():
     s = TaskState(PICK_PLACE)
     release = payload_sample(x=2.5, z=0.03, base_x=2.13, finger_forces=[0, 0], gripper_opening=1.0)
     update(s, release, 100)
-    assert not s.completed and s.stage == "pickup"
+    assert not s.completed and s.pickup_base is None
     update(s, payload_sample(), 10)
     update(s, payload_sample(x=2.5, z=0.06, base_x=2.13), 1)
     update(s, payload_sample(x=2.64, z=0.03, base_x=2.13), 1)
@@ -149,3 +152,22 @@ def test_public_robot_feedback_does_not_expose_task_verdict(fault, expected):
         read_device=lambda name: {"faults": [fault] if fault else [], "positions": [0.1]}
     )
     assert read_robot_state(world, "arm") == {"faults": expected, "positions": [0.1]}
+
+
+@pytest.mark.parametrize("name", [CONTROL, REACH, PICK_PLACE])
+def test_task_state_and_snapshot_have_no_stage(name):
+    state = TaskState(name)
+    assert not hasattr(state, "stage")
+    assert "stage" not in state.snapshot()
+    state.update({"fallen": True})
+    assert "stage" not in state.snapshot()
+
+
+def test_placement_latch_preserves_destination_failure_after_block_is_raised():
+    state = TaskState(PICK_PLACE)
+    update(state, payload_sample(), 10)
+    state.update(payload_sample(x=2.5, z=0.06, base_x=2.13))
+    state.update(payload_sample(x=2.5, z=0.2, base_x=2.13))
+    assert state.placement_started and state.failure is None
+    state.update(payload_sample(x=2.7, z=0.2, base_x=2.13))
+    assert state.failure == "object_left_destination"
