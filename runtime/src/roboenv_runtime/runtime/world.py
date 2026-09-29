@@ -14,11 +14,9 @@ class WorldSession:
         native.configure_execution_mode(mode)
         self.mode = mode
         self.next_tick = time.monotonic()
-        self.lag_s = 0.0
         self.native = native
         self.backend, self.embodiment = native.name, native.embodiment
         self.lock = threading.RLock()
-        self.epoch = 0
         self._closed = False
         self._frozen = False
         self.owner_thread_required = bool(getattr(native, "owner_thread_required", False))
@@ -113,7 +111,6 @@ class WorldSession:
                 now = time.monotonic()
                 if now < self.next_tick:
                     return
-                self.lag_s = max(0.0, now - self.next_tick)
                 self.next_tick += self.native.control_interval_s
             pending, self._motions = self._motions, []
             error = None
@@ -151,7 +148,6 @@ class WorldSession:
             self.freeze()
             self.poll_motions()
             self.native.reset(seed)
-            self.epoch += 1
             self.time_s = 0.0
             self._frozen = False
             self.failure = None

@@ -13,7 +13,6 @@ __all__ = [
     "BUILTIN_ADAPTERS",
     "AdapterBase",
     "EnvAdapter",
-    "SupportsCheckpoint",
     "list_adapters",
     "make_adapter",
     "register_adapter",
@@ -30,12 +29,10 @@ class EnvAdapter(Protocol):
         name: Registry key (``"robodojo"``, ``"robotwin"``, ...).
         embodiment: Native robot embodiment (``"arx_x5"``,
             ``"piper"``, ``"panda"``, ...).
-        capabilities: Optional features, see :class:`roboenv_runtime.core.Capability`.
     """
 
     name: str
     embodiment: str
-    capabilities: frozenset[str]
     control_interval_s: float
 
     def advance_control(self) -> None:
@@ -79,25 +76,11 @@ class EnvAdapter(Protocol):
         ...
 
 
-@runtime_checkable
-class SupportsCheckpoint(Protocol):
-    """Adapters whose world can be rewound in place (``Capability.CHECKPOINT``)."""
-
-    def checkpoint(self) -> Any:
-        """Snapshot the world; returns an opaque token."""
-        ...
-
-    def restore(self, token: Any) -> None:
-        """Rewind the world to a previous snapshot."""
-        ...
-
-
 class AdapterBase(ABC):
     """Optional defaults for native adapters; reset and score are required."""
 
     name: ClassVar[str] = "base"
     embodiment: ClassVar[str] = "general"
-    capabilities: ClassVar[frozenset[str]] = frozenset()
     execution_mode = "realtime"
 
     def goal(self) -> str:
@@ -138,14 +121,6 @@ class AdapterBase(ABC):
         """Default: the most recent captured frame, if any."""
         frames = self.frames()
         return frames[-1] if frames else None
-
-    def describe(self) -> dict[str, Any]:
-        """A JSON-friendly description (for owner diagnostics)."""
-        return {
-            "name": self.name,
-            "embodiment": self.embodiment,
-            "capabilities": sorted(self.capabilities),
-        }
 
 
 # ------------------------------------------------------------------ registry
