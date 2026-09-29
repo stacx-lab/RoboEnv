@@ -296,12 +296,13 @@ def check(world, out, report):
     state = copy.deepcopy((before, world.control.targets, world.control.commands))
     for name in world.groups:
         size = len(world.control.targets[name])
+        # Ranges are the simulator's to enforce (limit_handling: native); malformed
+        # commands are still refused before any effect.
         for target in (
             [float("nan")] * size,
             [float("inf")] * size,
             [],
             [True] * size,
-            [1e9] * size,
         ):
             try:
                 world.device_write(name, target)
