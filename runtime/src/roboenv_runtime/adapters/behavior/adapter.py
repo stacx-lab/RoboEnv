@@ -10,9 +10,10 @@ class BehaviorAdapter(NativeDeviceAdapter):
     name = "behavior"
     embodiment = "r1pro"
 
-    def __init__(self, activity_name="picking_up_trash", **kwargs):
+    def __init__(self, activity_name="picking_up_trash", *, stop_on_success=False, **kwargs):
         from .devices import BehaviorDevices
 
+        self._take_policy(stop_on_success)
         self._env = BehaviorDevices(activity_name, **kwargs)
 
     def goal(self):

@@ -1,10 +1,11 @@
 """Shared lifecycle for native devices whose world owns control and recording."""
 
+from roboenv_runtime.adapters.episodes import EpisodePolicy
 from roboenv_runtime.core.adapter import AdapterBase
 from roboenv_runtime.core.types import Budget
 
 
-class NativeDeviceAdapter(AdapterBase):
+class NativeDeviceAdapter(EpisodePolicy, AdapterBase):
     owner_thread_required = True
 
     def configure_execution_mode(self, mode):

@@ -1,20 +1,22 @@
 """Official LIBERO lifecycle, native success, and owner-only evidence."""
 
+from roboenv_runtime.adapters.episodes import EpisodePolicy
 from roboenv_runtime.core.adapter import AdapterBase, register_adapter
 from roboenv_runtime.core.types import Budget, ScoreReport
 
 
 @register_adapter
-class LiberoAdapter(AdapterBase):
+class LiberoAdapter(EpisodePolicy, AdapterBase):
     name = "libero"
     embodiment = "panda"
     # Robosuite's GL context stays current on its creating thread. This also
     # keeps synchronous camera reads on that thread, not on RPC handler threads.
     owner_thread_required = True
 
-    def __init__(self, suite_name="libero_spatial", task_id=0, **kwargs):
+    def __init__(self, suite_name="libero_spatial", task_id=0, *, stop_on_success=False, **kwargs):
         from .backend import LiberoEnv
 
+        self._take_policy(stop_on_success)
         self._env = LiberoEnv(suite_name, task_id, **kwargs)
 
     @property

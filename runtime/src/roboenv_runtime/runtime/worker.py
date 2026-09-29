@@ -176,8 +176,7 @@ class SimWorker:
         try:
             self._bind_devices()
             self.state = "ready"
-            if hasattr(self.adapter, "set_step_callback"):
-                self.adapter.set_step_callback(self._check_terminal)
+            self.world.after_interval = self._check_terminal
         except BaseException:
             self.close()
             raise
@@ -235,7 +234,7 @@ class SimWorker:
         return observation
 
     def _check_terminal(self):
-        """Called in the world's lane after each native control interval."""
+        """Called in the world's lane after each native control interval and each operation."""
         if self._final_result is not None or not getattr(self.adapter, "bounded_episodes", False):
             return
         success = getattr(self.adapter, "stop_on_success", False) and self.adapter.score().completed

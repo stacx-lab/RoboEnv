@@ -1,18 +1,20 @@
 """One SIMPLE world, cached native verdicts, and owner-only replay evidence."""
 
+from roboenv_runtime.adapters.episodes import EpisodePolicy
 from roboenv_runtime.core.adapter import AdapterBase, register_adapter
 from roboenv_runtime.core.types import Budget, ScoreReport
 
 
 @register_adapter
-class SimpleAdapter(AdapterBase):
+class SimpleAdapter(EpisodePolicy, AdapterBase):
     name = "simple"
     embodiment = "g1"
     owner_thread_required = True
 
-    def __init__(self, **kwargs):
+    def __init__(self, *, stop_on_success=False, **kwargs):
         from .backend import SimpleEnv
 
+        self._take_policy(stop_on_success)
         self._env = SimpleEnv(**kwargs)
 
     @property

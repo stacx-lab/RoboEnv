@@ -57,9 +57,6 @@ class RoboCasaAdapter(AdapterBase):
     def bounded_episodes(self):
         return self._env._max_steps is not None or self.stop_on_success
 
-    def set_step_callback(self, callback):
-        self._env.on_step = callback
-
     def freeze_episode(self):
         self._env.terminal = True
 

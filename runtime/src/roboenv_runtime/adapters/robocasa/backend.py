@@ -68,7 +68,6 @@ class RoboCasaEnv:
         if type(stop_on_success) is not bool:
             raise ValueError("stop_on_success must be a boolean")
         self.stop_on_success = stop_on_success
-        self.on_step = None
         self.terminal = False
         _ensure_offscreen_rendering()
         import robocasa  # noqa: F401  (importing it registers the kitchen environments)
@@ -404,8 +403,6 @@ class RoboCasaEnv:
             self._obs, _, _, _ = self.env.step(np.zeros(self._robot.action_dim))
             self.sim.forward()  # Publish transforms consistent with the integrated joints.
             self._step_count += 1
-            if self.on_step is not None:
-                self.on_step()
         finally:
             if previous is None:
                 del composite.set_goal

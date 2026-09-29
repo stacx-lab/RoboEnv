@@ -27,6 +27,8 @@ class WorldSession:
         self._waiters = []
         self.time_s = 0.0
         self.failure = None
+        # The owner's episode rules, run once per interval after its motions and waits settle.
+        self.after_interval = None
 
     def _check_thread(self):
         if self.owner_thread_required and threading.get_ident() != self._owner_thread:
@@ -128,6 +130,15 @@ class WorldSession:
                 self._resume(job, error=error)
             self.poll_motions()
             self._settle_waiters()
+            if error is None and self.after_interval is not None:
+                # After the interval is accounted for, so a wait this interval completed returns
+                # normally even when the owner's rules end the episode at this frame.
+                try:
+                    self.after_interval()
+                except Exception as exc:
+                    self.failure = exc
+                    self.poll_motions()
+                    self._settle_waiters()
 
     def resolve(self, value):
         if not isinstance(value, Future):
