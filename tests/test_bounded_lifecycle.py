@@ -78,6 +78,11 @@ def test_actions_refused_after_the_end_leave_a_certifiable_journal(tmp_path):
             session=run.record["session"],
             generation=run.record["generation"],
         )
+        # Stopping a motion the end already cut (what kinex's stop does) is refused the same way.
+        with pytest.raises(RemoteError) as caught:
+            owner.request("devices.cancel", {"execution_id": "driver-ended"})
+        assert caught.value.code == "episode_finished"
+        assert caught.value.details["effects"] == "none"
         owner.allowed_ops = owner.allowed_ops | {"submit"}
         verdict = owner.request("submit", request_id="verifier-submit")
         raw = (run.path.parent / "evidence/journal/actions.jsonl").read_bytes()
@@ -85,7 +90,7 @@ def test_actions_refused_after_the_end_leave_a_certifiable_journal(tmp_path):
     report = validate(
         raw, session=run.record["session"], submit_id="verifier-submit", verdict=verdict
     )
-    assert report["requests"] >= 3 and verdict["completed"] is True
+    assert report["requests"] >= 4 and verdict["completed"] is True
 
 
 def test_step_limit_freezes_and_stop_receipt_survives_worker_shutdown(tmp_path):
