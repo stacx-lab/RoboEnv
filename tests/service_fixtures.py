@@ -3,6 +3,7 @@
 import os
 import shutil
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -14,12 +15,18 @@ from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.fixture
-def device_service(tmp_path, monkeypatch, request):
+@contextmanager
+def running_service(tmp_path, monkeypatch, *, variant=None):
+    """A fresh CPU worker behind a real supervisor socket, ready to list its devices.
+
+    ``variant`` selects the packaged native binding (``"native"``) or a public HTTP
+    endpoint (``"http"``); the default injects a test-only fallible binding. Environment
+    variables set through ``monkeypatch`` beforehand reach the supervisor.
+    """
     robot = tmp_path / "robot"
     shutil.copytree(ROOT / "tests/fixtures/native-toy/catalog/robots/toy-puck", robot)
     # A test-only binding injects partial effects, delay, and read violations.
-    if getattr(request, "param", None) != "native":
+    if variant != "native":
         (robot / "bindings.yaml").write_text(
             yaml.safe_dump(
                 {
@@ -52,7 +59,7 @@ def device_service(tmp_path, monkeypatch, request):
         cache_entries=2,
         terminate_grace_s=0.2,
         worker_module="device_test_worker",
-        http_port=0 if getattr(request, "param", None) == "http" else None,
+        http_port=0 if variant == "http" else None,
     )
     supervisor = Supervisor(config)
     supervisor.start_worker()
@@ -67,6 +74,13 @@ def device_service(tmp_path, monkeypatch, request):
         supervisor._schedule_server_shutdown()
         thread.join(timeout=5)
         supervisor.close()
+
+
+@pytest.fixture
+def device_service(tmp_path, monkeypatch, request):
+    variant = getattr(request, "param", None)
+    with running_service(tmp_path, monkeypatch, variant=variant) as service:
+        yield service
 
 
 def invoke(client, *, request_id=None, **extra):

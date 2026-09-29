@@ -15,11 +15,13 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
 from dataclasses import asdict, replace
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import roboenv
 from roboenv.devices.bindings.spec import BindingPlan, binding_resource
@@ -97,6 +99,35 @@ def _probe_program(names, readable):
     )
 
 
+def check_reference_provenance(provenance):
+    """The catalog's reference policy: typed flags, and an official reference names its source.
+
+    A reference marked ``official: true`` needs a public HTTPS ``upstream_url`` without
+    credentials and a ``revision`` pinned to a 40- or 64-digit hexadecimal commit; the
+    claim is otherwise unverifiable. Project-authored references carry ``official: false``.
+    """
+    if not isinstance(provenance, dict):
+        raise ValueError("reference provenance must be an object")
+    for flag in ("retired", "official"):
+        if flag in provenance and type(provenance[flag]) is not bool:
+            raise ValueError(f"reference {flag} status must be a boolean")
+    if provenance.get("official") is True:
+        upstream, revision = provenance.get("upstream_url"), provenance.get("revision")
+        if not isinstance(upstream, str) or not isinstance(revision, str):
+            raise ValueError("an official reference needs an upstream URL and revision")
+        source = urlsplit(upstream)
+        if (
+            source.scheme != "https"
+            or not source.hostname
+            or source.username is not None
+            or source.password is not None
+            or not re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", revision)
+        ):
+            raise ValueError(
+                "an official reference needs a public HTTPS upstream URL and a pinned revision"
+            )
+
+
 def _reference(task, source_path, cases):
     """The task's checked-in reference program, or None when there is nothing to replay."""
     reference = source_path.with_name("solution.py")
@@ -106,10 +137,7 @@ def _reference(task, source_path, cases):
         raise ValueError("reference validation requires an explicit regular solution.py")
     note = reference.with_name("solution-source.json")
     provenance = json_loads(note.read_text()) if note.exists() else {}
-    if not isinstance(provenance, dict):
-        raise ValueError("reference provenance must be an object")
-    if "retired" in provenance and type(provenance["retired"]) is not bool:
-        raise ValueError("reference retirement status must be a boolean")
+    check_reference_provenance(provenance)
     if provenance.get("retired") is True:
         if cases:
             raise ValueError("selected reference is retired; use a validated typed controller")

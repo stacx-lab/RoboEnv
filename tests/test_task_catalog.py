@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from helpers import load_tool
 from roboenv.tasks import catalog
 from roboenv.tasks.catalog import BACKENDS, discover, load_catalog
 from roboenv.tasks.resolve import resolve_task
@@ -63,6 +64,47 @@ def test_every_discoverable_upstream_task_resolves(tmp_path):
         resolved = resolve_task(path, catalog=ROOT / "catalog")
         assert resolved.task.id == task.id and resolved.bindings.devices
     print(json.dumps({"discovered": discovery, "resolved": len(inventory)}, sort_keys=True))
+
+
+def test_official_references_need_a_public_upstream_and_a_pinned_revision(tmp_path):
+    # The Harbor export enforced this rule while it existed; the catalog keeps it through
+    # the validation tool's policy, applied here to every checked-in provenance note.
+    tool = load_tool("validate_simulators")
+    policy = tool.check_reference_provenance
+    notes = sorted((ROOT / "catalog/tasks").glob("*/*/solution-source.json"))
+    assert notes
+    for note in notes:
+        policy(json.loads(note.read_text()))
+    policy({"origin": "project-reference", "official": False})
+    policy({"official": True, "upstream_url": "https://example.org/repo", "revision": "a" * 40})
+    for provenance, message in [
+        ([], "must be an object"),
+        ({"official": "yes"}, "official status must be a boolean"),
+        ({"retired": 1}, "retired status must be a boolean"),
+        ({"official": True}, "upstream URL and revision"),
+        ({"official": True, "upstream_url": "https://example.org/repo"}, "URL and revision"),
+        ({"official": True, "upstream_url": "http://example.org/r", "revision": "a" * 40},
+         "public HTTPS"),
+        # Assembled so that the release preflight's source scan sees no credential URL.
+        ({"official": True, "upstream_url": "https://" + "u:p@example.org/r",
+          "revision": "a" * 40}, "public HTTPS"),
+        ({"official": True, "upstream_url": "https://example.org/r", "revision": "main"},
+         "pinned revision"),
+    ]:
+        with pytest.raises(ValueError, match=message):
+            policy(provenance)
+    # A malformed official note is refused before the lane's own rule; a well-formed one
+    # is still not replayed here, because this lane accepts project-authored programs only.
+    (tmp_path / "solution.py").write_text("env.devices()\n")
+    note = tmp_path / "solution-source.json"
+    note.write_text(json.dumps({"official": True}))
+    with pytest.raises(ValueError, match="upstream URL and revision"):
+        tool._reference(None, tmp_path / "task.yaml", None)
+    note.write_text(json.dumps(
+        {"official": True, "upstream_url": "https://example.org/repo", "revision": "b" * 40}
+    ))
+    with pytest.raises(ValueError, match="project-authored references only"):
+        tool._reference(None, tmp_path / "task.yaml", None)
 
 
 def test_catalog_references_run_in_replay_or_are_retired():

@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
+import yaml
 from jsonschema import Draft202012Validator
 from roboenv.client import Client, RemoteError
 from roboenv.devices.contract import DEVICE_CONTRACT
@@ -18,9 +19,43 @@ from roboenv.devices.export import write_driver
 from roboenv.verify import certify, validate_journal
 from roboenv_runtime.runtime.protocol import Request, Response
 from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
-from service_fixtures import invoke
+from service_fixtures import invoke, running_service
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_publish_devices_writes_portable_device_files_at_readiness(tmp_path, monkeypatch):
+    # A harness that does not read the launch record names a directory instead; the
+    # supervisor publishes the device files there once, when the registry first answers,
+    # with the public endpoint and the run identity that the drivers connect with.
+    published = tmp_path / "published"
+    monkeypatch.setenv("ROBOENV_PUBLISH_DEVICES", str(published))
+    monkeypatch.setenv("ROBOENV_ENDPOINT", "http://sim.internal:8123")
+    with running_service(tmp_path, monkeypatch) as (client, _, _):
+        files = sorted(str(p.relative_to(published)) for p in published.rglob("*") if p.is_file())
+        assert files == [
+            "_roboenv.py",
+            "controller/connection.json",
+            "controller/driver.py",
+            "controller/profile.yaml",
+        ]
+        assets = ROOT / "src/roboenv/assets"
+        assert (published / "_roboenv.py").read_bytes() == (assets / "_roboenv.py").read_bytes()
+        assert (published / "controller/driver.py").read_bytes() == (
+            assets / "device-client.py"
+        ).read_bytes()
+        assert json.loads((published / "controller/connection.json").read_text()) == {
+            "endpoint": "http://sim.internal:8123", "session": "local", "generation": 0,
+        }
+        profile = yaml.safe_load((published / "controller/profile.yaml").read_text())
+        assert (profile["name"], profile["type"]) == ("controller", "other")
+        assert profile["access"]["connection"] == {
+            "kind": "url", "url": "http://sim.internal:8123", "device": "controller",
+        }
+        assert set(profile["access"]["driver"]["actions"]) == {"read", "state", "write"}
+        before = {p: p.read_bytes() for p in published.rglob("*") if p.is_file()}
+        client.devices()  # published at readiness only: a later listing rewrites nothing
+        assert {p: p.read_bytes() for p in published.rglob("*") if p.is_file()} == before
 
 
 def test_discover_control_and_observe_through_real_worker(device_service):

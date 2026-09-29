@@ -12,11 +12,24 @@ from roboenv_runtime.bindings import default_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog"
+ROBOTS = sorted(path.parent for path in (CATALOG / "robots").rglob("workspace.yaml"))
 
 
 def test_public_catalog_contains_only_robot_and_task_definitions():
     assert {p.name for p in CATALOG.iterdir()} == {"robots", "tasks"}
     assert not list(CATALOG.rglob("bindings.yaml"))
+
+
+@pytest.mark.parametrize(
+    "robot", ROBOTS, ids=[str(robot.relative_to(CATALOG / "robots")) for robot in ROBOTS]
+)
+def test_every_robot_ships_the_packaged_shared_driver_unchanged(robot):
+    # Each checked-in robot carries its own copy of the shared transport so that a copied
+    # catalog works on its own; a copy that drifted from the packaged asset would hand a
+    # harness a different wire client than export_devices writes for a live run.
+    shared = (ROOT / "src/roboenv/assets/_roboenv.py").read_bytes()
+    assert (robot / "devices/_roboenv.py").read_bytes() == shared
+    assert not list(robot.glob("devices/*/_roboenv.py"))
 
 
 def test_tasks_resolve_from_a_copied_public_catalog(tmp_path):
