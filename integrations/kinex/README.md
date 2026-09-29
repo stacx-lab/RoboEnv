@@ -51,10 +51,18 @@ An owner-side configuration for a bounded no-model probe:
 }
 ```
 
-Select device names from the resolved rig. `--agent-config` supplies Harbor agent
-kwargs. Set attempts, concurrency, retry, output and timeout in `job.json`; the
-generated default is one attempt, serial execution and no retries. Seeds, clocks
-and native initialization belong to generated tasks. Regenerate when they change.
+Select device names from the resolved rig. The default `integration_probe` reads
+`camera`, then sends `arm` one timed joint segment (`write` with `actions` in model
+order and `duration_s`). It advances the world clock device (`world wait`; the optional
+`world` argument defaults to `world`) until the arm settles near the target and has
+moved measurably. It then holds briefly for recording, stops the arm and returns
+`completed: true`. It needs a joint arm, an RGB(D) camera and a world clock device.
+The synthetic fakeshell world has none of these, so its smoke passes its own tool.
+
+`--agent-config` supplies Harbor agent kwargs. Set attempts, concurrency, retry,
+output and timeout in `job.json`; the generated default is one attempt, serial
+execution and no retries. Seeds, clocks and native initialization belong to
+generated tasks. Regenerate when they change.
 
 The agent prepares `/app/workspace` from public device profiles/drivers. Kinex keeps
 the tools' Python as a uv project in `.kinex/python` (`pyproject.toml`, `uv.lock`,

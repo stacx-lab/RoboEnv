@@ -1,14 +1,19 @@
 """Harbor owns scheduling; the optional Kinex bridge validates isolated agent inputs."""
 
 import asyncio
+import contextlib
 import hashlib
 import io
 import json
+import math
+import runpy
+import sys
 import tarfile
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
+import yaml
 from harbor.models.agent.context import AgentContext
 from harbor.models.job.config import JobConfig
 from helpers import load_tool
@@ -282,3 +287,125 @@ def test_harbor_report_requires_receipts_and_distinguishes_native_success(tmp_pa
     assert not collect(tmp_path, require_task_success=True)["passed"]
     (tmp_path / "trial/agent/integrity.json").unlink()
     assert not collect(tmp_path)["passed"]
+
+
+PROBE = ROOT / "integrations/kinex/probe"
+
+
+class ProbeWorld:
+    """RoboEnv 0.9 device semantics for the default no-model probe.
+
+    Joint writes are timed segments in model order; the arm moves only while the
+    world clock advances, as in a stepped world. Writes in any other form fail
+    like RoboEnv's schema does.
+    """
+
+    def __init__(self, positions, *, limits=(-2.9, 2.9), moves=True, tau_s=0.4):
+        self.positions, self.moves, self.tau_s = list(positions), moves, tau_s
+        self.velocities = [0.0] * len(positions)
+        self.goal = list(positions)
+        self.time_s = 0.0
+        self.joints = [
+            {"name": f"joint{index}", "type": "revolute",
+             "limits": {"min": limits[0], "max": limits[1]}}
+            for index in range(len(positions))
+        ]
+        self.calls, self.finished = [], None
+
+    def profile(self, name):
+        assert name == "arm"
+        return {"name": "arm", "type": "joint",
+                "intrinsics": {"model": {"joints": self.joints}}}
+
+    def device(self, name, action="read", **kwargs):
+        self.calls.append((name, action, kwargs))
+        if name == "camera" and action == "read":
+            frame = f"/frames/{len(self.calls)}.png"
+            return {"data": {"sample_time_s": self.time_s}, "file": frame}
+        if name == "world" and action == "wait":
+            duration = kwargs["duration_s"]
+            if self.moves:
+                decay = math.exp(-duration / self.tau_s)
+                pairs = list(zip(self.positions, self.goal, strict=True))
+                self.positions = [g + (p - g) * decay for p, g in pairs]
+                self.velocities = [(g - p) * decay / self.tau_s for p, g in pairs]
+            self.time_s += duration
+            return {"data": {"time_s": self.time_s, "elapsed_s": duration}}
+        if name != "arm":
+            raise RuntimeError(f"unexpected device call {name}.{action}")
+        if action == "read":
+            return {"data": {"positions": list(self.positions),
+                             "velocities": list(self.velocities), "faults": []}}
+        if action == "write":
+            if set(kwargs) != {"actions", "duration_s"}:
+                raise RuntimeError("write requires actions and duration_s")
+            actions, duration = kwargs["actions"], kwargs["duration_s"]
+            if not actions or not duration > 0:
+                raise RuntimeError("write requires a nonempty timed segment")
+            for target in actions:
+                assert len(target) == len(self.joints)
+                assert all(math.isfinite(value) for value in target)
+            self.goal = list(actions[-1])
+            return {"data": {"execution_id": "segment", "elapsed_s": 0.0, "state": {}}}
+        if action == "stop":
+            return {"data": {"stopped": True}}
+        raise RuntimeError(f"unsupported arm action {action}")
+
+    def run(self, monkeypatch, arguments):
+        class Finished(SystemExit):
+            pass
+
+        def finish(result=None, file=None):
+            self.finished = {**result, "file": file}
+            raise Finished(0)
+
+        kinex = ModuleType("kinex")
+        kinex.args = lambda: dict(arguments)
+        kinex.device, kinex.profile, kinex.finish = self.device, self.profile, finish
+        monkeypatch.setitem(sys.modules, "kinex", kinex)
+        # Hold rounds also keep wall time for the recorder; skip it here.
+        monkeypatch.setattr("time.sleep", lambda seconds: None)
+        with contextlib.suppress(Finished):
+            runpy.run_path(str(PROBE / "tool.py"), run_name="__main__")
+
+
+@pytest.mark.parametrize("start,direction", [(0.2, 1), (2.85, -1)])
+def test_default_probe_moves_the_arm_with_a_timed_segment_and_world_waits(
+    monkeypatch, start, direction
+):
+    world = ProbeWorld([start, -0.16, 0.0, -2.44, 0.0, 2.23, 0.79])
+    world.run(monkeypatch, {"arm": "arm", "camera": "camera"})
+    writes = [kwargs for name, action, kwargs in world.calls if action == "write"]
+    assert len(writes) == 1 and writes[0]["duration_s"] > 0
+    # A smooth segment from the measured configuration; other joints hold.
+    assert writes[0]["actions"][-1][0] == pytest.approx(start + 0.1 * direction)
+    held = [-0.16, 0.0, -2.44, 0.0, 2.23, 0.79]
+    assert all(action[1:] == held for action in writes[0]["actions"])
+    first_write = next(i for i, (_, action, _) in enumerate(world.calls) if action == "write")
+    assert ("world", "wait") in [(name, action) for name, action, _ in world.calls[first_write:]]
+    assert world.calls[-1][:2] == ("arm", "stop")
+    result = world.finished
+    # require_completion accepts only a returned completed: true.
+    assert result["completed"] is True and result["reached"] is True
+    assert result["after"]["positions"][0] - result["before"]["positions"][0] == pytest.approx(
+        0.1 * direction, abs=0.01
+    )
+    assert result["file"].endswith(".png") and result["world_elapsed_s"] > 0
+
+
+def test_default_probe_fails_and_stops_when_writes_do_not_move_the_arm(monkeypatch):
+    world = ProbeWorld([0.0] * 7, moves=False)
+    with pytest.raises(RuntimeError, match="did not converge"):
+        world.run(monkeypatch, {"arm": "arm", "camera": "camera"})
+    assert world.finished is None
+    assert world.calls[-1][:2] == ("arm", "stop")
+
+
+def test_default_probe_declares_its_devices_for_kinex():
+    manifest = yaml.safe_load((PROBE / "tool.yaml").read_text())
+    assert manifest["name"] == "integration_probe" and manifest["kind"] == "controller"
+    assert set(manifest["devices"]) == {"joint", "world"}
+    properties = manifest["parameters"]["properties"]
+    assert manifest["parameters"]["required"] == ["arm", "camera"]
+    assert {"arm", "camera", "world"} == set(properties) == set(manifest["device_inputs"])
+    assert all(properties[name]["type"] == "string" for name in properties)

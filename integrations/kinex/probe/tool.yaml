@@ -1,8 +1,10 @@
 name: integration_probe
 kind: controller
-description: Read a real camera, move one native arm by a small measured amount, and stop.
+description: >-
+  Read a real camera, move one native arm joint by a small measured amount in one
+  timed segment while the world clock advances, and stop.
 timeout_s: 150
-devices: [joint]
+devices: [joint, world]
 parameters:
   type: object
   additionalProperties: false
@@ -10,6 +12,8 @@ parameters:
   properties:
     arm: {type: string}
     camera: {type: string}
+    world: {type: string, description: World clock device; defaults to world}
 device_inputs:
   arm: {types: [joint]}
   camera: {types: [rgb, rgbd]}
+  world: {types: [world]}
