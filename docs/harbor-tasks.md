@@ -44,7 +44,7 @@ and stay outside Git.
 ```sh
 roboenv tasks generate --backends libero robocasa \
   --deployments deployments/local/map.json \
-  --wheel build/wheels/roboenv-0.2.0-py3-none-any.whl \
+  --wheel build/wheels/roboenv-0.9.0-py3-none-any.whl \
   --out generated/benchmark --seeds 0 --check-images
 ```
 

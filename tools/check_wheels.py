@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 
 root = Path(sys.argv[1])
-wheels = [root / f"{name}-0.2.0-py3-none-any.whl" for name in ("roboenv", "roboenv_runtime")]
+wheels = [root / f"{name}-0.9.0-py3-none-any.whl" for name in ("roboenv", "roboenv_runtime")]
 for wheel in wheels:
     with zipfile.ZipFile(wheel) as package:
         names = package.namelist()
