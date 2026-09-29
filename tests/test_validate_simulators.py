@@ -53,10 +53,13 @@ def test_default_preparation_selects_available_references_without_execution(tmp_
     monkeypatch.setattr(
         tool.subprocess, "run", lambda *args, **kwargs: pytest.fail("must not execute")
     )
+    # The catalog's only references (RoboCasa) are retired: by default there is nothing to replay.
+    with pytest.raises(ValueError, match="no validation cases matched"):
+        tool.prepare(deployments, wheel, tmp_path / "catalog-only")
     out = tmp_path / "validation"
-    receipt = tool.prepare(deployments, wheel, out)
-    assert len(receipt["cases"]) == 2
-    assert {case["backend"] for case in receipt["cases"]} == {"robocasa"}
+    receipt = tool.prepare(deployments, wheel, out, source=typed_reference_fixture(tmp_path))
+    assert len(receipt["cases"]) == 1
+    assert {case["backend"] for case in receipt["cases"]} == {"robotwin"}
     assert receipt["phase"] == "prepared" and receipt["model_calls"] == 0
     assert receipt["reference_official"] is False
     assert receipt["harbor_loader_validated"] is True

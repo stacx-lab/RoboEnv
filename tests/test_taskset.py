@@ -1,5 +1,7 @@
 """Generation is deterministic, portable, answer-free, and checked by Harbor itself."""
 
+import ast
+import builtins
 import json
 import os
 import shutil
@@ -242,3 +244,41 @@ def test_retired_reference_cannot_be_exported(tmp_path):
             include_reference=True,
         )
     assert not destination.exists()
+
+
+def test_catalog_references_run_in_replay_or_are_retired(tmp_path):
+    # `roboenv replay` gives a reference program `env` and `np`; one written for an API that
+    # is gone must be marked retired so export refuses it instead of shipping a broken solve.sh.
+    wheel, _ = inputs(tmp_path)
+    for reference in sorted((ROOT / "catalog/tasks").glob("*/*/solution.py")):
+        note = reference.with_name("solution-source.json")
+        if note.is_file() and json.loads(note.read_text()).get("retired") is True:
+            identifier = "/".join(reference.parent.parts[-2:])
+            with pytest.raises(ValueError, match="reference program is retired"):
+                export_task(
+                    reference.with_name("task.yaml"),
+                    ROOT / "catalog",
+                    tmp_path / identifier,
+                    wheel,
+                    deployment_path=tmp_path / (identifier.split("/")[0] + ".json"),
+                    include_reference=True,
+                )
+            continue
+        tree = ast.parse(reference.read_text())
+        defined = set(dir(builtins)) | {"env", "np", "__name__"}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                defined.add(node.name)
+            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                defined.add(node.id)
+            elif isinstance(node, ast.arg):
+                defined.add(node.arg)
+            elif isinstance(node, ast.ExceptHandler) and node.name:
+                defined.add(node.name)
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                defined.update((alias.asname or alias.name).split(".")[0] for alias in node.names)
+        used = {
+            n.id for n in ast.walk(tree)
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
+        }
+        assert not used - defined, (reference, sorted(used - defined))
