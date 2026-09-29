@@ -35,9 +35,11 @@ def _save(path, value):
     temporary.replace(path)
 
 
-def _client(record):
+def _client(record, *, owner=False):
+    # The owner reaches its run through the Unix socket; the public HTTP service refuses owner
+    # operations such as observe and score.peek.
     return Client(
-        record.get("endpoint") or record["socket"],
+        record["socket"] if owner else record.get("endpoint") or record["socket"],
         session=record["session"],
         generation=record["generation"],
     )
@@ -77,15 +79,27 @@ def _record(run, project):
 
 
 def _connect(
-    run=None, *, endpoint=None, socket_path=None, session=None, generation=None, project=None
+    run=None,
+    *,
+    endpoint=None,
+    socket_path=None,
+    session=None,
+    generation=None,
+    project=None,
+    owner=False,
 ):
-    """Attach without acquiring ownership. Explicit endpoint, run, then workspace."""
+    """Attach without acquiring ownership. Explicit endpoint, run, then workspace.
+
+    owner selects a local run's own socket, for owner operations; an endpoint cannot offer them.
+    """
     if sum(value is not None for value in (run, endpoint, socket_path)) > 1:
         raise ValueError("Choose a run, endpoint, or socket")
     if run is not None and str(run).startswith(("http://", "https://")):
         endpoint, run = str(run), None
+    if owner and endpoint:
+        raise ValueError("Owner operations need a local run, not an endpoint: select it with --run")
     if run is not None:
-        return _client(_record(run, project))
+        return _client(_record(run, project), owner=owner)
     if (
         endpoint
         or socket_path
@@ -102,7 +116,7 @@ def _connect(
         record = _record(path, project)
         if record.get("state") != "ready" or not Path(record["socket"]).exists():
             continue
-        candidate = _client(record)
+        candidate = _client(record, owner=owner)
         try:
             health = candidate.request("health", timeout=0.2)
         except (OSError, RuntimeError):
