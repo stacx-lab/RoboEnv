@@ -31,6 +31,34 @@ def replay(path, client):
     }
 
 
+def verify(run, out, project=None):
+    """Certify one local run from its launch record: owner socket, identity and journal."""
+    from roboenv.verify import certify, refuse
+
+    try:
+        from roboenv.environment import _record, _record_path
+
+        path = _record_path(run, project)
+        record = _record(path, project)
+        # The manifest beside run.json is the task as launch resolved it, seed and mode included.
+        task = json_loads((path.parent / "environment.json").read_text())["task"]
+        if task["id"] != record["task"]:
+            raise ValueError("run record and launch manifest name different tasks")
+        identity = {
+            "socket_path": record["socket"],
+            "session": record["session"],
+            "generation": record["generation"],
+            "task_id": task["id"],
+            "seed": task["seed"],
+            "budget_mode": task["budget_mode"],
+            "journal": Path(record["directory"]) / "evidence/journal/actions.jsonl",
+        }
+    except Exception as exc:
+        # A run that cannot be identified is not certified; stale outputs are still replaced.
+        return refuse(out, f"{type(exc).__name__}: {exc}")
+    return certify(out=out, **identity)
+
+
 def main(argv=None):
     from roboenv.cli.workflows import COMMANDS, add_commands, execute
 
@@ -51,6 +79,17 @@ def main(argv=None):
     operation.add_argument("request_id")
     program = commands.add_parser("replay")
     program.add_argument("program", type=Path)
+    certification = commands.add_parser(
+        "verify", help="Certify a finished local run: submit, then validate score and journal"
+    )
+    certification.add_argument("--run", required=True, help="Local run ID or run.json")
+    certification.add_argument(
+        "--out",
+        required=True,
+        type=Path,
+        help="Directory for submit.json, reward.json and the retained actions.jsonl",
+    )
+    certification.add_argument("--project", type=Path)
     sources = commands.add_parser("sources")
     sources.add_argument("operation", choices=("status", "sync", "check-updates"))
     sources.add_argument("--project", type=Path)
@@ -104,6 +143,10 @@ def main(argv=None):
     try:
         if args.command in COMMANDS:
             return execute(args)
+        if args.command == "verify":
+            report = verify(args.run, args.out, project=args.project)
+            print(json.dumps(report, allow_nan=False))
+            return 0 if report["valid"] else 1
         client = Client()
         if hasattr(args, "run"):
             from roboenv.environment import _connect as connect

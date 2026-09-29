@@ -15,6 +15,8 @@ from jsonschema import Draft202012Validator
 from roboenv.client import Client, RemoteError
 from roboenv.devices.contract import DEVICE_CONTRACT
 from roboenv.devices.export import write_driver
+from roboenv.harbor.export import verifier_script
+from roboenv.verify import certify, validate_journal
 from roboenv_runtime.runtime.protocol import Request, Response
 from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
 from service_fixtures import invoke
@@ -136,9 +138,17 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert json.loads(result.stdout)
-    assets = importlib.resources.files("roboenv").joinpath("assets")
+    # The reference certifier refuses a foreign session before it submits anything.
+    identity = {
+        "socket_path": client.socket_path, "task_id": "device-toy", "seed": 0,
+        "budget_mode": "official", "journal": supervisor.journal.path, "out": tmp_path / "direct",
+    }
+    report = certify(session="stale-deployment-session", **identity)
+    assert report["valid"] is False and "session" in report["error"]
+    assert "submit" not in report and not client.request("score.peek")["submitted"]
+    # The exported Harbor task ships the same module with Harbor's shell, run in isolation.
     verifier = tmp_path / "verify.py"
-    verifier.write_text(assets.joinpath("verify.py").read_text())
+    verifier.write_text(verifier_script())
     task = {
         "task_id": "device-toy", "seed": 0, "session": "stale-deployment-session",
         "backend": "fakeshell",
@@ -147,17 +157,22 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
 
     def verify():
         return subprocess.run(
-            [sys.executable, str(verifier)], cwd=tmp_path, env=env,
+            [sys.executable, "-I", str(verifier)], cwd=tmp_path, env=env,
             capture_output=True, text=True, timeout=15,
         )
 
     assert verify().returncode == 1  # Missing owner identity cannot certify a trial.
     assert json.loads((tmp_path / "verdict/reward.json").read_text()) == {"reward": 0.0}
+    assert (tmp_path / "verdict/reward.txt").read_text().strip() == "0.0"
     assert not client.request("score.peek")["submitted"]
     Path(client.socket_path).with_name("identity.json").write_text('{"session":"harbor"}')
     result = verify()
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads((tmp_path / "verdict/reward.json").read_text()) == {"reward": 1.0}
+    assert (tmp_path / "verdict/reward.txt").read_text().strip() == "1.0"
+    shipped = json.loads((tmp_path / "verdict/submit.json").read_text())
+    assert shipped["benchmark_eligible"] is True and shipped["certified"] is False
+    assert shipped["journal"]["sha256"] == shipped["journal_artifact"]["sha256"]
     with pytest.raises(RemoteError, match="already_submitted"):
         invoke(client)
     client.device("controller").read()
@@ -230,10 +245,9 @@ def test_partial_device_motion_is_not_certified(device_service):
     with pytest.raises(RemoteError, match="partial motion"):
         invoke(client, fail_after=True)
     assert client.request("observe")["budget"]["used"] == 50
-    verifier = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
     raw = supervisor.journal.path.read_bytes()
     with pytest.raises(ValueError, match="indeterminate"):
-        verifier["validate_journal"](raw, session="harbor", submit_id="none", verdict={})
+        validate_journal(raw, session="harbor", submit_id="none", verdict={})
 
 
 def test_timeout_fences_request_and_never_claims_emergency_stop(device_service):

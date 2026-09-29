@@ -1,17 +1,43 @@
-#!/usr/bin/env python3
-"""Independent Harbor verifier. Standard library only; never imports /app code.
+"""Reference certification of one run: its final score and its supervisor journal.
 
-The simulator's live verdict plus its read-only supervisor journal are evidence.
-This verifies one trial, not a fresh-process replay certificate.
+RoboEnv owns the verdict, so it also publishes the rules that make a run's evidence
+certifiable. This module states those rules and applies them to one run end to end.
+It uses only the standard library and imports nothing else from this package: a
+harness or benchmark imports it, or copies this one file into a verifier container,
+instead of re-implementing journal validation.
+
+The simulator's live verdict plus its read-only supervisor journal are the evidence.
+This certifies one run; it is not a fresh-process replay certificate.
 """
 
 import hashlib
 import json
 import math
-import os
 import socket
 import uuid
 from pathlib import Path
+
+PROTOCOL = "roboenv/1"
+JOURNAL_VERSION = 1
+BUDGET_MODES = frozenset({"official", "practice"})
+MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+# Operations that never dispatch to the world, and devices/1 actions that cannot mutate.
+READ_ONLY_OPS = frozenset(
+    {
+        "observe",
+        "score.peek",
+        "capture",
+        "health",
+        "environment.describe",
+        "devices.list",
+        "devices.describe",
+        "operations.get",
+    }
+)
+READ_ONLY_ACTIONS = frozenset({"read", "state", "status", "load", "unload", "ik", "fk"})
+# Never certifiable in an official episode; practice runs may reset, restore and checkpoint.
+FORBIDDEN_OPS = frozenset({"reset", "restore", "checkpoint", "shutdown"})
+PRACTICE_OPS = frozenset({"reset", "restore", "checkpoint"})
 
 
 def strict_json(raw):
@@ -39,24 +65,24 @@ def strict_json(raw):
     )
 
 
-def rpc(op, session, args=None):
-    """Send an identity-checked request without importing any client code."""
+def rpc(socket_path, op, *, session, generation=0, args=None, deadline_s=240.0):
+    """Send one identity-checked owner request over the Unix socket; no client code."""
     request = {
-        "protocol": "roboenv/1",
+        "protocol": PROTOCOL,
         "session": session,
-        "generation": 0,
+        "generation": generation,
         "request_id": f"verify-{uuid.uuid4().hex}",
-        "deadline_s": 240.0,
+        "deadline_s": deadline_s,
         "op": op,
         "args": args or {},
     }
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-        sock.settimeout(245)
-        sock.connect(os.environ.get("ROBOENV_SOCKET", "/run/roboenv/sim.sock"))
+        sock.settimeout(deadline_s + 5)
+        sock.connect(str(socket_path))
         sock.sendall(json.dumps(request).encode() + b"\n")
         with sock.makefile("rb") as stream:
-            raw = stream.readline(8 * 1024 * 1024 + 1)
-    if len(raw) > 8 * 1024 * 1024 or not raw.endswith(b"\n"):
+            raw = stream.readline(MAX_RESPONSE_BYTES + 1)
+    if len(raw) > MAX_RESPONSE_BYTES or not raw.endswith(b"\n"):
         raise ValueError("incomplete or oversized response")
     response = strict_json(raw)
     if not isinstance(response, dict) or type(response.get("generation")) is not int:
@@ -107,16 +133,20 @@ def validate_score(result):
     )
 
 
-def validate_journal(raw, *, session, submit_id, verdict, practice=False):
-    """Reject incomplete history, resets, repeated submits and post-submit motion."""
+def validate_journal(raw, *, session, submit_id, verdict, practice=False, generation=0):
+    """Reject incomplete history, resets, repeated submits and post-submit motion.
+
+    Every request needs an intent and exactly one commit or error with a matching
+    identity. The verifier's own submit must be the only evaluation, and nothing may
+    mutate the world after it; a rejection before dispatch (``effects: none``) is not
+    a mutation. Returns the journal digest and the number of finished requests.
+    """
     if not raw or not raw.endswith(b"\n"):
         raise ValueError("missing or truncated supervisor journal")
     pending, finished = {}, set()
     submitted = False
     count = 0
-    forbidden = {"reset", "restore", "checkpoint", "shutdown"}
-    if practice:
-        forbidden -= {"reset", "restore", "checkpoint"}
+    forbidden = FORBIDDEN_OPS - PRACTICE_OPS if practice else FORBIDDEN_OPS
     for line in raw.splitlines():
         event = strict_json(line)
         request = event["request"]
@@ -126,13 +156,13 @@ def validate_journal(raw, *, session, submit_id, verdict, practice=False):
         if (
             request.get("session") != session
             or type(request.get("generation")) is not int
-            or request["generation"] != 0
+            or request["generation"] != generation
         ):
             raise ValueError("journal episode identity changed")
         if (
-            request.get("protocol") != "roboenv/1"
+            request.get("protocol") != PROTOCOL
             or type(event.get("journal_version")) is not int
-            or event["journal_version"] != 1
+            or event["journal_version"] != JOURNAL_VERSION
         ):
             raise ValueError("unexpected journal protocol")
         phase = event["phase"]
@@ -154,27 +184,10 @@ def validate_journal(raw, *, session, submit_id, verdict, practice=False):
         op = request["op"]
         if op in forbidden:
             raise ValueError(f"operation forbidden in a single-episode trial: {op}")
-        read_only = op in {
-            "observe",
-            "score.peek",
-            "capture",
-            "health",
-            "environment.describe",
-            "devices.list",
-            "devices.describe",
-            "operations.get",
-        }
+        read_only = op in READ_ONLY_OPS
         if op == "devices.call":
             # devices/1 enforces that these actions cannot dispatch mutating tools.
-            read_only = request["args"].get("action") in {
-                "read",
-                "state",
-                "status",
-                "load",
-                "unload",
-                "ik",
-                "fk",
-            }
+            read_only = request["args"].get("action") in READ_ONLY_ACTIONS
         if (
             phase == "error"
             and isinstance(response.get("error", {}).get("details"), dict)
@@ -208,77 +221,90 @@ def validate_journal(raw, *, session, submit_id, verdict, practice=False):
     return {"sha256": hashlib.sha256(raw).hexdigest(), "requests": count}
 
 
-def retain_journal(out):
-    """Preserve the original bytes even when verification rejects the trial."""
-    journal = Path(os.environ.get("ROBOENV_RUN_DIR", "/run/roboenv/run")) / "journal/actions.jsonl"
-    raw = journal.read_bytes()
-    (out / "actions.jsonl").write_bytes(raw)
+def retain_journal(journal, out):
+    """Copy the journal's original bytes into out, even when certification rejects them."""
+    raw = Path(journal).read_bytes()
+    (Path(out) / "actions.jsonl").write_bytes(raw)
     return raw
 
 
-def main():
-    """Write a fail-closed live-trial verdict and its independent evidence."""
-    out = Path(os.environ.get("ROBOENV_VERIFIER_OUT", "/logs/verifier"))
+def _write_verdict(out, report, reward):
+    (out / "submit.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+    (out / "reward.json").write_text(json.dumps({"reward": reward}) + "\n")
+
+
+def _reset_outputs(out):
+    """Overwrite stale outputs first: an interrupted certification leaves no old success."""
     out.mkdir(parents=True, exist_ok=True)
-    # A malformed/missing task definition must not leave an old success behind.
-    (out / "reward.json").write_text('{"reward": 0.0}\n')
-    (out / "reward.txt").write_text("0.0\n")
-    report = {"certified": False, "benchmark_eligible": False}
+    (out / "actions.jsonl").unlink(missing_ok=True)
+    _write_verdict(out, {"valid": False, "trial_success": False, "error": "not certified"}, 0.0)
+
+
+def refuse(out, error):
+    """Record a fail-closed verdict for a run that could not even be identified."""
+    out = Path(out)
+    _reset_outputs(out)
+    report = {"valid": False, "trial_success": False, "error": error}
+    _write_verdict(out, report, 0.0)
+    return report
+
+
+def certify(*, socket_path, session, task_id, seed, budget_mode, journal, out, generation=0):
+    """Certify one run end to end and write its verdict into out; fail closed.
+
+    Checks that the service at socket_path still runs the expected task, seed and
+    budget mode, submits, observes the frozen world, retains the journal as
+    ``actions.jsonl``, then validates the score and the journal. ``submit.json`` holds
+    the returned report and ``reward.json`` the reward: 1.0 only for a valid, completed,
+    in-budget success. Any failure leaves ``valid: false`` and reward 0.0.
+    """
+    out = Path(out)
+    _reset_outputs(out)
+    report = {}
     reward, valid = 0.0, False
     raw = None
     try:
-        task = strict_json(Path(__file__).with_name("task.json").read_bytes())
-        identity_path = Path(os.environ.get("ROBOENV_SOCKET", "/run/roboenv/sim.sock"))
-        identity = strict_json(identity_path.with_name("identity.json").read_bytes())
-        task["session"] = identity["session"]
-        mode = task.get("budget_mode", "official")
         if (
-            type(task.get("seed")) is not int
-            or task["seed"] < 0
-            or mode not in {"official", "practice"}
-            or any(
-                not isinstance(task.get(key), str) or not task[key]
-                for key in ("task_id", "session")
-            )
+            type(seed) is not int
+            or seed < 0
+            or type(generation) is not int
+            or generation < 0
+            or budget_mode not in BUDGET_MODES
+            or any(not isinstance(value, str) or not value for value in (task_id, session))
         ):
-            raise ValueError("invalid verifier task identity or budget mode")
+            raise ValueError("invalid task identity or budget mode")
         report.update(
-            task=task["task_id"],
-            seed=task["seed"],
-            budget_mode=mode,
-            benchmark_eligible=mode == "official",
+            task=task_id, seed=seed, budget_mode=budget_mode, session=session, generation=generation
         )
-        health, _ = rpc("health", task["session"])
+        health, _ = rpc(socket_path, "health", session=session, generation=generation)
         report["health"] = health
         if type(health.get("seed")) is not int or (
             health.get("task"),
             health.get("seed"),
             health.get("budget_mode"),
-        ) != (
-            task["task_id"],
-            task["seed"],
-            mode,
-        ):
-            raise ValueError("server task/seed/budget identity differs from task.json")
-        verdict, submit_id = rpc("submit", task["session"])
+        ) != (task_id, seed, budget_mode):
+            raise ValueError("service task/seed/budget identity differs from the expected run")
+        verdict, submit_id = rpc(socket_path, "submit", session=session, generation=generation)
         report["submit"] = verdict
-        observation, _ = rpc("observe", task["session"])
+        report["submit_request_id"] = submit_id
+        observation, _ = rpc(socket_path, "observe", session=session, generation=generation)
         report["observation"] = observation
-        raw = retain_journal(out)
+        raw = retain_journal(journal, out)
         success = validate_score(attach_budget(verdict, observation))
         report["journal"] = validate_journal(
             raw,
-            session=task["session"],
+            session=session,
             submit_id=submit_id,
             verdict=verdict,
-            practice=mode == "practice",
+            practice=budget_mode == "practice",
+            generation=generation,
         )
         valid, reward = True, float(success)
     except Exception as exc:
         report["error"] = f"{type(exc).__name__}: {exc}"
     if raw is None:
         try:
-            raw = retain_journal(out)
+            raw = retain_journal(journal, out)
         except OSError as exc:
             report["journal_capture_error"] = f"{type(exc).__name__}: {exc}"
     if raw is not None:
@@ -288,12 +314,5 @@ def main():
             "validated": valid,
         }
     report.update(valid=valid, trial_success=bool(reward))
-    (out / "submit.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
-    (out / "reward.json").write_text(json.dumps({"reward": reward}) + "\n")
-    (out / "reward.txt").write_text(f"{reward}\n")
-    print(json.dumps(report, allow_nan=False))
-    return 0 if valid else 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    _write_verdict(out, report, reward)
+    return report

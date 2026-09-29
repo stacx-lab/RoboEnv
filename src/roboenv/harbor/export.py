@@ -20,6 +20,54 @@ def registry_name(identifier, seed):
     return f"roboenv/{slug}-s{seed}-{sha(identifier.encode())[:8]}"
 
 
+# Harbor's verifier shell, appended to the copied roboenv.verify module: the task identity
+# beside the script, the trial's fixed socket/journal paths, /logs/verifier and reward.txt.
+HARBOR_VERIFIER_MAIN = '''
+
+# ---- Harbor trial entry point; everything above is the copied roboenv.verify module. ----
+import os
+
+
+def main():
+    """Write a fail-closed live-trial verdict and its independent evidence."""
+    out = Path(os.environ.get("ROBOENV_VERIFIER_OUT", "/logs/verifier"))
+    out.mkdir(parents=True, exist_ok=True)
+    # A malformed/missing task definition must not leave an old success behind.
+    (out / "reward.txt").write_text("0.0\\n")
+    socket_path = Path(os.environ.get("ROBOENV_SOCKET", "/run/roboenv/sim.sock"))
+    journal = Path(os.environ.get("ROBOENV_RUN_DIR", "/run/roboenv/run")) / "journal/actions.jsonl"
+    try:
+        task = strict_json(Path(__file__).with_name("task.json").read_bytes())
+        identity = strict_json(socket_path.with_name("identity.json").read_bytes())
+        report = certify(
+            socket_path=socket_path,
+            session=identity["session"],
+            task_id=task["task_id"],
+            seed=task["seed"],
+            budget_mode=task.get("budget_mode", "official"),
+            journal=journal,
+            out=out,
+        )
+    except Exception as exc:
+        report = refuse(out, f"{type(exc).__name__}: {exc}")
+    report.update(certified=False, benchmark_eligible=report.get("budget_mode") == "official")
+    reward = 1.0 if report["trial_success"] else 0.0
+    (out / "submit.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\\n")
+    (out / "reward.txt").write_text(f"{reward}\\n")
+    print(json.dumps(report, allow_nan=False))
+    return 0 if report["valid"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+
+
+def verifier_script():
+    """The one-file Harbor verifier: the reference module plus Harbor's entry point."""
+    return files("roboenv").joinpath("verify.py").read_text() + HARBOR_VERIFIER_MAIN
+
+
 def export_task(
     task_path,
     catalog,
@@ -265,7 +313,7 @@ gpus = 0
         provenance["replay_verified"] = False
         provenance["program_sha256"] = sha(reference.read_bytes())
         out.add("solution/source.json", json.dumps(provenance, indent=2) + "\n")
-    out.add("tests/verify.py", assets.joinpath("verify.py").read_text())
+    out.add("tests/verify.py", verifier_script())
     out.add(
         "tests/task.json",
         json.dumps(

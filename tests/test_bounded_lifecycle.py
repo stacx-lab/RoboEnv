@@ -1,7 +1,6 @@
 """Bounded episodes use the real worker, transport and durable owner snapshot."""
 
 import json
-import runpy
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -11,6 +10,7 @@ import roboenv
 import yaml
 from roboenv.client import Client, RemoteError
 from roboenv.environment import launch, status, stop
+from roboenv.verify import validate_journal
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/fixtures/native-toy"
@@ -73,9 +73,8 @@ def test_external_yaml_without_checkout_and_success_at_limit(tmp_path):
             if phase == "before":
                 verdict = owner.request("submit", request_id="verifier-submit")
         raw = (run.path.parent / "evidence/journal/actions.jsonl").read_bytes()
-        validate = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))["validate_journal"]
-        assert validate(raw, session=run.record["session"], submit_id="verifier-submit",
-                        verdict=verdict)
+        assert validate_journal(raw, session=run.record["session"], submit_id="verifier-submit",
+                                verdict=verdict)
         assert verdict == terminal["verdict"]
         stopped = env.stop()
         assert stopped["success"] is True and stopped["reason"] == "success"

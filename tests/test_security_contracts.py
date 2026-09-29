@@ -4,7 +4,7 @@ import builtins
 import io
 import json
 import os
-import runpy
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +19,7 @@ from roboenv.harbor.taskset import deployment_environment, export_taskset, run_t
 from roboenv.tasks.artifacts import Bundle
 from roboenv.tasks.model import Task
 from roboenv.validation import action_validator, json_loads, json_value, yaml_load
+from roboenv.verify import certify, refuse, strict_json
 from roboenv_runtime.runtime.protocol import ProtocolError, decode_ndjson
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -370,24 +371,68 @@ def test_runtime_wire_rejects_ambiguous_and_nonfinite_json_before_dispatch(raw):
 
 @pytest.mark.parametrize("raw", [b'{"reward":0,"reward":1}', b'{"value":1e9999}'])
 def test_verifier_rejects_ambiguous_or_overflow_json(raw):
-    verifier = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
     with pytest.raises(ValueError):
-        verifier["strict_json"](raw)
+        strict_json(raw)
 
 
-def test_verifier_missing_task_overwrites_stale_success(tmp_path, monkeypatch):
-    verifier = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
+def test_verify_module_requires_only_standard_library(tmp_path):
+    # Harnesses import roboenv.verify or copy the one file; neither may pull in the package.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            "-c",
+            "import sys; sys.path.insert(0, 'src'); import roboenv.verify; "
+            "loaded = sorted(m for m in sys.modules if m.startswith('roboenv')); "
+            "assert loaded == ['roboenv', 'roboenv.verify'], loaded; "
+            "assert 'yaml' not in sys.modules and 'jsonschema' not in sys.modules",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    source = (ROOT / "src/roboenv/verify.py").read_text()
+    assert not re.search(r"^\s*(from|import) roboenv", source, re.MULTILINE)
+    copied = tmp_path / "verify.py"
+    copied.write_text(source)
+    standalone = subprocess.run(
+        [sys.executable, "-I", "-S", str(copied)], cwd=tmp_path, capture_output=True, text=True,
+        timeout=10,
+    )
+    assert standalone.returncode == 0, standalone.stderr
+
+
+def test_certify_unreachable_run_overwrites_stale_success(tmp_path):
     out = tmp_path / "verifier"
     out.mkdir()
     (out / "reward.json").write_text('{"reward": 1.0}')
-    (out / "reward.txt").write_text("1.0")
-    monkeypatch.setenv("ROBOENV_VERIFIER_OUT", str(out))
-    monkeypatch.setenv("ROBOENV_RUN_DIR", str(tmp_path / "absent-run"))
-    # The package asset has no adjacent task.json: only generated tasks supply it.
-    assert verifier["main"]() == 1
+    (out / "submit.json").write_text('{"valid": true, "trial_success": true}')
+    (out / "actions.jsonl").write_text("stale evidence\n")
+    report = certify(
+        socket_path=tmp_path / "absent.sock", session="s", task_id="t", seed=0,
+        budget_mode="official", journal=tmp_path / "absent-run/journal/actions.jsonl", out=out,
+    )
+    assert report["valid"] is False and report["trial_success"] is False
+    assert report["error"] and "health" not in report and "submit" not in report
+    assert "journal_capture_error" in report and "journal_artifact" not in report
     assert json.loads((out / "reward.json").read_text()) == {"reward": 0.0}
-    assert (out / "reward.txt").read_text().strip() == "0.0"
-    assert json.loads((out / "submit.json").read_text())["valid"] is False
+    assert json.loads((out / "submit.json").read_text()) == report
+    assert not (out / "actions.jsonl").exists() and not (out / "reward.txt").exists()
+    # Garbage identity fails before any connection is attempted.
+    (out / "reward.json").write_text('{"reward": 1.0}')
+    report = certify(
+        socket_path=tmp_path / "absent.sock", session="", task_id="t", seed=-1,
+        budget_mode="official", journal=tmp_path / "absent.jsonl", out=out,
+    )
+    assert report["valid"] is False and "identity" in report["error"]
+    assert json.loads((out / "reward.json").read_text()) == {"reward": 0.0}
+    # A run that cannot be identified at all is refused the same way.
+    (out / "reward.json").write_text('{"reward": 1.0}')
+    assert refuse(out, "KeyError: 'session'")["valid"] is False
+    assert json.loads((out / "reward.json").read_text()) == {"reward": 0.0}
+    assert json.loads((out / "submit.json").read_text())["error"] == "KeyError: 'session'"
 
 
 @pytest.mark.parametrize("operation", ["submit", "reset", "restore", "shutdown", "exec"])

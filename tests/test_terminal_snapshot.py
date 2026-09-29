@@ -1,7 +1,6 @@
 """Submitted trials retain one state and every pre-submit accounting charge."""
 
 import copy
-import runpy
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -9,6 +8,7 @@ from pathlib import Path
 import pytest
 from roboenv.devices.model import Action, BoundDevice, DeviceDefinition
 from roboenv.devices.service import DeviceService
+from roboenv.verify import attach_budget, validate_score
 from roboenv_runtime.adapters.fakeshell import FakeShell
 from roboenv_runtime.core.types import Budget
 from roboenv_runtime.runtime.scoring import SimpleScorer
@@ -81,8 +81,7 @@ def test_submit_seals_observation_after_preserving_all_internal_read_charges(tmp
             assert observation["submitted"] is True
         assert instance.adapter.calls == 64
         assert instance.adapter.observations == instance.adapter.evaluations == 1
-        verifier = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
-        assert verifier["validate_score"](verifier["attach_budget"](result, observation))
+        assert validate_score(attach_budget(result, observation))
     finally:
         instance.close()
 
@@ -154,8 +153,7 @@ def test_final_observation_cost_cannot_be_refunded_at_the_budget_boundary(tmp_pa
         result = instance.dispatch("submit", {})
         assert result["reward"] == 1
         assert result["budget"]["used"] == result["budget"]["max"] == 8
-        verifier = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
-        assert verifier["validate_score"](result) is False  # strict used < cap is unchanged
+        assert validate_score(result) is False  # strict used < cap is unchanged
     finally:
         instance.close()
 
@@ -265,7 +263,7 @@ def test_motion_queued_during_final_capture_cannot_escape_submit_freeze(tmp_path
 
 
 def test_unbounded_budget_verification_keeps_other_success_requirements():
-    validate = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))["validate_score"]
+    validate = validate_score
     result = {
         "reward": 1,
         "completed": True,

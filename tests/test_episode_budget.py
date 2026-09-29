@@ -2,9 +2,7 @@
 
 import copy
 import json
-import runpy
 import threading
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -12,14 +10,12 @@ from motion_fixtures import Engine, bind_devices
 from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.model import BoundDevice, DeviceDefinition
 from roboenv.devices.service import DeviceService
+from roboenv.verify import validate_journal, validate_score
 from roboenv_runtime.adapters.fakeshell import FakeShell
 from roboenv_runtime.bindings.world import clock_actions
 from roboenv_runtime.core.types import ScoreReport
 from roboenv_runtime.runtime.atomic import AtomicJournal
 from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError, handle_mapping
-
-ROOT = Path(__file__).resolve().parents[1]
-VERIFY = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
 
 
 def journal_call(worker, journal, ident, op, args):
@@ -75,9 +71,9 @@ def test_worker_budget_retains_verdict_and_certifiable_journal(tmp_path, duratio
         assert worker.dispatch("submit", {}) == result
         assert worker.dispatch("observe", {})["budget"] == result["budget"]
         assert worker.dispatch("simulation.stop", {})["terminal"]
-        assert VERIFY["validate_journal"](journal.path.read_bytes(), session="test",
+        assert validate_journal(journal.path.read_bytes(), session="test",
                                           submit_id="submit", verdict=result)["requests"] == 3
-        assert VERIFY["validate_score"](result) is False
+        assert validate_score(result) is False
         worker.dispatch("reset", {"seed": 1})
         worker.world.resolve(worker.world.wait(0.02))
         assert worker.adapter.used == 1 and worker.world.failure is None
@@ -104,7 +100,7 @@ def history(error, *, op="devices.call"):
 
 def validate(history):
     raw = "".join(json.dumps(event) + "\n" for event in history.events).encode()
-    return VERIFY["validate_journal"](raw, session="s", submit_id="s", verdict=history.verdict)
+    return validate_journal(raw, session="s", submit_id="s", verdict=history.verdict)
 
 
 @pytest.mark.parametrize("effects", ["none", "partial"])
@@ -259,9 +255,9 @@ def test_success_cleans_concurrent_buffers_before_sealing_and_certifies_journal(
         assert snapshot["targets"] == snapshot["positions"] == {"left": 0.03, "right": 0.03}
         assert snapshots == [snapshot]
         verdict = journal_call(worker, journal, "submit", "submit", {})["result"]
-        assert VERIFY["validate_journal"](journal.path.read_bytes(), session="test",
+        assert validate_journal(journal.path.read_bytes(), session="test",
                                           submit_id="submit", verdict=verdict)["requests"] == 4
-        assert VERIFY["validate_score"](verdict)
+        assert validate_score(verdict)
         worker.adapter.targets["left"] = 2
         assert worker.observe() == snapshot
         assert worker.dispatch("submit", {}) == verdict

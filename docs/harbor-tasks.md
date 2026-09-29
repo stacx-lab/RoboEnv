@@ -93,6 +93,8 @@ task/
 ```
 
 The verifier entry is `tests/test.sh`; it writes `/logs/verifier/reward.json`.
+`tests/verify.py` is the `roboenv.verify` reference module with Harbor's entry point
+appended: `task.json` beside the script, the trial's fixed paths and `reward.txt`.
 `bundle.json` supplements the [Harbor task format](https://www.harborframework.com/docs/tasks).
 Generated tasks carry `execution_verified=false` until independently executed.
 

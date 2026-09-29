@@ -78,6 +78,30 @@ selects only that service; selectors cannot be combined.
 HTTP stop requires launch with `--allow-stop`. Local owners can instead stop a
 run by ID or `run.json` path. `launch` owns the environment until Ctrl-C;
 `--detach` leaves it running until stopped.
+
+### Certify a run
+
+`roboenv verify` is the owner's fail-closed certificate for one local run. It reads
+the launch record, checks that the live service still has the recorded task, seed
+and budget mode, submits, and validates the final score and the supervisor journal:
+
+```sh
+roboenv verify --run RUN_ID_OR_RUN_JSON --out verdict/
+```
+
+`verdict/` receives `submit.json` (the report), `reward.json` (`1.0` only for a
+completed, in-budget success) and the retained `actions.jsonl`. Any failure, including
+an unreachable service or a mismatching identity, replaces stale outputs with
+`valid: false` and reward `0.0`; the command exits 0 only for a valid run. The
+verifier's submit must be the run's only evaluation, so a run is certified once: an
+earlier submit, a reset or restore, or a mutation that took effect after the verdict
+invalidates the journal, while requests refused before dispatch (`effects: none`) do not.
+
+The rules live in `roboenv.verify` (`validate_journal`, `validate_score`,
+`attach_budget`, `certify`), a standard-library-only module with no other package
+imports. It is the reference validator: harnesses and benchmarks (rsi, RLE-Bench)
+should import it, or copy that one file into a verifier container, rather than
+re-implement journal validation. The Harbor task exporter ships it as `tests/verify.py`.
 Python owners use `with roboenv.launch(task="TASK_ID", port=8123) as run:`
 and connect to `run.endpoint`. Use
 `--host 0.0.0.0` when serving a task across an isolated container network.
@@ -193,6 +217,7 @@ The SDK is organized by responsibility:
 ```text
 src/roboenv/
 ├── client.py, environment.py   Public connection and local lifecycle
+├── verify.py                  Reference run certification: score and journal rules
 ├── devices/                   Device contracts, dispatch, and binding definitions
 ├── tasks/                     Task models, discovery, resolution, and artifacts
 ├── provisioning/              Isolated installation, sources, and assets

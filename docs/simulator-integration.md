@@ -361,6 +361,17 @@ Local launch and Harbor use the same resolver and service. Ready means the world
 and selected devices are initialized. Connection failure must not create another
 world. Parallel trials use separate endpoints or isolated networks.
 
+```sh
+roboenv verify --run RUN_ID_OR_RUN_JSON --out verdict/
+```
+
+`verify` certifies a finished local run with the rules in `roboenv.verify`: identity
+check, one submit, score validation and journal validation, written fail-closed as
+`submit.json`, `reward.json` and the retained `actions.jsonl`. The Harbor verifier
+applies the same module; a new backend must produce a certifiable journal, and a
+harness or benchmark validating runs imports or copies `roboenv.verify` rather than
+re-implementing it. See [Certify a run](../README.md#certify-a-run).
+
 Add backend mappings, runtime wheels, source/asset slices, and image support to
 `tools/build_simulator_image.py` and deployment recipes. Use real image digests.
 Harbor must cover readiness, endpoint delivery, verifier access, and failure cleanup;
