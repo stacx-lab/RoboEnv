@@ -16,39 +16,27 @@ intrinsics:
           components:
           - axis: vx
             units: m/s
-            bounds:
-              min: -1.0
-              max: 1.0
+            bounds: null
           - axis: vy
             units: m/s
-            bounds:
-              min: -0.5
-              max: 0.5
+            bounds: null
           - axis: wz
             units: rad/s
-            bounds:
-              min: -0.5235987755982988
-              max: 0.5235987755982988
+            bounds: null
         posture:
           reference: ground
           components:
           - axis: height
             units: m
-            bounds:
-              min: 0.26
-              max: 0.34
+            bounds: null
             default: 0.3
           - axis: roll
             units: rad
-            bounds:
-              min: -0.12
-              max: 0.12
+            bounds: null
             default: 0.0
           - axis: pitch
             units: rad
-            bounds:
-              min: -0.12
-              max: 0.12
+            bounds: null
             default: 0.0
   feedback:
     pose_frame: world

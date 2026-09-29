@@ -5,7 +5,8 @@ import math
 import numpy as np
 
 from roboenv_runtime.bindings.backends.shared.depth import DEPTH_SCALE
-from .adapter import BOUNDS, DEFAULT, matrix_quat, pose
+
+from .adapter import COMMAND_FIELDS, DEFAULT, matrix_quat, pose
 
 META = {"source": "introspected", "method": "introspection", "calibrated_at": None}
 IDENTITY = [0, 0, 0, 0, 0, 0, 1]
@@ -13,7 +14,6 @@ IDENTITY = [0, 0, 0, 0, 0, 0, 1]
 
 def profiles(model, home):
     def component(axis):
-        lo, hi = BOUNDS[axis]
         item = {
             "axis": axis,
             "units": "m/s"
@@ -23,10 +23,10 @@ def profiles(model, home):
             else "rad/s"
             if axis == "wz"
             else "rad",
-            "bounds": {"min": lo, "max": hi},
+            "bounds": None,
         }
         if axis in ("height", "roll", "pitch"):
-            item["default"] = float(DEFAULT[list(BOUNDS).index(axis)])
+            item["default"] = float(DEFAULT[COMMAND_FIELDS.index(axis)])
         return item
 
     result = {

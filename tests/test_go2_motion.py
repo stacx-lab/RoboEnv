@@ -115,7 +115,7 @@ def test_bad_duration_rejected_before_effects(rig, bad):
 def test_invalid_base_fields_do_not_replace_active_motion(rig):
     env, _, service, _ = rig
     call(service, "base", "write", **COMMAND)
-    for changes in ({"extra": 1}, {"posture": {}}, {"velocity": {"vx": 0, "vy": 99, "wz": 0}}):
+    for changes in ({"extra": 1}, {"posture": {}}, {"velocity": {"vx": 0, "vy": True, "wz": 0}}):
         with pytest.raises(DeviceError):
             call(service, "base", "write", **{**COMMAND, **changes})
     assert env.steps == 0 and len(env.events) == 1
@@ -401,3 +401,21 @@ def test_wait_admission_after_native_termination_never_ticks(rig, mode):
     assert caught.value.code == "episode_finished"
     assert session.time_s == env.steps == 0 and not samples
     assert session.failure is None
+
+
+def test_base_public_write_preserves_commands_outside_former_bounds(rig):
+    env, _, service, samples = rig
+    command = {
+        "mode": "locomotion",
+        "velocity": {"vx": 2.0, "vy": -1.0, "wz": 1.0},
+        "posture": {"height": 0.5, "roll": -0.3, "pitch": 0.3},
+        "duration_s": 0.02,
+    }
+    call(service, "base", "write", **command)
+    assert env.steps == 0
+    expected = [2.0, -1.0, 1.0, 0.5, -0.3, 0.3]
+    assert np.array_equal(env.targets["base"], expected)
+    wait(service, 0.02)
+    assert np.array_equal(samples[0][0], expected)
+    mode = env.profiles["base"]["intrinsics"]["control"]["modes"]["locomotion"]
+    assert all(c["bounds"] is None for group in mode.values() for c in group["components"])

@@ -187,21 +187,8 @@ def solve_pose_ik(target, seed, bounds, fk, *, jacobian=None, iterations=250,
 LEGS = ("FL", "FR", "RL", "RR")
 # Each leg contributes hip, thigh, calf angles: 12 targets total.
 LEG_NAMES = [f"{leg}_{joint}_joint" for leg in LEGS for joint in ("hip", "thigh", "calf")]
-# Public command limits. Insertion order defines [vx, vy, wz, height, roll, pitch].
-BOUNDS = {
-    # Body-frame forward velocity, m/s.
-    "vx": (-1.0, 1.0),
-    # Body-frame lateral velocity, m/s.
-    "vy": (-0.5, 0.5),
-    # Body-frame yaw rate, rad/s (±30 degrees/s).
-    "wz": (-math.pi / 6, math.pi / 6),
-    # Body origin height above horizontal ground, metres.
-    "height": (0.26, 0.34),
-    # Ground-relative body roll, radians.
-    "roll": (-0.12, 0.12),
-    # Ground-relative body pitch, radians.
-    "pitch": (-0.12, 0.12),
-}
+# Vector order shared by validation, gait commands, and device profiles.
+COMMAND_FIELDS = ("vx", "vy", "wz", "height", "roll", "pitch")
 # Default: stationary, 0.30 m high, zero roll and pitch.
 DEFAULT = np.array([0.0, 0.0, 0.0, 0.30, 0.0, 0.0])
 # Hip origins in body coordinates, metres, in LEGS order.
@@ -229,15 +216,11 @@ def validate_command(args):
         raise ValueError("Base requires vx/vy/wz and height/roll/pitch")
     # Flatten both field groups for validation and vector packing.
     values = {**args["velocity"], **args["posture"]}
-    # Visit every component with its corresponding lower and upper bounds.
-    for key, (lo, hi) in BOUNDS.items():
-        # Retrieve the requested scalar for this component.
+    for key in COMMAND_FIELDS:
         x = values[key]
-        # Reject booleans, nonnumeric values, NaN/infinity, and out-of-range inputs.
-        if type(x) not in (float, int) or not math.isfinite(x) or not lo <= x <= hi:
-            raise ValueError(f"{key} must be finite and within [{lo}, {hi}]")
-    # Pack validated values in vx, vy, wz, height, roll, pitch order.
-    return np.array([values[k] for k in BOUNDS])
+        if type(x) not in (float, int) or not math.isfinite(x):
+            raise ValueError(f"{key} must be a finite number")
+    return np.array([values[k] for k in COMMAND_FIELDS])
 
 
 def leg_ik(foot, side):

@@ -37,7 +37,7 @@ def run(out, execution_mode="realtime", speed=0.05, task="isaaclab/go2-d1-contro
             assert private.request("observe")["final"]["steps"] == 300
         before = private.request("observe")
         for name, args in [
-            ("base", {**command, "duration_s": 0.1, "velocity": {"vx": 5, "vy": 0, "wz": 0}}),
+            ("base", {**command, "duration_s": 0.1, "velocity": {"vx": True, "vy": 0, "wz": 0}}),
             ("arm", {"actions": [[10.0] * 6], "duration_s": 0.1}),
             ("gripper", {"actions": [-1], "duration_s": 0.1}),
         ]:

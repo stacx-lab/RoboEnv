@@ -14,7 +14,7 @@ import pytest
 import yaml
 from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import (
-    BOUNDS,
+    COMMAND_FIELDS,
     DEFAULT,
     RobotModel,
     Trot,
@@ -31,7 +31,7 @@ RIG = ROOT / "catalog/robots/isaaclab/isaaclab-go2-d1"
 
 
 def command(**changes):
-    values = dict(zip(BOUNDS, DEFAULT, strict=True))
+    values = dict(zip(COMMAND_FIELDS, DEFAULT, strict=True))
     values.update(changes)
     return {
         "mode": "locomotion",
@@ -70,7 +70,7 @@ def test_native_defaults_eula_before_isaac_import(monkeypatch, tmp_path, existin
     assert world.app is not None
 
 
-@pytest.mark.parametrize("key", BOUNDS)
+@pytest.mark.parametrize("key", COMMAND_FIELDS)
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), True, "0", None])
 def test_command_rejects_bad_values(key, bad):
     args = command()
@@ -79,16 +79,14 @@ def test_command_rejects_bad_values(key, bad):
         validate_command(args)
 
 
-def test_command_bounds_and_required_fields():
-    assert {key: BOUNDS[key] for key in ("vx", "vy", "wz")} == {
-        "vx": (-1.0, 1.0), "vy": (-0.5, 0.5), "wz": (-np.pi / 6, np.pi / 6),
-    }
-    for key, (lo, hi) in BOUNDS.items():
-        validate_command(command(**{key: lo}))
-        validate_command(command(**{key: hi}))
-        for outside in (lo - 0.001, hi + 0.001):
-            with pytest.raises(ValueError):
-                validate_command(command(**{key: outside}))
+@pytest.mark.parametrize("key", COMMAND_FIELDS)
+@pytest.mark.parametrize("value", [-99.0, 99.0])
+def test_base_accepts_finite_commands_without_range_limits(key, value):
+    result = validate_command(command(**{key: value}))
+    assert result[COMMAND_FIELDS.index(key)] == value
+
+
+def test_command_requires_all_fields():
     args = command()
     del args["posture"]["pitch"]
     with pytest.raises(ValueError):
