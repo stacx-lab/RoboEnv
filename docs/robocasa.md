@@ -23,7 +23,10 @@ import roboenv
 with roboenv.connect("http://127.0.0.1:8123") as env:
     print(env.task.instruction)
     arm = env.device("arm")
-    arm.write(arm.read()["positions"])
+    # Submit a hold reference; write returns immediately.
+    arm.write([arm.read()["positions"]], duration_s=0.5)
+    env.device("world").wait(0.5)
+    print(arm.read()["positions"])  # Measured feedback, not an arrival guarantee.
     arm.stop()
     image = env.device("camera_left").read()
     print(image["file"])
