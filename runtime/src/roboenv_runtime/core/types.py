@@ -1,4 +1,4 @@
-"""Value types shared by adapters, the agent loop and the records.
+"""Native score and budget value types.
 
 These are deliberately tiny dataclasses with explicit semantics, because the
 pre-refactor harnesses disagreed on exactly these points (normalised vs raw
@@ -12,7 +12,6 @@ scores, step vs call budgets).  The rules are:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -86,14 +85,11 @@ class Budget:
         unit: What is counted — ``"sim_steps"`` (physics steps),
             ``"action_frames"`` (benchmark policy steps) or ``"api_calls"``
             (platforms that keep no simulator counter).
-        official_cap: The benchmark's official cap in ``unit`` when it differs
-            from ``max`` (practice budgets are larger than official ones).
     """
 
     used: int = 0
-    max: int | None = 1
+    max: int | None = None
     unit: str = "sim_steps"
-    official_cap: int | None = None
 
     @property
     def remaining(self) -> int | None:
@@ -106,27 +102,9 @@ class Budget:
         return self.max is not None and self.used >= self.max
 
     def as_dict(self) -> dict[str, Any]:
-        """A JSON-serialisable view (``official_cap`` omitted when unset)."""
+        """The effective episode budget, with null for an unbounded limit."""
         out: dict[str, Any] = {"used": self.used, "max": self.max, "unit": self.unit}
-        if self.official_cap is not None:
-            out["official_cap"] = self.official_cap
         return out
-
-    @classmethod
-    def coerce(cls, value: Budget | Mapping[str, Any] | None) -> Budget:
-        """Accept a :class:`Budget` or the historical ``{"used", "max"}`` dict."""
-        if isinstance(value, Budget):
-            return value
-        if not value:
-            return cls()
-        return cls(
-            used=int(value.get("used", 0) or 0),
-            max=None if "max" in value and value["max"] is None else int(value.get("max", 1) or 1),
-            unit=str(value.get("unit", "sim_steps") or "sim_steps"),
-            official_cap=(
-                int(value["official_cap"]) if value.get("official_cap") is not None else None
-            ),
-        )
 
     def __str__(self) -> str:
         return f"{self.used}/{self.max} {self.unit}"

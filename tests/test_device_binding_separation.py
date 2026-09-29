@@ -94,17 +94,12 @@ def test_one_device_definition_binds_to_two_different_backend_representations(ro
     assert (robot / "devices/controller/profile.yaml").read_bytes() == original
 
 
-def test_native_device_works_without_primitive_registry_or_legacy_driver(robot, tmp_path):
-    class NativeOnly(FakeShell):
-        def tools(self):
-            return {}
-
+def test_worker_binds_native_devices_without_executing_public_drivers(robot, tmp_path):
     (robot / "devices/controller/driver.py").write_text("raise AssertionError('must not import')")
     worker = SimWorker(
-        NativeOnly(), task_id="test", seed=0, run_dir=tmp_path / "run", device_root=robot
+        FakeShell(), task_id="test", seed=0, run_dir=tmp_path / "run", device_root=robot
     )
     try:
-        assert worker.api()["tools"] == {}
         assert worker.devices._lock is worker.world.lock
         result = worker.dispatch(
             "devices.call", {"device": "controller", "action": "write", "args": {"target": [0.3]}}
@@ -112,7 +107,6 @@ def test_native_device_works_without_primitive_registry_or_legacy_driver(robot, 
         assert result["data"]["position"][0] == pytest.approx(0.3)
         assert result["budget"]["used"] == 50
         assert [entry["op"] for entry in result["calls"]] == ["binding.write"]
-        assert worker.basic_call_count == 0
         assert worker.dispatch("score.peek", {})["completed"]
         worker.dispatch("submit", {})
         with pytest.raises(WorkerRPCError, match="frozen"):
@@ -314,8 +308,9 @@ def test_task_export_freezes_explicit_bindings_and_only_selected_client_devices(
     public = base / "definition/robot"
     assert not (public / "bindings.yaml").exists()
     assert not (public / "devices/controller").exists()
-    assert "from roboenv" not in (public / "devices/puck/driver.py").read_text()
-    assert yaml.safe_load((public / "devices/puck/profile.yaml").read_text())["name"] == "puck"
+    assert not (public / "devices").exists()
+    manifest = json.loads((base / "definition/environment.json").read_text())
+    assert manifest["devices"] == ["puck"]
 
 
 @pytest.mark.parametrize(
@@ -359,13 +354,10 @@ def test_native_binding_over_real_socket_preserves_wire_and_dedup(device_service
     assert client.request("score.peek")["completed"]
 
 
-def test_native_and_legacy_actions_share_one_execution_lane(robot, tmp_path):
+def test_native_actions_share_one_execution_lane(robot, tmp_path):
     class SlowWorld(FakeShell):
         active, peak = 0, 0
         entered = threading.Event()
-
-        def tools(self):
-            return {**super().tools(), "push": self.push}
 
         def push(self, dx=0.1):
             self.active += 1
@@ -384,12 +376,20 @@ def test_native_and_legacy_actions_share_one_execution_lane(robot, tmp_path):
                 "devices.call",
                 {
                     "device": "controller",
-                    "action": "invoke",
-                    "args": {"tool_name": "push", "kwargs": {"dx": 0.1}},
+                    "action": "write",
+                    "args": {"target": [0.1]},
                 },
             )
             assert native.entered.wait(2)
-            two = pool.submit(worker.dispatch, "call", {"name": "push", "kwargs": {"dx": 0.1}})
+            two = pool.submit(
+                worker.dispatch,
+                "devices.call",
+                {
+                    "device": "controller",
+                    "action": "write",
+                    "args": {"target": [0.2]},
+                },
+            )
             one.result(timeout=3)
             two.result(timeout=3)
         assert native.peak == 1

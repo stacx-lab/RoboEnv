@@ -13,7 +13,7 @@ import yaml
 from roboenv.project import project_root
 from roboenv.provisioning.sources import load_lock, status
 from roboenv.tasks.artifacts import Bundle
-from roboenv.tasks.model import DEVICE_BACKENDS, Task
+from roboenv.tasks.model import Task
 
 BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab", "simple")
 ROBOTS = {
@@ -74,7 +74,6 @@ def _task(backend, identifier, kwargs, instruction, *, robot=None, device_bindin
         if backend in {"libero", "robotwin", "robodojo", "behavior", "simple"}
         else "official",
         instruction=instruction,
-        action_abstraction="devices" if backend in DEVICE_BACKENDS else "cartesian-primitives",
     )
 
 

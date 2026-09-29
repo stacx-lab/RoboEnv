@@ -33,6 +33,3 @@ def test_sensor_driver_is_read_only_and_returns_raw_measurements(name, monkeypat
     assert calls == []
     assert module.handle("read", {}) == {"ok": True, **raw, "sample_time_s": 0.04}
     assert calls == ["read"]
-    assert (directory / "_roboenv.py").read_bytes() == (
-        ROOT / "src/roboenv/assets/_roboenv.py"
-    ).read_bytes()

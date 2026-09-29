@@ -10,4 +10,3 @@ seed: 0
 budget_mode: official
 backend_kwargs:
   task_name: ArrangeVegetables
-action_abstraction: devices

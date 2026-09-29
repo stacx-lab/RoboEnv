@@ -24,7 +24,6 @@ from roboenv.client import Client
 from roboenv.devices.status import status_feedback
 from roboenv.project import project_root
 from roboenv.provisioning.interpreter import resolve_interpreter
-from roboenv.tasks.model import DEVICE_BACKENDS
 from roboenv.tasks.resolve import resolve_task
 from roboenv.validation import json_loads
 
@@ -349,16 +348,14 @@ def launch(
     tasks = directory / "server/tasks"
     tasks.mkdir()
     (tasks / f"{spec.backend_task}.yaml").write_text(
-        yaml.safe_dump(resolved.runtime_config(), sort_keys=False)
+        yaml.safe_dump(asdict(spec), sort_keys=False)
     )
     manifest = directory / "environment.json"
     _save(
         manifest,
         {
             "task": asdict(spec),
-            "observation_access": "sensors-only"
-            if spec.backend in DEVICE_BACKENDS
-            else "benchmark-ground-truth",
+            "observation_access": "sensors-only",
         },
     )
     record = {
@@ -400,7 +397,7 @@ def launch(
         "-m",
         "roboenv_runtime.runtime.supervisor",
         "--task",
-        spec.backend_task,
+        spec.id,
         "--seed",
         str(spec.seed),
         "--worker-arg=--execution-mode",

@@ -22,6 +22,10 @@ class IsaacLabAdapter(AdapterBase):
     def advance_control(self):
         self._env.control.tick()
 
+    def configure_execution_mode(self, mode):
+        super().configure_execution_mode(mode)
+        self._env.env.step_limit_enabled = mode == "stepped"
+
     def reset(self, seed):
         self._env.reset(seed)
 

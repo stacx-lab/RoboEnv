@@ -9,4 +9,3 @@ seed: 0
 budget_mode: practice
 backend_kwargs:
   task_name: handover_mic
-action_abstraction: devices

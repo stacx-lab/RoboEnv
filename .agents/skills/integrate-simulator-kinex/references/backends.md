@@ -13,29 +13,26 @@ repository. Do not restore retired paths or infer current status from these note
 | --- | --- |
 | Source/recipe/assets | `src/roboenv/provisioning/`, `runtime/environments.json`, `runtime/locks/`, `third_party/` |
 | Native lifecycle | `runtime/src/roboenv_runtime/adapters/BACKEND/`, `runtime/world.py` and `runtime/worker.py` under that runtime package |
-| Binding selection | `runtime/src/roboenv_runtime/bindings/{__init__,native_devices,simulators}.py`, `src/roboenv/devices/bindings/registry.py`, `src/roboenv/devices/bindings/defaults/` |
+| Binding selection | `runtime/src/roboenv_runtime/bindings/{__init__,assembly,native_devices}.py`, `src/roboenv/devices/bindings/registry.py`, `src/roboenv/devices/bindings/defaults/` |
 | Public projection/transport | `src/roboenv/devices/`, `runtime/src/roboenv_runtime/runtime/http_service.py` |
 | Catalog and discovery | `catalog/robots/`, `catalog/tasks/`, `src/roboenv/tasks/catalog.py`, `tasks/resolve.py` under the SDK package |
 | Portable driver export | `src/roboenv/devices/export.py`, `src/roboenv/assets/`, `tools/prepare_kinex_workspace.py` |
 | Native acceptance examples | `tools/check_native_{robotwin,robodojo,behavior,transport}.py`, `tools/replay_native_devices.py`; LIBERO/RoboCasa have their own record formats and checks |
 
-The pre-migration baseline used primitive-oriented handlers and incomplete static
-catalogs. The typed route now lives in each backend's `devices.py` and `rig.py`,
-with shared `adapters/device_control.py` and `adapters/native_record.py`. Verify
-which route the resolved task selects. A registered binding, generated rig or old
-successful reference program does not prove typed Kinex integration.
-Inventory actual supported rigs and public operations before editing. Update
-task discovery's `action_abstraction`, default robot and controller mapping along
-with runtime registration; test generated tasks through the normal resolver and
-workspace preparation, not only handwritten examples.
-Trace clock-override validation in `src/roboenv/tasks/resolve.py` and CLI launch as
-well as backend support; implementing a clock does not automatically enable its
-public `--sync` or `--realtime` selection.
+Every task uses the typed device route, backed by each simulator's native world.
+Shared `adapters/device_control.py` and `adapters/native_record.py` provide control
+and evidence for the source-native integrations. A registered binding, generated
+rig or old successful reference program does not prove typed Kinex integration.
+Inventory actual supported rigs and public operations before editing. Update task
+discovery's default robot and native configuration along with runtime registration;
+test generated tasks through the shared `roboenv.tasks.model.Task` schema, normal
+resolver and workspace preparation. Local launch and Harbor use that same schema.
 
-Legacy bindings may contain in-process helpers named `rpc`; inspect their actual
-implementation before diagnosing a second socket stack. Preserve useful native
-control code and independent policy entrypoints when compatible with the requested
-scope. Remove primitive invocation and scene truth from the default device path.
+Trace clock selection in `src/roboenv/environment.py` and CLI launch as well as
+backend support. Tasks default to `execution_mode: realtime`; launch can override
+it with `--execution-mode`. Realtime has no episode step cap or native horizon
+timeout; stepped retains native/configured horizons. Keep non-timeout terminations
+and native success rules. Do not restore primitive dispatch or a second driver path.
 
 ## RoboTwin
 

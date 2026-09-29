@@ -2,7 +2,7 @@
 
 from roboenv.client import PUBLIC_OPS, Client
 
-CONTROL = frozenset({"reset", "reset_same_task", "checkpoint", "restore"})
+CONTROL = frozenset({"reset", "checkpoint", "restore"})
 
 
 class PracticeClient(Client):

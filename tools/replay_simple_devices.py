@@ -11,6 +11,9 @@ from roboenv_runtime.adapters.simple.backend import SimpleEnv
 def replay(record):
     if record.get("schema") != "roboenv/simple-record/3":
         raise ValueError("Expected a SIMPLE owner record")
+    mode = record.get("execution_mode")
+    if mode not in ("stepped", "realtime"):
+        raise ValueError("Replay requires execution_mode: stepped or realtime")
     metadata = record["initialization"]
     if metadata.get("control_protocol") != "simple-g1-metric-wbc/4":
         raise ValueError("Unsupported SIMPLE control protocol")
@@ -27,6 +30,7 @@ def replay(record):
         stabilize_steps=metadata["stabilize_steps"],
     )
     try:
+        world.configure_execution_mode(mode)
         world.reset(metadata["seed"])
         for key in (
             "source_lock_sha256",

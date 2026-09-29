@@ -25,7 +25,8 @@ def native_factory(monkeypatch):
 
         def step(self, actions):
             self.steps += 1
-            timed_out = self.cfg.terminations.time_out is not None and self.steps >= 1000
+            timed_out = (self.cfg.terminations.time_out is not None
+                         and self.steps >= self.max_episode_length)
             return None, None, [self.terminated], [timed_out], None
 
         def close(self):
@@ -101,9 +102,25 @@ def test_world_wait_honors_native_horizon(native_factory):
     world.close()
 
 
-@pytest.mark.parametrize("success", [False, True])
-def test_native_step_honors_non_timeout_termination(native_factory, success):
+def test_realtime_disables_native_timeout_and_reports_unbounded_budget(native_factory):
     env = native_factory()
+    adapter = IsaacLabAdapter.__new__(IsaacLabAdapter)
+    adapter._env = env
+    adapter.configure_execution_mode("realtime")
+    env.steps = env.env.steps = 999
+    for _ in range(3):
+        env.advance({"base": [0, 0, 0, 0.75]})
+    assert env.steps == 1002 and not env.done
+    assert adapter.budget().max is None and not adapter.budget().exhausted
+
+
+@pytest.mark.parametrize("success", [False, True])
+@pytest.mark.parametrize("mode", ["stepped", "realtime"])
+def test_native_step_honors_non_timeout_termination(native_factory, success, mode):
+    env = native_factory()
+    adapter = IsaacLabAdapter.__new__(IsaacLabAdapter)
+    adapter._env = env
+    adapter.configure_execution_mode(mode)
     env.steps = env.env.steps = 10
     env.env.terminated = True
     env.env.success = success

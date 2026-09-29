@@ -87,7 +87,7 @@ def test_official_registry_and_assets_are_complete():
         "drawer-and-bowl",
     ):
         resolved = resolve_task("libero/" + task, project=ROOT)
-        assert resolved.task.action_abstraction == "devices"
+        assert resolved.task.backend == "libero"
         assert resolved.task.budget_mode == "practice"
         assert resolved.task.backend_kwargs["init_state_index"] == 0
         assert "realtime" not in resolved.task.backend_kwargs

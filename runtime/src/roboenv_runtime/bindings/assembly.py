@@ -10,7 +10,7 @@ from . import default_registry
 
 
 def assemble_devices(
-    root, world, dispatch, *, manifest_path=None, registry=None, public_tools=None
+    root, world, *, manifest_path=None, registry=None
 ):
     root = Path(root).resolve(strict=True)
     plan = BindingPlan.load(root, backend=world.backend)
@@ -22,8 +22,6 @@ def assemble_devices(
         world.backend,
         world.embodiment,
         world.native,
-        dispatch,
-        public_tools,
         world=world,
     )
     return (registry or default_registry()).assemble(

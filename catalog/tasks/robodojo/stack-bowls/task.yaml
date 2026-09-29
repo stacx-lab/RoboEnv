@@ -8,4 +8,3 @@ seed: 0
 budget_mode: practice
 backend_kwargs:
   task_name: stack_bowls
-action_abstraction: devices

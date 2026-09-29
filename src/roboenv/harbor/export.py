@@ -12,7 +12,6 @@ from roboenv.devices.bindings.spec import BINDING_CONTRACT
 from roboenv.devices.contract import DEVICE_CONTRACT
 from roboenv.privacy import validate_public_text
 from roboenv.tasks.artifacts import Bundle, sha
-from roboenv.tasks.model import DEVICE_BACKENDS
 from roboenv.validation import json_loads, yaml_load
 
 
@@ -74,27 +73,7 @@ def export_task(
                 content,
             )
     out.add_yaml("environment/sim/robot/bindings.yaml", plan.as_dict())
-    if task.backend not in DEVICE_BACKENDS:
-        out.add(
-            "environment/definition/robot/devices/_roboenv.py",
-            assets.joinpath("_roboenv.py").read_bytes(),
-        )
-    for spec in plan.devices:
-        profile = spec.resolved_profile(robot_dir)
-        access = profile.setdefault("access", {})
-        driver = access.setdefault("driver", {})
-        actions = driver.get("actions", ["read"])
-        driver.update(entry="driver.py", interpreter="python3", persistent=True, actions=actions)
-        prefix = f"environment/definition/robot/devices/{spec.name}/"
-        if task.backend not in DEVICE_BACKENDS:
-            out.add_yaml(prefix + "profile.yaml", profile)
-            out.add(prefix + "driver.py", assets.joinpath("device-client.py").read_bytes())
-    out.add(
-        "environment/definition/robot/lib/README.md",
-        "Device implementations run on the server; clients use the public SDK.\n",
-    )
     names = [spec.name for spec in plan.devices]
-    primary = next((name for name in ("arm", "left_arm", "controller") if name in names), None)
     manifest = {
         "schema_version": "roboenv/environment/1",
         "task": asdict(task),
@@ -104,41 +83,31 @@ def export_task(
             "socket": "/run/roboenv/sim.sock",
             "session": "harbor",
         },
-        "capabilities": ["device-driver/1", "roboenv-public-primitives/1"],
-        "observation_access": "sensors-only"
-        if task.backend in DEVICE_BACKENDS
-        else "benchmark-ground-truth",
-        "action_abstraction": task.action_abstraction,
-        "compatibility": {
-            "backend_runtime": "roboenv-runtime",
-            "dispatch_device": primary,
-        },
+        "capabilities": ["device-driver/1"],
+        "observation_access": "sensors-only",
     }
     manifest["capabilities"].append(DEVICE_CONTRACT)
     manifest["device_contract"] = DEVICE_CONTRACT
     manifest["endpoint"]["generation"] = 0
     manifest["binding_contract"] = BINDING_CONTRACT
     manifest["binding_mode"] = "explicit"
-    if task.backend in DEVICE_BACKENDS:
-        out.add("environment/sim/environment.json", json.dumps(manifest, indent=2) + "\n")
-        manifest = {
-            "task": {"id": task.id, "instruction": task.instruction, "context": {}},
-            "devices": names,
-            "device_contract": DEVICE_CONTRACT,
-        }
+    out.add("environment/sim/environment.json", json.dumps(manifest, indent=2) + "\n")
+    manifest = {
+        "task": {"id": task.id, "instruction": task.instruction, "context": {}},
+        "devices": names,
+        "device_contract": DEVICE_CONTRACT,
+    }
     out.add("environment/definition/environment.json", json.dumps(manifest, indent=2) + "\n")
     out.add("environment/sdk/" + wheel.name, wheel.read_bytes())
     dockerfile = assets.joinpath("main.Dockerfile").read_text()
-    if task.backend in DEVICE_BACKENDS:
-        dockerfile += (
-            "\nRUN useradd --create-home --uid 1000 agent "
-            "&& chown -R agent:agent /app\nUSER agent\n"
-        )
+    dockerfile += (
+        "\nRUN useradd --create-home --uid 1000 agent && chown -R agent:agent /app\nUSER agent\n"
+    )
     out.add("environment/Dockerfile", dockerfile)
     out.add("environment/.dockerignore", "logs/\n**/__pycache__/\n")
     out.add_yaml(
         f"environment/sim/tasks/{task.backend_task}.yaml",
-        {**resolved.runtime_config(), "seeds": [task.seed], "budget": {"mode": task.budget_mode}},
+        asdict(task),
     )
     out.add(
         "environment/sim/serve-native.sh", assets.joinpath("serve-native.sh").read_text(), 0o755
@@ -164,18 +133,17 @@ def export_task(
         "volumes": ["roboenv-run:/run/roboenv:ro", "./definition:/env:ro"],
         "environment": public_env,
     }
-    if task.backend in DEVICE_BACKENDS:
-        sim["user"] = "0:0"
-        public_env.update(ROBOENV_ENDPOINT="http://sim:8123", ROBOENV_ROBOT="/run/roboenv/robot")
-        sim["environment"].update(
-            ROBOENV_FRESH_SESSION="1",
-            ROBOENV_ENDPOINT="http://sim:8123",
-            ROBOENV_HTTP_HOST="0.0.0.0",
-            ROBOENV_HTTP_PORT="8123",
-            ROBOENV_PUBLISH_DEVICES="/run/roboenv/robot/devices",
-            ROBOENV_SERVER_MANIFEST="/opt/serve/environment.json",
-        )
-        main.update(cap_drop=["ALL"], security_opt=["no-new-privileges:true"])
+    sim["user"] = "0:0"
+    public_env.update(ROBOENV_ENDPOINT="http://sim:8123", ROBOENV_ROBOT="/run/roboenv/robot")
+    sim["environment"].update(
+        ROBOENV_FRESH_SESSION="1",
+        ROBOENV_ENDPOINT="http://sim:8123",
+        ROBOENV_HTTP_HOST="0.0.0.0",
+        ROBOENV_HTTP_PORT="8123",
+        ROBOENV_PUBLISH_DEVICES="/run/roboenv/robot/devices",
+        ROBOENV_SERVER_MANIFEST="/opt/serve/environment.json",
+    )
+    main.update(cap_drop=["ALL"], security_opt=["no-new-privileges:true"])
     compose = {"services": {"main": main, "sim": sim}, "volumes": {"roboenv-run": {}}}
     out.add_yaml("environment/docker-compose.yaml", compose)
     smoke = json.loads(json.dumps(compose))
@@ -187,9 +155,6 @@ def export_task(
     if include_reference and task_path.with_name("solution.py").is_file():
         smoke["services"]["main"]["volumes"].append("../solution:/solution:ro")
     out.add_yaml("environment/smoke-compose.yaml", smoke)
-    observation_access = (
-        "sensors-only" if task.backend in DEVICE_BACKENDS else "benchmark-ground-truth"
-    )
     out.add(
         "task.toml",
         f'''schema_version = "1.4"
@@ -202,14 +167,14 @@ backend = "{task.backend}"
 backend_task = "{task.backend_task}"
 seed = {task.seed}
 environment_contract = "roboenv/environment/1"
-observation_access = "{observation_access}"
-action_abstraction = "{task.action_abstraction}"
+observation_access = "sensors-only"
+execution_mode = "{task.execution_mode}"
 [agent]
 timeout_sec = 3600.0
-{'user = "agent"' if task.backend in DEVICE_BACKENDS else ""}
+user = "agent"
 [verifier]
 timeout_sec = 600.0
-{'user = "root"' if task.backend in DEVICE_BACKENDS else ""}
+user = "root"
 [environment]
 build_timeout_sec = 1800.0
 cpus = 4
@@ -218,72 +183,35 @@ storage_mb = 20480
 gpus = 0
 ''',
     )
+    clock_instruction = (
+        "Device write submits an "
+        "action sequence with duration_s and returns immediately. "
+        "Use world.wait for world-time delays. The harness plans motion and checks "
+        "arrival. Reads and stop do not advance time. "
+    )
     instruction = (
         task.instruction
-        + """
-
-Work in /app. The environment definition is /env/environment.json; each device
-has /env/robot/devices/NAME/profile.yaml and driver.py. Use `roboenv describe`,
-`roboenv devices`, `roboenv scene`, and `roboenv api` to discover the environment.
-`roboenv device NAME ACTION 'JSON'` uses a device; `roboenv call NAME 'JSON'` calls
-a documented public primitive. All commands are also available via the roboenv
-Python SDK. Poses and action units are documented by the device/primitive.
-
-The existing native Cartesian primitives are available. Generic joint-space IK/FK
-and unknown calibration are not claimed. Your deliverable is the live world state.
-The independent verifier submits after you finish and checks full reward,
-completed status, unexhausted official budget and the supervisor action journal.
-Do not reset, restore, checkpoint, submit, shut down or access simulator internals.
-Save candidate code under /app. The environment definition and evidence are read-only.
-"""
-    )
-    instruction += """
-The environment server is already running; you do not need to install or initialize
-a simulator, or implement environment drivers. Server device discovery is authoritative:
-`roboenv devices --name NAME` describes supported actions, parameters, and limitations.
-Device responses contain `data`, a budget snapshot, and execution metadata. A successful
-device call is not a benchmark verdict. For commands whose delivery becomes uncertain,
-inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a new id.
-"""
-    if task.budget_mode == "practice":
-        instruction = instruction.replace("unexhausted official budget", "the authoring budget")
-        instruction = instruction.replace(
-            "Do not reset, restore, checkpoint, submit, shut down or access simulator internals.",
-            (
-                "This is an AUTHORING-ONLY trial: supported reset/checkpoint/restore "
-                "controls are allowed. "
-                "Do not submit, shut down or access simulator internals. "
-                "Results are not benchmark eligible."
-            ),
-        )
-    if task.backend in DEVICE_BACKENDS:
-        clock_instruction = (
-            "Device write submits an "
-            "action sequence with duration_s and returns immediately. "
-            "Use world.wait for world-time delays. The harness plans motion and checks "
-            "arrival. Reads and stop do not advance time. "
-        )
-        instruction = (
-            task.instruction
-            + "\n\n"
+        + "\n\n"
+        + (
+            "The simulation service is already running. In Python, use "
+            "`env = roboenv.connect(os.environ['ROBOENV_ENDPOINT'])`, then inspect "
+            "`env.task`, `env.devices()`, and `env.device(name).profile`. "
+            "Read sensors and command devices through their declared basic interfaces. "
+            + clock_instruction
             + (
-                "The simulation service is already running. In Python, use "
-                "`env = roboenv.connect(os.environ['ROBOENV_ENDPOINT'])`, then inspect "
-                "`env.task`, `env.devices()`, and `env.device(name).profile`. "
-                "Read sensors and command devices through their declared basic interfaces. "
-                + clock_instruction
-                + (
-                    "There is no simulation horizon. "
-                    if task.backend in {"robocasa", "libero"}
-                    and task.backend_kwargs.get("max_steps") is None
-                    else "The owner enforces the task control-interval budget. "
+                "Realtime advances continuously with no episode step cap or horizon timeout. "
+                if task.execution_mode == "realtime"
+                else (
+                    "Stepped mode advances during world.wait "
+                    "and retains configured/native horizons. "
                 )
-                + "Reads and IK/FK do not request extra steps. "
-                "Camera reads return client-accessible image files. Live profiles and thin drivers "
-                "are in /run/roboenv/robot/devices. Build perception and control tools "
-                "in /app. The verifier checks final state and budget after you finish.\n"
             )
+            + "Reads and IK/FK do not request extra steps. "
+            "Camera reads return client-accessible image files. Live profiles and thin drivers "
+            "are in /run/roboenv/robot/devices. Build perception and control tools "
+            "in /app. The verifier checks final state and budget after you finish.\n"
         )
+    )
     out.add("instruction.md", instruction)
     out.add("environment/workspace/AGENTS.md", "# Environment workspace\n\n" + instruction)
     reference = task_path.with_name("solution.py")
@@ -342,7 +270,7 @@ inspect `roboenv operation REQUEST_ID`; never blindly resend a motion under a ne
         "tests/task.json",
         json.dumps(
             {
-                "task_id": task.backend_task,
+                "task_id": task.id,
                 "backend": task.backend,
                 "seed": task.seed,
                 "session": "harbor",

@@ -60,21 +60,6 @@ def bind_puck(spec, root, context):
         )
         return {"position": list(native.pos)}
 
-    def invoke(args, execution):
-        if set(args) - {"tool_name", "kwargs"} or args.get("tool_name") != "push":
-            raise DeviceError("unsupported_action", "This binding supports only invoke(push)")
-        kwargs = args.get("kwargs", {})
-        if not isinstance(kwargs, dict) or set(kwargs) - {"dx"}:
-            raise DeviceError("invalid_args", "push accepts only dx in metres")
-        dx = _number(kwargs.get("dx", 0.1))
-        result = execution.perform(
-            "binding.push",
-            {"entity": spec.entity, "dx": dx},
-            lambda: native.push(dx),
-            mutating=True,
-        )
-        return {"result": result}
-
     def status(args, execution):
         if args:
             raise DeviceError("invalid_args", "status takes no arguments")
@@ -102,7 +87,6 @@ def bind_puck(spec, root, context):
                 "additionalProperties": False,
             },
         ),
-        "invoke": Action(invoke),
         "stop": Action(reason="Discrete synchronous puck motion has no interrupt controller"),
         "unload": Action(reason="The environment owner controls world lifecycle"),
     }

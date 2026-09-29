@@ -7,9 +7,8 @@ supervisor. Owner lifecycle commands remain on its local Unix socket.
 import re
 import socket
 import threading
-from pathlib import Path
-
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from roboenv.devices.contract import SERVICE_OPS
 

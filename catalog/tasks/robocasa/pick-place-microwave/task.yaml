@@ -10,4 +10,3 @@ seed: 0
 budget_mode: official
 backend_kwargs:
   task_name: PickPlaceCounterToMicrowave
-action_abstraction: devices

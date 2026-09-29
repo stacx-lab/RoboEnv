@@ -47,7 +47,7 @@ def typed_reference_fixture(tmp_path):
     return source
 
 
-def test_default_preparation_excludes_retired_primitive_references(tmp_path, monkeypatch):
+def test_default_preparation_selects_available_references_without_execution(tmp_path, monkeypatch):
     tool = load_tool("validate_simulators")
     wheel, deployments = inputs(tmp_path)
     monkeypatch.setattr(
@@ -78,7 +78,6 @@ def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_p
         "robot": "behavior/behavior-r1pro",
         "instruction": "Fixture instruction from explicit source",
         "backend_kwargs": {"activity_name": "fixture", "scene_model": "explicit_scene"},
-        "action_abstraction": "devices",
     }
     (source / "task.yaml").write_text(yaml.safe_dump(task))
     cases = tool.select_cases(
@@ -96,7 +95,7 @@ def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_p
     assert aloha.backend_kwargs["embodiment"] == "aloha_agilex"
     behavior = next(task for _, task, _, _ in cases if task.backend == "behavior")
     assert behavior.backend_kwargs["scene_model"] == "explicit_scene"
-    assert behavior.action_abstraction == "devices"
+    assert behavior.backend == "behavior"
     for _, _, _, program in cases:
         assert "client.device(descriptor['name']).read()" in program
         assert not any(value in program for value in ("submit", "reset", "shutdown", "_private"))
@@ -381,16 +380,17 @@ def test_probe_reads_match_evidence_for_native_and_controller_worlds(
     assert tool._trial_evidence(record, trial / "result.json")["device_read_probe_passed"]
 
 
-def test_original_version_one_probe_receipts_keep_their_read_requirements(tmp_path):
+def test_probe_evidence_requires_every_declared_read(tmp_path):
     tool = load_tool("validate_simulators")
     record = {
-        "id": "original-probe",
-        "name": "roboenv/original-probe",
+        "id": "read-probe",
+        "name": "roboenv/read-probe",
         "seed": 0,
         "backend_task": "robotwin.handover_mic",
         "program_sha256": "a" * 64,
         "mode": "probe",
         "expected_devices": ["left_arm", "world"],
+        "expected_reads": ["left_arm", "world"],
     }
     for reads in (["left_arm", "world"], ["left_arm"]):
         trial = write_trial(
@@ -402,16 +402,8 @@ def test_original_version_one_probe_receipts_keep_their_read_requirements(tmp_pa
             assert evidence["failure_category"] == "incomplete-device-read-evidence"
 
 
-@pytest.mark.parametrize(
-    "identifier",
-    [
-        "robotwin/handover-mic",
-        "robotwin/stack-blocks-three",
-        "robodojo/general-pickup",
-        "robodojo/stack-bowls",
-    ],
-)
-def test_removed_native_reference_cannot_be_selected(identifier):
+def test_reference_selection_requires_a_solution():
+    identifier = "robotwin/handover-mic"
     tool = load_tool("validate_simulators")
     with pytest.raises(ValueError, match="requires an explicit regular solution.py"):
         tool.select_cases(backends=[identifier.split("/")[0]], cases=[identifier])

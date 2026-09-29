@@ -162,7 +162,6 @@ def generate(assets, out, *, facts_out=None, provenance=None, bindings_out=None)
                 "seed": 0,
                 "instruction": "Pick up and place the steering wheel using the G1 humanoid.",
                 "budget_mode": "official",
-                "action_abstraction": "devices",
                 "backend_kwargs": {
                     "task_name": "g1-pick-place",
                     "asset_manifest": portable(assets),

@@ -18,6 +18,8 @@ def pose(value):
 
 
 class RoboTwinDevices(RoboTwinEnv):
+    unbounded = False
+
     def __init__(
         self,
         task_name="handover_block",
@@ -35,6 +37,7 @@ class RoboTwinDevices(RoboTwinEnv):
             raise ValueError("The exported rigs require the stable demo_clean camera mounts")
         self.embodiment = embodiment
         self.evaluation_mode = True
+        self.requested_frame_limit = max_steps
         self.frame_limit = max_steps
         self.asset_roots = {
             name: Path(ROBOTWIN_ROOT) / "assets" / name for name in ("embodiments", "objects")
@@ -45,16 +48,14 @@ class RoboTwinDevices(RoboTwinEnv):
             task_name=task_name,
             task_config=task_config,
             embodiment=EMBODIMENTS[embodiment],
-            auto_reset=False,
             allow_seed_substitution=allow_seed_substitution,
-            enable_render=True,
             collect_wrist_camera=True,
         )
 
     def reset(self, *, seed=None, options=None):
         result = super().reset(seed=seed, options=options)
         self._native_success = bool(self.task.check_success())
-        self.frame_limit = self.frame_limit or int(self.task.step_lim)
+        self._configure_step_limit()
         dt = float(self.task.scene.get_timestep())
         if not np.isclose(dt, 1 / 250, rtol=0, atol=1e-8):
             raise ValueError("RoboTwin practice control requires native 250 Hz physics")
@@ -121,8 +122,12 @@ class RoboTwinDevices(RoboTwinEnv):
         )
         return result
 
+    def _configure_step_limit(self):
+        self.frame_limit = None if self.unbounded else self.requested_frame_limit or int(self.task.step_lim)
+
     def _exhausted(self):
-        return self.control is not None and self.control.frame >= self.frame_limit
+        return (self.frame_limit is not None and self.control is not None
+                and self.control.frame >= self.frame_limit)
 
     def _gripper_target(self, side):
         robot = self.task.robot

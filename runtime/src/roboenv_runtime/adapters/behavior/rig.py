@@ -6,7 +6,6 @@ from pathlib import Path
 import numpy as np
 
 from roboenv_runtime.adapters.gripper_geometry import ParallelGripper
-
 from roboenv_runtime.adapters.urdf_geometry import (
     fixed_transform,
     joint_intrinsics,

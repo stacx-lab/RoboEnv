@@ -2,6 +2,7 @@
 
 import copy
 import json
+from types import SimpleNamespace
 
 import pytest
 from roboenv_runtime.adapters.isaaclab.g1_assets import digest, load_bundle
@@ -237,6 +238,7 @@ def test_default_catalog_has_complete_read_only_camera_bindings(tmp_path):
     data = json.loads((root / "runtime/src/roboenv_runtime/adapters/isaaclab/g1.json").read_text())
     assert digest(root / "src/roboenv/assets/isaaclab-g1.json") == data["asset_manifest_sha256"]
     world = Native()
+    world.env = SimpleNamespace(step_limit_enabled=True)
     world.model = data
     world.control = Control(world, data)
     world.read_camera = lambda name, directory: {"sample_time_s": world.sample_time_s}

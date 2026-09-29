@@ -12,19 +12,16 @@ from roboenv_runtime.adapters.robodojo.rig import camera_intrinsics, euler_pose
 @pytest.mark.parametrize("budget_mode", ["practice", "official"])
 def test_normal_worker_passes_only_typed_budget_arguments(monkeypatch, budget_mode):
     from roboenv_runtime.runtime import worker
-    from roboenv_runtime.tasks import loader
 
     task = SimpleNamespace(
-        id="robodojo.fixture", adapter="robodojo", adapter_kwargs={"task_name": "fixture"}
+        id="robodojo.fixture", backend="robodojo", backend_kwargs={"task_name": "fixture"}
     )
-    monkeypatch.setattr(loader, "find_task", lambda ref: task)
 
-    def construct(name, *, task_name, max_steps):
-        return name, task_name, max_steps
+    def construct(name, *, task_name):
+        return name, task_name
 
     monkeypatch.setattr(worker, "make_adapter", construct)
-    adapter, identifier = worker.build_adapter("fixture", budget_mode, practice_max_steps=70)
-    assert adapter == ("robodojo", "fixture", 70) and identifier == task.id
+    assert worker.build_adapter(task) == ("robodojo", "fixture")
 
 
 @pytest.mark.parametrize("explicit", [None, "user-evaluation"])
@@ -61,6 +58,7 @@ def test_worker_output_isolation_and_explicit_run_id(monkeypatch, tmp_path, expl
 def lazy_environment(monkeypatch, native_dt=0.004):
     native = SimpleNamespace(
         sim=None,
+        step_lim=100,
         dt=0.004,
         obs_manager=SimpleNamespace(collect_interval=10),
         sim_step=lambda: None,

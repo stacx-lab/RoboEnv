@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "roboenv-runtime"
 version = "0.2.0"
-description = "Environment-owned simulator adapters, policy serving and journaled worker runtime"
+description = "Environment-owned typed simulator devices and journaled worker runtime"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["roboenv[server]==0.2.0", "numpy>=1.23", "PyYAML>=6", "requests>=2.28"]

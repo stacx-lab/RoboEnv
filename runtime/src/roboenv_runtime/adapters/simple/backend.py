@@ -22,6 +22,7 @@ from .profiles import CONTROL_INTERVAL_S
 
 class SimpleEnv:
     control_interval = CONTROL_INTERVAL_S
+    execution_mode = "realtime"
 
     def __init__(
         self,
@@ -58,7 +59,8 @@ class SimpleEnv:
         self.env_id, self.sim_mode, self.dr_level = env_id, sim_mode, dr_level
         self.initial_state = copy.deepcopy(initialization)
         self.stabilize_steps = stabilize_steps
-        self.max_steps = tasks[env_id]["metadata"]["max_episode_steps"]
+        self.configured_max_steps = tasks[env_id]["metadata"]["max_episode_steps"]
+        self.max_steps = None
         os.environ["SIMPLE_DATA_DIR"] = str(data)
         os.environ["SIMPLE_OFFLINE"] = "1"
         os.environ.setdefault("MUJOCO_GL", "egl")
@@ -70,6 +72,12 @@ class SimpleEnv:
     @property
     def sample_time_s(self):
         return self.steps * self.control_interval
+
+    def configure_execution_mode(self, mode):
+        if mode not in {"stepped", "realtime"}:
+            raise ValueError("execution mode must be stepped or realtime")
+        self.execution_mode = mode
+        self.max_steps = None if mode == "realtime" else self.configured_max_steps
 
     def reset(self, seed):
         if self.env is not None:
@@ -302,6 +310,7 @@ class SimpleEnv:
     def record(self):
         return {
             "schema": "roboenv/simple-record/3",
+            "execution_mode": self.execution_mode,
             "initialization": copy.deepcopy(self.initialization),
             "frames": copy.deepcopy(self.frames),
             "state": self.state().tolist(),

@@ -10,7 +10,6 @@ import numpy as np
 import yaml
 
 from roboenv_runtime.adapters.gripper_geometry import ParallelGripper
-
 from roboenv_runtime.adapters.urdf_geometry import (
     fixed_transform,
     joint_intrinsics,

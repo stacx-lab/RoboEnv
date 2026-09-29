@@ -1,7 +1,5 @@
 """Typed Panda devices bound to one official LIBERO world."""
 
-from roboenv_runtime.bindings.motion import control_binding
-
 import time
 import uuid
 from dataclasses import replace
@@ -14,6 +12,7 @@ from roboenv_runtime.adapters.robocasa.geometry import chain, pose, vector
 from roboenv_runtime.bindings.backends.robocasa.camera import intrinsics as camera_intrinsics
 from roboenv_runtime.bindings.backends.robocasa.gripper_geometry import geometry as gripper_geometry
 from roboenv_runtime.bindings.backends.robocasa.joint import intrinsics as arm_intrinsics
+from roboenv_runtime.bindings.motion import control_binding
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
 TYPES = {"arm": "joint", "gripper": "gripper", "camera": "rgb", "world": "world"}

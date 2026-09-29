@@ -1,4 +1,4 @@
-"""Wire protocol primitives for the RoboDojo campaign harness.
+"""Wire protocol for device services and private owner operations.
 
 The public protocol is newline-delimited JSON (NDJSON) over Unix-domain
 sockets.  Every request is self-identifying so a supervisor can reject stale
@@ -25,12 +25,9 @@ from typing import Any, BinaryIO
 from roboenv.validation import json_loads
 
 PROTOCOL_VERSION = "roboenv/1"
-LEGACY_PROTOCOL_VERSIONS = frozenset({"codex-dojo/1"})
 MAX_NDJSON_BYTES = 8 * 1024 * 1024
 
-# These are the only operations exposed by the public client.  ``call`` is
-# the controlled tool-dispatch operation; arbitrary Python ``exec`` is not a
-# protocol operation.
+# Device operations and private owner operations share one validated envelope.
 ALLOWED_OPS = frozenset(
     {
         "health",
@@ -42,18 +39,13 @@ ALLOWED_OPS = frozenset(
         "devices.call",
         "devices.cancel",
         "operations.get",
-        "api",
         "observe",
-        "call",
-        "skill",
         "score.peek",
         "capture",
         "submit",
         "reset",
-        "reset_same_task",  # legacy alias of reset (codex-dojo/1)
         "checkpoint",
         "restore",
-        "exec",  # practice-mode privileged REPL turns only; refused in official runs
         "shutdown",
     }
 )

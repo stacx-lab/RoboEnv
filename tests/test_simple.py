@@ -35,6 +35,9 @@ class World:
         self.received = []
         self.control = Control(self, self.model)
 
+    def configure_execution_mode(self, mode):
+        self.execution_mode = mode
+
     def read_device(self, name):
         values = {
             "positions": list(self.control.targets[name]),

@@ -47,15 +47,15 @@ def test_identity_discovery_is_read_only_and_checks_endpoint(http_client):
 @pytest.mark.parametrize("device_service", ["http"], indirect=True)
 def test_transport_switch_does_not_repeat_a_motion(http_client):
     http, unix, _ = http_client
-    args = {"tool_name": "push", "kwargs": {"dx": 0.3}}
-    first = http.device("controller").call("invoke", args, request_id="both-transports")
-    assert unix.device("controller").call("invoke", args, request_id="both-transports") == first
+    args = {"target": [0.3]}
+    first = http.device("controller").call("write", args, request_id="both-transports")
+    assert unix.device("controller").call("write", args, request_id="both-transports") == first
     assert unix.request("observe")["budget"]["used"] == 50
     with pytest.raises(RemoteError, match="unsupported_op"):
         http.request("observe")
     with pytest.raises(RemoteError, match="request_id_conflict"):
         unix.device("controller").call(
-            "invoke", {"tool_name": "push", "kwargs": {"dx": 0.1}}, request_id="both-transports"
+            "write", {"target": [0.1]}, request_id="both-transports"
         )
 
 
@@ -65,8 +65,8 @@ def test_http_status_remains_available_during_motion(http_client):
     with ThreadPoolExecutor() as pool:
         future = pool.submit(
             http.device("controller").call,
-            "invoke",
-            {"tool_name": "push", "kwargs": {"dx": 0.3}, "sleep_s": 0.8},
+            "write",
+            {"target": [0.3], "sleep_s": 0.8},
             request_id="slow-http",
         )
         deadline = time.monotonic() + 5

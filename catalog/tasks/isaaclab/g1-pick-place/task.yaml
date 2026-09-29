@@ -6,7 +6,6 @@ robot: isaaclab/isaaclab-g1
 seed: 0
 instruction: Pick up and place the steering wheel using the G1 humanoid.
 budget_mode: official
-action_abstraction: devices
 backend_kwargs:
   task_name: g1-pick-place
   asset_manifest: .cache/isaaclab/g1/assets.json

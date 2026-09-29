@@ -24,6 +24,10 @@ class LiberoAdapter(AdapterBase):
     def advance_control(self):
         self._env.tick()
 
+    def configure_execution_mode(self, mode):
+        super().configure_execution_mode(mode)
+        self._env._max_steps = None if mode == "realtime" else self._env.configured_max_steps
+
     def reset(self, seed):
         self._env.reset(seed=seed)
 

@@ -27,9 +27,7 @@ PUBLIC_OPS = (
     frozenset(
         {
             "health",
-            "api",
             "observe",
-            "call",
             "score.peek",
             "capture",
             "simulation.status",
@@ -110,7 +108,6 @@ class Client:
         if type(generation) is not int or generation < 0:
             raise ValueError("generation must be a nonnegative integer")
         self.generation = generation
-        self._api = None
 
     def request(self, op, args=None, *, timeout=600.0, request_id=None):
         if op not in self.allowed_ops:
@@ -246,23 +243,7 @@ class Client:
     def operation(self, request_id):
         return self.request("operations.get", {"request_id": request_id})
 
-    def api(self):
-        if self._api is None:
-            self._api = self.request("api")
-        return self._api
 
-    def call(self, _name, *args, **kwargs):
-        entry = self.api().get("tools", {}).get(_name)
-        if entry is None:
-            raise ValueError(f"unknown public function: {_name}")
-        parameters = entry.get("parameters", [])
-        if len(args) > len(parameters):
-            raise TypeError(f"too many arguments for {_name}")
-        for name, value in zip(parameters, args, strict=False):
-            if name in kwargs:
-                raise TypeError(f"duplicate argument: {name}")
-            kwargs[name] = value
-        return self.request("call", {"name": _name, "kwargs": kwargs})
 
 
 class Device:
@@ -301,45 +282,3 @@ class Device:
 
     def ik(self, pose, *, seed=None):
         return self.call("ik", {"pose": pose, **({"seed": seed} if seed is not None else {})})
-
-
-_default = None
-
-
-def default_client():
-    global _default
-    if _default is None:
-        _default = Client()
-    return _default
-
-
-def rpc(op, args=None, timeout=600.0):
-    """Compatibility entry used by imported environment drivers."""
-    return default_client().request(op, args, timeout=timeout)
-
-
-def api():
-    return default_client().api()
-
-
-def call(_name, *args, **kwargs):
-    return default_client().call(_name, *args, **kwargs)
-
-
-class _Functions:
-    def __getattr__(self, name):
-        if name.startswith("_"):
-            raise AttributeError(name)
-        return lambda *args, **kwargs: call(name, *args, **kwargs)
-
-
-sim = _Functions()
-
-
-def capture(relative_path):
-    result = rpc("capture", {"path": relative_path})
-    if isinstance(result, dict) and result.get("path"):
-        return result["path"]
-    return os.path.join(
-        os.environ.get("ROBOENV_RUN_DIR", "/run/roboenv/run"), "captures", relative_path
-    )

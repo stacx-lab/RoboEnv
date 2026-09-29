@@ -17,6 +17,9 @@ class Native:
         self.fail = fail
         self.closed = False
 
+    def configure_execution_mode(self, mode):
+        self.execution_mode = mode
+
     def budget(self):
         return Budget(used=self.frames, max=self.maximum)
 
@@ -72,9 +75,9 @@ def test_independent_commands_share_ticks_and_freeze_cancels_without_ticks():
 
 
 def test_unbounded_budget_roundtrip():
-    budget = Budget.coerce({"used": 100_000, "max": None, "unit": "action_frames"})
+    budget = Budget(used=100_000, max=None, unit="action_frames")
     assert budget.max is None and budget.remaining is None and not budget.exhausted
-    assert Budget.coerce(budget.as_dict()) == budget
+    assert Budget(**budget.as_dict()) == budget
     finite = Budget(used=3, max=3)
     assert finite.exhausted and finite.remaining == 0
 
@@ -106,7 +109,7 @@ def test_cancelled_wait_does_not_advance_and_freeze_ends_waiters():
 def test_realtime_advances_without_wait(monkeypatch):
     now = [10.0]
     monkeypatch.setattr("roboenv_runtime.runtime.world.time.monotonic", lambda: now[0])
-    world = WorldSession(Native(maximum=None), mode="realtime")
+    world = WorldSession(Native(maximum=1), mode="realtime")
     world.advance()
     assert world.time_s == 0.02
     world.advance()
@@ -114,3 +117,4 @@ def test_realtime_advances_without_wait(monkeypatch):
     now[0] += 0.02
     world.advance()
     assert world.time_s == 0.04
+    assert world.native.frames == 2 and world.failure is None

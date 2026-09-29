@@ -46,7 +46,8 @@ in the manifest; geometry and runtime RGB-D output are verified separately.
 Native operations share the simulation creation thread, including rendering and
 cleanup. Writes submit absolute action buffers with `duration_s` and return immediately. Realtime advances continuously in 20 ms intervals; stepped advances
 while `world.wait` is pending. Velocity expiry zeroes travel and retains posture.
-Stops do not advance physics. Native horizons and termination remain active.
+Stops do not advance physics. Stepped retains native horizons. Realtime disables
+the timeout; native success and other failure terminations remain active.
 See [the execution contract](../DESIGN.md#one-world-one-execution-authority).
 
 ```sh
@@ -84,7 +85,7 @@ uses its palm frame with the fixed wrist mount extracted from USD and accepts
 seven ordered joint positions; generated `postures.json` contains open,
 power and pinch command postures. These are reference configurations, not evidence
 of an object grasp. The upstream scene and success condition are retained;
-the upstream horizon is retained.
+the upstream horizon is retained in stepped mode and disabled in realtime.
 Upper-body Pink control is replaced by explicit joint targets with gravity
 compensation. Reaching a terminal state prevents further motion until reset.
 

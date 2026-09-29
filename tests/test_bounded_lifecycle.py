@@ -15,14 +15,25 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/fixtures/native-toy"
 
 
-def bounded(tmp_path, *, limit=100, success=True, allow_stop=True):
+def bounded(tmp_path, *, limit=100, success=True, allow_stop=True, execution_mode=None):
     task = yaml.safe_load((FIXTURE / "task.yaml").read_text())
     task["backend_kwargs"] = {"max_steps": limit, "stop_on_success": success}
     path = tmp_path / "task.yaml"
     path.write_text(yaml.safe_dump(task))
     return launch(path, runtime_root=tmp_path, catalog=FIXTURE / "catalog",
                   interpreter=sys.executable, run_dir=tmp_path / "runs", allow_stop=allow_stop,
-                  timeout=20)
+                  timeout=20, execution_mode=execution_mode)
+
+
+def test_realtime_ignores_explicit_step_cap_and_keeps_counting(tmp_path):
+    with bounded(tmp_path, limit=50, success=False, execution_mode="realtime") as run:
+        env = roboenv.connect(run.endpoint)
+        for _ in range(3):
+            env.device("controller").write([0.01])
+        status = env.status()
+        assert not status["terminal"]
+        assert status["budget"]["used"] == 150 and status["budget"]["max"] is None
+        env.device("controller").read()
 
 
 def test_external_yaml_without_checkout_and_success_at_limit(tmp_path):

@@ -2,6 +2,7 @@
 
 import argparse
 import runpy
+from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -29,7 +30,7 @@ def test_gravity_resolution_precedence_and_persistence(tmp_path, setting, overri
     resolved = resolve_task(path, project=ROOT, arm_gravity_compensation=override)
     expected = override if override is not None else setting if setting is not None else True
     assert resolved.task.backend_kwargs["arm_gravity_compensation"] is expected
-    assert resolved.runtime_config()["adapter_kwargs"]["arm_gravity_compensation"] is expected
+    assert asdict(resolved.task)["backend_kwargs"]["arm_gravity_compensation"] is expected
     assert original.path.read_bytes() == source
 
 
@@ -58,10 +59,14 @@ def test_other_backends_reject_gravity_option(tmp_path):
         resolve_task(path, project=ROOT)
 
 
-@pytest.mark.parametrize("flag,expected", [
-    ([], None), (["--arm-gravity-compensation"], True),
-    (["--no-arm-gravity-compensation"], False),
-])
+@pytest.mark.parametrize(
+    "flag,expected",
+    [
+        ([], None),
+        (["--arm-gravity-compensation"], True),
+        (["--no-arm-gravity-compensation"], False),
+    ],
+)
 def test_cli_forwards_gravity_selection(monkeypatch, flag, expected):
     parser = argparse.ArgumentParser()
     add_commands(parser.add_subparsers(dest="command"))
@@ -76,16 +81,25 @@ def test_cli_forwards_gravity_selection(monkeypatch, flag, expected):
     assert execute(options) == 0
     assert received["arm_gravity_compensation"] is expected
     with pytest.raises(SystemExit):
-        parser.parse_args(["launch", "simple/g1-xmove-pick",
-                           "--arm-gravity-compensation", "--no-arm-gravity-compensation"])
+        parser.parse_args(
+            [
+                "launch",
+                "simple/g1-xmove-pick",
+                "--arm-gravity-compensation",
+                "--no-arm-gravity-compensation",
+            ]
+        )
 
 
-@pytest.mark.parametrize("schema,protocol,setting", [
-    ("roboenv/simple-record/2", "simple-g1-metric-wbc/3", False),
-    ("roboenv/simple-record/3", "simple-g1-metric-wbc/3", True),
-    ("roboenv/simple-record/3", "simple-g1-metric-wbc/4", None),
-    ("roboenv/simple-record/3", "simple-g1-metric-wbc/4", "false"),
-])
+@pytest.mark.parametrize(
+    "schema,protocol,setting",
+    [
+        ("roboenv/simple-record/2", "simple-g1-metric-wbc/3", False),
+        ("roboenv/simple-record/3", "simple-g1-metric-wbc/3", True),
+        ("roboenv/simple-record/3", "simple-g1-metric-wbc/4", None),
+        ("roboenv/simple-record/3", "simple-g1-metric-wbc/4", "false"),
+    ],
+)
 def test_replay_rejects_ambiguous_gravity_before_boot(schema, protocol, setting):
     replay = runpy.run_path(str(ROOT / "tools/replay_simple_devices.py"))["replay"]
     metadata = {"control_protocol": protocol}

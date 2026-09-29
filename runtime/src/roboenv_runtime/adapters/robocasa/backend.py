@@ -8,7 +8,6 @@ from typing import Any
 
 import numpy as np
 
-
 DEFAULT_ROBOT = "PandaOmron"
 DEFAULT_TASK = "PickPlaceCounterToCabinet"
 DEFAULT_CAMERAS = ("robot0_agentview_left", "robot0_agentview_right", "robot0_eye_in_hand")
@@ -82,6 +81,7 @@ class RoboCasaEnv:
         self._render = bool(enable_render)
         self._camera_names = tuple(camera_names)
         self._camera_size = tuple(camera_size)
+        self.configured_max_steps = max_steps
         self._max_steps = max_steps
         self._step_count = 0
         self._frames: list[np.ndarray] = []

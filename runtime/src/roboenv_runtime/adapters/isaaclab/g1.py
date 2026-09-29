@@ -49,6 +49,7 @@ class G1Env:
         self.control = Control(self, self.model)
         try:
             from isaaclab.app import AppLauncher
+
             from .g1_native import create
 
             self.app = AppLauncher(headless=True, enable_cameras=True, device=device).app
@@ -80,7 +81,7 @@ class G1Env:
 
     @property
     def max_steps(self):
-        return self.env.max_episode_length
+        return self.env.max_episode_length if self.env.step_limit_enabled else None
 
     def reset(self, seed):
         self.env.allow_reset = True

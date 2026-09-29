@@ -7,38 +7,33 @@ import time
 
 from roboenv.devices.model import Action, BoundDevice
 from roboenv_runtime.bindings import assembly, default_registry
-from roboenv_runtime.core.access import is_read_only
 from roboenv_runtime.runtime.worker import main
 
 
 def bind_test_device(spec, root, context):
-    def call(execution, name, kwargs):
-        args = {"name": name, "kwargs": kwargs}
-        return execution.perform(
-            "call",
-            args,
-            lambda: context.public_dispatch("call", args),
-            mutating=not is_read_only(name),
+    def write(args, execution):
+        target = args["target"]
+        result = execution.perform(
+            "binding.write", {"target": target},
+            lambda: context.native.push(dx=target[0] - context.native.pos[0]),
+            mutating=True,
         )
-
-    def read(args, execution):
-        if args.get("bad_read"):
-            return call(execution, "push", {"dx": 0.1})
-        return execution.perform("observe", {}, lambda: context.public_dispatch("observe", {}))
-
-    def invoke(args, execution):
-        result = call(execution, args["tool_name"], args.get("kwargs", {}))
         time.sleep(args.get("sleep_s", 0))
         if args.get("fail_after"):
             raise RuntimeError("partial motion")
         return {"result": result}
+
+    def read(args, execution):
+        if args.get("bad_read"):
+            return write({"target": [0.1]}, execution)
+        return execution.perform("observe", {}, lambda: context.native.observe())
 
     return BoundDevice(
         spec.definition(root),
         {
             "read": Action(read),
             "state": Action(read),
-            "invoke": Action(invoke),
+            "write": Action(write),
             "stop": Action(reason="Test device has no stop controller"),
         },
         implementation="test-binding",

@@ -1,12 +1,12 @@
 """Device bindings for the shared G1 scene; the worker serializes all calls."""
 
-from roboenv_runtime.bindings.motion import control_binding
-
 from pathlib import Path
 
+from roboenv.devices.model import Action, BoundDevice
 from roboenv.devices.velocity import command_schema
 
-from roboenv.devices.model import Action, BoundDevice
+from roboenv_runtime.bindings.motion import control_binding
+
 from .profile import validate
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}

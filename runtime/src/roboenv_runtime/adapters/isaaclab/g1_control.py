@@ -4,7 +4,6 @@ import math
 
 from roboenv.devices.velocity import command as base_command
 
-
 from .g1_profiles import NAMES, profiles
 
 

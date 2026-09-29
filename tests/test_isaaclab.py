@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pytest
 from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.isaaclab.geometry import relative_pose, rotation
 
@@ -38,12 +37,6 @@ assert 'isaaclab' not in sys.modules and 'torch' not in sys.modules
         check=True,
         env={**os.environ, "PYTHONPATH": f"{ROOT / 'src'}:{ROOT / 'runtime/src'}"},
     )
-
-
-def test_removed_go2_joint_demo_is_not_discoverable():
-    with pytest.raises(ValueError):
-        resolve_task("isaaclab/go2-posture", project=ROOT)
-    assert not (ROOT / "catalog/robots/isaaclab/isaaclab-go2/workspace.yaml").exists()
 
 
 def test_g1_resolution_leaves_profiles_alone(tmp_path):

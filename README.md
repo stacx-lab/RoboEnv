@@ -24,11 +24,15 @@ see [setup](docs/setup.md) for prerequisites and diagnostics.
 
 ## Start and connect
 
-Every task catalog entry declares `execution_mode: stepped` or `realtime`.
+Tasks default to `execution_mode: realtime`; `stepped` is an explicit opt-in.
 `stepped` freezes idle simulation; `realtime` advances it against a monotonic clock.
-`roboenv tasks list` reports each task's mode. Launch uses the catalog setting;
+`roboenv tasks list` reports each task's mode. Launch uses the resolved task setting;
 `--execution-mode` (or Python `execution_mode=`) explicitly overrides it.
 
+Realtime has no episode step cap, including configured `max_steps` and native
+time limits. Frames are still counted and budgets report `max: null`. Stepped
+mode retains configured/native horizons. Success policies, non-timeout native
+termination, faults, explicit stop and request deadlines remain active in both.
 
 ```sh
 roboenv tasks list --simulator robocasa
@@ -128,8 +132,8 @@ RGB-D cameras. The old Go2 joint-posture demo has been removed; no Go2 locomotio
 policy is supplied. See [Isaac Lab setup and devices](docs/isaaclab.md). CPU checks
 do not establish native replay or balance.
 
-G1 retains its native episode horizon and termination conditions. There is no
-wall-clock stepping mode or command-expiry clock.
+G1 retains its native episode horizon in stepped mode. Realtime removes the
+timeout while preserving native success and failure termination conditions.
 
 Device reads and recording remain available during bounded writes. Independent
 devices accept concurrent writes through `env.device(name)`; writes to the same
@@ -191,8 +195,8 @@ src/roboenv/
 ```
 
 `runtime/` contains simulator adapters, workers, and scoring. Runtime device
-handlers are grouped by simulator under `bindings/backends/`; robot variants
-reuse shared implementations through an explicit binding index.
+handlers use one native binding registry; robot variants reuse the same typed
+implementations with embodiment-specific profiles.
 `catalog/` exposes reusable robot definitions and small task examples. Native
 binding defaults are internal resources in `src/roboenv/devices/bindings/defaults/`. `third_party/`
 contains pinned submodules and recorded patches. Generated output and local

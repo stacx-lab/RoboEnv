@@ -25,21 +25,9 @@ def launch_toy(**kwargs):
     return launch(FIXTURE / "task.yaml", project=ROOT, catalog=FIXTURE / "catalog", **kwargs)
 
 
-def test_nested_simulation_and_flat_task_resolve_identically():
-    flat = asdict(Task.load(FIXTURE / "task.yaml"))
-    nested = dict(flat)
-    nested["simulation"] = {
-        key: nested.pop(key) for key in ("backend", "robot", "backend_kwargs", "device_bindings")
-    }
-    assert Task.from_dict(nested) == Task.from_dict(flat)
-    nested["backend"] = "fakeshell"
-    with pytest.raises(ValueError, match="mix"):
-        Task.from_dict(nested)
-
-
 def test_task_id_resolution_and_missing_task():
     resolved = resolve_task("libero/mug-into-microwave", project=ROOT)
-    assert resolved.runtime_config()["adapter"] == "libero"
+    assert asdict(resolved.task)["backend"] == "libero"
     assert resolved.task.backend_kwargs == {
         "suite_name": "libero_10",
         "task_id": 9,
@@ -358,14 +346,6 @@ def test_prepare_reports_install_failure(monkeypatch, capsys):
     assert "installation blocked" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("field", ["style", "mode", "max_turns", "options"])
-def test_runtime_rejects_agent_configuration(field):
-    from roboenv_runtime.tasks.schema import TaskSpec
-
-    with pytest.raises(ValueError, match="non-environment"):
-        TaskSpec.from_dict({"id": "test", "adapter": "fakeshell", field: "agent setting"})
-
-
 def test_simple_export_uses_the_shared_resolver(tmp_path):
     from roboenv.harbor.workflow import export
 
@@ -397,18 +377,9 @@ def test_simple_export_uses_the_shared_resolver(tmp_path):
     )
     assert (
         generated
-        == resolve_task(FIXTURE / "task.yaml", catalog=FIXTURE / "catalog").runtime_config()
+        == asdict(resolve_task(FIXTURE / "task.yaml", catalog=FIXTURE / "catalog").task)
     )
     assert not (out / "solution").exists()
-
-
-def test_cli_rejects_removed_start_command(capsys):
-    from roboenv.cli.main import main
-
-    with pytest.raises(SystemExit) as error:
-        main(["start", "example-task"])
-    assert error.value.code == 2
-    assert "invalid choice: 'start'" in capsys.readouterr().err
 
 
 def test_launch_never_changes_catalog():
@@ -453,33 +424,21 @@ def test_task_rejects_invalid_namespaced_ids(value):
         Task.from_dict(task)
 
 
-@pytest.mark.parametrize("value", [False, True, "false"])
-def test_removed_clock_option_is_rejected(value):
+def test_clock_setting_must_be_at_task_level():
     task = asdict(resolve_task("robocasa/pick-place-microwave", project=ROOT).task)
-    task["backend_kwargs"]["realtime"] = value
+    task["backend_kwargs"]["realtime"] = True
     with pytest.raises(ValueError, match="realtime is not supported"):
         Task.from_dict(task)
 
 
-@pytest.mark.parametrize("flag", ["--realtime", "--sync"])
-def test_removed_clock_flags_are_rejected(flag):
-    from roboenv.cli.main import main
-
-    with pytest.raises(SystemExit) as error:
-        main(["launch", "robocasa/pick-place-microwave", flag])
-    assert error.value.code == 2
-
-
 @pytest.mark.parametrize("mode", [None, True, "synchronous", "fast", {}, []])
 def test_invalid_task_execution_modes_are_rejected(mode):
-    from roboenv_runtime.tasks.schema import TaskSpec
+    from roboenv.tasks.model import Task
 
     task = asdict(Task.load(FIXTURE / "task.yaml"))
     task["execution_mode"] = mode
     with pytest.raises(ValueError, match="execution_mode"):
         Task.from_dict(task)
-    with pytest.raises(ValueError, match="execution_mode"):
-        TaskSpec.from_dict({"id": "test", "adapter": "fakeshell", "execution_mode": mode})
 
 
 @pytest.mark.parametrize("override, expected", [(None, "realtime"), ("stepped", "stepped")])

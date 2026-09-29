@@ -11,20 +11,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
-import yaml
 from jsonschema import Draft202012Validator
 from roboenv.client import Client, RemoteError
-from roboenv.devices.bindings.registry import BindingContext
-from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.contract import DEVICE_CONTRACT
 from roboenv.devices.export import write_driver
-from roboenv.harbor.export import export_task
-from roboenv.tasks.model import DEVICE_BACKENDS
-from roboenv_runtime.adapters.fakeshell import FakeShell
 from roboenv_runtime.runtime.protocol import Request, Response
 from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
-from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError
-from service_fixtures import invoke, legacy_registry
+from service_fixtures import invoke
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -35,13 +28,13 @@ def test_discover_control_and_observe_through_real_worker(device_service):
     devices = client.devices()["devices"]
     assert [d["name"] for d in devices] == ["controller"]
     descriptor = client.device("controller").describe()
-    assert descriptor["actions"]["invoke"]["supported"]
+    assert descriptor["actions"]["write"]["supported"]
     assert not descriptor["actions"]["stop"]["supported"]
     assert descriptor["execution"]["interruptible"] is False
     result = invoke(client)
     assert result["budget"]["used"] == 50
-    assert [entry for entry in result["calls"] if entry["op"] == "call"] == [
-        {"op": "call", "args": {"name": "push", "kwargs": {"dx": 0.3}}, "ok": True}
+    assert [entry for entry in result["calls"] if entry["op"] == "binding.write"] == [
+        {"op": "binding.write", "args": {"target": [0.3]}, "ok": True}
     ]
     assert client.request("score.peek")["completed"]
     assert client.device("controller").read()["read_only"]
@@ -82,8 +75,8 @@ def test_status_and_duplicate_timeout_do_not_wait_for_or_poison_motion(device_se
         assert health.returncode == 0, health.stderr
         with pytest.raises(RemoteError) as error:
             client.device("controller").call(
-                "invoke",
-                {"tool_name": "push", "kwargs": {"dx": 0.3}, "sleep_s": 1.5},
+                "write",
+                {"target": [0.3], "sleep_s": 1.5},
                 request_id="slow",
                 timeout=0.05,
             )
@@ -116,13 +109,13 @@ def test_read_cannot_dispatch_motion_and_identity_is_checked(device_service):
     assert client.request("observe")["budget"]["used"] == 0
 
 
-@pytest.mark.parametrize(
-    "backend", [None, "libero", "robocasa", "robotwin", "robodojo", "behavior"]
-)
-def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, tmp_path, backend):
+def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, tmp_path):
     client, supervisor, _ = device_service
     program = tmp_path / "solution.py"
-    program.write_text('push(0.3)\nassert get_object_pose(name="puck")[0][0] >= 0.3\n')
+    program.write_text(
+        'env.device("controller").write(target=[0.3])\n'
+        'assert env.device("controller").read()["objects"]["puck"]["position"][0] >= 0.3\n'
+    )
     env = {
         **os.environ,
         "ROBOENV_SOCKET": client.socket_path,
@@ -131,7 +124,7 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
     }
     for arguments in (
         ["devices"],
-        ["device", "controller", "invoke", '{"tool_name":"push","kwargs":{"dx":0.3}}'],
+        ["device", "controller", "write", '{"target":[0.3]}'],
         ["replay", str(program)],
     ):
         result = subprocess.run(
@@ -146,19 +139,23 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
     assets = importlib.resources.files("roboenv").joinpath("assets")
     verifier = tmp_path / "verify.py"
     verifier.write_text(assets.joinpath("verify.py").read_text())
-    task = {"task_id": "device-toy", "seed": 0, "session": "harbor", "backend": backend}
-    if backend:
-        task["session"] = "stale-deployment-session"
-        Path(client.socket_path).with_name("identity.json").write_text('{"session":"harbor"}')
+    task = {
+        "task_id": "device-toy", "seed": 0, "session": "stale-deployment-session",
+        "backend": "fakeshell",
+    }
     (tmp_path / "task.json").write_text(json.dumps(task))
-    result = subprocess.run(
-        [sys.executable, str(verifier)],
-        cwd=tmp_path,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
+
+    def verify():
+        return subprocess.run(
+            [sys.executable, str(verifier)], cwd=tmp_path, env=env,
+            capture_output=True, text=True, timeout=15,
+        )
+
+    assert verify().returncode == 1  # Missing owner identity cannot certify a trial.
+    assert json.loads((tmp_path / "verdict/reward.json").read_text()) == {"reward": 0.0}
+    assert not client.request("score.peek")["submitted"]
+    Path(client.socket_path).with_name("identity.json").write_text('{"session":"harbor"}')
+    result = verify()
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads((tmp_path / "verdict/reward.json").read_text()) == {"reward": 1.0}
     with pytest.raises(RemoteError, match="already_submitted"):
@@ -186,7 +183,10 @@ def test_thin_driver_needs_only_stdlib_and_socket(device_service, tmp_path):
     (tmp_path / "_roboenv.py").unlink()
     missing = subprocess.run(
         [sys.executable, "-I", "-S", str(driver), "read", "{}"],
-        cwd=tmp_path.parent, capture_output=True, text=True, timeout=10,
+        cwd=tmp_path.parent,
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     assert missing.returncode != 0 and "ModuleNotFoundError" in missing.stderr
 
@@ -196,7 +196,9 @@ def test_portable_driver_uses_profile_url_with_explicit_overrides(tmp_path, monk
     driver = tmp_path / "driver.py"
     write_driver(driver.parent, "other")
     monkeypatch.syspath_prepend(str(driver.parent))
-    (tmp_path / "profile.yaml").write_text("access:\n  connection:\n    kind: url\n    url: http://profile:8124\n")
+    (tmp_path / "profile.yaml").write_text(
+        "access:\n  connection:\n    kind: url\n    url: http://profile:8124\n"
+    )
     for key in ("ROBOENV_ENDPOINT", "ROBOENV_SOCKET", "ROBOENV_SESSION", "ROBOENV_GENERATION"):
         monkeypatch.delenv(key, raising=False)
     expected = "http://profile:8124"
@@ -223,121 +225,6 @@ def test_portable_driver_uses_profile_url_with_explicit_overrides(tmp_path, monk
     assert remote("status", {}) == {"loaded": True}
 
 
-def test_all_catalogs_load_without_contacting_simulators():
-    from roboenv_runtime.bindings import default_registry
-
-    def forbidden(*args):
-        raise AssertionError("Catalog loading must not perform I/O")
-
-    schema = json.loads(
-        importlib.resources.files("roboenv")
-        .joinpath("specs/device-service.schema.json")
-        .read_text()
-    )
-    Draft202012Validator.check_schema(schema)
-    validator = Draft202012Validator(schema)
-    for workspace in sorted((ROOT / "catalog/robots").rglob("workspace.yaml")):
-        from roboenv.devices.bindings.spec import binding_resource
-
-        robot = workspace.parent
-        raw = yaml.safe_load(binding_resource(robot, backend=robot.parent.name).read_text())
-        plan = BindingPlan.load(robot, backend=raw["backend"])
-        if raw["backend"] in DEVICE_BACKENDS:
-            # Offline definitions validate without a world; native bindings require
-            # real model/controller facts, covered by backend conformance tests.
-            assert all(spec.definition(robot) for spec in plan.devices)
-            continue
-        context = BindingContext(raw["backend"], raw["embodiment"], object(), forbidden, {})
-        service = default_registry().assemble(plan, robot, context)
-        validator.validate(service.inventory())
-        for device in service.inventory()["devices"]:
-            assert not device["actions"].get("stop", {}).get("supported", False)
-            assert "driver" not in device
-
-
-def test_server_reads_cannot_bypass_submission_or_return_fake_poses(tmp_path, monkeypatch):
-    monkeypatch.setattr("roboenv_runtime.bindings.assembly.default_registry", legacy_registry)
-
-    class World(FakeShell):
-        name, embodiment = "robodojo", "arx_x5"
-
-        def tools(self):
-            return {
-                **super().tools(),
-                "get_gripper_pose": lambda: [0, 0, 0, 1, 0, 0, 0],
-                "get_gripper_state": lambda: 0,
-                "get_step_budget": lambda: self.budget().as_dict(),
-                "goto_pose": lambda *args: None,
-            }
-
-    worker = SimWorker(
-        World(),
-        task_id="test",
-        seed=0,
-        run_dir=tmp_path,
-        device_root=ROOT / "tests/fixtures/legacy-native-catalogs/robodojo-arx-x5",
-    )
-    try:
-        result = worker.dispatch("devices.call", {"device": "arm", "action": "read", "args": {}})
-        assert "flange_pose" not in result["data"]
-        assert "native_tool_pose" in result["data"]
-        worker.dispatch("submit", {})
-        with pytest.raises(WorkerRPCError, match="frozen"):
-            worker.dispatch("devices.call", {"device": "arm", "action": "write", "args": {}})
-    finally:
-        worker.close()
-
-
-def test_native_export_has_ready_server_and_thin_drivers(tmp_path):
-    deployment = tmp_path / "deployment.json"
-    deployment.write_text(
-        json.dumps(
-            {
-                "schema": "roboenv/deployment/1",
-                "backend": "fakeshell",
-                "image": "sha256:" + "1" * 64,
-                "legacy_tree_required": False,
-            }
-        )
-    )
-    wheel = tmp_path / "roboenv-test.whl"
-    wheel.write_bytes(b"fixture only")
-    out = tmp_path / "export"
-    export_task(
-        ROOT / "tests/fixtures/native-toy/task.yaml",
-        ROOT / "tests/fixtures/native-toy/catalog",
-        out,
-        wheel,
-        deployment_path=deployment,
-    )
-    environment = out / "environment"
-    compose = yaml.safe_load((environment / "docker-compose.yaml").read_text())
-    assert compose["services"]["main"]["depends_on"]["sim"]["condition"] == "service_healthy"
-    assert compose["services"]["sim"]["environment"]["ROBOENV_SERVER_ROBOT"] == "/opt/serve/robot"
-    assert compose["services"]["sim"]["environment"]["ROBOENV_SOCKET"] == "/run/roboenv/sim.sock"
-    driver = (environment / "definition/robot/devices/controller/driver.py").read_text()
-    assert "from roboenv" not in driver and "roboenv_runtime" not in driver
-    assert (environment / "sim/robot/devices/controller/driver.py").is_file()
-
-
-def test_finalizer_classifies_device_mutations():
-    from roboenv_runtime.runtime.finalize import _is_physical_mutation
-
-    for action, expected in (("invoke", True), ("read", False), ("write", True)):
-        request = Request.from_mapping(
-            {
-                "protocol": "roboenv/1",
-                "session": "test",
-                "generation": 0,
-                "request_id": "x",
-                "deadline_s": 1,
-                "op": "devices.call",
-                "args": {"device": "arm", "action": action, "args": {}},
-            }
-        )
-        assert _is_physical_mutation(request) is expected
-
-
 def test_partial_device_motion_is_not_certified(device_service):
     client, supervisor, _ = device_service
     with pytest.raises(RemoteError, match="partial motion"):
@@ -346,18 +233,16 @@ def test_partial_device_motion_is_not_certified(device_service):
     verifier = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
     raw = supervisor.journal.path.read_bytes()
     with pytest.raises(ValueError, match="indeterminate"):
-        verifier["validate_journal"](
-            raw, session="harbor", submit_id="none", verdict={}, api=client.api()
-        )
+        verifier["validate_journal"](raw, session="harbor", submit_id="none", verdict={})
 
 
 def test_timeout_fences_request_and_never_claims_emergency_stop(device_service):
     client, supervisor, _ = device_service
-    arguments = {"tool_name": "push", "kwargs": {"dx": 0.3}, "sleep_s": 2}
+    arguments = {"target": [0.3], "sleep_s": 2}
     for timeout in (0.1, 5):
         with pytest.raises(RemoteError) as error:
             client.device("controller").call(
-                "invoke", arguments, timeout=timeout, request_id="timeout-motion"
+                "write", arguments, timeout=timeout, request_id="timeout-motion"
             )
         assert error.value.code == "worker_timeout"
         assert error.value.details["worker_killed"] is True
@@ -406,40 +291,6 @@ def test_restart_retrieves_terminal_results_and_fences_unfinished_intents(tmp_pa
     assert restored.handle(conflict)["error"]["code"] == "request_id_conflict"
 
 
-def test_camera_artifact_uses_shared_path_and_rejects_traversal(tmp_path, monkeypatch):
-    monkeypatch.setattr("roboenv_runtime.bindings.assembly.default_registry", legacy_registry)
-    import numpy as np
-
-    class CameraWorld(FakeShell):
-        name, embodiment = "robodojo", "arx_x5"
-
-        def capture(self):
-            return np.zeros((8, 8, 3), dtype=np.uint8)
-
-    worker = SimWorker(
-        CameraWorld(),
-        task_id="test",
-        seed=0,
-        run_dir=tmp_path,
-        device_root=ROOT / "tests/fixtures/legacy-native-catalogs/robodojo-arx-x5",
-    )
-    try:
-        result = worker.dispatch(
-            "devices.call",
-            {"device": "camera", "action": "read", "args": {"file_name": "frame.png"}},
-        )
-        path = Path(result["data"]["file"])
-        assert path == tmp_path / "captures/frame.png"
-        assert path.read_bytes().startswith(b"\x89PNG")
-        with pytest.raises(WorkerRPCError, match="relative"):
-            worker.dispatch(
-                "devices.call",
-                {"device": "camera", "action": "read", "args": {"file_name": "../../escape.png"}},
-            )
-    finally:
-        worker.close()
-
-
 def test_call_results_match_published_schema(device_service):
     client, _, _ = device_service
     schema = json.loads(
@@ -447,6 +298,7 @@ def test_call_results_match_published_schema(device_service):
         .joinpath("specs/device-service.schema.json")
         .read_text()
     )
+    Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
     validator.validate(client.device("controller").describe())
     validator.validate(client.device("controller").read())
@@ -476,9 +328,15 @@ def test_portable_driver_never_retries_an_uncertain_write(tmp_path, failure, mon
     driver = device / "driver.py"
     write_driver(driver.parent, "other")
     monkeypatch.syspath_prepend(str(driver.parent))
-    (device / "connection.json").write_text(json.dumps({
-        "endpoint": "http://unused", "session": "test", "generation": 0,
-    }))
+    (device / "connection.json").write_text(
+        json.dumps(
+            {
+                "endpoint": "http://unused",
+                "session": "test",
+                "generation": 0,
+            }
+        )
+    )
     handle = runpy.run_path(str(driver))["handle"]
     requests = []
 
@@ -487,8 +345,9 @@ def test_portable_driver_never_retries_an_uncertain_write(tmp_path, failure, mon
         requests.append(request)
         if failure == "lost":
             raise ConnectionResetError("response lost after acceptance")
-        response = {key: request[key] for key in
-                    ("protocol", "session", "generation", "request_id")}
+        response = {
+            key: request[key] for key in ("protocol", "session", "generation", "request_id")
+        }
         response.update(ok=True, result={"data": {"accepted": True}})
         if failure == "mismatched":
             response["request_id"] = "another-request"

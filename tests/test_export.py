@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+import tomllib
 import yaml
 from roboenv.harbor.export import export_task
 from roboenv.harbor.taskset import validate_harbor_task
@@ -41,6 +42,23 @@ def test_native_task_is_harbor_format_without_a_solution(tmp_path):
     assert (out / "tests/test.sh").stat().st_mode & 0o111
     compose = yaml.safe_load((out / "environment/docker-compose.yaml").read_text())
     assert compose["services"]["sim"]["image"] == "sha256:" + "a" * 64
+    config = tomllib.loads((out / "task.toml").read_text())
+    assert config["agent"]["user"] == "agent"
+    assert config["verifier"]["user"] == "root"
+    main, sim = compose["services"]["main"], compose["services"]["sim"]
+    assert main["environment"]["ROBOENV_ENDPOINT"] == "http://sim:8123"
+    assert main["depends_on"]["sim"]["condition"] == "service_healthy"
+    assert sim["environment"]["ROBOENV_HTTP_HOST"] == "0.0.0.0"
+    assert sim["environment"]["ROBOENV_FRESH_SESSION"] == "1"
+    assert sim["environment"]["ROBOENV_SERVER_ROBOT"] == "/opt/serve/robot"
+    assert sim["environment"]["ROBOENV_SOCKET"] == "/run/roboenv/sim.sock"
+    assert sim["environment"]["ROBOENV_PUBLISH_DEVICES"]
+    assert "ports" not in sim
+    assert main["cap_drop"] == ["ALL"]
+    assert main["security_opt"] == ["no-new-privileges:true"]
+    assert not (out / "environment/definition/robot/devices").exists()
+    assert (out / "environment/sim/environment.json").is_file()
+    assert list((out / "environment/sim/robot/devices").glob("*/driver.py"))
     assert str(tmp_path) not in (out / "environment/docker-compose.yaml").read_text()
     before = (out / "bundle.json").read_bytes()
     export_task(task, ROOT / "catalog", out, wheel, deployment_path=deployment)
@@ -75,29 +93,3 @@ def test_manifest_symlink_is_rejected(tmp_path):
     bundle.add("instruction.md", "test")
     with pytest.raises(ValueError, match="manifest"):
         bundle.commit({})
-
-
-def test_robocasa_trial_roles_endpoint_and_live_profiles(tmp_path):
-    import tomllib
-
-    task, deployment, wheel = inputs(tmp_path)
-    out = tmp_path / "task"
-    export_task(task, ROOT / "catalog", out, wheel, deployment_path=deployment)
-    validate_harbor_task(out)
-    config = tomllib.loads((out / "task.toml").read_text())
-    assert config["agent"]["user"] == "agent"
-    assert config["verifier"]["user"] == "root"
-    compose = yaml.safe_load((out / "environment/docker-compose.yaml").read_text())
-    main, sim = compose["services"]["main"], compose["services"]["sim"]
-    assert main["environment"]["ROBOENV_ENDPOINT"] == "http://sim:8123"
-    assert main["depends_on"]["sim"]["condition"] == "service_healthy"
-    assert sim["environment"]["ROBOENV_HTTP_HOST"] == "0.0.0.0"
-    assert sim["environment"]["ROBOENV_FRESH_SESSION"] == "1"
-    assert "ports" not in sim  # Internal port reused safely in isolated trial networks.
-    assert main["cap_drop"] == ["ALL"]
-    assert main["security_opt"] == ["no-new-privileges:true"]
-    public = json.loads((out / "environment/definition/environment.json").read_text())
-    assert set(public["task"]) == {"id", "instruction", "context"}
-    assert not (out / "environment/definition/robot/devices").exists()
-    assert (out / "environment/sim/environment.json").is_file()
-    assert "roboenv call" not in (out / "instruction.md").read_text()

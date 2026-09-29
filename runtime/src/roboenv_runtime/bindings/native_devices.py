@@ -1,7 +1,5 @@
 """Basic device operations on source-backed native worlds; no primitive dispatch."""
 
-from roboenv_runtime.bindings.motion import control_binding
-
 import copy
 import time
 import uuid
@@ -14,6 +12,7 @@ from roboenv.devices.velocity import command_schema
 
 from roboenv_runtime.adapters.robocasa.depth import write_depth
 from roboenv_runtime.bindings.backends.libero.devices import same_facts
+from roboenv_runtime.bindings.motion import control_binding
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
 

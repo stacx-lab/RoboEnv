@@ -28,6 +28,9 @@ class Native:
         self.closed = False
         self.progress = threading.Event()
 
+    def configure_execution_mode(self, mode):
+        self.execution_mode = mode
+
     def budget(self):
         return Budget(used=self.frames, max=self.maximum)
 

@@ -108,9 +108,12 @@ Without a selected run or endpoint,
 status rejects ambiguous discovery and stop requires an explicit selection.
 
 An existing prepared interpreter can be selected with `--interpreter ENV/bin/python`.
-Custom tasks accept a task.yaml path and `--catalog CATALOG`. Task files must declare
-`execution_mode: stepped` or `execution_mode: realtime`; `--execution-mode` overrides
-that setting for a local launch. No simulator
+Custom tasks accept a task.yaml path and `--catalog CATALOG`. Task files default to
+`execution_mode: realtime`; `execution_mode: stepped` opts into stepped runs.
+`--execution-mode` overrides
+that setting for a local launch. Realtime disables configured and native episode
+step caps and reports `budget.max: null`; stepped retains the caps. Non-timeout
+termination conditions still apply. No simulator
 installation or asset download occurs during launch. Local launch is intended
 for development; Harbor provides the container boundary for agent evaluation.
 

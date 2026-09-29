@@ -17,8 +17,9 @@ def replay(path, client):
     import numpy as np
 
     namespace = {"np": np, "__name__": "__main__"}
-    for name in client.api().get("tools", {}):
-        namespace[name] = lambda *args, _name=name, **kwargs: client.call(_name, *args, **kwargs)
+    from roboenv.devices.client import Environment
+
+    namespace["env"] = Environment(client)
     with contextlib.redirect_stdout(sys.stderr):
         exec(compile(Path(path).read_text(), str(path), "exec"), namespace)
     return {
@@ -35,15 +36,10 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     add_commands(commands)
-    for name in ("describe", "devices", "observe", "scene", "score"):
+    for name in ("describe", "devices", "observe", "score"):
         command = commands.add_parser(name)
         if name == "devices":
             command.add_argument("--name", help="Describe one device")
-    api = commands.add_parser("api")
-    api.add_argument("--name")
-    call = commands.add_parser("call")
-    call.add_argument("name")
-    call.add_argument("args", nargs="?", default="{}")
     device = commands.add_parser("device")
     device.add_argument("name")
     device.add_argument("action", nargs="?", default="read")
@@ -95,10 +91,7 @@ def main(argv=None):
         "describe",
         "devices",
         "observe",
-        "scene",
         "score",
-        "api",
-        "call",
         "device",
         "operation",
         "replay",
@@ -186,14 +179,6 @@ def main(argv=None):
             )
         elif args.command == "operation":
             result = client.operation(args.request_id)
-        elif args.command == "scene":
-            result = client.device("world").read()
-        elif args.command == "api":
-            result = client.api()
-            if args.name:
-                result = result["tools"][args.name]
-        elif args.command == "call":
-            result = client.call(args.name, **json_loads(args.args))
         elif args.command == "replay":
             result = replay(args.program, client)
         else:

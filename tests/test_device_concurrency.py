@@ -67,7 +67,10 @@ def concurrent_service(tmp_path, monkeypatch, request, execution_mode):
     )
     tasks = tmp_path / "tasks"
     tasks.mkdir()
-    (tasks / "concurrent.yaml").write_text("id: concurrent\nadapter: fakeshell\ntext: Test.\n")
+    (tasks / "concurrent.yaml").write_text(
+        "id: concurrent\nbackend: fakeshell\n"
+        "backend_task: concurrent\nrobot: toy-puck\ninstruction: Test.\n"
+    )
     monkeypatch.setenv("ROBOENV_TASKS", str(tasks))
     monkeypatch.setenv("ROBOENV_SERVER_ROBOT", str(robot))
     monkeypatch.delenv("ROBOENV_SERVER_MANIFEST", raising=False)
