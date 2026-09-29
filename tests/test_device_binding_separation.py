@@ -1,7 +1,6 @@
 """Separation, assembly, lifecycle and wire-compatibility tests. No model/GPU calls."""
 
 import ast
-import json
 import shutil
 import threading
 import time
@@ -13,7 +12,8 @@ import yaml
 from roboenv.devices.bindings.registry import BindingContext, BindingRegistry
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.model import Action, BoundDevice, DeviceError
-from roboenv.harbor.export import export_task
+from roboenv.environment import launch
+from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.fakeshell import FakeShell
 from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError
 
@@ -266,7 +266,7 @@ def test_native_read_context_refuses_effectful_backend_operation(robot):
 
 
 @pytest.mark.parametrize("reference", ["toy-puck", "fakeshell/toy-puck"])
-def test_task_export_freezes_explicit_bindings_and_only_selected_client_devices(
+def test_explicit_task_bindings_replace_the_owner_plan_and_select_client_devices(
     robot,
     tmp_path,
     reference,
@@ -288,30 +288,20 @@ def test_task_export_freezes_explicit_bindings_and_only_selected_client_devices(
     }
     task = tmp_path / "task.yaml"
     task.write_text(yaml.safe_dump(value))
-    wheel = tmp_path / "sdk.whl"
-    wheel.write_bytes(b"test input only")
-    deployment = tmp_path / "deployment.json"
-    deployment.write_text(
-        json.dumps(
-            {
-                "schema": "roboenv/deployment/1",
-                "backend": "fakeshell",
-                "legacy_tree_required": False,
-                "image": "sha256:" + "1" * 64,
-            }
-        )
-    )
-    out = tmp_path / "export"
-    export_task(task, catalog, out, wheel, deployment_path=deployment)
-    base = out / "environment"
-    bound = yaml.safe_load((base / "sim/robot/bindings.yaml").read_text())
-    assert set(bound["devices"]) == {"puck"}
-    public = base / "definition/robot"
-    assert not (public / "bindings.yaml").exists()
-    assert not (public / "devices/controller").exists()
-    assert not (public / "devices").exists()
-    manifest = json.loads((base / "definition/environment.json").read_text())
-    assert manifest["devices"] == ["puck"]
+    # The explicit map replaces the whole owner plan rather than extending it.
+    resolved = resolve_task(task, catalog=catalog)
+    assert [spec.name for spec in resolved.bindings.devices] == ["puck"]
+    assert set(resolved.bindings.as_dict()["devices"]) == {"puck"}
+    with launch(task, project=ROOT, catalog=catalog, timeout=20) as run:
+        # The frozen plan is server-side; agents only receive the selected devices.
+        server = Path(run.record["directory"]) / "server/robot"
+        bound = yaml.safe_load((server / "bindings.yaml").read_text())
+        assert set(bound["devices"]) == {"puck"}
+        published = Path(run.record["devices"])
+        assert {p.name for p in published.iterdir() if p.is_dir()} == {"puck"}
+        assert not list(published.rglob("bindings.yaml"))
+        assert [d["name"] for d in run.devices()["devices"]] == ["puck"]
+        assert run.device("puck").describe()["extrinsics"]["mount"]["parent"] == "world"
 
 
 @pytest.mark.parametrize(

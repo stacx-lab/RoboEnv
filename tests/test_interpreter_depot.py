@@ -1,13 +1,10 @@
 """No-GPU integrity and isolation regressions for executable dependency depots."""
 
 import ast
-import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from helpers import load_script
-from roboenv.harbor.deployment import native_service
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTAINER_PREFIX = "/opt/roboenv/runtime/dependencies"
@@ -184,31 +181,6 @@ def test_base_relocation_does_not_follow_a_bin_directory_link(tmp_path):
     with pytest.raises(ValueError, match="real staging"):
         module.relocate(stage, {"replacements": {}, "python_base": True, "python_version": "3.12"})
     assert (outside / "python").read_text() == "untouched"
-
-
-def test_healthcheck_never_executes_depot_python_before_verification(tmp_path):
-    manifest = tmp_path / "deployment.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "schema": "roboenv/deployment/1",
-                "backend": "robodojo",
-                "legacy_tree_required": False,
-                "image": "sha256:" + "a" * 64,
-                "mounts": [],
-                "environment": {},
-            }
-        )
-    )
-    task = SimpleNamespace(
-        backend="robodojo", id="fixture", backend_task="fixture", seed=0, budget_mode="official"
-    )
-    service = native_service(manifest, task)
-    health = service["healthcheck"]["test"]
-    assert health[:2] == ["CMD", "/usr/bin/python3"]
-    assert "/opt/sim-env/bin/python" not in health
-    script = (ROOT / "src/roboenv/assets/serve-native.sh").read_text()
-    assert script.index("/usr/bin/python3 -I") < script.index("exec /opt/sim-env/bin/python")
 
 
 def test_cross_depot_links_require_every_terminal_to_be_verified(tmp_path):

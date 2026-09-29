@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-COMMANDS = {"prepare", "doctor", "launch", "status", "stop", "export"}
+COMMANDS = {"prepare", "doctor", "launch", "status", "stop"}
 
 
 def add_commands(commands):
@@ -17,7 +17,6 @@ def add_commands(commands):
                 "launch": "Start a task and wait for its devices",
                 "status": "Inspect a running environment",
                 "stop": "Finalize a selected simulation or stop a locally owned environment",
-                "export": "Export one task to Harbor",
             }[name],
         )
         parser.add_argument("--project", type=Path)
@@ -28,10 +27,9 @@ def add_commands(commands):
             parser.add_argument(
                 "--prefix", type=Path, help="New environment (default: .venv-sim/SIMULATOR)"
             )
-        if name in {"launch", "export"}:
+        if name == "launch":
             parser.add_argument("task", help="simulator/task_name or task.yaml path")
             parser.add_argument("--catalog", type=Path)
-        if name == "launch":
             parser.add_argument(
                 "--runtime-root", type=Path, help="Prepared image data root; no source checkout"
             )
@@ -88,10 +86,6 @@ def add_commands(commands):
             target.add_argument(
                 "--port", type=int, help="Select the local service at http://127.0.0.1:PORT"
             )
-        if name == "export":
-            parser.add_argument("--out", required=True, type=Path)
-            parser.add_argument("--deployment", type=Path)
-            parser.add_argument("--wheel", type=Path)
 
 
 def emit(value, *, machine=False):
@@ -174,16 +168,6 @@ def execute(args):
         result = (status if args.command == "status" else stop)(
             args.run, endpoint=args.endpoint, port=args.port, project=args.project
         )
-    else:
-        from roboenv.harbor.workflow import export
-
-        result = export(
-            args.task,
-            project=args.project,
-            catalog=args.catalog,
-            out=args.out,
-            deployment=args.deployment,
-            wheel=args.wheel,
-        )
-    emit(result, machine=args.json)
-    return 0
+        emit(result, machine=args.json)
+        return 0
+    raise ValueError(f"unknown workflow command: {args.command}")

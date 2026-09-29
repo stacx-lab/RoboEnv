@@ -1,4 +1,4 @@
-"""Resolve user task references once for local runs and Harbor exports."""
+"""Resolve user task references once for local runs and harness exports."""
 
 from dataclasses import dataclass, replace
 from pathlib import Path

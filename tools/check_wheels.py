@@ -51,7 +51,7 @@ code = (
     "assert plan['devices']['camera_wrist']['config']['camera'] == 'robot0_eye_in_hand';"
     "from roboenv_runtime.bindings import default_registry; default_registry();"
     "assert '.whl/' in roboenv.__file__;"
-    "assert not {'torch','mujoco','harbor','roborl','kinex'} & sys.modules.keys()"
+    "assert not {'torch','mujoco','roborl','kinex'} & sys.modules.keys()"
 )
 subprocess.run([sys.executable, "-I", "-c", code], check=True)
 print("Wheel contents and lightweight isolated imports passed.")

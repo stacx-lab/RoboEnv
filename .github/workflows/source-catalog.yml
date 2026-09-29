@@ -23,12 +23,12 @@ jobs:
       - run: >-
           .venv/bin/python tools/release_preflight.py
           --mode development --verify-upstreams
-      - name: Validate every discovered task with the real Harbor loader
+      - name: Resolve every discovered task against the checked-in robot catalog
         env:
           ROBOENV_TEST_UPSTREAMS: "1"
         run: >-
           .venv/bin/python -m pytest -c pyproject.toml --confcutdir=.
-          tests/test_taskset.py::test_every_discoverable_upstream_task_passes_harbor_loader -q -s
+          tests/test_task_catalog.py::test_every_discoverable_upstream_task_resolves -q -s
       - name: Optional policy-client constructor regression (no Isaac)
         run: >-
           .venv/bin/python -m pytest -c pyproject.toml --confcutdir=.

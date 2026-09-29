@@ -15,7 +15,6 @@ from jsonschema import Draft202012Validator
 from roboenv.client import Client, RemoteError
 from roboenv.devices.contract import DEVICE_CONTRACT
 from roboenv.devices.export import write_driver
-from roboenv.harbor.export import verifier_script
 from roboenv.verify import certify, validate_journal
 from roboenv_runtime.runtime.protocol import Request, Response
 from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
@@ -122,7 +121,6 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
         **os.environ,
         "ROBOENV_SOCKET": client.socket_path,
         "ROBOENV_RUN_DIR": str(supervisor.config.run_dir),
-        "ROBOENV_VERIFIER_OUT": str(tmp_path / "verdict"),
     }
     for arguments in (
         ["devices"],
@@ -146,33 +144,12 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
     report = certify(session="stale-deployment-session", **identity)
     assert report["valid"] is False and "session" in report["error"]
     assert "submit" not in report and not client.request("score.peek")["submitted"]
-    # The exported Harbor task ships the same module with Harbor's shell, run in isolation.
-    verifier = tmp_path / "verify.py"
-    verifier.write_text(verifier_script())
-    task = {
-        "task_id": "device-toy", "seed": 0, "session": "stale-deployment-session",
-        "backend": "fakeshell",
-    }
-    (tmp_path / "task.json").write_text(json.dumps(task))
-
-    def verify():
-        return subprocess.run(
-            [sys.executable, "-I", str(verifier)], cwd=tmp_path, env=env,
-            capture_output=True, text=True, timeout=15,
-        )
-
-    assert verify().returncode == 1  # Missing owner identity cannot certify a trial.
-    assert json.loads((tmp_path / "verdict/reward.json").read_text()) == {"reward": 0.0}
-    assert (tmp_path / "verdict/reward.txt").read_text().strip() == "0.0"
-    assert not client.request("score.peek")["submitted"]
-    Path(client.socket_path).with_name("identity.json").write_text('{"session":"harbor"}')
-    result = verify()
-    assert result.returncode == 0, result.stdout + result.stderr
+    # With the run's own identity the same certifier submits once, seals the world and
+    # leaves a fail-closed verdict beside the retained journal.
+    report = certify(session="harbor", **{**identity, "out": tmp_path / "verdict"})
+    assert report["valid"] is True and report["trial_success"] is True
     assert json.loads((tmp_path / "verdict/reward.json").read_text()) == {"reward": 1.0}
-    assert (tmp_path / "verdict/reward.txt").read_text().strip() == "1.0"
-    shipped = json.loads((tmp_path / "verdict/submit.json").read_text())
-    assert shipped["benchmark_eligible"] is True and shipped["certified"] is False
-    assert shipped["journal"]["sha256"] == shipped["journal_artifact"]["sha256"]
+    assert report["journal"]["sha256"] == report["journal_artifact"]["sha256"]
     with pytest.raises(RemoteError, match="already_submitted"):
         invoke(client)
     client.device("controller").read()

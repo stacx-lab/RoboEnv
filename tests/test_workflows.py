@@ -1,4 +1,4 @@
-"""User workflows exercise real CPU worlds and the same task resolver as export."""
+"""User workflows exercise real CPU worlds and the shared task resolver."""
 
 import json
 import os
@@ -315,7 +315,7 @@ def test_cli_detach_status_and_stop():
 
 
 def test_cli_replay_is_public_and_owner_reads_use_the_run(tmp_path):
-    # An agent's replay runs where the world is reached over HTTP (a Harbor task's solve.sh),
+    # An agent's replay runs where the world is reached over HTTP (a benchmark's solve step),
     # which offers no score or owner observation; an owner reads those through its run.
     command = [sys.executable, "-m", "roboenv.cli.main"]
     program = tmp_path / "solution.py"
@@ -374,42 +374,6 @@ def test_prepare_reports_install_failure(monkeypatch, capsys):
     monkeypatch.setattr(setup, "prepare", fail)
     assert main(["prepare", "libero"]) == 1
     assert "installation blocked" in capsys.readouterr().out
-
-
-def test_simple_export_uses_the_shared_resolver(tmp_path):
-    from roboenv.harbor.workflow import export
-
-    wheel = tmp_path / "roboenv-test.whl"
-    wheel.write_bytes(b"test-only wheel; never installed")
-    deployment = tmp_path / "deployment.json"
-    deployment.write_text(
-        json.dumps(
-            {
-                "schema": "roboenv/deployment/1",
-                "backend": "fakeshell",
-                "image": "sha256:" + "a" * 64,
-                "legacy_tree_required": False,
-                "mounts": [],
-            }
-        )
-    )
-    out = tmp_path / "task"
-    export(
-        FIXTURE / "task.yaml",
-        project=ROOT,
-        catalog=FIXTURE / "catalog",
-        out=out,
-        deployment=deployment,
-        wheel=wheel,
-    )
-    generated = yaml.safe_load(
-        (out / "environment/sim/tasks/fakeshell.native-push.yaml").read_text()
-    )
-    assert (
-        generated
-        == asdict(resolve_task(FIXTURE / "task.yaml", catalog=FIXTURE / "catalog").task)
-    )
-    assert not (out / "solution").exists()
 
 
 def test_launch_never_changes_catalog():
