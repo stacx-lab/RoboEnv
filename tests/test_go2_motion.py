@@ -39,7 +39,9 @@ def rig():
         model=SimpleNamespace(
             arm_names=[j["name"] for j in joints],
             joints={
-                j["name"]: {"limits": [j["limits"]["min"], j["limits"]["max"]]} for j in joints
+                **{j["name"]: {"limits": [j["limits"]["min"], j["limits"]["max"]]} for j in joints},
+                "d1_Joint7_1": {"limits": [0.0, 0.03]},
+                "d1_Joint7_2": {"limits": [-0.03, 0.0]},
             },
         ),
     )
