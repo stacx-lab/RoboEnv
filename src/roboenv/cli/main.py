@@ -22,10 +22,11 @@ def replay(path, client):
     namespace["env"] = Environment(client)
     with contextlib.redirect_stdout(sys.stderr):
         exec(compile(Path(path).read_text(), str(path), "exec"), namespace)
+    # Public operations only: the program ran where an agent would, often over HTTP, where the
+    # score and the owner's observation are not offered. The verifier alone judges the result.
     return {
         "program_completed": True,
-        "score": client.request("score.peek"),
-        "budget": client.request("observe").get("budget"),
+        "simulation": client.request("simulation.status"),
         "certified": False,
     }
 
@@ -107,7 +108,9 @@ def main(argv=None):
         if hasattr(args, "run"):
             from roboenv.environment import _connect as connect
 
-            client = connect(args.run, endpoint=args.endpoint)
+            client = connect(
+                args.run, endpoint=args.endpoint, owner=args.command in {"observe", "score"}
+            )
         if args.command == "sources":
             from roboenv.provisioning.sources import check_updates, status, sync
 

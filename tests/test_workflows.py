@@ -314,6 +314,36 @@ def test_cli_detach_status_and_stop():
         stop(record["id"], project=ROOT)
 
 
+def test_cli_replay_is_public_and_owner_reads_use_the_run(tmp_path):
+    # An agent's replay runs where the world is reached over HTTP (a Harbor task's solve.sh),
+    # which offers no score or owner observation; an owner reads those through its run.
+    command = [sys.executable, "-m", "roboenv.cli.main"]
+    program = tmp_path / "solution.py"
+    program.write_text('env.device("controller").write([0.3])\n')
+    clean = {k: v for k, v in os.environ.items() if k not in {"ROBOENV_SOCKET", "ROBOENV_ENDPOINT"}}
+
+    def cli(*arguments, **extra):
+        result = subprocess.run(
+            [*command, *arguments], env={**clean, **extra}, capture_output=True, text=True,
+            timeout=30,
+        )
+        return result.returncode, json.loads(result.stdout)
+
+    with launch_toy() as run:
+        code, replayed = cli("replay", str(program), ROBOENV_ENDPOINT=run.endpoint)
+        assert code == 0, replayed
+        assert replayed["program_completed"] and not replayed["certified"]
+        assert replayed["simulation"]["budget"]["used"] == 50
+        assert "score" not in replayed and "success" not in replayed["simulation"]
+        code, observed = cli("observe", "--run", str(run.path))
+        assert code == 0, observed
+        assert observed["budget"]["used"] == 50
+        code, score = cli("score", "--run", str(run.path))
+        assert code == 0 and score["completed"] is True, score  # the toy push reaches the goal
+        code, refused = cli("score", "--endpoint", run.endpoint)
+        assert code == 1 and "local run" in refused["error"]
+
+
 @pytest.mark.parametrize("prefix", [None, "new-environment"])
 def test_prepare_uses_managed_default_or_explicit_prefix(monkeypatch, prefix):
     from roboenv.cli.main import main
