@@ -96,18 +96,20 @@ Put backend-native probes/replay in RoboEnv. Reuse:
 - RoboEnv's task resolver/exporter and independent verifier for Harbor jobs.
   Native conformance helpers may use `roboenv.launch` and owner finalization;
   these helpers are separate from task scheduling.
-- Kinex `CalibrationStore`, `activateDevice`, `listPyTools`, `runPyTool`, `execute`,
-  `Session`, `createRunner`, `Recorder` and `observeDevices` at their current paths.
+- Kinex's core runtime (`createKinexRuntime` in `packages/core`: devices, tools,
+  recording, Python) and the application (`createApplication`, `kinex run`) at their
+  current paths.
   Use normal tool discovery and permission/device boundaries, not direct calls to
   the candidate's Python function or a second implementation of the agent loop.
 - The repository's actual Python preparation and content-root behavior. Currently,
-  `kinex python` creates `.kinex/python/{pyproject.toml,uv.lock}` and `.kinex/venv`.
+  the Kinex runtime prepares `.kinex/python/{pyproject.toml,uv.lock}` and
+  `.kinex/python/.venv` on first use (`python.prepare()`); there is no `kinex python` command.
   Require the lock before freezing; fresh validation recreates the environment
   with locked dependencies. Do not copy its venv or inherit simulator `PYTHONPATH`.
 
-At the audited baseline, `kinex run` does not expose `--effort`, while `createRunner`
-accepts it and the OpenAI provider serializes it. Choose a supported current route
-or make a focused generic plumbing fix with a request-construction regression.
+In Kinex 0.9.0, `kinex run` takes `--model provider/model` and `--thinking LEVEL`
+(`--effort` is an alias). Choose a supported current route or make a focused generic
+plumbing fix with a request-construction regression.
 Do not assume that passing a flag records the effective provider configuration.
 Test the supported model/effort path without a network request before live use.
 
