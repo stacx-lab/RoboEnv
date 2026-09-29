@@ -125,9 +125,6 @@ def download_file(root, entry, pacer=None):
 
 
 def prepare_assets(project, *, progress=None, cache=None, workers=4):
-    from roboenv.provisioning.yam_assets import prepare_source, verify_source
-    from roboenv.provisioning.yam_usd import verify
-
     project = Path(project).resolve()
     link = project / "third_party/RoboDojo/Assets"
     if (link.exists() or link.is_symlink()) and not link.is_dir():
@@ -179,11 +176,6 @@ def prepare_assets(project, *, progress=None, cache=None, workers=4):
         finally:
             pacer.cancelled.set()
             executor.shutdown(wait=True, cancel_futures=True)
-    yam = assets / "Robots/yam"
-    if not yam.exists():
-        prepare_source(yam, source_cache=cache / "i2rt-source")
-    verify_source(yam, source_cache=cache / "i2rt-source")
-    converted = verify(yam)
     if link.exists() or link.is_symlink():
         if link.resolve() != assets:
             raise ValueError(
@@ -192,13 +184,12 @@ def prepare_assets(project, *, progress=None, cache=None, workers=4):
     else:
         link.symlink_to(assets, target_is_directory=True)
     return {
-        "environment_assets_verified": converted,
+        "environment_assets_verified": True,
         "public_assets_verified": True,
         "source_revision": REVISION,
         "files": len(entries),
         "asset_depot": str(assets),
         "asset_bytes": sum(entry["size"] for entry in entries),
-        "yam_native_conversion_required": not converted,
         "gpu_replay_verified": False,
     }
 

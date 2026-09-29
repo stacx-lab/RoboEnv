@@ -1,0 +1,127 @@
+{
+  "schema": "roboenv/simple-config/1",
+  "robot_sha256": "8d120ef823a27c96eae88aec07796e224615afe0f289a5a3ab4eaf6c3cf72c91",
+  "facts_sha256": "8db20e63cc339d1c7d3e094232dd819a4da0010ac852ff5f46d23cd03f2df531",
+  "asset_pin_sha256": "962d8f69a994c1bf813521cb2f2df85051ae8f0d6c631523bab820a5389cc5fe",
+  "source_lock_sha256": "1285a39f563530bbfb3a6860c3f90a234396299f2ca9bf25437041244860f6b1",
+  "hand_geometry": {
+    "left_hand": {
+      "definition": "Nominal mesh-distal fingertip references; grasp_center is the midpoint between thumb and opposing-finger midpoint, with hand-aligned axes. grasp_reference fixes that center at home. These are geometric references, not contacts.",
+      "sources": {
+        "thumb_tip": {
+          "mesh": "meshes/left_hand_thumb_2_link.STL",
+          "sha256": "3d8dbe5085acfc213d21aa8b0782e89cd79084e9678f3a85fc7b04a86b029db5",
+          "distal_axis": 1,
+          "distal_sign": -1,
+          "bounds_m": [
+            [
+              -0.008919619023799896,
+              -0.05196167528629303,
+              -0.013100000098347664
+            ],
+            [
+              0.008772044442594051,
+              0.007000000216066837,
+              0.012899871915578842
+            ]
+          ]
+        },
+        "index_tip": {
+          "mesh": "meshes/left_hand_index_1_link.STL",
+          "sha256": "9e315ebc8a7a0cb98e033985b586b20d81cf8aa761181ae61ce56fcb14077a06",
+          "distal_axis": 0,
+          "distal_sign": 1,
+          "bounds_m": [
+            [
+              -0.007000000216066837,
+              -0.008772044442594051,
+              -0.012899871915578842
+            ],
+            [
+              0.05196167528629303,
+              0.008919619023799896,
+              0.013100000098347664
+            ]
+          ]
+        },
+        "middle_tip": {
+          "mesh": "meshes/left_hand_middle_1_link.STL",
+          "sha256": "9e315ebc8a7a0cb98e033985b586b20d81cf8aa761181ae61ce56fcb14077a06",
+          "distal_axis": 0,
+          "distal_sign": 1,
+          "bounds_m": [
+            [
+              -0.007000000216066837,
+              -0.008772044442594051,
+              -0.012899871915578842
+            ],
+            [
+              0.05196167528629303,
+              0.008919619023799896,
+              0.013100000098347664
+            ]
+          ]
+        }
+      }
+    },
+    "right_hand": {
+      "definition": "Nominal mesh-distal fingertip references; grasp_center is the midpoint between thumb and opposing-finger midpoint, with hand-aligned axes. grasp_reference fixes that center at home. These are geometric references, not contacts.",
+      "sources": {
+        "thumb_tip": {
+          "mesh": "meshes/right_hand_thumb_2_link.STL",
+          "sha256": "3f1bfb37668e8f61801c8d25f171fa1949e08666be86c67acad7e0079937cc45",
+          "distal_axis": 1,
+          "distal_sign": 1,
+          "bounds_m": [
+            [
+              -0.008919619023799896,
+              -0.007000000216066837,
+              -0.012899871915578842
+            ],
+            [
+              0.008772044442594051,
+              0.05196167528629303,
+              0.013100000098347664
+            ]
+          ]
+        },
+        "index_tip": {
+          "mesh": "meshes/right_hand_index_1_link.STL",
+          "sha256": "c9c34efce4563cacdcfd29fc838a982976d40f5442c71219811dcbbf3923a33d",
+          "distal_axis": 0,
+          "distal_sign": 1,
+          "bounds_m": [
+            [
+              -0.007000000216066837,
+              -0.008919619023799896,
+              -0.013100000098347664
+            ],
+            [
+              0.05196167528629303,
+              0.008772044442594051,
+              0.012899871915578842
+            ]
+          ]
+        },
+        "middle_tip": {
+          "mesh": "meshes/right_hand_middle_1_link.STL",
+          "sha256": "c9c34efce4563cacdcfd29fc838a982976d40f5442c71219811dcbbf3923a33d",
+          "distal_axis": 0,
+          "distal_sign": 1,
+          "bounds_m": [
+            [
+              -0.007000000216066837,
+              -0.008919619023799896,
+              -0.013100000098347664
+            ],
+            [
+              0.05196167528629303,
+              0.008772044442594051,
+              0.012899871915578842
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

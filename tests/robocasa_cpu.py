@@ -206,11 +206,54 @@ def check(root, temporary):
 
         model, data = native.sim.model._model, native.sim.data._data
         base_controller = native._robot.part_controllers["base"]
+        saved_ctrl = data.ctrl.copy()
+        # Absolute joint writes retain out-of-range goals; native torque output
+        # still saturates. Check without stepping physics, then restore the goal.
+        for device, part in (("arm", "right"), ("torso", "torso")):
+            controller = native._robot.part_controllers[part]
+            facts = service.describe(device)["intrinsics"]
+            home = list(facts["home"].values())
+            outside = [joint["limits"]["max"] + 10 for joint in facts["model"]["joints"]]
+            local(device, "write", {"actions": [outside], "duration_s": .05})
+            np.testing.assert_array_equal(controller.goal_qpos, outside)
+            torque = controller.run_controller()
+            native._robot.control(np.zeros(native._robot.action_dim), policy_step=False)
+            indexes = native._robot._ref_actuators_indexes_dict[part]
+            np.testing.assert_allclose(
+                data.ctrl[indexes],
+                np.clip(torque, controller.actuator_min, controller.actuator_max),
+            )
+            assert np.any(np.isclose(data.ctrl[indexes], controller.actuator_max))
+            local(device, "write", {"actions": [home], "duration_s": .05})
+        # No body-command box is added. The native controller may return controls
+        # beyond actuator ranges; native robot control and MuJoCo apply limits.
+        local("base", "write", {"mode": "drive",
+                                "velocity": {"vx": 4, "vy": -4, "wz": 4},
+                                "duration_s": .05})
+        from roboenv_runtime.adapters.robocasa.base import native_command
+
+        base_controller.set_goal(native_command(base_controller, [4, -4, 4]))
+        actuator_ids = native._robot._ref_actuators_indexes_dict["base"]
+        raw = base_controller.run_controller()
+        limits = model.actuator_ctrlrange[actuator_ids]
+        assert np.any((raw < limits[:, 0]) | (raw > limits[:, 1]))
+        native._robot.control(np.zeros(native._robot.action_dim), policy_step=False)
+        np.testing.assert_allclose(
+            data.ctrl[actuator_ids], np.clip(raw, limits[:, 0], limits[:, 1])
+        )
+        data.ctrl[actuator_ids] = raw
+        mujoco.mj_forward(model, data)
+        forces = data.actuator_force[actuator_ids].copy()
+        data.ctrl[actuator_ids] = np.clip(raw, limits[:, 0], limits[:, 1])
+        mujoco.mj_forward(model, data)
+        np.testing.assert_allclose(data.actuator_force[actuator_ids], forces)
+        force_limits = model.actuator_forcerange[actuator_ids]
+        assert np.all(forces >= force_limits[:, 0]) and np.all(forces <= force_limits[:, 1])
+        data.ctrl[:] = saved_ctrl
+        native.stop_part("base")
         addresses = model.jnt_dofadr[base_controller.joint_index]
         saved_position = data.qpos.copy()
         saved_velocity = data.qvel.copy()
-        from roboenv_runtime.adapters.robocasa.base import native_command
-
         yaw_address = model.jnt_qposadr[base_controller.joint_index[-1]]
         body_id = native.sim.model.body_name2id(native._robot.robot_model.base.root_body)
         for yaw in (0.7, -1.2):
@@ -313,7 +356,6 @@ def check(root, temporary):
             before = native._step_count
             for target in (
                 [[0.0]] if name == "gripper" else [0.0] * (size + 1),
-                [100.0] * size,
                 [float("nan")] * size,
                 [True] * size,
             ):
@@ -371,7 +413,7 @@ def check(root, temporary):
                     else native._robot.robot_model.init_torso_qpos
                 )
                 np.testing.assert_allclose(list(facts["home"].values()), expected_home)
-                assert facts["control"] == {"mode": "position"}
+                assert facts["control"] == {"mode": "position", "limit_handling": "native"}
                 model_joints = facts["model"]["joints"]
                 assert all(j["max_velocity"] is None for j in model_joints)
                 controller = native._robot.part_controllers["right" if name == "arm" else "torso"]

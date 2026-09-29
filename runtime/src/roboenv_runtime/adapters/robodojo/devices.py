@@ -40,7 +40,7 @@ class RoboDojoDevices(RoboDojoEnv):
             raise ValueError("max_steps must be a positive action-frame count")
         self.embodiment = env_cfg_type
         self.layout_config = layout_config or env_cfg_type
-        if self.layout_config not in {"arx_x5", "yam"}:
+        if self.layout_config != "arx_x5":
             raise ValueError("layout_config must name a supported native layout collection")
         self.device_facts, self.rig_frames, self.provenance = describe(
             robodojo_root(), env_cfg_type
@@ -179,9 +179,6 @@ class RoboDojoDevices(RoboDojoEnv):
 
     def _assemble_config(self, seed):
         cfg = super()._assemble_config(seed)
-        # The published collection currently contains ARX scene layouts. YAM
-        # practice tasks explicitly reuse those unchanged objects/fixtures while
-        # keeping the native YAM robot configuration. Never substitute silently.
         cfg.eval_cfg.config_name = self.layout_config
         for robot in cfg.robot.robots:
             quaternion = np.asarray(robot["default_root_rot"], dtype=float)

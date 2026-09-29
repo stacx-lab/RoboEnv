@@ -198,6 +198,18 @@ Required missing facts use `???`; optional unavailable facts use schema-defined
 velocity caps from torque ranges or policy frequency. Remove obsolete fields rather
 than adding compatibility translations.
 
+Simulator joint and velocity devices declare `control.limit_handling: native`. Validate types,
+finite values, dimensions and supported modes before effects, then let native
+controllers and physics handle limits. Model joint ranges describe geometry;
+they are not an extra write rejection rule. Continuous command bounds may be
+`null` when no independent bound exists in that command frame. Document native
+clipping and coordinate transforms in workspace safety notes; do not copy URDF
+velocity/effort ratings into profiles unless the running simulator enforces them.
+Scalar grippers retain Kinex's normal rejection: normalized position commands
+must be in `[0, 1]`, and direction commands in `[-1, 1]`. The native controller
+still owns finger motion, saturation and physical constraints after admission.
+See the [source audit](simulator-limits.md).
+
 Extract stable facts from pinned robot/controller/camera sources, using a standalone
 CPU model if necessary. Home joints come from initialization defaults. Do not export
 random task placements or scene geometry as calibration. Support generation into a

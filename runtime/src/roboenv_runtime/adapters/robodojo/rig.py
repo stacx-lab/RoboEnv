@@ -79,9 +79,9 @@ def euler_pose(position, degrees):
 
 def describe(root, embodiment, *, assets=None):
     root = Path(root)
-    if embodiment not in {"arx_x5", "yam"}:
-        raise ValueError("RoboDojo supports ARX X5 and YAM source rigs")
-    model_name = "x5" if embodiment == "arx_x5" else "yam"
+    if embodiment != "arx_x5":
+        raise ValueError("RoboDojo supports only the upstream ARX X5 rig")
+    model_name = "x5"
     assets = Path(assets) if assets else root / "Assets"
     directory = assets / "Robots" / model_name
     config_path = directory / "robot_config.yml"

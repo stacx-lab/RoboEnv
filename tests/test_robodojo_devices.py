@@ -99,7 +99,7 @@ def test_reset_rejects_native_clock_drift_before_exposing_devices(monkeypatch):
 
 def test_rounded_source_mount_is_normalized_before_native_creation(monkeypatch):
     config = SimpleNamespace(
-        eval_cfg=SimpleNamespace(config_name="yam"),
+        eval_cfg=SimpleNamespace(config_name="arx_x5"),
         robot=SimpleNamespace(
             robots=[
                 {"default_root_rot": [0.707, 0, 0, 0.707]},

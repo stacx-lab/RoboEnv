@@ -53,20 +53,13 @@ not certify simulator boot or GPU replay.
 
 RoboTwin preparation verifies the pinned upstream archives and preserves existing
 asset directories. RoboDojo preparation downloads its pinned public `Assets` tree
-(about 41 GB) and verifies every file against its source hash. It also prepares the
-YAM URDF, meshes and optical frame from a pinned manufacturer revision. Missing
+(about 41 GB) and verifies every file against its source hash. Missing
 files can be resumed; conflicting existing files produce an error without being
 overwritten. Set `ROBOENV_ASSET_CACHE=/path/to/data-depot` before preparation to
 place these assets on a larger filesystem. Source checkout links point into that
 depot, so it must remain available for launch.
 
-RoboDojo requires Isaac Sim. YAM additionally requires native USD conversion using
-the installed Isaac Lab importer. Once the user has accepted NVIDIA's applicable
-Isaac Sim license, preparation recognizes `OMNI_KIT_ACCEPT_EULA=YES` and performs
-that conversion, recording the source and output hashes. Without that explicit
-acceptance, it reports the remaining conversion requirement. Existing conversions
-are verified before reuse. Quiesce native jobs before preparing or upgrading their
-asset depot; changed collision geometry requires new native and replay validation.
+RoboDojo requires Isaac Sim and supports the upstream ARX X5 robot.
 
 BEHAVIOR preparation acquires the pinned robot assets, encrypted scene/object
 bundle and 2026 challenge instances after explicit acceptance is supplied through
@@ -78,10 +71,6 @@ availability alone does not grant access to these assets. Setup does not accept
 licenses or download model checkpoints. `doctor` reports recipe
 and source blockers and whether an interpreter has been registered; it does not
 certify GPU, asset, or task readiness. Add `--json` for automation.
-
-YAM practice tasks use `env_cfg_type: yam` with `layout_config: arx_x5`, matching
-the published ARX-X5 scene layouts. These are adapted practice tasks. An installed
-private YAM layout collection can select `layout_config: yam` instead.
 
 ## Start a task
 

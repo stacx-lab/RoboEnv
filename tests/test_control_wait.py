@@ -1,4 +1,4 @@
-"""Asynchronous writes and world waits exercise all seven native control paths on CPU."""
+"""Asynchronous writes and world waits exercise all six native control paths on CPU."""
 
 import json
 import threading
@@ -12,8 +12,6 @@ from roboenv.devices.model import Action, BoundDevice, DeviceDefinition, DeviceE
 from roboenv.devices.service import DeviceService
 from roboenv_runtime.adapters.behavior.adapter import BehaviorAdapter
 from roboenv_runtime.adapters.device_control import DeviceControl
-from roboenv_runtime.adapters.isaaclab.adapter import IsaacLabAdapter
-from roboenv_runtime.adapters.isaaclab.g1_control import Control as IsaacControl
 from roboenv_runtime.adapters.libero.adapter import LiberoAdapter
 from roboenv_runtime.adapters.libero.backend import LiberoEnv
 from roboenv_runtime.adapters.robocasa.adapter import RoboCasaAdapter
@@ -33,7 +31,6 @@ BACKENDS = {
     "behavior": BehaviorAdapter,
     "robodojo": RoboDojoAdapter,
     "simple": SimpleAdapter,
-    "isaaclab": IsaacLabAdapter,
 }
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,7 +65,7 @@ class Rig:
             env.env.robots = [SimpleNamespace(part_controllers={"arm": controller})]
             env.tick = lambda: self.tick(controller.goal_qpos)
             self.stage = lambda q: env.step({"arm": q})
-        elif backend in {"simple", "isaaclab"}:
+        elif backend == "simple":
             model = json.loads(
                 (ROOT / "runtime/src/roboenv_runtime/adapters" / backend / "g1.json").read_text()
             )
@@ -76,7 +73,7 @@ class Rig:
             env.configure_execution_mode = lambda mode: None
             env.model = model
             env.advance = lambda targets: self.tick(targets["left_arm"])
-            env.control = (SimpleControl if backend == "simple" else IsaacControl)(env, model)
+            env.control = SimpleControl(env, model)
             self.name = "left_arm"
             self.positions = list(env.control.targets[self.name])
             self.stage = lambda q: env.control.write(self.name, {"target": q})
@@ -94,10 +91,10 @@ class Rig:
         self.adapter._env, self.env = env, env
         facts = (
             env.control.profiles[self.name]["intrinsics"]
-            if backend in {"simple", "isaaclab"}
+            if backend == "simple"
             else {
                 "model": {"joints": [{"type": "revolute", "limits": {"min": -3, "max": 3}}]},
-                "control": {"mode": "position"},
+                "control": {"mode": "position", "limit_handling": "native"},
                 "feedback": {"velocities": True},
             }
         )
@@ -211,3 +208,27 @@ def test_owner_thread_is_enforced():
     thread.start()
     thread.join()
     assert errors == ["native operations must run on their creating thread"]
+
+
+def test_native_joint_targets_pass_through_preflight_and_backend(rig):
+    requested = [100.0] * len(rig.positions)
+    submitted = []
+    stage = rig.stage
+
+    def capture(target):
+        submitted.append(list(target))
+        return stage(target)
+
+    rig.stage = capture
+    rig.call("write", {"actions": [requested], "duration_s": rig.adapter.control_interval_s})
+    rig.world.advance()
+    assert submitted == [requested]
+    rig.world.resolve(rig.world.wait(rig.adapter.control_interval_s))
+    assert rig.frames == 1
+
+
+@pytest.mark.parametrize("value", [True, float("nan"), float("inf"), "1"])
+def test_native_joint_mode_still_rejects_malformed_targets_before_effects(rig, value):
+    with pytest.raises(DeviceError):
+        rig.call("write", {"actions": [[value] * len(rig.positions)], "duration_s": 0.1})
+    assert rig.frames == 0

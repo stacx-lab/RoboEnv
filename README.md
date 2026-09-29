@@ -126,14 +126,9 @@ and `roboenv launch simple/g1-xmove-pick`. It uses Isaac rendering over MuJoCo p
 and the current validation limits. The metric control interface is a practice
 protocol; native success predicates are preserved.
 
-Isaac Lab is experimental and not officially supported. Its G1 practice interface
-uses a named locomotion-mode base (velocity plus posture), independent waist/arm joint control, hands and
-RGB-D cameras. The old Go2 joint-posture demo has been removed; no Go2 locomotion
-policy is supplied. See [Isaac Lab setup and devices](docs/isaaclab.md). CPU checks
-do not establish native replay or balance.
-
-G1 retains its native episode horizon in stepped mode. Realtime removes the
-timeout while preserving native success and failure termination conditions.
+Isaac Lab installation and diagnostics remain available. There is no bundled
+Isaac Lab task or device adapter; the G1 practice task has been removed.
+See [Isaac Lab setup](docs/isaaclab.md). SIMPLE's G1 integration remains available.
 
 Device reads and recording remain available during bounded writes. Independent
 devices accept concurrent writes through `env.device(name)`; writes to the same
@@ -169,7 +164,7 @@ checks. CLI replay and verifier coverage exercise the real worker rather than a
 second fake server. Recipe and installation checks live in `tests/test_setup.py`; test helpers live
 outside test modules so tests do not import one another. The default check still runs the complete CPU suite.
 
-Bounded-write regressions cover all seven simulator backends using CPU state and
+Bounded-write regressions cover all six simulator backends using CPU state and
 the real control/dispatch code. With LIBERO prepared and a built Kinex checkout,
 run the separate native smoke (Node >=22.19):
 
@@ -208,7 +203,8 @@ environments stay outside Git.
 |---|---|
 | [Setup](docs/setup.md) | Installation, assets, local launch and device access |
 | [Simulator integration](docs/simulator-integration.md) | Adapter, binding and portable catalog authoring |
-| [RoboCasa](docs/robocasa.md) / [Isaac Lab](docs/isaaclab.md) | Backend-specific devices and control semantics |
+| [RoboCasa](docs/robocasa.md) / [Isaac Lab](docs/isaaclab.md) | RoboCasa devices and Isaac Lab installation |
+| [Simulator limit audit](docs/simulator-limits.md) | Native enforcement versus removed integration restrictions |
 | [Local Kinex use](docs/kinex-local.md) | Workspace setup, recording and video playback |
 | [Harbor tasks](docs/harbor-tasks.md) | Deployment, task generation and execution |
 | [Kinex Harbor integration](integrations/kinex/README.md) | Agent packaging, controller development and frozen trials |

@@ -65,6 +65,9 @@ def describe(root, embodiment, *, assets=None):
     for index, side in enumerate(("left", "right")):
         arm, gripper = (side + "_arm", side + "_gripper")
         model, base, flange = serial_chain(urdf, config["arm_joints_name"][index])
+        # SAPIEN imports joint position ranges, not URDF velocity/effort ratings.
+        for joint in model["joints"]:
+            joint["max_velocity"] = joint["max_effort"] = None
         root_pose = config["robot_pose"][0]
         pose = [*root_pose[:3], *root_pose[4:7], root_pose[3]]
         if len(selected) == 3:

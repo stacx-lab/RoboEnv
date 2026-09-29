@@ -32,6 +32,7 @@ intrinsics:
     fl_joint6: 0.0
   control:
     mode: position
+    limit_handling: native
   feedback:
     velocities: true
     efforts: false
@@ -48,43 +49,43 @@ intrinsics:
       limits:
         min: -10.0
         max: 10.0
-      max_velocity: 1000.0
-      max_effort: 100.0
+      max_velocity: null
+      max_effort: null
     - name: fl_joint2
       type: revolute
       limits:
         min: -10.0
         max: 10.0
-      max_velocity: 1000.0
-      max_effort: 100.0
+      max_velocity: null
+      max_effort: null
     - name: fl_joint3
       type: revolute
       limits:
         min: -10.0
         max: 10.0
-      max_velocity: 1000.0
-      max_effort: 100.0
+      max_velocity: null
+      max_effort: null
     - name: fl_joint4
       type: revolute
       limits:
         min: -10.0
         max: 10.0
-      max_velocity: 1000.0
-      max_effort: 100.0
+      max_velocity: null
+      max_effort: null
     - name: fl_joint5
       type: revolute
       limits:
         min: -10.0
         max: 10.0
-      max_velocity: 1000.0
-      max_effort: 100.0
+      max_velocity: null
+      max_effort: null
     - name: fl_joint6
       type: revolute
       limits:
         min: -10.0
         max: 10.0
-      max_velocity: 1000.0
-      max_effort: 100.0
+      max_velocity: null
+      max_effort: null
     chain:
     - origin:
       - 0.0

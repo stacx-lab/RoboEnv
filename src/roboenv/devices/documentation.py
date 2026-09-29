@@ -128,6 +128,12 @@ def _dimensions(device):
     facts = device.get("intrinsics", {})
     control = facts.get("control", {})
     lines = []
+    if control.get("limit_handling") == "native":
+        lines.append(
+            "Command limits are handled by the native simulator. Model joint ranges "
+            "describe geometry, not additional write restrictions. Native clipping and "
+            "physical constraints still apply; see workspace safety notes."
+        )
     joints = facts.get("model", {}).get("joints", [])
     if joints:
         lines += [
@@ -202,7 +208,12 @@ def _dimensions(device):
                 )
             lines += [
                 "Normalized values are dimensionless controller targets, not m/s or rad/s. "
-                "Bounds constrain commands, not measured motion."
+                + (
+                    "Limits are handled by the native simulator; null bounds are unspecified. "
+                    "See workspace safety notes for native clipping and coordinate frames."
+                    if control.get("limit_handling") == "native"
+                    else "Bounds constrain commands, not measured motion."
+                )
             ]
     for index, position in enumerate(facts.get("feedback", {}).get("positions", [])):
         lines.append(
@@ -286,7 +297,7 @@ def render_documentation(robot, devices, connection):
         "```",
         "",
         "Read with `env.device(name).read()`. Joint `write(actions, duration_s=...)` submits "
-        "buffered references and returns immediately. Use `env.device(\"world\").wait(seconds)` "
+        'buffered references and returns immediately. Use `env.device("world").wait(seconds)` '
         "to wait in world time and `.read()` for time_s. The device owns resampling. "
         "Goal planning and arrival checks belong to the harness. "
         "Concurrent device writes share the world clock; starts are not atomic. "

@@ -15,9 +15,10 @@ safety:
   max_cartesian_velocity: null
   max_joint_velocity: null
   keep_out_zones: []
-  notes: No additional velocity caps. Native collisions and joint limits apply. Stop
-    holds its device; it does not pause the world. Use camera observations to plan
-    and verify motions.
+  notes: Physical joint constraints and native torque clipping apply. Absolute joint
+    targets have no added range rejection. Gripper direction commands must be in [-1,
+    1] and use their sign. Stop affects only its device; the world owns simulation
+    time.
 meta:
   created_at: '2026-09-07T00:00:00Z'
   updated_at: '2026-09-08T00:00:00Z'

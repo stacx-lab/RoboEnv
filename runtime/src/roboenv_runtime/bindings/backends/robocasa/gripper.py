@@ -67,7 +67,7 @@ def bind(spec, root, context):
         }
 
     def write(target):
-        command = np.sign(vector(target, 1, lower=[-1], upper=[1])).tolist()
+        command = np.sign(vector(target, 1)).tolist()
         world.step({"right_gripper": command})
         return {}
 

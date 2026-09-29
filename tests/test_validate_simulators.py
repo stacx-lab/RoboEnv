@@ -66,7 +66,7 @@ def test_default_preparation_selects_available_references_without_execution(tmp_
         tool.prepare(deployments, wheel, out)
 
 
-def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_path):
+def test_probe_plans_use_scene_robots_and_explicit_behavior_config(tmp_path):
     tool = load_tool("validate_simulators")
     source = tmp_path / "source/behavior-probe"
     source.mkdir(parents=True)
@@ -83,14 +83,11 @@ def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_p
     cases = tool.select_cases(
         source=source.parent, backends=[*tool.DEFAULT_BACKENDS, "behavior"], modes=["probe"]
     )
-    assert len(cases) == 8
+    assert len(cases) == 7
     assert {task.robot for _, task, _, _ in cases if task.backend == "libero"} == {
         "libero/libero-panda-tabletop",
         "libero/libero-panda-kitchen",
     }
-    yam = next(task for _, task, _, _ in cases if task.robot == "robodojo/robodojo-yam")
-    assert yam.backend_kwargs["env_cfg_type"] == "yam"
-    assert yam.backend_kwargs["layout_config"] == "arx_x5"
     aloha = next(task for _, task, _, _ in cases if task.robot == "robotwin/robotwin-aloha-agilex")
     assert aloha.backend_kwargs["embodiment"] == "aloha_agilex"
     behavior = next(task for _, task, _, _ in cases if task.backend == "behavior")
@@ -108,7 +105,7 @@ def test_probe_plans_use_scene_robots_and_explicit_behavior_and_yam_config(tmp_p
         backends=[*tool.DEFAULT_BACKENDS, "behavior"],
         modes=["probe"],
     )
-    assert len(prepared["cases"]) == 8 and prepared["harbor_loader_validated"]
+    assert len(prepared["cases"]) == 7 and prepared["harbor_loader_validated"]
     task["backend_kwargs"].pop("scene_model")
     (source / "task.yaml").write_text(yaml.safe_dump(task))
     with pytest.raises(ValueError, match="explicit scene_model"):

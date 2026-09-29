@@ -142,21 +142,23 @@ class RoboTwinDevices(RoboTwinEnv):
         for side in ("left", "right"):
             target = goals[side + "_arm"]
             robot.set_arm_joints(target, np.zeros(len(target)), side)
-            fraction = goals[side + "_gripper"][0]
-            lower, upper = getattr(robot, side + "_gripper_scale")
+            # Stops hold measured finger positions without advancing other grippers.
             hold = self.gripper_holds.get(side + "_gripper")
-            for index, (joint, multiplier, offset) in enumerate(getattr(robot, side + "_gripper")):
-                value = (
-                    (lower + fraction * (upper - lower)) * multiplier + offset
-                    if hold is None
-                    else hold[index]
-                )
-                joint.set_drive_target(value)
-                joint.set_drive_velocity_target(0.0)
-            setattr(robot, side + "_gripper_val", fraction)
+            if hold is not None:
+                for (joint, _, _), value in zip(
+                    getattr(robot, side + "_gripper"), hold, strict=True
+                ):
+                    joint.set_drive_target(value)
+                    joint.set_drive_velocity_target(0.0)
 
     def _advance(self):
         for _ in range(10):
+            for side in ("left", "right"):
+                name = side + "_gripper"
+                if name not in self.gripper_holds:
+                    # Preserve native saturation, incremental targets and velocity
+                    # feedforward at the same cadence as upstream take_action.
+                    self.task.robot.set_gripper(self.control.targets[name][0], side)
             self.task.scene.step()
             self._sim_step_count += 1
             self._native_success = bool(self.task.check_success()) or self._native_success

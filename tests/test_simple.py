@@ -145,8 +145,6 @@ def test_independent_writes_retain_goals_and_reads_do_not_step():
 @pytest.mark.parametrize(
     "command",
     [
-        base(vx=0.51),
-        base(wz=1.01),
         base(vx=float("nan")),
         {"mode": "locomotion", "target": [0, 0, 0]},
     ],
@@ -159,14 +157,14 @@ def test_invalid_metric_commands_fail_before_effect(command):
 
 
 @pytest.mark.parametrize("axis", ["height", "roll", "pitch", "yaw"])
-@pytest.mark.parametrize("invalid", ["missing", "out-of-range", "nonfinite"])
+@pytest.mark.parametrize("invalid", ["missing", "nonfinite"])
 def test_base_requires_valid_complete_posture(axis, invalid):
     world = World()
     command = base()
     if invalid == "missing":
         del command["posture"][axis]
     else:
-        command["posture"][axis] = 100 if invalid == "out-of-range" else float("nan")
+        command["posture"][axis] = float("nan")
     before = copy.deepcopy(world.control.targets)
     with pytest.raises(ValueError):
         world.control.write("base", command)
@@ -421,7 +419,7 @@ def test_generator_reproduces_catalog_and_facts(tmp_path):
     )
     assert (tmp_path / "g1.json").read_bytes() == FACTS.read_bytes()
     assert (tmp_path / "provenance.json").read_bytes() == (
-        ROOT / "docs/simple-config.provenance.json"
+        ROOT / "docs/simple-native-limits.provenance.json"
     ).read_bytes()
     for directory in ("robots/simple", "tasks/simple"):
         original = ROOT / "catalog" / directory
@@ -492,3 +490,15 @@ def test_joint_stop_keeps_measured_soft_limit_overshoot_without_stepping():
     world.control.stop("left_arm")
     assert world.steps == 0
     assert world.control.targets == {**original, "left_arm": measured}
+
+
+def test_native_targets_are_not_rejected_by_invented_bounds():
+    world = World()
+    command = base(vx=5, wz=10)
+    command["posture"] = dict.fromkeys(command["posture"], 100)
+    world.control.write("base", command)
+    assert world.control.targets["base"] == [5, 0, 10, 100, 100, 100, 100]
+    target = [100] * len(world.control.targets["left_arm"])
+    world.control.write("left_arm", {"target": target})
+    world.control.tick()
+    assert world.received[-1]["left_arm"] == target

@@ -46,6 +46,7 @@ def describe(robot):
             "calibrated_at": None,
             "control": {
                 "mode": "motion",
+                "limit_handling": "native",
                 "body_frame": "base",
                 "modes": {
                     "drive": {
@@ -55,12 +56,12 @@ def describe(robot):
                                 {
                                     "axis": axis,
                                     "units": units,
-                                    "bounds": {"min": -bound, "max": bound},
+                                    "bounds": None,
                                 }
-                                for axis, units, bound in (
-                                    ("vx", "m/s", 0.5),
-                                    ("vy", "m/s", 0.5),
-                                    ("wz", "rad/s", 1.0),
+                                for axis, units in (
+                                    ("vx", "m/s"),
+                                    ("vy", "m/s"),
+                                    ("wz", "rad/s"),
                                 )
                             ],
                         },
@@ -100,6 +101,9 @@ def describe(robot):
         if group.startswith("gripper_"):
             continue
         chain, base, flange = serial_chain(urdf, names)
+        for joint in chain["joints"]:
+            # URDF ratings are not evidence of the loaded USD drive settings.
+            joint["max_velocity"] = joint["max_effort"] = None
         home = array(robot.reset_joint_pos)[indices].tolist()
         facts[name] = {
             "intrinsics": joint_intrinsics(chain, home, name),

@@ -1,8 +1,21 @@
 # Gripper geometry
 
-RoboCasa, all five LIBERO Panda rigs, both RoboTwin rigs, both RoboDojo rigs and
-BEHAVIOR R1Pro use the same scalar-gripper contract. IsaacLab G1 retains its
+RoboCasa, all five LIBERO Panda rigs, both RoboTwin rigs, RoboDojo ARX X5 and
+BEHAVIOR R1Pro use the same scalar-gripper contract. SIMPLE G1 retains its
 separate dexterous-hand contract.
+
+Position grippers reject commands outside the profile's `[0, 1]` range.
+Panda direction grippers reject values outside `[-1, 1]`, then use the sign
+(positive closes, negative opens, zero holds). These are Kinex's normal scalar
+validation rules, applied to the entire sequence before any effect. Native Panda
+controllers accept larger magnitudes too, but the public profile deliberately
+retains the canonical range for consistent behavior.
+
+Native motion limits remain in effect: RoboTwin's setter clips normalized goals
+and computes incremental finger targets and drive velocities each physics step;
+RoboDojo clips normalized goals and interpolated finger targets; BEHAVIOR clips
+finger controller output to native joint ranges. Internal stop holds can retain
+measured soft-limit overshoot without treating it as a new user command.
 
 - `extrinsics.mount` places the device TCP in its arm's `flange` frame.
 - `intrinsics.geometry` describes that TCP and gives approach and closing axes
@@ -24,7 +37,7 @@ centers of its inner box-pad surfaces, measured from live MuJoCo transforms.
 Each patch is 16 × 16 mm. Both LIBERO's pinned robosuite 1.4.0 model and RoboCasa's
 model are checked against their compiled geometry.
 
-Piper, ALOHA AgileX, ARX X5, YAM and R1Pro place the TCP at the midpoint of two
+Piper, ALOHA AgileX, ARX X5 and R1Pro place the TCP at the midpoint of two
 source contact reference points at zero finger displacement, keeping the arm
 flange's axes. `pad_1` and `pad_2` correspond to feedback channels 1 and 2.
 Their transforms combine the pinned URDF with measured finger positions.
@@ -34,15 +47,13 @@ These mesh contacts do not define rectangular patches: `size_m` is `null`.
 The aperture model reports contact-reference separation along the closing axis,
 clamped at zero for soft-contact overlap. It does not describe whole-finger
 collision clearance or guarantee that an object fits at every insertion depth.
-YAM opens with negative finger displacement; its aperture coefficients retain
-that sign.
 
 ## Source and checks
 
 [`gripper_contacts.json`](../runtime/src/roboenv_runtime/adapters/gripper_contacts.json)
 records points and normals in each finger link's coordinates, with source
 revisions and checksums. Piper, ALOHA and X5 use their pinned collision STL
-surfaces. YAM uses the manufacturer meshes used by RoboEnv's USD conversion.
+surfaces.
 R1Pro uses the native USD convex collision surfaces; its old URDF collision
 mesh paths are not used to calibrate the contacts.
 

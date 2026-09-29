@@ -33,11 +33,9 @@ class DeviceControl:
         bounds = self.limits[device]
         if not isinstance(target, list) or len(target) != len(bounds):
             raise ValueError("Target dimensions differ from the native actuator")
-        for value, (lower, upper) in zip(target, bounds, strict=True):
+        for value in target:
             if type(value) not in (float, int) or not math.isfinite(value):
                 raise ValueError("Targets must contain finite numbers")
-            if lower is not None and value < lower or upper is not None and value > upper:
-                raise ValueError("Target exceeds native joint limits")
         return [float(value) for value in target]
 
     def write(self, device, target):

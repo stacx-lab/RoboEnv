@@ -39,7 +39,7 @@ def test_only_ticks_advance_one_interval_and_preserves_peer_targets():
     assert len(owner.commands) == 3
 
 
-@pytest.mark.parametrize("target", [[float("nan")], [float("inf")], [True], [2], [], [0, 0]])
+@pytest.mark.parametrize("target", [[float("nan")], [float("inf")], [True], [], [0, 0]])
 def test_invalid_write_has_zero_effects(target):
     owner, states, holder = control()
     owner.write("left", [0.5])

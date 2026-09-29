@@ -35,12 +35,9 @@ class Control:
         joints = self.model["parts"][name]["joints"]
         if not isinstance(target, list) or len(target) != len(joints):
             raise ValueError("Target dimension mismatch")
-        for value, joint in zip(target, joints, strict=True):
+        for value in target:
             if type(value) not in (int, float) or not math.isfinite(value):
                 raise ValueError("Target must contain finite numbers")
-            limits = joint["limits"]
-            if limits and not limits["min"] <= value <= limits["max"]:
-                raise ValueError("Target exceeds limits")
         return list(target)
 
     def write(self, name, args):

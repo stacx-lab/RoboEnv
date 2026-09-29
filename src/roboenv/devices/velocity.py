@@ -31,7 +31,11 @@ def command(control, args):
                 isinstance(value, bool)
                 or not isinstance(value, (int, float))
                 or not math.isfinite(value)
-                or not bounds["min"] <= value <= bounds["max"]
+                or (
+                    control.get("limit_handling") != "native"
+                    and bounds is not None
+                    and not bounds["min"] <= value <= bounds["max"]
+                )
             ):
                 raise ValueError(f"{channel}.{axis} exceeds bounds")
             result[channel][axis] = value
@@ -51,8 +55,11 @@ def command_schema(control):
             axes = {
                 c["axis"]: {
                     "type": "number",
-                    "minimum": c["bounds"]["min"],
-                    "maximum": c["bounds"]["max"],
+                    **(
+                        {"minimum": c["bounds"]["min"], "maximum": c["bounds"]["max"]}
+                        if c["bounds"] is not None and control.get("limit_handling") != "native"
+                        else {}
+                    ),
                 }
                 for c in components
             }

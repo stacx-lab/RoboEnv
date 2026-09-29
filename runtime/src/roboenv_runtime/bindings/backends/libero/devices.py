@@ -115,7 +115,6 @@ def bind(spec, root, context):
                 names.get("world", "world"),
             )
             intrinsics["frames"] = {"flange": None}
-            limits = [j["limits"] for j in intrinsics["model"]["joints"]]
         else:
             intrinsics = {
                 "source": "introspected",
@@ -151,7 +150,6 @@ def bind(spec, root, context):
                 names.get("arm", "arm"),
                 "flange",
             )
-            limits = [{"min": -1, "max": 1}]
         definition = replace(definition)
 
         def read():
@@ -181,9 +179,7 @@ def bind(spec, root, context):
 
         def write(target):
             """Stage the native reference."""
-            command = vector(
-                target, size, lower=[a["min"] for a in limits], upper=[a["max"] for a in limits]
-            )
+            command = vector(target, size)
 
             world.step({entity: command})
             return {}

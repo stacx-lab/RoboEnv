@@ -74,7 +74,7 @@ these do not reset or close the world.
 | `arm` | `joint` | Seven joint positions/velocities and flange pose; seven absolute joint targets in radians |
 | `torso` | `joint` | Lift state and top pose; one absolute target in metres |
 | `base` | `velocity` | World pose and measured chassis-origin twist; normalized body-frame `vx`, `vy`, `wz` commands |
-| `gripper` | `gripper` | Finger joint state; one signed command in `[-1,1]`, positive closes |
+| `gripper` | `gripper` | Finger joint state; direction in `[-1, 1]`, positive closes |
 | `camera_left`, `camera_right`, `camera_wrist` | `rgbd` | Aligned RGB and metric depth files; no write |
 | `world` | `world` | World clock, reference frame and optional workspace bounds |
 
@@ -204,8 +204,8 @@ Panda's nominal limits are in radians; the lift spans 0–0.34 m, with model hom
 | 7 | -2.8973 | 2.8973 |
 
 MuJoCo's soft constraints permit small measured overshoots. Reads preserve actual joints
-and measured flange transforms; explicit write/FK targets and IK seeds remain
-range-checked. Stop holds the measured configuration, not home. Neither accepted
+and measured flange transforms. Writes delegate limits to the native simulator;
+FK targets and IK seeds retain geometric solver checks. Stop holds the measured configuration, not home. Neither accepted
 commands nor successful IK prove arrival or recovery from contact.
 
 Panda motor control ranges are torque limits, not velocity limits. Arm/torso servo

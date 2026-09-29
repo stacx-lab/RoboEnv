@@ -13,6 +13,9 @@ devices:
 safety:
   max_cartesian_velocity: null
   max_joint_velocity: null
+  notes: Metric velocity, height, and torso posture commands have no added range bounds.
+    Physical joint ranges and native motor torque clipping still apply. Stop affects
+    only its device; the world owns simulation time.
 meta:
   created_at: '2026-09-14T00:00:00Z'
   updated_at: '2026-09-14T00:00:00Z'

@@ -172,9 +172,10 @@ def generate(out, provenance=None, *, bindings_out=None):
                 "max_cartesian_velocity": None,
                 "max_joint_velocity": None,
                 "keep_out_zones": [],
-                "notes": "No additional velocity caps. Native collisions and joint limits "
-                "apply. Stop holds its device; it does not pause the world. "
-                "Use camera observations to plan and verify motions.",
+                "notes": "Native physical joint constraints and torque clipping apply. Absolute "
+                "joint targets have no added range rejection. Gripper direction commands "
+                "must be in [-1, 1] and use their sign. "
+                "Stop affects only its device, not the world clock.",
             },
             "meta": META,
         }

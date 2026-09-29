@@ -8,7 +8,6 @@ from zipfile import ZipFile
 
 import pytest
 from roboenv.provisioning import robodojo_assets, robotwin_assets
-from roboenv.provisioning.yam_usd import convert
 from roboenv_runtime.adapters.native_record import asset_identity, compare, digest
 
 
@@ -59,13 +58,11 @@ def test_robodojo_download_verifies_git_and_lfs_blobs_and_preserves_existing(tmp
 
 @pytest.mark.parametrize("linked", [False, True])
 def test_robodojo_default_preparation_reuses_existing_assets(tmp_path, monkeypatch, linked):
-    from roboenv.provisioning import yam_assets, yam_usd
-
     monkeypatch.delenv("ROBOENV_ASSET_CACHE", raising=False)
     link = tmp_path / "third_party/RoboDojo/Assets"
     link.parent.mkdir(parents=True)
     assets = tmp_path / "existing-user-depot" if linked else link
-    (assets / "Robots/yam").mkdir(parents=True)
+    (assets / "Robots").mkdir(parents=True)
     if linked:
         link.symlink_to(assets, target_is_directory=True)
     data = b"pinned robot geometry"
@@ -82,12 +79,10 @@ def test_robodojo_default_preparation_reuses_existing_assets(tmp_path, monkeypat
         "sha": robodojo_assets.REVISION, "siblings": [entry], "gated": False, "private": False,
     }))
     monkeypatch.setattr(robodojo_assets, "urlopen", lambda *a, **k: pytest.fail("no download"))
-    monkeypatch.setattr(yam_assets, "verify_source", lambda *a, **k: True)
-    monkeypatch.setattr(yam_usd, "verify", lambda *a, **k: False)
     report = robodojo_assets.prepare_assets(tmp_path)
     assert Path(report["asset_depot"]) == assets.resolve()
-    assert report["public_assets_verified"] and report["yam_native_conversion_required"]
-    assert not report["environment_assets_verified"]
+    assert report["public_assets_verified"] and report["environment_assets_verified"]
+    assert "yam_native_conversion_required" not in report
     assert link.resolve() == assets.resolve()
     assert not (cache / robodojo_assets.REVISION).exists()
     asset.write_bytes(b"user modifications")
@@ -115,116 +110,6 @@ def test_replay_asset_identity_detects_content_changes_and_ignores_root_location
     assert compare(expected, expected, atol=1e-5) == 0
     with pytest.raises(ValueError, match="checksum"):
         compare(expected, {**expected, "sha256": "invalid"}, atol=1e-5)
-
-
-def test_yam_conversion_requires_explicit_license_before_engine_import(tmp_path, monkeypatch):
-    monkeypatch.delenv("OMNI_KIT_ACCEPT_EULA", raising=False)
-    with pytest.raises(ValueError, match="explicitly accepted EULA"):
-        convert(tmp_path)
-    assert not list(Path(tmp_path).iterdir())
-
-
-@pytest.mark.parametrize("receipt", [None, {"passed": False, "error": "conversion failed"}])
-def test_yam_cli_rejects_zero_exit_without_success_receipt(tmp_path, monkeypatch, receipt):
-    from types import SimpleNamespace
-
-    from roboenv.provisioning import yam_usd
-
-    def exited_worker(command, **kwargs):
-        if receipt is not None:
-            Path(command[-1]).write_text(json.dumps(receipt))
-        return SimpleNamespace(returncode=0)
-
-    monkeypatch.setattr(yam_usd.subprocess, "run", exited_worker)
-    monkeypatch.setattr(yam_usd.sys, "argv", ["yam_usd", str(tmp_path / "yam")])
-    with pytest.raises(RuntimeError, match="no completion receipt|conversion failed"):
-        yam_usd.main()
-
-
-@pytest.mark.parametrize("modified", [False, True])
-def test_yam_entrypoint_upgrade_preserves_geometry_and_rejects_drift(
-    tmp_path, monkeypatch, modified
-):
-    from roboenv.provisioning import yam_usd
-
-    output = tmp_path / "native-usd"
-    output.mkdir()
-    (tmp_path / "YAM.urdf").write_text("source fixture")
-    geometry = output / "YAM.usd"
-    geometry.write_bytes(b"native geometry fixture")
-    link = tmp_path / "YAM.usd"
-    link.symlink_to("native-usd/YAM.usd")
-    previous = {
-        "schema": "roboenv/yam-native-conversion/1",
-        "source_files_sha256": yam_usd.checksum(yam_usd.source_inventory(tmp_path)),
-        "output_files_sha256": yam_usd.checksum(yam_usd.inventory(output)),
-    }
-    (output / "conversion.json").write_text(json.dumps(previous))
-    monkeypatch.setenv("OMNI_KIT_ACCEPT_EULA", "YES")
-    if modified:
-        geometry.write_bytes(b"user modification")
-        with pytest.raises(ValueError, match="geometry or source inputs changed"):
-            yam_usd.upgrade_entrypoint(tmp_path)
-        assert link.is_symlink() and geometry.read_bytes() == b"user modification"
-    else:
-        assert yam_usd.verify(tmp_path) is False
-        receipt = yam_usd.upgrade_entrypoint(tmp_path)
-        assert receipt["previous_conversion"] == previous
-        assert geometry.read_bytes() == b"native geometry fixture"
-        assert not link.is_symlink() and link.read_bytes() == yam_usd.ENTRYPOINT
-        assert yam_usd.verify(tmp_path, require_current=False) is True
-        assert yam_usd.verify(tmp_path) is False
-
-
-@pytest.mark.parametrize("drift", [None, "current", "staged"])
-def test_yam_collision_upgrade_archives_old_bytes_and_rejects_drift(tmp_path, drift):
-    from roboenv.provisioning import yam_usd
-
-    directory = tmp_path / "yam"
-    directory.mkdir()
-    (directory / "YAM.urdf").write_text("source fixture")
-    (directory / "YAM.usd").write_bytes(yam_usd.ENTRYPOINT)
-    output = directory / "native-usd"
-    output.mkdir()
-    (output / "YAM.usd").write_bytes(b"old geometry")
-    previous = {
-        "schema": "roboenv/yam-native-conversion/2",
-        "entrypoint_sha256": yam_usd.hashlib.sha256(yam_usd.ENTRYPOINT).hexdigest(),
-        "source_files_sha256": yam_usd.checksum(yam_usd.source_inventory(directory)),
-        "output_files_sha256": yam_usd.checksum(yam_usd.output_inventory(output)),
-    }
-    old_receipt = json.dumps(previous)
-    (output / "conversion.json").write_text(old_receipt)
-    assert yam_usd.verify(directory) is False
-    staged = tmp_path / "staged"
-    staged.mkdir()
-    (staged / "YAM.usd").write_bytes(b"new geometry")
-    receipt = {
-        **previous, "schema": yam_usd.SCHEMA, "previous_conversion": previous,
-        "output_files_sha256": yam_usd.checksum(yam_usd.output_inventory(staged)),
-        "finger_colliders": [
-            {"finger": name, "approximation": "convexDecomposition"}
-            for name in ("tip_left", "tip_right")
-        ],
-    }
-    (staged / "conversion.json").write_text(json.dumps(receipt))
-    if drift:
-        changed = output if drift == "current" else staged
-        (changed / "YAM.usd").write_bytes(b"concurrent modification")
-        with pytest.raises(ValueError, match="changed during upgrade|did not verify"):
-            yam_usd.publish_upgrade(directory, staged, previous)
-        assert (output / "conversion.json").read_text() == old_receipt
-        assert not (directory / yam_usd.HISTORY).exists()
-        return
-    yam_usd.publish_upgrade(directory, staged, previous)
-    archive = directory / yam_usd.HISTORY / previous["output_files_sha256"]
-    assert (archive / "YAM.usd").read_bytes() == b"old geometry"
-    assert (archive / "conversion.json").read_text() == old_receipt
-    assert (output / "YAM.usd").read_bytes() == b"new geometry"
-    assert yam_usd.verify(directory) is True
-    (archive / "YAM.usd").write_bytes(b"modified old evidence")
-    with pytest.raises(ValueError, match="Archived YAM conversion changed"):
-        yam_usd.verify(directory)
 
 
 def test_behavior_acquisition_requires_both_licenses_before_network_or_engine(

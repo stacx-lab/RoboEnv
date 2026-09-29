@@ -64,6 +64,7 @@ def test_bad_targets_and_unsupported_speed_fail_before_transport(gripper):
         {"actions": [[1]]},
         {"actions": []},
         {"actions": [2]},
+        {"actions": [-2]},
         {"actions": [True]},
         {"actions": [float("nan")]},
         {"actions": [1], "speedFraction": 0.1},

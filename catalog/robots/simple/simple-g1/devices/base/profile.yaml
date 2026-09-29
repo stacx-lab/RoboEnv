@@ -8,6 +8,7 @@ intrinsics:
     torso: null
   control:
     mode: motion
+    limit_handling: native
     body_frame: pelvis
     modes:
       locomotion:
@@ -16,46 +17,32 @@ intrinsics:
           components:
           - axis: vx
             units: m/s
-            bounds:
-              min: -0.5
-              max: 0.5
+            bounds: null
           - axis: vy
             units: m/s
-            bounds:
-              min: -0.5
-              max: 0.5
+            bounds: null
           - axis: wz
             units: rad/s
-            bounds:
-              min: -1.0
-              max: 1.0
+            bounds: null
         posture:
           reference: ground
           components:
           - axis: height
             units: m
-            bounds:
-              min: 0.2
-              max: 0.74
+            bounds: null
             default: 0.74
           - axis: roll
             units: rad
             default: 0.0
-            bounds:
-              min: -0.52
-              max: 0.52
+            bounds: null
           - axis: pitch
             units: rad
             default: 0.0
-            bounds:
-              min: -0.52
-              max: 0.52
+            bounds: null
           - axis: yaw
             units: rad
             default: 0.0
-            bounds:
-              min: -2.618
-              max: 2.618
+            bounds: null
   feedback:
     pose_frame: world
     velocity_frame: base

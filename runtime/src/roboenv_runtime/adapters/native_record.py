@@ -39,8 +39,6 @@ _ASSET_OWNERS = {
     "simple_assets.py": "simple",
     "robotwin_assets.py": "robotwin",
     "robodojo_assets.py": "robodojo",
-    "yam_assets.py": "robodojo",
-    "yam_usd.py": "robodojo",
     "behavior_assets.py": "behavior",
 }
 
