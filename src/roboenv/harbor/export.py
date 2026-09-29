@@ -121,10 +121,10 @@ def export_task(
     from roboenv.harbor.deployment import native_service
 
     sim = native_service(deployment_path, task, portable=portable)
-    sim["volumes"] += ["./definition:/env:ro", "./sdk:/opt/roboenv/sdk:ro"]
+    sim["volumes"] += ["./sdk:/opt/roboenv/sdk:ro"]
     sim["environment"].update(
         ROBOENV_SERVER_ROBOT="/opt/serve/robot",
-        ROBOENV_SERVER_MANIFEST="/env/environment.json",
+        ROBOENV_SERVER_MANIFEST="/opt/serve/environment.json",
         ROBOENV_SDK_PATH="/opt/roboenv/sdk/" + wheel.name,
     )
     main = {
@@ -141,7 +141,6 @@ def export_task(
         ROBOENV_HTTP_HOST="0.0.0.0",
         ROBOENV_HTTP_PORT="8123",
         ROBOENV_PUBLISH_DEVICES="/run/roboenv/robot/devices",
-        ROBOENV_SERVER_MANIFEST="/opt/serve/environment.json",
     )
     main.update(cap_drop=["ALL"], security_opt=["no-new-privileges:true"])
     compose = {"services": {"main": main, "sim": sim}, "volumes": {"roboenv-run": {}}}

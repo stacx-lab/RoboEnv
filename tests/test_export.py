@@ -51,6 +51,11 @@ def test_native_task_is_harbor_format_without_a_solution(tmp_path):
     assert sim["environment"]["ROBOENV_HTTP_HOST"] == "0.0.0.0"
     assert sim["environment"]["ROBOENV_FRESH_SESSION"] == "1"
     assert sim["environment"]["ROBOENV_SERVER_ROBOT"] == "/opt/serve/robot"
+    assert sim["environment"]["ROBOENV_SERVER_MANIFEST"] == "/opt/serve/environment.json"
+    # The public definition is for the agent; the simulator reads its private copy.
+    assert "./definition:/env:ro" in main["volumes"]
+    assert not [volume for volume in sim["volumes"] if volume.endswith(":/env:ro")]
+    assert "ROBOENV_MANIFEST" not in (out / "environment/Dockerfile").read_text()
     assert sim["environment"]["ROBOENV_SOCKET"] == "/run/roboenv/sim.sock"
     assert sim["environment"]["ROBOENV_PUBLISH_DEVICES"]
     assert "ports" not in sim
