@@ -1,8 +1,8 @@
 # Contributing to Roboenv
 
 Roboenv owns environment state, simulator adapters, device bindings, budgets and
-verification. Agent loops, model credentials, skills, training and agent-specific
-Harbor installation belong in their respective projects.
+verification. Agent loops, model credentials, skills, training, task bundles and
+trial scheduling belong in their respective projects.
 
 ## Before proposing a change
 
@@ -45,7 +45,7 @@ Each discovered task must point to actual upstream metadata; exclusions must be
 reported. Solutions are opt-in references with explicit provenance, not automatic
 claims of an official expert solution or a successful replay.
 
-A physical acceptance report must distinguish source discovery, Harbor loading,
+A physical acceptance report must distinguish source discovery, task resolution,
 simulator boot, device calls, verifier result and fresh-process replay. Record the
 task/seed, controller condition, source commits, image and wheel digests, candidate
 program hash and simulator verdict. Report failures as well as successes. A CPU

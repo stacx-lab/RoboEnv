@@ -48,7 +48,7 @@ Read the testing skill's [acceptance contract](../test-simulator-kinex/reference
 before choosing tasks or running solutions. Record its effective run specification
 outside source control. Default
 to local sensor-only, typed-device integration acceptance; official benchmark
-equivalence and Harbor deployment are separate scopes. Explicit user choices win.
+equivalence and benchmark deployment are separate scopes. Explicit user choices win.
 Integration acceptance establishes a working agent/simulator loop, not a minimum
 task success rate. Require real model observation and device control, correctly
 reported native outcomes, recording and replay; inspect failures to distinguish
@@ -94,7 +94,7 @@ For RoboTwin, RoboDojo or BEHAVIOR, read the corresponding section of
 [backends.md](references/backends.md). Classify existing surfaces as reusable,
 requiring migration, or independently retained. These backends may already boot
 through older primitive APIs; that does not make their catalogs Kinex-compatible.
-Migrate registry selection, task discovery, launch/export and tests together so
+Migrate registry selection, task discovery, launch, device export and tests together so
 generated tasks use the same typed path as the small checked-in examples.
 
 Keep one native world per episode and one authority for reset, physical time,
@@ -233,9 +233,9 @@ attempts; require unchanged frozen inputs and held-out history for task-performa
 trials when that scope is selected.
 
 Fix integration failures within the authorized scope, rerun affected gates, then
-resume acceptance. Do not edit a frozen candidate during final validation. Harbor
-deployment requires the additional exported-task, loader, agent/verifier and image
-evidence defined by the testing skill; local acceptance cannot establish isolation.
+resume acceptance. Do not edit a frozen candidate during final validation. Benchmark
+deployment requires the additional image, agent/verifier and isolation evidence that
+the benchmark repository defines; local acceptance cannot establish isolation.
 
 ## Finish or resume from evidence
 

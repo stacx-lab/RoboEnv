@@ -236,7 +236,7 @@ Report offline conformance, native boot/control, rendering, Kinex recording and 
 separately. Previous PR validation used obsolete contracts and does not certify this
 implementation. Isaac acceptance requires a fresh successful run on an appropriately
 configured host; MuJoCo checks alone do not establish Isaac support or visual parity.
-Full Harbor deployment certification and task-performance evaluation remain separate.
+Full benchmark deployment certification and task-performance evaluation remain separate.
 
 Source and asset pins, managed patch checksums and dependency locks are versioned.
 `tools/generate_simple_config.py` regenerates the catalog, private model facts and

@@ -1,9 +1,11 @@
 # RoboEnv
 
 Robotics environments with discoverable devices, shared simulation state, and
-benchmark verification. Use them from Python, the CLI, Kinex, or Harbor.
-RoboEnv owns the environment and verdict; the agent harness owns reasoning and
-controller programs. See [DESIGN.md](DESIGN.md) for the architecture.
+benchmark verification. Use them from Python or the CLI; agent harnesses and
+benchmarks build on the same SDK. RoboEnv owns the environment and verdict; the
+agent harness owns reasoning and controller programs. See [DESIGN.md](DESIGN.md)
+for the architecture and [harness integration](docs/harness-integration.md) for
+what a benchmark builds on top.
 
 ## Prepare a simulator
 
@@ -37,7 +39,7 @@ termination, faults, explicit stop and request deadlines remain active in both.
 At a stepped horizon, physics freezes and unfinished buffers or waits end with
 `episode_finished`. Final reads and stop/submit remain available; budget exhaustion
 does not fail the world. The worker automatically seals the native verdict and records
-`step_limit` when unsuccessful. Harbor's existing reward budget rules still apply.
+`step_limit` when unsuccessful. A benchmark's own reward budget rules apply on top.
 
 RoboCasa, LIBERO, RoboTwin, BEHAVIOR, RoboDojo, SIMPLE and the test backend accept
 `backend_kwargs: {stop_on_success: true}` to end at the first successful control
@@ -101,7 +103,7 @@ The rules live in `roboenv.verify` (`validate_journal`, `validate_score`,
 `attach_budget`, `certify`), a standard-library-only module with no other package
 imports. It is the reference validator: harnesses and benchmarks (rsi, RLE-Bench)
 should import it, or copy that one file into a verifier container, rather than
-re-implement journal validation. The Harbor task exporter ships it as `tests/verify.py`.
+re-implement journal validation. See [harness integration](docs/harness-integration.md).
 Python owners use `with roboenv.launch(task="TASK_ID", port=8123) as run:`
 and connect to `run.endpoint`. Use
 `--host 0.0.0.0` when serving a task across an isolated container network.
@@ -119,7 +121,7 @@ Run `roboenv prepare libero` and `roboenv launch libero/bowl-onto-plate`.
 Its absolute joint control is explicitly a practice protocol, not the published OSC
 benchmark action space. `tools/accept_libero.py --out OUTPUT` runs native device,
 transport, Kinex recording and fresh-process replay gates without model calls;
-task scheduling uses RoboEnv's [Kinex Harbor integration](integrations/kinex/README.md).
+trial scheduling belongs to the benchmark harness built on the SDK.
 
 The checked-in LIBERO tasks are `bowl-onto-plate` (grasp/place),
 `close-top-drawer` (close drawer), `bowl-into-bottom-drawer` (place the bowl,
@@ -176,18 +178,14 @@ order. Refresh existing workspace drivers from the updated catalog/export, then
 reload Kinex devices. Restart simulator services you own to pick up runtime changes;
 borrowed services remain under their owner's lifecycle control.
 
-## Export a Harbor task
+## Build a harness or benchmark on it
 
-With a [prepared native deployment](docs/harbor-tasks.md):
-
-```sh
-roboenv export robocasa/pick-place-microwave --out generated/example
-```
-
-Export resolves the same task configuration as local startup, builds the SDK
-wheel, and validates the Harbor format. The environment starts automatically
-before the agent. Reference solutions are not included by default. Agent
-installation and model configuration belong to the Harbor integration.
+A harness starts a world with `roboenv launch` (or `roboenv.launch`), hands the
+endpoint and the exported device files to its agent, certifies the run with
+`roboenv verify` and stops the world. Task bundles, trial scheduling, containers,
+agent execution and credentials belong to the harness; see
+[harness integration](docs/harness-integration.md) for the entry points and for
+what this proposal moves to the downstream benchmark repository.
 
 ## Develop
 
@@ -221,7 +219,6 @@ src/roboenv/
 ├── devices/                   Device contracts, dispatch, and binding definitions
 ├── tasks/                     Task models, discovery, resolution, and artifacts
 ├── provisioning/              Isolated installation, sources, and assets
-├── harbor/                    Deployment and task export
 ├── cli/                       Command parsing and dispatch
 └── control/                   Optional client-side control helpers
 ```
@@ -243,8 +240,7 @@ environments stay outside Git.
 | [RoboCasa](docs/robocasa.md) / [Isaac Lab](docs/isaaclab.md) | RoboCasa devices and Isaac Lab installation |
 | [Simulator limit audit](docs/simulator-limits.md) | Native enforcement versus removed integration restrictions |
 | [Local Kinex use](docs/kinex-local.md) | Workspace setup, recording and video playback |
-| [Harbor tasks](docs/harbor-tasks.md) | Deployment, task generation and execution |
-| [Kinex Harbor integration](integrations/kinex/README.md) | Agent packaging, controller development and frozen trials |
+| [Harness integration](docs/harness-integration.md) | Building a harness or benchmark on the SDK; what moved downstream |
 | [Simulator validation](docs/gpu-validation.md) | Native checks, receipts and replay boundaries |
 | [Release engineering](docs/releasing.md) | Packaging, installation checks and publication gates |
 | [Third-party notices](docs/third-party-notices.md) | Locked source notices and checksums |

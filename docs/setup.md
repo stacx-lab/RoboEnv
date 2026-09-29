@@ -104,7 +104,8 @@ that setting for a local launch. Realtime disables configured and native episode
 step caps and reports `budget.max: null`; stepped retains the caps. Non-timeout
 termination conditions still apply. No simulator
 installation or asset download occurs during launch. Local launch is intended
-for development; Harbor provides the container boundary for agent evaluation.
+for development; a benchmark harness provides the container boundary for agent
+evaluation.
 
 ## Connect and use devices
 
@@ -141,28 +142,21 @@ Run definitions, device exports, and logs remain in the project's ignored cache.
 Exported local drivers carry a connection file. Copy complete device directories
 into the agent workspace; their dependencies are described in
 [local Kinex use](kinex-local.md). These episode-specific connection files are
-not portable Harbor task inputs.
+not portable task inputs.
 
-## Export to Harbor
+## Hand a run to a harness
 
-After preparing a native image deployment:
-
-```sh
-roboenv export libero/mug-into-microwave --out generated/example
-```
-
-The default deployment is `.cache/images/libero/deployment.json`; use
-`--deployment FILE` to select another. The command builds a fresh SDK wheel
-unless `--wheel FILE` is supplied, and validates the task with the real Harbor
-loader. Local launch and export use the same task resolver and device binding
-configuration. Image and asset preparation are described in
-[Harbor tasks](harbor-tasks.md).
+A harness or benchmark starts the world with `roboenv launch`, gives its agent the
+endpoint and the exported device directory, certifies the run with
+`roboenv verify --run RUN --out DIR` and stops the world. Task bundles, images for
+the agent side and trial scheduling belong to the harness; see
+[harness integration](harness-integration.md) for the entry points and
+`tools/build_simulator_image.py --help` for immutable simulator images.
 
 RoboTwin and RoboDojo tasks expose typed devices and do not ship primitive
 reference solutions.
 See [simulator validation](gpu-validation.md) for native checks and
-[Kinex Harbor integration](../integrations/kinex/README.md) for controller
-development and frozen trials.
+[local Kinex use](kinex-local.md) for interactive recording.
 
 ## Advanced installation and assets
 
@@ -203,8 +197,8 @@ python -m roboenv.provisioning.assets verify "$ASSET_DEPOT" \
 Use actual upstream provenance and a new receipt outside the depot. Verification
 reads all contents and checks relative paths, sizes, hashes and internal symlinks;
 keep the depot quiescent. Content verification does not establish redistribution
-rights or native execution. Image interpreter/depot options are described in
-[Harbor tasks](harbor-tasks.md).
+rights or native execution. Image interpreter/depot options are described by
+`tools/build_simulator_image.py --help`.
 
 ## Local storage
 

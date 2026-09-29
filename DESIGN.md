@@ -14,7 +14,7 @@ See [RoboCasa devices](docs/robocasa.md) for implemented semantics and validatio
 |---|---|
 | RoboEnv | World initialization, native device control, time, budgets, authoritative verdicts, evidence |
 | Kinex or another harness | Agent execution, permissions, perception, planning, controller programs, model calls |
-| Harbor | Trial creation, resource/port allocation, harness startup, verifier execution, cleanup |
+| Benchmark harness (e.g. RLE-Bench) | Trial creation, resource/port allocation, harness startup, verifier execution, cleanup |
 
 An arm exposes read/write/stop and kinematics, not `pick_object` or `open_door`.
 A camera returns images, not detected objects or simulator object poses. Higher-level
@@ -122,7 +122,7 @@ All devices in a trial share one endpoint. Parallel worlds use distinct ports in
 same network namespace; `--port 0` assigns an available port. An occupied explicit
 port fails without disturbing an existing service. A bind address such as `0.0.0.0`
 is not the client address: a container client might connect to `http://sim:8123`.
-Isolated Harbor trial networks can reuse that internal port. GPU allocation remains
+Isolated per-trial container networks can reuse that internal port. GPU allocation remains
 a scheduling concern; different ports do not create additional GPU capacity.
 
 SDK clients discover and retain episode identity. Port reuse cannot redirect an
@@ -160,7 +160,7 @@ only sensor artifacts through the public artifact path.
 A local harness running as the simulator's Unix user can still read that user's
 files. Enforced observation isolation requires a separate agent identity/container
 without simulator assets, private task definitions, owner sockets, or evidence access.
-Harbor's RoboCasa deployment separates the agent and verifier users. A read-only
+A benchmark deployment separates the agent and verifier identities. A read-only
 mount alone does not make privileged data safe to expose.
 
 ## Device interfaces and frames
@@ -241,35 +241,49 @@ the named request's wait or owned motion; late cleanup cannot stop a replacement
 Reset, freeze and shutdown settle pending waits and motion before releasing resources.
 A new episode invalidates old identities. Drivers never terminate borrowed worlds.
 
-## Kinex and Harbor integration
+## Harness and benchmark integration
 
-Copy `catalog/robots/<robot-id>/` to `.kinex/robots/<robot-id>/`, select the robot
-in Kinex's project configuration, and set `ROBOENV_ENDPOINT` before starting the
-harness. Copied drivers use standard-library transport; local IK/FK requires
-Kinex's Python library and PyYAML. They do not import RoboEnv or simulator packages.
+RoboEnv provides launch and connect, device export, the task catalog, replay and
+verify; a harness or benchmark composes them through the SDK and CLI.
 
-Static drivers forward basic operations and adapt result/error shapes. They do not
-start the simulator, contain policies, or generate profiles. Kinex discovers the
-files, supplies tools and permissions, and records sensor outputs. RoboEnv supports
-other harnesses through the same SDK without depending on Kinex at runtime.
+Launch resolves the task, starts the world in its isolated interpreter, exports the
+live device profiles with thin drivers beside the run record, and reports the
+endpoint, session and generation. `roboenv.connect` and the exported drivers attach
+to that world; `roboenv replay` runs a program with public operations only.
+`roboenv verify` (the `roboenv.verify` module) is the reference certification: it
+checks the run identity over the owner socket, submits once, observes the frozen
+world and validates the score and the supervisor journal, fail-closed. A harness
+imports that module or copies the one file into its verifier; it does not
+re-implement journal validation.
 
-Harbor exports the private task/runtime definition and verifier separately from
-agent-visible configuration. It starts a service, waits for device readiness,
-provides the endpoint to the harness, runs the verifier, and cleans up the world.
-The current RoboCasa Harbor exporter also stages live device descriptors and thin
-drivers under `/run/roboenv/robot`; this is trial-local output, never a catalog write.
-Kinex workspace setup remains the harness integration's responsibility.
+For Kinex, copy `catalog/robots/<robot-id>/` to `.kinex/robots/<robot-id>/`, select
+the robot in Kinex's project configuration, and set `ROBOENV_ENDPOINT` before
+starting the harness. Copied drivers use standard-library transport; local IK/FK
+requires Kinex's Python library and PyYAML. They do not import RoboEnv or simulator
+packages. Static drivers forward basic operations and adapt result/error shapes.
+They do not start the simulator, contain policies, or generate profiles. Kinex
+discovers the files, supplies tools and permissions, and records sensor outputs.
+RoboEnv supports other harnesses through the same SDK without depending on Kinex
+at runtime.
 
-RoboEnv's verifier uses original success rules, execution-mode budgets, and owner evidence.
-Agent claims and recording outcome labels do not establish benchmark success.
-Task generation must pass the real installed Harbor loader; loading a task does
-not establish that the simulator boots or the agent can solve it.
+RoboEnv does not create trials, allocate resources, build agent containers, run
+agents, hold credentials, package task bundles or aggregate results. A benchmark
+such as RLE-Bench owns those: it starts the service, waits for device readiness,
+provides the endpoint to its harness, runs the verifier and cleans up the world.
+Its private task definition and verifier stay separate from agent-visible
+configuration; publishing device descriptors into a trial directory
+(`ROBOENV_PUBLISH_DEVICES`) is trial-local output, never a catalog write.
+
+RoboEnv's verifier uses original success rules, execution-mode budgets, and owner
+evidence. Agent claims and recording outcome labels do not establish benchmark
+success. Loading or resolving a task does not establish that the simulator boots
+or the agent can solve it. See [harness integration](docs/harness-integration.md).
 
 ## Adding a simulator and claiming support
 
 Follow [simulator integration](docs/simulator-integration.md). Add the native adapter and binding,
 pinned source/installation recipe, reusable robot configuration, lightweight task
-discovery, packaging/deployment support, and observation-boundary tests. A new backend
+discovery, image packaging support, and observation-boundary tests. A new backend
 must not add public environment methods or copy an old primitive API wholesale.
 
 Verification separates source/config validity, CPU device conformance, actual GPU
@@ -281,7 +295,7 @@ or passing CPU tests.
 
 See [RoboCasa and its catalog](docs/robocasa.md),
 [local Kinex recording](docs/kinex-local.md), and
-[Harbor task generation](docs/harbor-tasks.md) for concrete workflows.
+[harness integration](docs/harness-integration.md) for concrete workflows.
 
 
 ## Concurrent device control

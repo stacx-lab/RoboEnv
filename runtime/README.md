@@ -11,9 +11,10 @@ step cap; explicit stepped runs retain configured/native horizons. Agents own
 reasoning and controller programs.
 
 Native stepping preserves simulator success/failure rules. Owner submission seals
-one verdict, budget and private observation; the Harbor verifier checks that snapshot
+one verdict, budget and private observation; `roboenv verify` checks that snapshot
 and the supervisor journal. Public clients receive instructions and device data.
 
 locks/ records simulator dependency sets; packaging/ contains image relocation and
 container recipes. Assets and isolated interpreters are separate build inputs.
-Native task exports require an immutable image/depot deployment.
+Benchmark deployments of the runtime use an immutable image/depot built by
+`tools/build_simulator_image.py`.

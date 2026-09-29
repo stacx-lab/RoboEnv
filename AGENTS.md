@@ -1,14 +1,14 @@
 # Working on RoboEnv
 
 RoboEnv provides agent-independent robotics environments: simulator workers,
-device APIs, Harbor task generation, budgets, and benchmark verification.
-Read README.md first; use docs/setup.md for installation and docs/harbor-tasks.md
-for task generation.
+device APIs, task catalogs, budgets, and run certification.
+Read README.md first; use docs/setup.md for installation and
+docs/harness-integration.md for building a harness or benchmark on it.
 
 ## Layout
 
 - src/roboenv/: public client/lifecycle and shared validation infrastructure.
-  Domain packages: devices/, tasks/, provisioning/, harbor/, cli/, control/.
+  Domain packages: devices/, tasks/, provisioning/, cli/, control/.
 - runtime/: separate runtime package, simulator adapters, scoring, workers, image recipes.
 - catalog/: robot/device facts and small task examples, not a full generated benchmark.
 - third_party/: pinned upstream submodules and checksum-verified patches.
@@ -25,7 +25,7 @@ server, and no `vla` operation. Devices are the only control surface.
 
 ## Development environment
 
-Use Linux, uv, and Python 3.12 for development and Harbor tooling.
+Use Linux, uv, and Python 3.12 for development tooling.
 The SDK supports Python 3.10+; server-side schema validation uses its server extra.
 Each simulator has an isolated interpreter and separately acquired assets.
 GPU runs require compatible NVIDIA drivers; MuJoCo uses EGL and Isaac needs Vulkan.
@@ -44,21 +44,22 @@ Initialize only selected upstreams; do not recursively fetch every submodule.
     roboenv sources sync --backends libero
     roboenv sources status --backends libero
     roboenv prepare libero
-    python tools/generate_tasks.py --help
+    roboenv tasks discover --backends libero --out generated/libero-source
 
 Bootstrap the CLI with `bash tools/bootstrap.sh`, activate `.venv`, then use
 `roboenv prepare SIMULATOR` and `roboenv launch TASK_ID`.
 Preparation uses a managed default environment or an explicit --prefix;
 `roboenv doctor SIMULATOR` only audits. Registered interpreters may be reused; existing environments
 are never overwritten. Clean-install verification is for developers, not users.
-The generator discovers pinned upstream tasks or reads an explicit source catalog.
-Supply built SDK/runtime artifacts and a real deployment manifest; generation
-does not install assets or start an agent. Large interpreters may use a separately
-copied, read-only, content-verified depot; never mount the original project tree.
+Discovery reads pinned upstream task metadata without importing simulator engines
+and does not install assets or start an agent. Task bundles, trial scheduling and
+agent execution belong to the benchmark harness (see docs/harness-integration.md).
+Large interpreters may use a separately copied, read-only, content-verified depot;
+never mount the original project tree.
 
-Generated tasks must pass the real Harbor 1.4 loader. Keep only the generator and
-small examples in Git. Solutions are omitted by default; project references are
-not official solutions and need explicit opt-in and provenance.
+Every discovered task must resolve against the checked-in robot catalog. Keep only
+the discovery code and small examples in Git. Project reference programs are not
+official solutions and need explicit opt-in and provenance.
 
 ## Changes and verification
 
@@ -73,7 +74,7 @@ not official solutions and need explicit opt-in and provenance.
   corresponding notices in RoboEnv. Preserve historical validation receipts;
   a new upstream base requires new validation, not relabeled old evidence.
 - Add positive and negative tests, then run tools/check.sh.
-- CPU checks and task-format checks are not GPU replay certificates.
+- CPU checks and catalog checks are not GPU replay certificates.
 - Report boot, device checks, task success, and fresh-process replay separately.
 - Real GPU/model runs require explicit scope; do not invoke paid models implicitly.
 

@@ -192,5 +192,5 @@ A recording smoke test does not certify task success or reproducible replay.
 For observation-restricted evaluations, use an isolated agent process/container
 without access to simulator assets, owner sockets, or verifier evidence. A local
 TUI running as the simulator's Unix user is a functional test, not a filesystem
-security boundary. Harbor runs the agent as a separate unprivileged user; private
-run evidence is owner-only.
+security boundary. A benchmark deployment runs the agent as a separate unprivileged
+user; private run evidence is owner-only.

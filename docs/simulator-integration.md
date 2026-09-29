@@ -8,7 +8,7 @@ Coding-agent workflows are defined in
 [integrate-simulator-kinex](../.agents/skills/integrate-simulator-kinex/SKILL.md)
 for implementation and
 [test-simulator-kinex](../.agents/skills/test-simulator-kinex/SKILL.md) for acceptance.
-See [Kinex Harbor integration](../integrations/kinex/README.md) for job commands.
+See [harness integration](harness-integration.md) for how a benchmark drives it.
 
 ## Choose the scope
 
@@ -19,7 +19,7 @@ See [Kinex Harbor integration](../integrations/kinex/README.md) for job commands
 | Rename a device | Directory, profile name, binding key, and mount references |
 | Add or replace a camera | Enabled native sensor, binding selection, intrinsics, and rigid mount |
 | Change hardware or controller | Matching rig catalog, native binding, assets, and validation |
-| Add a simulator | Source/installation recipe, adapter, bindings, task discovery, deployment, and tests |
+| Add a simulator | Source/installation recipe, adapter, bindings, task discovery, image packaging, and tests |
 
 A new task does not need a new adapter when the existing backend and rig already
 support it. Changing device boundaries can require frame-interface support, not
@@ -41,7 +41,7 @@ and seeds belong to private task state.
 | DeviceService / supervisor | Validation, dispatch, episode identity, deduplication, and transport boundaries |
 | Driver | Portable device access and local utilities such as IK/FK |
 | Agent harness | Perception, planning, controller loops, and model calls |
-| Harbor | Trial scheduling, deployment, agent/verifier execution, and cleanup |
+| Benchmark harness | Trial scheduling, deployment, agent/verifier execution, and cleanup |
 
 New integrations default to sensor-only observations: instructions, device facts,
 and declared sensor readings. Keep scene truth and verdicts private. A benchmark
@@ -86,7 +86,7 @@ metadata. `AdapterBase.describe()` returns only `name` and `embodiment`; update
 consumers that imported those constants or read that field. Optional practice
 snapshots use `checkpoint()` and `restore(token)` methods (the
 `SupportsCheckpoint` protocol); the worker detects these methods directly.
-Simulation-status and Harbor-manifest capability fields are separate and unchanged.
+Simulation-status capability fields are separate and unchanged.
 
 Use [RoboCasa's adapter](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py)
 and [native bindings](../runtime/src/roboenv_runtime/bindings/backends/robocasa/)
@@ -268,8 +268,8 @@ mount references together.
 ### Task format
 
 Every simulator uses the same flat `task.yaml`, parsed by `roboenv.tasks.model.Task`.
-Local startup and Harbor export serialize that resolved definition unchanged into
-private worker configuration. There is no second runtime task schema.
+Local startup serializes that resolved definition unchanged into private worker
+configuration, and a harness exporting a task must do the same. There is no second runtime task schema.
 
 ```yaml
 id: libero/bowl-onto-plate
@@ -295,7 +295,7 @@ Clock precedence is launch override, explicit task setting, then realtime.
 Realtime disables episode step caps and native horizon timeouts while continuing
 to count intervals with `budget.max: null`. Stepped retains existing native and
 configured horizons. Native non-timeout failures, success policies, explicit stop,
-request deadlines and Harbor trial timeouts remain active. World initialization
+request deadlines and a benchmark's trial timeouts remain active. World initialization
 applies the selected mode before reset; configured horizons are retained separately
 from effective limits. Budget mode does not select the clock.
 
@@ -315,7 +315,7 @@ known effects. Buffer cleanup runs without an extra tick and precedes the final
 observation and score; cleanup failure prevents certification. A buffer or wait
 that completes exactly at the terminal frame may still return normally. Final
 reads and repeated submit/stop use the sealed verdict. Existing native success
-predicates, non-timeout termination and Harbor reward budget rules remain intact.
+predicates, non-timeout termination and a benchmark's reward budget rules remain intact.
 
 ### Device bindings
 
@@ -357,7 +357,7 @@ one small example before generating task collections, which stay outside Git.
 roboenv launch TASK_ID --port 8123
 ```
 
-Local launch and Harbor use the same resolver and service. Ready means the world
+Local launch and a benchmark's task export use the same resolver and service. Ready means the world
 and selected devices are initialized. Connection failure must not create another
 world. Parallel trials use separate endpoints or isolated networks.
 
@@ -367,18 +367,17 @@ roboenv verify --run RUN_ID_OR_RUN_JSON --out verdict/
 
 `verify` certifies a finished local run with the rules in `roboenv.verify`: identity
 check, one submit, score validation and journal validation, written fail-closed as
-`submit.json`, `reward.json` and the retained `actions.jsonl`. The Harbor verifier
-applies the same module; a new backend must produce a certifiable journal, and a
-harness or benchmark validating runs imports or copies `roboenv.verify` rather than
-re-implementing it. See [Certify a run](../README.md#certify-a-run).
+`submit.json`, `reward.json` and the retained `actions.jsonl`. A new backend must
+produce a certifiable journal, and a harness or benchmark validating runs imports
+or copies `roboenv.verify` rather than re-implementing it. See [Certify a run](../README.md#certify-a-run).
 
 Add backend mappings, runtime wheels, source/asset slices, and image support to
-`tools/build_simulator_image.py` and deployment recipes. Use real image digests.
-Harbor must cover readiness, endpoint delivery, verifier access, and failure cleanup;
-validate exports with its installed loader. See [Harbor tasks](harbor-tasks.md).
-Rebuild runtime wheels/images after runtime changes; re-exporting tasks alone does
-not update the deployed service implementation. Preserve previous deployment
-identities and validation evidence.
+`tools/build_simulator_image.py`. Use real image digests. The benchmark deploying
+the image must cover readiness, endpoint delivery, verifier access, and failure
+cleanup; see [harness integration](harness-integration.md). Rebuild runtime
+wheels/images after runtime changes; re-exporting tasks alone does not update the
+deployed service implementation. Preserve previous deployment identities and
+validation evidence.
 
 ## 6. Preserve the public service boundary
 

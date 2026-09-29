@@ -24,10 +24,12 @@ must not be accepted as the benchmark's verdict. Public device operations,
 owner lifecycle controls, simulator state, assets and verifier authority are
 separate concerns even when processes share a machine.
 
-Current Harbor deployments use a separate simulator container and read-only
-asset mounts. The verifier script runs in Harbor's shared agent/verifier
-container; this is not a fully isolated, adversarially secure verifier boundary.
-Container isolation also does not make device bindings safe for a physical robot.
+A benchmark deployment built on RoboEnv should run the simulator in its own
+container with read-only assets and give the agent and the verifier separate
+identities; RoboEnv provides the owner socket, the public endpoint and the journal,
+not that boundary. A verifier sharing a container with the agent is not a fully
+isolated, adversarially secure verifier boundary. Container isolation also does
+not make device bindings safe for a physical robot.
 Do not expose an unauthenticated device socket to a network or unrelated tenant.
 Do not mount a Docker socket, model credentials, the source checkout or writable
 asset depots into an agent's container.

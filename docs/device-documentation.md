@@ -1,7 +1,7 @@
 # Agent-neutral device documentation
 
 `roboenv.devices.documentation` exports a language reference for coding agents
-that connect through the RoboEnv SDK or CLI. It does not depend on Harbor or an
+that connect through the RoboEnv SDK or CLI. It does not depend on a benchmark or an
 agent framework. The caller owns task goals, instructions, and evaluation policy.
 
 ```python
