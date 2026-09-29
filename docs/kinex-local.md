@@ -54,7 +54,7 @@ Use a working Kinex installation with its TUI dependencies already installed
 uses standard-library transport in the shared `devices/_roboenv.py`; profile loading needs
 PyYAML and typed actuator operations need Kinex’s Python helpers. Kinex supplies
 its Python library to drivers; for direct shell calls, set
-`export PYTHONPATH="$kinex_repo/python${PYTHONPATH:+:$PYTHONPATH}"`.
+`export PYTHONPATH="$kinex_repo/packages/core/assets/python${PYTHONPATH:+:$PYTHONPATH}"`.
 The agent environment does not need RoboEnv or simulator dependencies. There is
 one transport module per device collection, outside the individual device folders.
 Drivers resolve it relative to their own file, so the working directory is irrelevant.
@@ -71,7 +71,7 @@ On EOF or SIGTERM, a connected persistent actuator also attempts a bounded stop;
 a failed stop is logged, not treated as success. This does not stop the world.
 Direct single-call scripts retain their targets after exiting.
 
-Video export requires `ffmpeg`; the keyframe script requires Pillow.
+Camera stream recording requires `ffmpeg`: Kinex encodes each recorded camera to MP4.
 
 Confirm `devices/` exists and contains arm, base, torso, gripper, camera_left, camera_right,
 camera_wrist, and world for this example. There is no public composite robot device.
@@ -82,7 +82,7 @@ project explicitly (Kinex creates a missing manifest when executing Python):
 ```sh
 uv init --bare
 uv add numpy scipy pillow pyyaml opencv-python-headless
-export PYTHONPATH="$kinex_repo/python${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$kinex_repo/packages/core/assets/python${PYTHONPATH:+:$PYTHONPATH}"
 ```
 
 Check the driver without starting a model request:
@@ -95,7 +95,8 @@ uv run python .kinex/devices/camera_left/driver.py read '{}'
 Expect `ok: true`; camera output must include an existing local RGB PNG `file`
 and aligned 16-bit PGM `depth_file`, with acquisition Unix timestamps. The profile declares
 `intrinsics.depth.scale_m_per_unit: 0.001`.
-Open that image to confirm that it depicts the initialized kitchen. Neither operation requests extra physics steps; idle simulation stays paused.
+Open that image to confirm that it depicts the initialized kitchen. Neither operation requests physics steps. A realtime world keeps running while idle; a
+stepped one advances only during world waits.
 
 ## 3. TUI recording smoke test
 
@@ -118,17 +119,18 @@ Kinex uses its supported stills sampler. Requested Hz is a target; inspect
 effective rates and skipped samples. Reads do not request physics steps. Realtime continues during recording; stepped advances only during world waits.
 
 With the recording running, use a separate terminal with the same copied workspace, `ROBOENV_ENDPOINT`, and
-`PYTHONPATH`. Read the current joint configuration and send it as an absolute hold target:
+`PYTHONPATH`. Read the current joint configuration and send it back as a hold target:
 
 ```sh
 target=$(uv run python .kinex/devices/arm/driver.py read '{}' | uv run python -c \
-  'import json,sys; r=json.load(sys.stdin); assert r["ok"], r; print(json.dumps({"target":r["positions"]}))')
+  'import json,sys; r=json.load(sys.stdin); assert r["ok"], r; print(json.dumps({"actions":[r["positions"]],"duration_s":0.5}))')
 uv run python .kinex/devices/arm/driver.py write "$target"
 uv run python .kinex/devices/arm/driver.py stop '{}'
 ```
 
-The target contains seven absolute joint positions in radians, in the profile’s
-model joint order. Small measured soft-limit overshoots can make a write fail;
+`actions` is a sequence of targets spread over `duration_s` world seconds; the last one
+is then held. Each target contains seven absolute joint positions in radians, in the
+profile’s model joint order. Small measured soft-limit overshoots can make a write fail;
 consult the joint-limit recovery notes before commanding another target. `stop`
 holds the arm while world physics continues. Acceptance does not prove arrival.
 
@@ -157,13 +159,13 @@ After leaving the TUI, in terminal B:
 
 ```sh
 recording_dir="$trial_workspace/.kinex/recordings/RECORDING_ID"
-uv run python "$kinex_repo/builtin/skill/reflect/scripts/keyframes.py" "$recording_dir" --device camera_left
-uv run python "$kinex_repo/builtin/skill/reflect/scripts/video.py" "$recording_dir" --device camera_left
+ls "$recording_dir"/devices/*/stream/video.mp4
 ```
 
 Replace `RECORDING_ID` with the stream ID from `/record status` (not a separate
-snap ID). Open `analysis/keyframes-camera_left.jpg` and `analysis/camera_left.mp4` under
-that directory with your desktop viewer. Repeat with `--device camera_right` and `--device camera_wrist` for the other views.
+snap ID). Kinex encoded one MP4 per recorded camera; `recording.json` lists each
+under `devices.<name>.stream.video`. Open `devices/camera_left/stream/video.mp4`, and
+likewise for camera_right and camera_wrist, with your desktop viewer.
 These show wall-clock samples, not a
 frame-perfect simulation replay. The TUI controls recording; these artifacts
 provide visual playback. No new visualization server is required.
@@ -174,9 +176,9 @@ provide visual playback. No new visualization server is required.
 |---|---|
 | Kitchen boot | Ready service, actual kitchen image, unchanged catalog |
 | Configuration | Kinex sees the eight standard devices; driver status/read succeed |
-| Basic control | One write sets a persistent goal; physics continues without requests and after device stop |
+| Basic control | One write reaches its target over `duration_s` and holds it; physics continues without requests and after device stop |
 | Recording | Nonempty camera/state events, readable saved images, completed manifest |
-| Visualization | Keyframe sheet and playable MP4 show the captured kitchen |
+| Visualization | Playable per-camera MP4s show the captured kitchen |
 | Dispatch tracing | Kinex-issued read/write/stop appear in device events |
 | Episode isolation | Existing SDK clients reject replacement episodes; a fresh driver attaches without rewriting configs |
 | Task success | Separate full attempt with the original RoboEnv verifier verdict |

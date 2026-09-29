@@ -23,7 +23,8 @@ import roboenv
 with roboenv.connect("http://127.0.0.1:8123") as env:
     print(env.task.instruction)
     arm = env.device("arm")
-    arm.write(arm.read()["positions"])
+    # One target (seven joint positions), reached over half a second and then held.
+    arm.write([arm.read()["positions"]], duration_s=0.5)
     arm.stop()
     image = env.device("camera_left").read()
     print(image["file"])
