@@ -100,8 +100,10 @@ def export_task(
     out.add("environment/definition/environment.json", json.dumps(manifest, indent=2) + "\n")
     out.add("environment/sdk/" + wheel.name, wheel.read_bytes())
     dockerfile = assets.joinpath("main.Dockerfile").read_text()
+    # ubuntu:24.04 ships a user "ubuntu" at UID 1000, which the agent takes over.
     dockerfile += (
-        "\nRUN useradd --create-home --uid 1000 agent && chown -R agent:agent /app\nUSER agent\n"
+        "\nRUN if id -u ubuntu >/dev/null 2>&1; then userdel --remove ubuntu; fi"
+        " && useradd --create-home --uid 1000 agent && chown -R agent:agent /app\nUSER agent\n"
     )
     out.add("environment/Dockerfile", dockerfile)
     out.add("environment/.dockerignore", "logs/\n**/__pycache__/\n")

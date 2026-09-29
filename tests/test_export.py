@@ -42,6 +42,10 @@ def test_native_task_is_harbor_format_without_a_solution(tmp_path):
     assert (out / "tests/test.sh").stat().st_mode & 0o111
     compose = yaml.safe_load((out / "environment/docker-compose.yaml").read_text())
     assert compose["services"]["sim"]["image"] == "sha256:" + "a" * 64
+    dockerfile = (out / "environment/Dockerfile").read_text()
+    assert dockerfile.startswith("FROM ubuntu:24.04")
+    # The base image's own UID 1000 user is removed before the agent user takes that UID.
+    assert "userdel --remove ubuntu" in dockerfile.split("useradd")[0]
     config = tomllib.loads((out / "task.toml").read_text())
     assert config["agent"]["user"] == "agent"
     assert config["verifier"]["user"] == "root"
