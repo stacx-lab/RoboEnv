@@ -4,40 +4,13 @@ from __future__ import annotations
 
 import copy
 import threading
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 from roboenv_runtime.core.adapter import EnvAdapter
 
-__all__ = ["ScoreAuthority", "SimpleScorer"]
+__all__ = ["SimpleScorer"]
 
 SUCCESS_THRESHOLD = 1.0 - 1e-3
-
-
-@runtime_checkable
-class ScoreAuthority(Protocol):
-    """The scoring surface a worker exposes."""
-
-    @property
-    def latched(self) -> bool:
-        """True once a successful evaluation has been observed."""
-        ...
-
-    @property
-    def submitted(self) -> bool:
-        """True after :meth:`submit` ran."""
-        ...
-
-    def peek(self) -> dict[str, Any]:
-        """Read the current evaluation without side effects on the benchmark."""
-        ...
-
-    def submit(self) -> dict[str, Any]:
-        """Run the final evaluation once and freeze the episode."""
-        ...
-
-    def close(self) -> None:
-        """Release patches/resources so the adapter can be reset again."""
-        ...
 
 
 class SimpleScorer:
@@ -53,13 +26,13 @@ class SimpleScorer:
 
     @property
     def latched(self) -> bool:
-        """See :class:`ScoreAuthority`."""
+        """True once a successful evaluation has been observed."""
         with self._lock:
             return self._latched
 
     @property
     def submitted(self) -> bool:
-        """See :class:`ScoreAuthority`."""
+        """True after :meth:`submit` ran."""
         with self._lock:
             return self._submitted
 
@@ -75,7 +48,7 @@ class SimpleScorer:
         }
 
     def peek(self) -> dict[str, Any]:
-        """See :class:`ScoreAuthority`."""
+        """Read the current evaluation without side effects on the benchmark."""
         with self._lock:
             if self._submit_error is not None:
                 raise RuntimeError(
@@ -86,7 +59,7 @@ class SimpleScorer:
             return self._snapshot()
 
     def submit(self) -> dict[str, Any]:
-        """See :class:`ScoreAuthority`."""
+        """Run the final evaluation once and freeze its result."""
         with self._lock:
             if self._submit_error is not None:
                 raise RuntimeError(

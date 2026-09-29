@@ -36,7 +36,7 @@ and native success rules. Do not restore primitive dispatch or a second driver p
 
 ## RoboTwin
 
-- Inspect `adapters/robotwin/{adapter,devices,rig,backend,embodiments}.py`
+- Inspect `adapters/robotwin/{adapter,devices,rig,backend}.py`
   under `runtime/src/roboenv_runtime/`, its selected upstream robot configs, and
   `catalog/robots/robotwin/robotwin-dual-piper` / `robotwin-aloha-agilex` if still present.
   Confirm the intended upstream edition; RoboTwin and RoboTwin2.0-Plus are not

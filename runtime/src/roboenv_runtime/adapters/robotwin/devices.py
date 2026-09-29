@@ -52,8 +52,8 @@ class RoboTwinDevices(RoboTwinEnv):
             collect_wrist_camera=True,
         )
 
-    def reset(self, *, seed=None, options=None):
-        result = super().reset(seed=seed, options=options)
+    def reset(self, *, seed=None):
+        super().reset(seed=seed)
         self._native_success = bool(self.task.check_success())
         self._configure_step_limit()
         dt = float(self.task.scene.get_timestep())
@@ -120,7 +120,6 @@ class RoboTwinDevices(RoboTwinEnv):
             },
             "robotwin",
         )
-        return result
 
     def _configure_step_limit(self):
         self.frame_limit = None if self.unbounded else self.requested_frame_limit or int(self.task.step_lim)
