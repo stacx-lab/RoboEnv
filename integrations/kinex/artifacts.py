@@ -5,7 +5,9 @@ import json
 import shutil
 from pathlib import Path
 
-CONTENT = ('.kinex/tool', '.kinex/skill', '.kinex/lib', 'pyproject.toml', 'uv.lock', '.kinex/kinex.json', 'AGENTS.md')
+# Kinex keeps the tools' Python project in .kinex/python; its .venv is rebuilt from the lock.
+LOCK = ('.kinex/python/pyproject.toml', '.kinex/python/uv.lock')
+CONTENT = ('.kinex/tool', '.kinex/skill', '.kinex/lib', *LOCK, '.kinex/kinex.json', 'AGENTS.md')
 
 
 def inventory(root, paths):
@@ -35,7 +37,7 @@ def freeze(workspace, destination, *, identity, tool, arguments):
     if destination.exists():
         raise ValueError('Frozen artifact already exists')
     manifest = inventory(source, CONTENT)
-    for required in ('pyproject.toml', 'uv.lock'):
+    for required in LOCK:
         if required not in manifest:
             raise ValueError('Python environment must be locked before freezing')
     if f'.kinex/tool/{tool}/tool.yaml' not in manifest:

@@ -1,26 +1,36 @@
-import { test, expect } from "bun:test"
+import assert from "node:assert/strict"
+import { test } from "node:test"
 import { requestEvidence } from "./provider-evidence.ts"
 
 const expected = { id: "gpt-6-astra", effort: "medium" }
+const image = { type: "input_image", detail: "auto", image_url: "data:image/png;base64,iVBORw0KGgo=" }
 const body = {
   model: expected.id, reasoning: { effort: expected.effort },
-  input: [{ role: "user", content: [{ type: "input_image", image_url: "data:image/png;base64,iVBORw0KGgo=" }] }],
+  input: [{ role: "user", content: [image] }],
 }
 
 test("actual model request evidence preserves image identity without credentials or pixels", () => {
   const evidence = requestEvidence(JSON.stringify(body), expected)
-  expect(evidence.model).toBe(expected.id)
-  expect(evidence.effort).toBe(expected.effort)
-  expect(evidence.images).toHaveLength(1)
-  expect(evidence.images[0]?.bytes).toBe(8)
-  expect(evidence.images[0]?.sha256).toHaveLength(64)
-  expect(JSON.stringify(evidence)).not.toContain("base64")
+  assert.equal(evidence.model, expected.id)
+  assert.equal(evidence.effort, expected.effort)
+  assert.equal(evidence.images.length, 1)
+  assert.equal(evidence.images[0]?.bytes, 8)
+  assert.equal(evidence.images[0]?.sha256.length, 64)
+  assert.doesNotMatch(JSON.stringify(evidence), /base64/)
+})
+
+test("tool results deliver camera images in the function call output", () => {
+  const input = [
+    { type: "function_call_output", call_id: "call", output: [{ type: "input_text", text: "{}" }, image] },
+    { type: "function_call_output", call_id: "text", output: "no image" },
+  ]
+  assert.equal(requestEvidence(JSON.stringify({ ...body, input }), expected).images.length, 1)
 })
 
 test("provider evidence rejects substituted configuration and remote-only images", () => {
-  expect(() => requestEvidence(JSON.stringify({ ...body, model: "another-model" }), expected)).toThrow("authorized")
-  expect(() => requestEvidence(JSON.stringify({ ...body, reasoning: { effort: "high" } }), expected)).toThrow("authorized")
-  expect(() => requestEvidence(JSON.stringify({ ...body, input: [{ content: [
+  assert.throws(() => requestEvidence(JSON.stringify({ ...body, model: "another-model" }), expected), /authorized/)
+  assert.throws(() => requestEvidence(JSON.stringify({ ...body, reasoning: { effort: "high" } }), expected), /authorized/)
+  assert.throws(() => requestEvidence(JSON.stringify({ ...body, input: [{ content: [
     { type: "input_image", image_url: "https://example.com/picture.png" },
-  ] }] }), expected)).toThrow("encoded sensor bytes")
+  ] }] }), expected), /encoded sensor bytes/)
 })

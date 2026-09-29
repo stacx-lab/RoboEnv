@@ -1,5 +1,8 @@
 import { z } from "zod"
-import { execute, type Context, type Def, type Result } from "../../src/tool/tool.ts"
+import type { Context, Def, Result } from "@kinex/core"
+// The public runtime returns only the truncated, model-facing result; the
+// package exports the normal execution wrapper as an internal module.
+import { execute } from "@kinex/core/tool/tool"
 
 const Completion = z.looseObject({ completed: z.literal(true), error: z.null().optional() })
 
