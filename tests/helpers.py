@@ -1,6 +1,7 @@
 """Small shared builders; each script load gets independent mutable module state."""
 
 import importlib.util
+import json
 import os
 from pathlib import Path
 
@@ -18,6 +19,19 @@ def kinex_sources():
         if (root / prefix / "device/profile/schema.ts").is_file():
             return root, "./" + prefix
     return root, None
+
+
+def native_interpreter():
+    """The prepared RoboCasa interpreter, or skip: simulator deps never enter the SDK."""
+    registration = ROOT / ".cache/roboenv/installations/robocasa.json"
+    interpreter = os.environ.get("ROBOENV_ROBOCASA_TEST_PYTHON")
+    if interpreter is None and registration.is_file():
+        interpreter = json.loads(registration.read_text())["python"]
+    if not interpreter or not Path(interpreter).is_file():
+        import pytest  # helpers also load inside simulator interpreters
+
+        pytest.skip("Requires prepared RoboCasa interpreter; never install simulator deps in SDK")
+    return interpreter
 
 
 def load_script(relative):

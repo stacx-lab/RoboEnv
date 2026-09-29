@@ -21,6 +21,10 @@
         {
           "path": "third_party/patches/robocasa-readonly-assets.patch",
           "sha256": "1ca1dee4eff91bf951d11f7d0759be643cf9f68dce3faa16e241e001290518cb"
+        },
+        {
+          "path": "third_party/patches/robocasa-deterministic-counter-regions.patch",
+          "sha256": "d5fb879b99da3eb7630975be8ee9d6290b9279a37cec929e128a8b2decae7174"
         }
       ]
     },

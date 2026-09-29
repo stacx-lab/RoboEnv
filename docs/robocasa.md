@@ -274,7 +274,10 @@ CPU Lift scene, both clocks, repeated goals, stop, invalid inputs, local FK/IK w
 state mutation, and rejected solver RPCs. They also check deterministic generation,
 Kinex schema conformance, copied drivers without RoboEnv imports, HTTP episode
 isolation, camera routing, file lifetime, and unchanged catalogs after launch.
-Set `ROBOENV_ROBOCASA_TEST_PYTHON` to select the interpreter explicitly.
+Set `ROBOENV_ROBOCASA_TEST_PYTHON` to select the interpreter explicitly. When the
+synced RoboCasa source and its kitchen assets are also present, a CPU test builds one
+kitchen at one seed three times in each of two processes and requires the same layout,
+style, instruction, object models and poses every time.
 
 Camera transport tests use synthetic pixels. Kitchen boot, rendered calibration,
 task success, and fresh-process replay require separate evidence. See
