@@ -14,7 +14,7 @@ import pytest
 import yaml
 from helpers import kinex_sources
 from roboenv.client import Client, RemoteError
-from roboenv.devices.export import write_driver
+from roboenv.devices.export import driver_access, write_driver
 from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -261,6 +261,56 @@ def test_portable_cleanup_only_cancels_its_own_request(concurrent_service, tmp_p
         wire.cancel_motions()
         client.device("world").wait(0.2)
         assert client.device("left").read()["data"]["positions"] == [0.7]
+    finally:
+        wire.close_all()
+
+
+def test_portable_world_driver_reports_episode_budget(concurrent_service, tmp_path):
+    from test_persistent_driver import transport_module
+
+    _, supervisor, _ = concurrent_service
+    devices = tmp_path / "devices"
+    for name, kind in (("world", "world"), ("left", "joint")):
+        directory = devices / name
+        write_driver(directory, kind)
+        access = driver_access(kind, name, ["read", "wait", "status"], supervisor.http_endpoint)
+        (directory / "profile.yaml").write_text(
+            yaml.safe_dump({"name": name, "type": kind, "access": access})
+        )
+        (directory / "connection.json").write_text(
+            json.dumps(
+                {"endpoint": supervisor.http_endpoint, "session": "concurrent", "generation": 0}
+            )
+        )
+    proc = subprocess.Popen(
+        [sys.executable, str(devices / "world/driver.py"), "--serve"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    replies = {}
+    try:
+        for action, args in (("read", {}), ("wait", {"duration_s": 0.2}), ("status", {})):
+            proc.stdin.write(json.dumps({"id": action, "action": action, "args": args}) + "\n")
+            proc.stdin.flush()
+            replies[action] = json.loads(proc.stdout.readline())
+        proc.stdin.close()
+        assert proc.wait(timeout=5) == 0
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait()
+        proc.stdout.close()
+    assert all(reply["ok"] for reply in replies.values()), replies
+    budgets = [replies[action]["budget"] for action in ("read", "wait", "status")]
+    assert all(set(budget) == {"used", "max", "unit"} for budget in budgets)
+    assert budgets[1]["used"] > budgets[0]["used"]
+    assert replies["wait"]["elapsed_s"] == pytest.approx(0.2)
+    # Other devices keep their readings free of episode bookkeeping.
+    wire = transport_module().Transport(devices / "left/driver.py")
+    try:
+        assert "budget" not in wire.remote("read", {})
     finally:
         wire.close_all()
 

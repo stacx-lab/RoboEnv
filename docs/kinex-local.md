@@ -27,8 +27,10 @@ simulation service; it neither generates nor updates the catalog configuration.
 Realtime runs have no episode step cap, so leaving the service idle while starting
 Kinex does not exhaust a native action-frame budget. Frames are still counted;
 `budget.max` is null. Use `--execution-mode stepped` when you want idle physics
-paused and the task's configured/native step limit enforced. Restart the service
-to pick up runtime changes, then `/reload all` in Kinex to refresh its connections.
+paused and the task's configured/native step limit enforced. World driver `read`, `wait`
+and `status` results carry the episode `budget` (`used`, `max`, `unit`); other device
+readings omit it. Restart the service to pick up runtime changes, then `/reload all`
+in Kinex to refresh its connections.
 
 For another task use another task ID. For parallel trials use different ports
 and separate Kinex processes with different `ROBOENV_ENDPOINT` values. Both
