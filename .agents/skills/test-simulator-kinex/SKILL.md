@@ -52,7 +52,7 @@ Check these entrypoints instead of assuming archived commands still work:
   backend's native conformance/replay tools.
 - RoboEnv Harbor bridge: `tools/package_kinex_agent.py`, `roboenv tasks run
   --agent kinex`, `src/roboenv/harbor/kinex.py`, and `integrations/kinex/`.
-  Kinex supplies its normal APIs and `kinex python`; no campaign files belong
+  Kinex supplies its core runtime and application APIs; no campaign files belong
   in its checkout. Read `integrations/kinex/README.md` for current commands.
 - LIBERO/RoboCasa may use separate native/protocol runners. Select their actual
   supported route. The generic `replay_native_devices.py` currently accepts

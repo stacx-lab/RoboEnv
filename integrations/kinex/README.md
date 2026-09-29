@@ -8,19 +8,23 @@ development environment active. For interactive recording, see
 
 ## Package the agent
 
-Select a Kinex checkout with installed Bun dependencies and matching Bun and uv
-executables:
+Select a Kinex 0.9.0 checkout prepared with `npm ci` and `npm run build`, a Node
+executable that satisfies its `engines` field (22.19 or later) and runs in the agent
+image (the default main image is Ubuntu 24.04), and a uv executable:
 
 ```sh
 python tools/package_kinex_agent.py --kinex "$KINEX_REPO" \
-  --bun "$BUN" --uv "$UV" --out "$ARTIFACTS/kinex-agent.tar.gz"
+  --node "$NODE" --uv "$UV" --out "$ARTIFACTS/kinex-agent.tar.gz"
 ```
 
-The verified bundle includes Kinex source, builtins, Python helpers, locked
-JavaScript dependencies, Bun, uv and this integration. It excludes credentials,
-user configuration and runs, and does not modify the Kinex checkout. The bridge
-is installed at `kinex/integrations/roboenv`; its imports of Kinex internals require
-the matching source version.
+The verified bundle includes the built Kinex application and core package with its
+builtins and Python helpers, the production JavaScript dependencies locked by
+`package-lock.json`, Node, uv and this integration. It excludes development
+dependencies, credentials, user configuration and runs, and does not modify the
+Kinex checkout. The bridge is installed at `kinex/integrations/roboenv` and runs
+with the bundled Node. It composes Kinex's core runtime (`createKinexRuntime`) and
+application (`createApplication`, `runPrintMode`), and imports a few core modules the
+runtime does not expose, so it requires the matching Kinex version.
 
 ## Generate and run tasks
 
@@ -52,9 +56,9 @@ kwargs. Set attempts, concurrency, retry, output and timeout in `job.json`; the
 generated default is one attempt, serial execution and no retries. Seeds, clocks
 and native initialization belong to generated tasks. Regenerate when they change.
 
-The agent prepares `/app/workspace` from public device profiles/drivers and creates
-a standard uv project (`pyproject.toml`, `uv.lock`, `.venv`). The bridge synchronizes
-its dependencies before execution. Initial dependency resolution
+The agent prepares `/app/workspace` from public device profiles/drivers. Kinex keeps
+the tools' Python as a uv project in `.kinex/python` (`pyproject.toml`, `uv.lock`,
+`.venv`); the bridge synchronizes it before execution. Initial dependency resolution
 requires network access or a populated cache. The default main image supplies
 Python, venv/pip and ffmpeg; custom images need ffmpeg with libx264 and ffv1.
 Simulator assets and interpreters belong to the separate native deployment.
@@ -67,12 +71,18 @@ task success are checked independently.
 ## Development and frozen controllers
 
 Live development requires authorized model use, `mode: "develop"`,
-`--model openai/MODEL` and an explicit `effort` in agent kwargs. Supply credentials
-through Harbor's agent environment, outside bundles and tasks. The bridge checks
-the actual model, effort and camera image requests.
+`--model openai/MODEL` and an explicit `effort` (`minimal`, `low`, `medium`, `high`
+or `xhigh`) in agent kwargs. Supply credentials through Harbor's agent environment,
+outside bundles and tasks.
+
+The bridge runs the Kinex application in-process in headless JSON mode; its event
+stream is `agent/kinex.log`. It allows device, Python tool, file and shell
+permissions and denies calibration writes; agent questions receive Kinex's headless
+reply that no owner answer is available. It checks the actual model, effort and
+camera images of the provider requests.
 
 Extract the trial's `agent/workspace.tar.gz` into a new directory; it contains
-tools, skills, the Python lock, recordings and sessions, excluding the venv.
+tools, skills, the Python lock and recordings, excluding the venv.
 Freeze the selected controller using that trial's identity:
 
 ```sh
@@ -113,6 +123,13 @@ python tools/smoke_device_harbor.py --base-image "$SDK_BASE_IMAGE" \
 ```
 
 The last command runs Harbor/Docker/Kinex with a synthetic CPU world. Native
-simulator and live-model checks are separate. Run TypeScript tests/typecheck from
-the unpacked bundle with its Bun and dependencies so imports resolve against the
-packaged Kinex source. Preserve failed attempts and their evidence.
+simulator and live-model checks are separate. Run the TypeScript tests and typecheck
+from the unpacked bundle, whose Node and dependencies resolve the packaged Kinex:
+
+```sh
+cd "$UNPACKED/kinex/integrations/roboenv"
+"$UNPACKED/bin/node" --test *.test.ts
+"$UNPACKED/bin/node" "$KINEX_REPO/node_modules/typescript/bin/tsc" -p tsconfig.json
+```
+
+Preserve failed attempts and their evidence.
