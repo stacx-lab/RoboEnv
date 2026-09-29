@@ -265,7 +265,8 @@ def test_portable_cleanup_only_cancels_its_own_request(concurrent_service, tmp_p
         wire.close_all()
 
 
-def test_portable_world_driver_reports_episode_budget(concurrent_service, tmp_path):
+def test_portable_world_driver_reports_episode_budget_in_seconds(concurrent_service, tmp_path):
+    from helpers import assert_kinex_world_budget
     from test_persistent_driver import transport_module
 
     _, supervisor, _ = concurrent_service
@@ -291,10 +292,16 @@ def test_portable_world_driver_reports_episode_budget(concurrent_service, tmp_pa
     )
     replies = {}
     try:
-        for action, args in (("read", {}), ("wait", {"duration_s": 0.2}), ("status", {})):
-            proc.stdin.write(json.dumps({"id": action, "action": action, "args": args}) + "\n")
+        for tag, action, args in (
+            ("before", "read", {}),
+            ("wait", "wait", {"duration_s": 0.2}),
+            ("status", "status", {}),
+            ("after", "read", {}),
+        ):
+            proc.stdin.write(json.dumps({"id": tag, "action": action, "args": args}) + "\n")
             proc.stdin.flush()
-            replies[action] = json.loads(proc.stdout.readline())
+            replies[tag] = json.loads(proc.stdout.readline())
+            assert replies[tag]["id"] == tag, replies[tag]
         proc.stdin.close()
         assert proc.wait(timeout=5) == 0
     finally:
@@ -303,10 +310,16 @@ def test_portable_world_driver_reports_episode_budget(concurrent_service, tmp_pa
         proc.wait()
         proc.stdout.close()
     assert all(reply["ok"] for reply in replies.values()), replies
-    budgets = [replies[action]["budget"] for action in ("read", "wait", "status")]
-    assert all(set(budget) == {"used", "max", "unit"} for budget in budgets)
-    assert budgets[1]["used"] > budgets[0]["used"]
+    # Kinex reads world results as {time_s, budget?: {elapsed_s, max_s}} and waits as
+    # {time_s, elapsed_s}; this fixture counts frames at 0.02 s without a cap.
+    for tag in ("before", "status", "after"):
+        assert_kinex_world_budget(replies[tag]["budget"])
+        assert replies[tag]["budget"]["max_s"] is None
+    assert "budget" not in replies["wait"]
     assert replies["wait"]["elapsed_s"] == pytest.approx(0.2)
+    before, after = (replies[tag]["budget"]["elapsed_s"] for tag in ("before", "after"))
+    assert after - before == pytest.approx(replies["wait"]["elapsed_s"])
+    assert replies["status"]["budget"] == replies["after"]["budget"]
     # Other devices keep their readings free of episode bookkeeping.
     wire = transport_module().Transport(devices / "left/driver.py")
     try:
