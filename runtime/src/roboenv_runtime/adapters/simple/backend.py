@@ -67,7 +67,7 @@ class SimpleEnv:
         if sim_mode == "mujoco_isaac":
             os.environ.setdefault("OMNI_KIT_ACCEPT_EULA", "YES")
         self.steps, self.reward, self.completed, self.done = 0, 0.0, False, False
-        self.frames, self.events, self.images = [], [], {}
+        self.frames, self.images = [], {}
 
     @property
     def sample_time_s(self):

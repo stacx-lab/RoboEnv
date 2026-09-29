@@ -10,8 +10,8 @@ Environment variables (all optional):
 ``ROBOENV_ROOT``
     Repository root.  Default: the first ancestor of this package that holds a
     ``pyproject.toml``; failing that, the current working directory.
-``ROBOENV_RUNS`` / ``ROBOENV_TASKS``
-    Override the run and task data directories.
+``ROBOENV_TASKS``
+    The task definitions. Default: ``<root>/catalog/tasks``.
 ``ROBODOJO_ROOT`` / ``ROBOTWIN_ROOT``
     The RoboDojo checkout and the RoboTwin checkout.  Defaults:
     ``<root>/third_party/RoboDojo``
@@ -27,7 +27,6 @@ __all__ = [
     "repo_root",
     "robodojo_root",
     "robotwin_root",
-    "runs_root",
     "tasks_root",
 ]
 
@@ -38,7 +37,7 @@ def _env_path(name: str) -> Path | None:
 
 
 def repo_root() -> Path:
-    """The repository root (holds ``pyproject.toml``, ``tasks/``, ``skills/``)."""
+    """The repository root (holds ``upstreams.lock.json``, ``pyproject.toml`` and ``catalog/``)."""
     override = _env_path("ROBOENV_ROOT")
     if override is not None:
         return override
@@ -52,18 +51,9 @@ def repo_root() -> Path:
     return Path.cwd()
 
 
-def runs_root() -> Path:
-    """Where trial records are written (``runs/<task_id>/<timestamp>/``)."""
-    return _env_path("ROBOENV_RUNS") or repo_root() / "runs"
-
-
 def tasks_root() -> Path:
-    """Root of the task definitions (``<simulator>/<task>.yaml``)."""
-    override = _env_path("ROBOENV_TASKS")
-    if override is not None:
-        return override
-    native = repo_root() / "benchmarks" / "manipulation" / "tasks"
-    return native if native.is_dir() else repo_root() / "tasks"
+    """Root of the task definitions (``<simulator>/<task>/task.yaml``)."""
+    return _env_path("ROBOENV_TASKS") or repo_root() / "catalog" / "tasks"
 
 
 def robodojo_root() -> Path:

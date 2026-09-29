@@ -290,8 +290,8 @@ gpus = 0
         "task_sha256": sha(task_path.read_bytes()),
         "sdk_sha256": sha(wheel.read_bytes()),
         "deployment": "native-image",
-        "deployment_manifest": Path(deployment_path).name if deployment_path else None,
-        "deployment_sha256": sha(Path(deployment_path).read_bytes()) if deployment_path else None,
+        "deployment_manifest": Path(deployment_path).name,
+        "deployment_sha256": sha(Path(deployment_path).read_bytes()),
         "certified": False,
     }
     validate_public_text(json.dumps(metadata), "bundle.json")

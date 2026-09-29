@@ -1,5 +1,5 @@
 # RoboCasa native-runtime dependency lock for Linux / Python 3.11.
-# Historical freeze is preserved in robocasa.txt; use normal dependency resolution.
+# Use normal dependency resolution.
 
 absl-py==2.5.0
 aiohappyeyeballs==2.7.1
