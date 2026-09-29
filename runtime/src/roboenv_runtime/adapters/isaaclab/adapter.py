@@ -7,6 +7,7 @@ from roboenv_runtime.core.types import Budget, ScoreReport
 @register_adapter
 class IsaacLabAdapter(AdapterBase):
     name = "isaaclab"
+    embodiment = "go2_d1"
     owner_thread_required = True
 
     def __init__(self, **kwargs):

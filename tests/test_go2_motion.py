@@ -7,14 +7,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from helpers import load_tool
-from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.execution import request_identity
 from roboenv.devices.model import DeviceError
 from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.isaaclab.adapter import IsaacLabAdapter
 from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import DEFAULT
 from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
-from roboenv_runtime.bindings import default_registry
+from roboenv_runtime.bindings.assembly import assemble_devices
+from roboenv_runtime.runtime.worker import SimWorker
 from roboenv_runtime.runtime.world import WorldSession
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,15 +61,7 @@ def rig():
     owner = IsaacLabAdapter.__new__(IsaacLabAdapter)
     owner._env = env
     session = WorldSession(owner, "stepped")
-    service = default_registry().assemble(
-        task.bindings,
-        task.robot,
-        BindingContext("isaaclab", "go2_d1", owner, world=session),
-        execution_lock=session.lock,
-        motion_scheduler=session.schedule,
-        resolve=session.resolve,
-        flush=session.poll_motions,
-    )
+    service = assemble_devices(task.robot, session)
     yield env, session, service, samples
     service.close()
 
@@ -245,6 +237,34 @@ def native_stub(rig, monkeypatch):
     monkeypatch.setattr(native, "Native", lambda *args, **kwargs: env.native)
     monkeypatch.setattr(profiles, "profiles", lambda *args: env.profiles)
     monkeypatch.setattr(Go2Env, "source_identity", staticmethod(lambda: {}))
+
+
+@pytest.mark.parametrize("mode", ["stepped", "realtime"])
+@pytest.mark.parametrize("task", ["control", "reach", "pick-place"])
+def test_catalog_worker_binds_go2_devices(native_stub, monkeypatch, tmp_path, mode, task):
+    resolved = resolve_task(f"isaaclab/go2-d1-{task}", project=ROOT)
+    owner = IsaacLabAdapter(**resolved.task.backend_kwargs)
+    monkeypatch.setattr(owner._env, "close", lambda: None)
+    monkeypatch.delenv("ROBOENV_SERVER_MANIFEST", raising=False)
+    worker = SimWorker(
+        owner, task_id=resolved.task.id, seed=0, run_dir=tmp_path,
+        device_root=resolved.robot, execution_mode=mode,
+    )
+    try:
+        assert worker.state == "ready"
+        assert worker.world.embodiment == resolved.bindings.embodiment == "go2_d1"
+        assert call(worker.devices, "world")["time_s"] == 0
+    finally:
+        worker.close()
+
+
+def test_go2_rejects_incompatible_world_before_binding(rig, monkeypatch):
+    env, session, _, _ = rig
+    resolved = resolve_task("isaaclab/go2-d1-pick-place", project=ROOT)
+    monkeypatch.setattr(session, "embodiment", "general")
+    with pytest.raises(ValueError, match="binding embodiment mismatch"):
+        assemble_devices(resolved.robot, session)
+    assert env.steps == 0 and not env.events
 
 
 @pytest.mark.parametrize("mode", ["stepped", "realtime"])
