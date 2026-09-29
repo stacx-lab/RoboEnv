@@ -236,16 +236,36 @@ def test_partial_device_motion_is_not_certified(device_service):
         verifier["validate_journal"](raw, session="harbor", submit_id="none", verdict={})
 
 
-def test_timeout_fences_request_and_never_claims_emergency_stop(device_service):
+@pytest.mark.parametrize("journal_delay_s", [0, 0.2])
+def test_timeout_fences_request_and_never_claims_emergency_stop(
+    device_service, monkeypatch, journal_delay_s
+):
     client, supervisor, _ = device_service
+    intent = supervisor.journal.intent
+    proxy = supervisor._proxy
+    dispatched = []
+
+    def delayed_intent(*args, **kwargs):
+        intent(*args, **kwargs)
+        time.sleep(journal_delay_s)
+
+    def short_worker_deadline(request, deadline):
+        dispatched.append(request.request_id)
+        return proxy(request, min(deadline, time.monotonic() + 0.1))
+
+    monkeypatch.setattr(supervisor.journal, "intent", delayed_intent)
+    # Allow durable admission to finish even on slow CI disks; exercise the real
+    # socket timeout at the worker proxy, after the intent has been recorded.
+    monkeypatch.setattr(supervisor, "_proxy", short_worker_deadline)
     arguments = {"target": [0.3], "sleep_s": 2}
-    for timeout in (0.1, 5):
+    for timeout in (5, 10):
         with pytest.raises(RemoteError) as error:
             client.device("controller").call(
                 "write", arguments, timeout=timeout, request_id="timeout-motion"
             )
         assert error.value.code == "worker_timeout"
         assert error.value.details["worker_killed"] is True
+    assert dispatched == ["timeout-motion"]
     assert client.operation("timeout-motion")["state"] == "indeterminate"
     assert client.request("health")["worker"]["alive"] is False
     events = supervisor.journal.events()
