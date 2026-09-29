@@ -15,6 +15,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import urlopen
 
+from roboenv.provisioning.assets import asset_cache
 from roboenv.provisioning.progress import stage
 
 REPOSITORY = "RoboDojo-Benchmark/RoboDojo"
@@ -130,10 +131,7 @@ def prepare_assets(project, *, progress=None, cache=None, workers=4):
     if (link.exists() or link.is_symlink()) and not link.is_dir():
         raise ValueError("Preserve existing RoboDojo Assets; expected a readable directory")
     if cache is None:
-        cache = (
-            Path(os.environ.get("ROBOENV_ASSET_CACHE", project / ".cache/roboenv/assets"))
-            / "robodojo"
-        )
+        cache = asset_cache(project, "robodojo")
     cache = Path(cache).resolve()
     cache.mkdir(parents=True, exist_ok=True)
     source_path = cache / "source.json"

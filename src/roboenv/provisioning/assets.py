@@ -11,6 +11,12 @@ from urllib.parse import urlsplit
 from roboenv.privacy import validate_public_text
 
 
+def asset_cache(project, backend):
+    """A backend's depot below ROBOENV_ASSET_CACHE, else below .cache/roboenv/assets."""
+    default = Path(project) / ".cache/roboenv/assets"
+    return Path(os.environ.get("ROBOENV_ASSET_CACHE", default)) / backend
+
+
 def _digest(path):
     digest = hashlib.sha256()
     with path.open("rb") as stream:

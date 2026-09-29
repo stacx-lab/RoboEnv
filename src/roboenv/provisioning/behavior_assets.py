@@ -11,7 +11,8 @@ import uuid
 from pathlib import Path
 from zipfile import ZipFile
 
-from roboenv.provisioning.assets import _digest
+from roboenv.provisioning.assets import _digest, asset_cache
+from roboenv.provisioning.interpreter import resolve_interpreter
 from roboenv.provisioning.progress import stage
 from roboenv.provisioning.robocasa_assets import _target
 
@@ -178,17 +179,15 @@ def prepare_assets(project, *, progress=None):
     if missing:
         return {"environment_assets_verified": False, "license_acceptance_required": missing}
     project = Path(project).resolve()
-    cache = (
-        Path(os.environ.get("ROBOENV_ASSET_CACHE", project / ".cache/roboenv/assets")) / "behavior"
-    )
-    registration = json.loads((project / ".cache/roboenv/installations/behavior.json").read_text())
+    cache = asset_cache(project, "behavior")
+    interpreter = resolve_interpreter(project, "behavior")
     output = (
         project / ".cache/roboenv/installations" / ("behavior-assets-" + uuid.uuid4().hex + ".json")
     )
     with stage(progress, "Preparing licensed BEHAVIOR assets through the selected interpreter"):
         subprocess.run(
             [
-                registration["python"],
+                str(interpreter),
                 "-m",
                 "roboenv.provisioning.behavior_assets",
                 "--project",

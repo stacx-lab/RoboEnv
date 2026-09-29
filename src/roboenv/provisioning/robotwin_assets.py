@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.request import urlopen
 from zipfile import ZipFile
 
-from roboenv.provisioning.assets import _digest
+from roboenv.provisioning.assets import _digest, asset_cache
 from roboenv.provisioning.progress import stage
 from roboenv.provisioning.robocasa_assets import _target
 
@@ -22,9 +22,7 @@ ARCHIVES = {
 
 def prepare_assets(project, *, progress=None, cache=None):
     project = Path(project)
-    cache = Path(cache) if cache else (
-        Path(os.environ.get("ROBOENV_ASSET_CACHE", project / ".cache/roboenv/assets")) / "robotwin"
-    )
+    cache = Path(cache) if cache else asset_cache(project, "robotwin")
     cache.mkdir(parents=True, exist_ok=True)
     assets = project / "third_party/RoboTwin/assets"
     receipts = []

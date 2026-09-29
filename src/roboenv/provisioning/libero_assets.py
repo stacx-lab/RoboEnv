@@ -4,12 +4,13 @@ import hashlib
 import json
 import subprocess
 
+from roboenv.provisioning.interpreter import resolve_interpreter
 from roboenv.provisioning.progress import stage
 from roboenv.tasks.libero import entries
 
 
 def prepare_assets(root, progress=None):
-    registration = json.loads((root / ".cache/roboenv/installations/libero.json").read_text())
+    interpreter = resolve_interpreter(root, "libero")
     base = root / "third_party/LIBERO/libero/libero"
     with stage(progress, "Checking official BDDL and fixed-state assets"):
         tasks = list(entries(base))
@@ -20,7 +21,7 @@ def prepare_assets(root, progress=None):
         config = root / ".cache/roboenv/libero-config"
         subprocess.run(
             [
-                registration["python"],
+                str(interpreter),
                 "-I",
                 "-c",
                 "from roboenv_runtime.adapters.libero import ensure_libero_config; "
