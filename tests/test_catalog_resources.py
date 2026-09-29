@@ -1,5 +1,6 @@
 """Public catalogs resolve private assembly defaults from installed resources."""
 
+import runpy
 import shutil
 from pathlib import Path
 
@@ -12,6 +13,18 @@ from roboenv_runtime.bindings import default_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog"
+
+
+def test_go2_arm_driver_converts_native_frame_poses():
+    driver = CATALOG / "robots/isaaclab/isaaclab-go2-d1/devices/arm/driver.py"
+    normalize = runpy.run_path(str(driver))["kinex_reading"]
+    state = {"positions": [0.0], "frame_poses": {"flange": {
+        "translation_m": [1.0, 2.0, 3.0], "rotation_xyzw": [0.0, 0.0, 0.0, 1.0],
+    }}}
+    assert normalize(state)["frame_poses"]["flange"] == [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
+    assert state["frame_poses"]["flange"]["translation_m"] == [1.0, 2.0, 3.0]
+    with pytest.raises(KeyError, match="rotation_xyzw"):
+        normalize({"frame_poses": {"flange": {"translation_m": [1.0, 2.0, 3.0]}}})
 
 
 def test_public_catalog_contains_only_robot_and_task_definitions():
@@ -78,6 +91,24 @@ def test_all_robot_variants_have_registered_bindings():
             assert spec.definition(robot).name == spec.name
 
 
+def test_go2_generator_tasks_use_supported_execution_mode(tmp_path, monkeypatch):
+    from roboenv.tasks.catalog import load_catalog
+
+    generator = load_tool("generate_go2_d1_catalog")
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "home.json").write_text("{}")
+    monkeypatch.setattr(generator, "RobotModel", lambda path: object())
+    monkeypatch.setattr(generator, "profiles", lambda model, home: {})
+    catalog = tmp_path / "catalog"
+    generator.generate(assets, catalog)
+    tasks = load_catalog(catalog / "tasks")
+    assert set(tasks) == {f"isaaclab/{name}" for name in generator.TASKS}
+    for task, _ in tasks.values():
+        assert task.execution_mode == "realtime"
+        assert "realtime" not in task.backend_kwargs
+
+
 def test_go2_generator_keeps_bindings_private_and_drivers_portable(tmp_path, monkeypatch):
     generator = load_tool("generate_go2_d1_catalog")
     source = CATALOG / "robots/isaaclab/isaaclab-go2-d1"
@@ -97,6 +128,19 @@ def test_go2_generator_keeps_bindings_private_and_drivers_portable(tmp_path, mon
     assert {p.name for p in catalog.iterdir()} == {"robots", "tasks"}
     rig = catalog / "robots/isaaclab/isaaclab-go2-d1"
     assert list(rig.rglob("_roboenv.py")) == [rig / "devices/_roboenv.py"]
+    manifest = yaml.safe_load((rig / "workspace.yaml").read_text())
+    assert manifest["meta"]["created_at"] == manifest["meta"]["updated_at"]
+    for name in facts:
+        profile = yaml.safe_load((rig / "devices" / name / "profile.yaml").read_text())
+        assert profile["meta"]["created_at"] == profile["meta"]["updated_at"]
+    base_control = yaml.safe_load((rig / "devices/base/profile.yaml").read_text())[
+        "intrinsics"
+    ]["control"]
+    arm_control = yaml.safe_load((rig / "devices/arm/profile.yaml").read_text())[
+        "intrinsics"
+    ]["control"]
+    assert "execution" not in base_control
+    assert arm_control == {"mode": "position", "limit_handling": "native"}
     for path in (source / "devices").glob("*/driver.py"):
         assert (rig / path.relative_to(source)).read_bytes() == path.read_bytes()
     before = {p.relative_to(catalog): p.read_bytes() for p in catalog.rglob("*") if p.is_file()}

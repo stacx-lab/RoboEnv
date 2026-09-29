@@ -7,6 +7,7 @@ intrinsics:
   frames: {}
   control:
     mode: motion
+    limit_handling: native
     body_frame: base
     modes:
       locomotion:
@@ -49,9 +50,6 @@ intrinsics:
               min: -0.12
               max: 0.12
             default: 0.0
-    execution:
-      mode: stepped
-      interval_s: 0.02
   feedback:
     pose_frame: world
     velocity_frame: base
@@ -71,6 +69,9 @@ extrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
+meta:
+  created_at: '2026-09-23T00:00:00Z'
+  updated_at: '2026-09-23T00:00:00Z'
 access:
   source: user
   method: unknown

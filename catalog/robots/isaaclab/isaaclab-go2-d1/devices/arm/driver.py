@@ -21,6 +21,19 @@ def model():
     return JointDevice(settings(), transport.directory)
 
 
+def kinex_reading(state):
+    frames = state.get("frame_poses", {})
+    return {
+        **state,
+        "frame_poses": {
+            name: [*value["translation_m"], *value["rotation_xyzw"]]
+            if isinstance(value, dict)
+            else value
+            for name, value in frames.items()
+        },
+    }
+
+
 def handle(action, args):
     try:
         profile = settings()
@@ -51,20 +64,22 @@ def handle(action, args):
                 seed = joint.project(remote("read", {})["positions"])
             return {"ok": True, **joint.ik(args["pose"], seed)}
         if action == "write":
-            value = joint.command(args)
-            data = remote(action, value)
-            if data.get("accepted") is not True:
-                raise ValueError("write did not acknowledge acceptance")
+            joint.command(args)
+            data = remote(action, args)
+            if not isinstance(data.get("state"), dict) or "elapsed_s" not in data:
+                raise ValueError("motion must return elapsed_s and measured state")
+            data["state"] = joint.reading(kinex_reading(data["state"]))
             return {"ok": True, **data}
         if action == "read":
             data = remote(action, args)
             return {
                 "ok": True,
-                **joint.reading({**data, "frame_poses": data.get("frame_poses", {})}),
+                **joint.reading(kinex_reading(data)),
             }
         raise ValueError(f"Unsupported joint action: {action}")
     except WireError as exc:
-        return {"ok": False, "error": str(exc), "code": exc.code, "request_id": exc.request_id}
+        return {"ok": False, "error": str(exc), "code": exc.code,
+                "request_id": exc.request_id, "details": exc.details}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 

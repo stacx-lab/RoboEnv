@@ -21,7 +21,7 @@ CASES = {
 
 def run(out, cases, device="cuda:0"):
     out.mkdir(parents=True, exist_ok=False)
-    world = Go2Env(realtime=True, command_timeout_s=None, cameras=False, device=device)
+    world = Go2Env(cameras=False, device=device)
     try:
         results = {}
         for name in cases:
@@ -33,7 +33,7 @@ def run(out, cases, device="cuda:0"):
                 if 150 <= i < 750:
                     velocity[axis] = target
                 if i in (0, 150, 750):
-                    world.write(
+                    world.set_target(
                         "base",
                         {
                             "mode": "locomotion",

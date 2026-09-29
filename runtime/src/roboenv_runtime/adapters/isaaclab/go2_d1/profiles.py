@@ -4,20 +4,14 @@ import math
 
 import numpy as np
 
-from ..g1_cameras import profile as camera_profile
+from roboenv_runtime.bindings.backends.shared.depth import DEPTH_SCALE
 from .adapter import BOUNDS, DEFAULT, matrix_quat, pose
 
 META = {"source": "introspected", "method": "introspection", "calibrated_at": None}
 IDENTITY = [0, 0, 0, 0, 0, 0, 1]
 
 
-def profiles(model, home, realtime=False, timeout=0.5):
-    execution = (
-        {"mode": "realtime", "command_timeout_s": timeout}
-        if realtime
-        else {"mode": "stepped", "interval_s": 0.02}
-    )
-
+def profiles(model, home):
     def component(axis):
         lo, hi = BOUNDS[axis]
         item = {
@@ -43,6 +37,7 @@ def profiles(model, home, realtime=False, timeout=0.5):
                 "frames": {},
                 "control": {
                     "mode": "motion",
+                    "limit_handling": "native",
                     "body_frame": "base",
                     "modes": {
                         "locomotion": {
@@ -56,7 +51,6 @@ def profiles(model, home, realtime=False, timeout=0.5):
                             },
                         }
                     },
-                    "execution": execution,
                 },
                 "feedback": {
                     "pose_frame": "world",
@@ -115,13 +109,7 @@ def profiles(model, home, realtime=False, timeout=0.5):
                 "feedback": "driver",
                 "frame_to_reported": IDENTITY,
             },
-            "control": {
-                "mode": "position",
-                "speed": None,
-                "execution": {"mode": "realtime", "command_timeout_s": None}
-                if realtime
-                else execution,
-            },
+            "control": {"mode": "position", "limit_handling": "native"},
             "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
             "stop": {"behavior": "hold", "affected_devices": ["arm"]},
         },
@@ -191,3 +179,54 @@ def profiles(model, home, realtime=False, timeout=0.5):
         "extrinsics": {},
     }
     return result
+
+
+def camera_profile(spec):
+    width, height = spec["width"], spec["height"]
+    focal = width * spec["focal_length"] / spec["aperture"]
+    meta = {"source": "default", "method": "manual", "calibrated_at": None}
+    return {
+        "type": "rgbd",
+        "intrinsics": {
+            **meta,
+            "color": {
+                "width": width,
+                "height": height,
+                "fps": None,
+                "pixel_format": "rgb8",
+                "image_format": "png",
+                "projection": {
+                    "model": "pinhole",
+                    "fx": focal,
+                    "fy": focal,
+                    "cx": width / 2,
+                    "cy": height / 2,
+                    "skew": 0,
+                },
+                "distortion": {"model": "none"},
+            },
+            "depth": {
+                "registration": "color",
+                "width": width,
+                "height": height,
+                "fps": None,
+                "pixel_format": "uint16",
+                "image_format": "pgm16_be",
+                "quantity": "z",
+                "scale_m_per_unit": DEPTH_SCALE,
+                "invalid_value": 0,
+                "valid_range_m": {"min": DEPTH_SCALE, "max": 65535 * DEPTH_SCALE},
+                "reliable_range_m": {
+                    "min": spec["clipping_range"][0],
+                    "max": spec["clipping_range"][1],
+                },
+            },
+        },
+        "extrinsics": {
+            **meta,
+            "mount": {
+                key: spec[key]
+                for key in ("parent", "parent_frame", "translation_m", "rotation_xyzw")
+            },
+        },
+    }

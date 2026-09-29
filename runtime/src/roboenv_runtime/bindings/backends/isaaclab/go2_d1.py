@@ -3,6 +3,7 @@
 from pathlib import Path
 from roboenv.devices.model import Action, BoundDevice
 from roboenv.devices.velocity import command_schema
+from roboenv_runtime.bindings.motion import control_binding
 from ..shared.profile import validate
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
@@ -15,6 +16,7 @@ def read_robot_state(world, name):
     return state
 
 
+@control_binding
 def bind(spec, root, context):
     if context.backend != "isaaclab" or context.embodiment != "go2_d1":
         raise ValueError("Go2–D1 binding requires the Go2–D1 world")
@@ -55,20 +57,27 @@ def bind(spec, root, context):
             else {
                 "type": "object",
                 "properties": {
-                    "target": {"type": "number"}
-                    if spec.name == "gripper"
-                    else {
+                    "target": {
                         "type": "array",
                         "items": {"type": "number"},
-                        "minItems": 6,
-                        "maxItems": 6,
+                        "minItems": 1 if spec.name == "gripper" else 6,
+                        "maxItems": 1 if spec.name == "gripper" else 6,
                     }
                 },
                 "required": ["target"],
                 "additionalProperties": False,
             }
         )
-        register("write", lambda **args: world.write(spec.name, args), schema, True)
+        def set_target(**args):
+            if spec.name == "gripper":
+                args = {"target": args["target"][0]}
+            return world.set_target(spec.name, args)
+
+        register("write", set_target, schema, True)
+        # Keep native Go2 validation ahead of replacing an active buffer.
+        actions["write"].validate = lambda args: world._validate(
+            spec.name, {"target": args["target"][0]} if spec.name == "gripper" else args
+        )
     return BoundDevice(
         definition,
         actions,

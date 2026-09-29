@@ -2,13 +2,12 @@
 
 import copy
 import math
-import time
 from pathlib import Path
 
 import numpy as np
 
 from .adapter import DEFAULT, pose, validate_command
-from .tasks import CONTROL, INSTRUCTIONS, PICK_PLACE, TASKS
+from .tasks import INSTRUCTIONS, PICK_PLACE, TASKS
 
 
 class Go2Env:
@@ -17,13 +16,12 @@ class Go2Env:
     def __init__(
         self,
         asset_manifest=".cache/isaaclab/go2-d1/assets.json",
-        realtime=False,
-        command_timeout_s=0.5,
         device="cuda:0",
         cameras=True,
         task_name="go2-d1-control",
-        max_steps=1500,
+        max_steps=None,
         payload_mass_kg=0.08,
+        execution_mode="stepped",
     ):
         if task_name not in TASKS:
             raise ValueError("Unknown Go2 task")
@@ -35,24 +33,18 @@ class Go2Env:
             raise ValueError("Payload mass must be finite and in (0, 5] kg")
         if task_name != PICK_PLACE and payload_mass_kg != 0.08:
             raise ValueError("Payload mass applies only to pick-and-place")
-        if type(realtime) is not bool or type(cameras) is not bool:
-            raise ValueError("realtime and cameras must be booleans")
-        if command_timeout_s is not None and (
-            type(command_timeout_s) not in (int, float)
-            or not math.isfinite(command_timeout_s)
-            or command_timeout_s <= 0
-        ):
-            raise ValueError("Base timeout must be positive and finite or null")
+        if type(cameras) is not bool:
+            raise ValueError("cameras must be a boolean")
+        max_steps = 6000 if max_steps is None else max_steps
         if type(max_steps) is not int or max_steps <= 0:
             raise ValueError("max_steps must be a positive integer")
+        self._stepped_max_steps = max_steps
+        self.configure_execution_mode(execution_mode)
         from roboenv_runtime.paths import repo_root
 
         from .native import Native
 
         self.task_name = task_name
-        self.realtime = realtime
-        self.command_timeout_s = command_timeout_s
-        self.max_steps = None if realtime and task_name == CONTROL else max_steps
         self.native = Native(
             repo_root() / asset_manifest,
             device=device,
@@ -62,9 +54,16 @@ class Go2Env:
         )
         from .profiles import profiles
 
-        self.profiles = profiles(self.native.model, self.native.home, realtime, command_timeout_s)
+        self.profiles = profiles(self.native.model, self.native.home)
         self.implementation = self.source_identity()
         self.reset(0)
+
+    def configure_execution_mode(self, mode):
+        """Select the budget only; WorldSession remains the clock authority."""
+        if mode not in {"stepped", "realtime"}:
+            raise ValueError("execution mode must be stepped or realtime")
+        self.execution_mode = mode
+        self.max_steps = None if mode == "realtime" else self._stepped_max_steps
 
     @property
     def steps(self):
@@ -91,7 +90,6 @@ class Go2Env:
             "arm": self.native.arm_target.copy(),
             "gripper": self.native.gripper_target.copy(),
         }
-        self.deadline = None
         self.events = []
         self.images = {}
 
@@ -114,7 +112,8 @@ class Go2Env:
                 raise ValueError("Arm target is nonfinite or outside limits")
         return np.array(target)
 
-    def write(self, name, args):
+    def set_target(self, name, args):
+        """Set a reference without stepping; the shared scheduler owns its duration."""
         target = self._validate(name, args)
         if self.done:
             raise ValueError("Episode terminated; final observations remain readable")
@@ -122,14 +121,6 @@ class Go2Env:
         self.events.append(
             {"frame": self.steps, "op": "write", "device": name, "args": copy.deepcopy(args)}
         )
-        if name == "base" and self.realtime:
-            self.deadline = (
-                None
-                if self.command_timeout_s is None
-                else time.monotonic() + self.command_timeout_s
-            )
-        if not self.realtime:
-            self.advance()
         return {"accepted": True}
 
     def set_posture_feedback(self, enabled):
@@ -146,7 +137,6 @@ class Go2Env:
             raise ValueError("Unknown actuator")
         if name == "base":
             self.targets[name][:3] = 0
-            self.deadline = None
         else:
             self.targets[name] = np.array(self.read_device(name)["positions"])
         self.events.append({"frame": self.steps, "op": "stop", "device": name, "reason": reason})
@@ -163,8 +153,6 @@ class Go2Env:
         self.images = {}
 
     def tick(self):
-        if self.deadline is not None and time.monotonic() >= self.deadline:
-            self.stop("base", "timeout")
         self.advance()
 
     def read_device(self, name):
@@ -239,8 +227,8 @@ class Go2Env:
             "task_name": self.task_name,
             "payload_mass_kg": self.native.payload_mass_kg,
             "task_definition": self.native.task.spec,
-            "realtime": self.realtime,
             "max_steps": self.max_steps,
+            "execution_mode": self.execution_mode,
             "events": copy.deepcopy(self.events),
             "targets": {n: q.tolist() for n, q in self.targets.items()},
             "final": self.native.snapshot(),

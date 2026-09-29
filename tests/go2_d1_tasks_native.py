@@ -13,7 +13,7 @@ from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import PICK_PLACE, REACH, TC
 def run(out, task, cameras=False, drop=False):
     out.mkdir(parents=True, exist_ok=False)
     w = Go2Env(
-        task_name=task, realtime=True, command_timeout_s=None, cameras=cameras, max_steps=6000
+        task_name=task, cameras=cameras, max_steps=6000
     )
     trace = []
     try:
@@ -27,7 +27,7 @@ def run(out, task, cameras=False, drop=False):
             for _ in range(count):
                 if w.done:
                     return
-                w.write(
+                w.set_target(
                     "base",
                     {
                         "mode": "locomotion",
@@ -35,8 +35,8 @@ def run(out, task, cameras=False, drop=False):
                         "posture": dict(zip(("height", "roll", "pitch"), posture, strict=True)),
                     },
                 )
-                w.write("arm", {"target": arm.tolist()})
-                w.write("gripper", {"target": opening})
+                w.set_target("arm", {"target": arm.tolist()})
+                w.set_target("gripper", {"target": opening})
                 w.advance()
                 if w.steps % 10 == 0:
                     trace.append({"frame": w.steps, "phase": label, **n.snapshot()})

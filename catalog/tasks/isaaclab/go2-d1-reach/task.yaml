@@ -1,5 +1,6 @@
 id: isaaclab/go2-d1-reach
 backend: isaaclab
+execution_mode: realtime
 backend_task: isaaclab.go2-d1-reach
 robot: isaaclab/isaaclab-go2-d1
 instruction: Move the base and use independent arm IK to reach the cyan gripper TCP
@@ -8,10 +9,7 @@ instruction: Move the base and use independent arm IK to reach the cyan gripper 
   then hold within 0.025 m and 0.10 rad for 1 s with base speed below 0.08 m/s.
 seed: 0
 budget_mode: practice
-action_abstraction: devices
 backend_kwargs:
   task_name: go2-d1-reach
   asset_manifest: .cache/isaaclab/go2-d1/assets.json
-  realtime: false
-  command_timeout_s: 0.5
   max_steps: 6000

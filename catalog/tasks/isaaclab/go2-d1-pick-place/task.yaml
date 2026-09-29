@@ -1,5 +1,6 @@
 id: isaaclab/go2-d1-pick-place
 backend: isaaclab
+execution_mode: realtime
 backend_task: isaaclab.go2-d1-pick-place
 robot: isaaclab/isaaclab-go2-d1
 instruction: Walk to the orange 4 x 4 x 6 cm, 80 g block on the ground near [1.25,
@@ -10,10 +11,7 @@ instruction: Walk to the orange 4 x 4 x 6 cm, 80 g block on the ground near [1.2
   RGB-D cameras and robot feedback; all coordinates are in the world frame.
 seed: 0
 budget_mode: practice
-action_abstraction: devices
 backend_kwargs:
   task_name: go2-d1-pick-place
   asset_manifest: .cache/isaaclab/go2-d1/assets.json
-  realtime: false
-  command_timeout_s: 0.5
   max_steps: 6000

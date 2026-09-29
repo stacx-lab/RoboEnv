@@ -406,8 +406,11 @@ def test_grouped_catalog_ids_and_listing(capsys):
         assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
         assert identifier.split("/")[0] == task.backend
         assert resolve_task(identifier, project=ROOT).task == task
-        if task.backend == "robocasa":
-            assert "realtime" not in task.backend_kwargs
+        assert "realtime" not in task.backend_kwargs
+    assert main(["tasks", "list", "--project", str(ROOT)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["ids"] == sorted(catalog)
+    assert result["execution_modes"] == {key: "realtime" for key in catalog}
     assert main(["tasks", "list", "--simulator", "robocasa", "--project", str(ROOT)]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["ids"] == ["robocasa/arrange-vegetables", "robocasa/pick-place-microwave"]

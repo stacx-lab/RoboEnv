@@ -2,9 +2,12 @@
 
 import copy
 import itertools
+import json
+import os
+import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import pytest
@@ -35,6 +38,36 @@ def command(**changes):
         "velocity": {k: float(values[k]) for k in ("vx", "vy", "wz")},
         "posture": {k: float(values[k]) for k in ("height", "roll", "pitch")},
     }
+
+
+@pytest.mark.parametrize("existing", [None, "YES", "NO", ""])
+def test_native_defaults_eula_before_isaac_import(monkeypatch, tmp_path, existing):
+    from roboenv_runtime.adapters.isaaclab.go2_d1 import native
+
+    monkeypatch.delenv("OMNI_KIT_ACCEPT_EULA", raising=False)
+    if existing is not None:
+        monkeypatch.setenv("OMNI_KIT_ACCEPT_EULA", existing)
+    expected = "YES" if existing is None else existing
+    (tmp_path / "home.json").write_text("{}")
+    manifest = tmp_path / "assets.json"
+    manifest.write_text(json.dumps({"schema": "roboenv/go2-d1-assets/1", "files": {}}))
+    monkeypatch.setattr(native, "RobotModel", lambda path: object())
+    monkeypatch.setattr(native.Native, "_create", lambda *args: None)
+
+    class AppModule(ModuleType):
+        def __getattr__(self, name):
+            if name == "AppLauncher":
+                assert os.environ.get("OMNI_KIT_ACCEPT_EULA") == expected
+                return lambda **kwargs: SimpleNamespace(app=object())
+            raise AttributeError(name)
+
+    package = ModuleType("isaaclab")
+    package.__path__ = []
+    monkeypatch.setitem(sys.modules, "isaaclab", package)
+    monkeypatch.setitem(sys.modules, "isaaclab.app", AppModule("isaaclab.app"))
+
+    world = native.Native(manifest)
+    assert world.app is not None
 
 
 @pytest.mark.parametrize("key", BOUNDS)
@@ -84,15 +117,18 @@ def test_gait_feedback_and_output_scope():
     assert np.allclose(gait.command, cmd)
 
 
-@pytest.mark.parametrize("realtime", [False, True])
-def test_complete_catalog_clock_selection_preserves_profiles(realtime):
-    resolved = resolve_task("isaaclab/go2-d1-control", project=ROOT, realtime=realtime)
-    assert resolved.task.backend_kwargs["realtime"] is realtime
+@pytest.mark.parametrize("task", ["control", "reach", "pick-place"])
+def test_complete_catalog_preserves_profiles(task):
+    resolved = resolve_task(f"isaaclab/go2-d1-{task}", project=ROOT)
+    assert resolved.task.execution_mode == "realtime"
+    assert "realtime" not in resolved.task.backend_kwargs
+    assert "command_timeout_s" not in resolved.task.backend_kwargs
+    assert resolved.task.backend_kwargs["max_steps"] == 6000
     specs = {s.name: s for s in resolved.bindings.devices}
     assert set(specs) == {"base", "arm", "gripper", "camera_head", "camera_wrist", "world"}
     for name in ("base", "arm"):
         profile = specs[name].resolved_profile(resolved.robot)
-        # Clock selection changes the runtime configuration, not catalog resources.
+        # Resolving a task preserves the complete catalog resources.
         source = yaml.safe_load((RIG / f"devices/{name}/profile.yaml").read_text())
         assert profile == source
     wrist = specs["camera_wrist"].resolved_profile(resolved.robot)
@@ -146,16 +182,14 @@ def test_invalid_write_and_stop_do_not_step_or_change_other_goals():
         ),
     )
     env.max_steps = 20
-    env.realtime = True
-    env.command_timeout_s = 0.5
     env.targets = {"base": DEFAULT.copy(), "arm": np.zeros(6), "gripper": np.zeros(2)}
     env.events = []
     before = copy.deepcopy(env.targets)
     with pytest.raises(ValueError):
-        env.write("arm", {"target": [20.0] * 6})
+        env.set_target("arm", {"target": [20.0] * 6})
     assert not env.events and env.steps == 0
     assert all(np.array_equal(env.targets[n], q) for n, q in before.items())
-    env.write("base", command(vx=0.05))
+    env.set_target("base", command(vx=0.05))
     assert env.targets["base"][0] == 0.05
     env.stop("base")
     assert env.steps == 0 and env.targets["base"][0] == 0

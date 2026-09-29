@@ -20,8 +20,13 @@ class IsaacLabAdapter(AdapterBase):
     def control_interval_s(self):
         return self._env.control_interval
 
-    def realtime_tick(self):
+    def advance_control(self):
         self._env.tick() if self.go2 else self._env.control.tick()
+
+    def configure_execution_mode(self, mode):
+        """Apply the shared world's mode to the Go2 practice horizon."""
+        if self.go2:
+            self._env.configure_execution_mode(mode)
 
     def reset(self, seed):
         self._env.reset(seed)

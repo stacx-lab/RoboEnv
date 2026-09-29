@@ -24,10 +24,11 @@ python tools/prepare_go2_d1.py --source generated/go2-d1-cameras \
 source .venv/bin/activate
 python tools/generate_go2_d1_catalog.py \
   --bindings-out src/roboenv/devices/bindings/defaults
-# After accepting NVIDIA's EULA for this installation:
-export OMNI_KIT_ACCEPT_EULA=YES
 roboenv launch isaaclab/go2-d1-control --port 8123
 ```
+
+The Go2–D1 simulator worker defaults `OMNI_KIT_ACCEPT_EULA=YES` for this launch.
+An explicitly set value takes precedence.
 
 Preparation converts mesh files to OBJ, records file checksums, and refuses to
 overwrite an existing bundle. To refine the URDF, prepare a new bundle, regenerate
@@ -56,7 +57,7 @@ with live descriptors, independently of the Kinex file-driver projection.
 | `gripper` | Normalized opening: 0 closed, 1 open | Two finger joint positions and velocities |
 | `camera_head` | Read | D435-mounted RGB and registered optical-axis depth |
 | `camera_wrist` | Read | D405-mounted RGB and registered optical-axis depth |
-| `world` | No actions | Static world reference |
+| `world` | `read`, `wait(duration_s)` | Shared simulation time; static world reference |
 
 Base command bounds: `vx ±1.0 m/s`, `vy ±0.5 m/s`, `wz ±π/6 rad/s` (±30°/s),
 `height 0.26–0.34 m`, and `roll/pitch ±0.12 rad` (about 6.9 degrees).
@@ -85,20 +86,23 @@ command = {
     "velocity": {"vx": 0.0, "vy": 0.0, "wz": 0.0},
     "posture": {"height": 0.30, "roll": 0.0, "pitch": 0.0},
 }
-for _ in range(150):  # allow the initial stance to settle
-    base.call("write", command)
+world = env.device("world")
+base.write(**command, duration_s=3.0)
+world.wait(3.0)  # allow the initial stance to settle
 command["velocity"]["vx"] = 0.05
-for _ in range(250):  # five seconds in synchronous mode
-    base.call("write", command)
+base.write(**command, duration_s=5.0)
+world.wait(5.0)
 base.stop()
 print(base.read()["data"])
 print(env.device("camera_wrist").read()["data"])
 ```
 
-`Device.write(target)` is the SDK's scalar/joint convenience method; use
-`base.call("write", command)` for structured base commands. Arm writes use
-`env.device("arm").write([q1, q2, q3, q4, q5, q6])`. Gripper writes use
-`env.device("gripper").write(0.8)`.
+Writes submit validated buffers and return immediately with `execution_id`,
+submission `elapsed_s` and measured `state`. Arm writes use
+`env.device("arm").write(actions=[[q1, q2, q3, q4, q5, q6]], duration_s=1.0)`;
+gripper writes use `env.device("gripper").write(actions=[0.8], duration_s=0.2)`.
+Use `world.wait(...)` to wait in simulation time; submitting a write does not
+establish measured arrival.
 
 Arm FK/IK runs locally in the exported Kinex joint driver, using its complete
 serial-chain profile. Its pose is the flange pose in the arm mount frame, in
@@ -110,21 +114,29 @@ also exercises the standalone URDF solver in
 
 ## Clock and stop behavior
 
-Physics runs at 200 Hz with a 50 Hz control interval. In synchronous mode, each
-accepted actuator write advances one interval while preserving the other devices'
-goals. Sequential writes are not atomic simultaneous commands. Reads, geometry
-queries, and stops do not advance physics. The control-practice synchronous horizon is 1,500
-intervals (30 simulation seconds); reset does not hide a settling phase.
+Physics runs at 200 Hz with a 50 Hz control interval. The task catalogs default
+to realtime; use `--execution-mode stepped` to advance only during `world.wait`.
+Reads, writes, geometry queries and stops never request physics steps.
+Concurrent world waits overlap and all devices share each native tick. Waits may
+round up to the next control interval.
 
-Use `roboenv launch isaaclab/go2-d1-control --realtime` for the shared owner clock.
-Control-practice realtime has no step horizon and uses a best-effort wall-clock scheduler. A base command expires after 0.5 wall-clock seconds
-unless refreshed; the arm and gripper retain their goals. Base stop requests zero
-velocity while maintaining posture; it is not instantaneous physical braking.
-Arm/gripper stop hold measured positions. Each stop affects only that device.
+New writes replace pending references without stopping first. Invalid buffers
+leave existing motion intact. Arm and gripper retain their final reference;
+base velocity expires after its requested `duration_s` in world time, maintaining
+posture. The shared world scheduler is the only clock and command-expiry authority;
+there is no backend realtime mode or wall-clock watchdog. Base stop requests zero
+velocity, not instantaneous physical braking; arm/gripper stop hold measured
+positions. Each stop affects
+only that device, and late cancellation cannot stop a newer replacement.
+
+All Go2–D1 tasks have no step limit in realtime mode (`budget.max: null`).
+In stepped mode, control, reach and pick-and-place default to 6,000 control
+intervals (120 simulation seconds). The catalog's `max_steps` applies only to
+stepped execution; the shared world's selected mode also applies to CLI overrides.
 A low body height or excessive tilt terminates the episode; final reads remain
-available. Control practice has no success predicate. The reach and pick-and-place
-tasks have a 6,000-interval (120 simulation second) horizon in both clock modes,
-and freeze on success, task failure, or timeout.
+available. Control practice has no success predicate. Reach and pick-and-place
+freeze on success, task failure or budget exhaustion. Reset does not hide a
+settling phase.
 
 Both cameras output 480×270 RGB and registered depth. They use nominal RGB
 horizontal FOVs (D405 87°, D435 69°) and a 0.015–20 m clipping range. These are
@@ -149,10 +161,10 @@ interpreter, run native checks and fresh-process replay:
 ```sh
 ISAAC_PY=/path/to/isolated/isaaclab/bin/python
 "$ISAAC_PY" tests/go2_d1_native.py --out .cache/go2-native-check
-python tools/check_go2_d1_transport.py --out .cache/go2-transport-check
+python tools/check_go2_d1_transport.py --execution-mode stepped --out .cache/go2-transport-check
 "$ISAAC_PY" tools/replay_go2_d1.py .cache/go2-transport-check/record.json \
   --out .cache/go2-transport-check/replay.json
-python tools/check_go2_d1_transport.py --realtime --out .cache/go2-realtime-check
+python tools/check_go2_d1_transport.py --execution-mode realtime --out .cache/go2-realtime-check
 ```
 
 The native check measures forward/sideways/yaw tracking, height/roll/pitch,

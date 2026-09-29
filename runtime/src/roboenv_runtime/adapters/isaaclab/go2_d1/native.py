@@ -3,6 +3,7 @@
 import hashlib
 import json
 import math
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -44,6 +45,7 @@ class Native:
         self.home = json.loads((manifest.parent / "home.json").read_text())
         self.app = self.sim = None
         self.cameras = {}
+        os.environ.setdefault("OMNI_KIT_ACCEPT_EULA", "YES")
         from isaaclab.app import AppLauncher
 
         self.app = AppLauncher(headless=True, enable_cameras=cameras, device=device).app

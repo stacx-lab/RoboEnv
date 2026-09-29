@@ -26,7 +26,7 @@ def command(values):
 
 def run(out, assets):
     out.mkdir(parents=True, exist_ok=False)
-    world = Go2Env(asset_manifest=assets, realtime=True, command_timeout_s=None)
+    world = Go2Env(asset_manifest=assets)
     native = world.native
     try:
         report = {"passed": True, "task_success": None, "cases": {}}
@@ -35,7 +35,7 @@ def run(out, assets):
             history = []
             for i in range(650):
                 if i in (0, 150, 600):
-                    world.write("base", command(values if i == 150 else DEFAULT.tolist()))
+                    world.set_target("base", command(values if i == 150 else DEFAULT.tolist()))
                 world.advance()
                 if i % 25 == 0:
                     history.append(native.snapshot())
@@ -74,8 +74,8 @@ def run(out, assets):
         target = native.model.arm_ik(
             [*desired[:3, 3], *matrix_quat(desired[:3, :3])], world.read_device("arm")["positions"]
         )
-        world.write("arm", {"target": target})
-        world.write("gripper", {"target": 0.8})
+        world.set_target("arm", {"target": target})
+        world.set_target("gripper", {"target": 0.8})
         for _ in range(100):
             world.advance()
         actual = native.model.arm_fk(world.read_device("arm")["positions"])
