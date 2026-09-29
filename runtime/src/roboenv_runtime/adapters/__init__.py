@@ -11,8 +11,8 @@ Built-in adapters (see :data:`roboenv_runtime.core.adapter.BUILTIN_ADAPTERS`):
 name                    simulator                              embodiment
 ======================  =====================================  ============
 ``fakeshell``           in-memory toy world (tests, demos)     general
-``robodojo``            RoboDojo on Isaac Sim                  arx_x5 / yam
-``robotwin``            RoboTwin 2.0 on SAPIEN                 piper / yam
+``robodojo``            RoboDojo on Isaac Sim                  arx_x5
+``robotwin``            RoboTwin 2.0 on SAPIEN                 piper / aloha_agilex
 ``libero``              Official LIBERO on MuJoCo/robosuite         panda
 ``robocasa``            RoboCasa365 on MuJoCo/robosuite        panda_omron
 ``behavior``            BEHAVIOR-1K on OmniGibson/Isaac Sim    r1pro

@@ -18,7 +18,6 @@ RIGS = {
     "piper": "robotwin/robotwin-dual-piper",
     "aloha": "robotwin/robotwin-aloha-agilex",
     "x5": "robodojo/robodojo-arx-x5",
-    "yam": "robodojo/robodojo-yam",
     "r1pro": "behavior/behavior-r1pro",
 }
 
@@ -33,7 +32,7 @@ def build(tmp_path, case):
 def test_contacts_stay_on_source_surfaces_at_asymmetric_openings(tmp_path, case):
     geometry, urdf = build(tmp_path, case)
     joints = {joint.get("name"): joint for joint in ET.parse(urdf).getroot().findall("joint")}
-    sign = -1 if case["model"] == "yam" else 1
+    sign = 1
     for positions in ([0, 0], [sign * 0.01, sign * 0.03], [sign * 0.035, sign * 0.015]):
         reading = geometry.read(positions)
         contacts = []

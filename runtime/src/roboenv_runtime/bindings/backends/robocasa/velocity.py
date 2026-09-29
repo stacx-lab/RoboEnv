@@ -12,13 +12,14 @@ def intrinsics(world, pose_frame="world"):
         "calibrated_at": None,
         "control": {
             "mode": "motion",
+            "limit_handling": "native",
             "body_frame": "base",
             "modes": {
                 "drive": {
                     "velocity": {
                         "frame": "body",
                         "components": [
-                            {"axis": axis, "units": "normalized", "bounds": {"min": -1, "max": 1}}
+                            {"axis": axis, "units": "normalized", "bounds": None}
                             for axis in ("vx", "vy", "wz")
                         ],
                     },

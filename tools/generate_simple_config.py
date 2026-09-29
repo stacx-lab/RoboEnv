@@ -163,6 +163,7 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
         "robot_sha256": digest(robot_xml),
         "control": {
             "mode": "motion",
+            "limit_handling": "native",
             "body_frame": "pelvis",
             "modes": {
                 "locomotion": {
@@ -172,9 +173,9 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
                             {
                                 "axis": axis,
                                 "units": "rad/s" if axis == "wz" else "m/s",
-                                "bounds": {"min": -cap, "max": cap},
+                                "bounds": None,
                             }
-                            for axis, cap in (("vx", 0.5), ("vy", 0.5), ("wz", 1.0))
+                            for axis in ("vx", "vy", "wz")
                         ],
                     },
                     "posture": {
@@ -183,7 +184,7 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
                             {
                                 "axis": "height",
                                 "units": "m",
-                                "bounds": {"min": 0.2, "max": 0.74},
+                                "bounds": None,
                                 "default": 0.74,
                             }
                         ],
@@ -192,7 +193,6 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
             },
         },
     }
-    waist = {joint["name"]: joint for joint in model["parts"]["waist"]["joints"]}
     posture = model["control"]["modes"]["locomotion"]["posture"]["components"]
     for axis in ("roll", "pitch", "yaw"):
         posture.append(
@@ -200,7 +200,7 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
                 "axis": axis,
                 "units": "rad",
                 "default": 0.0,
-                "bounds": waist[f"waist_{axis}_joint"]["limits"],
+                "bounds": None,
             }
         )
     robot = out / "robots/simple/simple-g1"
@@ -221,7 +221,14 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
                 },
                 "sim": {"simulator": "simple", "source": "introspected"},
                 "devices": {"source": "introspected"},
-                "safety": {"max_cartesian_velocity": None, "max_joint_velocity": None},
+                "safety": {
+                    "max_cartesian_velocity": None,
+                    "max_joint_velocity": None,
+                    "notes": "Metric velocity, height, and torso posture commands have no added "
+                    "range "
+                    "bounds. Physical joint ranges and native motor torque clipping still "
+                    "apply. Stop affects only its device; the world owns simulation time.",
+                },
                 "meta": {
                     "created_at": "2026-09-14T00:00:00Z",
                     "updated_at": "2026-09-14T00:00:00Z",
@@ -311,7 +318,7 @@ if __name__ == "__main__":
         default=ROOT / "runtime/src/roboenv_runtime/adapters/simple/g1.json",
     )
     parser.add_argument(
-        "--provenance", type=Path, default=ROOT / "docs/simple-config.provenance.json"
+        "--provenance", type=Path, default=ROOT / "docs/simple-native-limits.provenance.json"
     )
     parser.add_argument("--bindings-out", type=Path, help="Separate internal binding resource root")
     options = parser.parse_args()

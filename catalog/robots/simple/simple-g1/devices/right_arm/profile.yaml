@@ -271,6 +271,7 @@ intrinsics:
     right_wrist_yaw_joint: 0.0
   control:
     mode: position
+    limit_handling: native
   feedback:
     velocities: true
     efforts: false

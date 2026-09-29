@@ -35,6 +35,7 @@ def control_binding(factory):
         kind = device.definition.type
         joint = kind in {"joint", "dexterous_hand"}
         scalar = kind in {"gripper", "suction"}
+        native_limits = device.definition.intrinsics["control"].get("limit_handling") == "native"
         joints = device.definition.intrinsics["model"]["joints"] if joint else []
         setter, reader, stopper = (device.actions[name] for name in ("write", "read", "stop"))
         validate_target = action_validator(setter.input_schema)
@@ -80,7 +81,7 @@ def control_binding(factory):
                         bounds = model["limits"]
                         if (
                             not math.isfinite(q)
-                            or bounds
+                            or not native_limits and bounds
                             and not bounds["min"] <= q <= bounds["max"]
                         ):
                             raise ValueError("target exceeds native joint limits")

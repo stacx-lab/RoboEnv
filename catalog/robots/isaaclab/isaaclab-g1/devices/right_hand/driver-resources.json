@@ -1,7 +1,0 @@
-{
-  "schema": "roboenv/driver-resources/1",
-  "files": [
-    "driver.py",
-    "postures.json"
-  ]
-}

@@ -7,7 +7,7 @@ from roboenv.devices.velocity import command_schema
 
 from roboenv_runtime.bindings.motion import control_binding
 
-from ..isaaclab.profile import validate
+from ..shared.profile import validate
 
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
 

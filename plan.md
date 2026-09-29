@@ -1,3 +1,5 @@
+> Retired: the Isaac Lab G1 task and adapter were removed. The notes below are historical.
+
 # Isaac Lab follow-up: Unitree G1
 
 Go2 is the first implementation. G1 remains planned, not implemented or validated.

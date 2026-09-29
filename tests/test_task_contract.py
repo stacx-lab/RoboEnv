@@ -18,7 +18,7 @@ from roboenv_runtime.runtime.world import WorldSession
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
+@pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "isaaclab"])
 @pytest.mark.parametrize("mode", [None, "stepped"])
 def test_catalog_launch_and_export_share_task_and_clock(tmp_path, backend, mode):
     task = next(

@@ -487,26 +487,8 @@ def _prepare_assets(backend, root, report, progress):
         return {**report, **prepare_assets(root, progress=progress)}
     if backend == "robodojo":
         from roboenv.provisioning.robodojo_assets import prepare_assets
-        from roboenv.provisioning.yam_usd import verify
 
-        assets = prepare_assets(root, progress=progress)
-        if assets["yam_native_conversion_required"]:
-            if os.environ.get("OMNI_KIT_ACCEPT_EULA", "").upper() != "YES":
-                return {**report, **assets, "license_acceptance_required": "Isaac Sim EULA"}
-            registration = root / ".cache/roboenv/installations/robodojo.json"
-            interpreter = json_loads(registration.read_text())["python"]
-            directory = Path(assets["asset_depot"]) / "Robots/yam"
-            with stage(progress, "Converting pinned YAM geometry with Isaac Lab"):
-                subprocess.run(
-                    [interpreter, "-m", "roboenv.provisioning.yam_usd", str(directory)],
-                    cwd=root,
-                    check=True,
-                    timeout=1800,
-                )
-            assets.update(
-                environment_assets_verified=verify(directory), yam_native_conversion_required=False
-            )
-        return {**report, **assets}
+        return {**report, **prepare_assets(root, progress=progress)}
     if backend == "robotwin":
         from roboenv.provisioning.robotwin_assets import prepare_assets
 

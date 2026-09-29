@@ -1,4 +1,4 @@
-"""Reject catalog claims that differ from the native device device contract."""
+"""Reject catalog claims that differ from the native device contract."""
 
 # These fields describe client-side calibration or derived/informational data.
 # They do not change what the native device produces or how it is commanded.

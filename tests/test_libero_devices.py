@@ -168,7 +168,10 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
             assert (root / "devices/_roboenv.py").read_bytes() == transport
             if profile["type"] == "joint":
                 assert len(profile["intrinsics"]["model"]["joints"]) == 7
-                assert profile["intrinsics"]["control"] == {"mode": "position"}
+                assert profile["intrinsics"]["control"] == {
+                    "mode": "position",
+                    "limit_handling": "native",
+                }
             if profile["type"] == "rgb":
                 color = profile["intrinsics"]["color"]
                 assert (color["width"], color["height"]) == (256, 256)

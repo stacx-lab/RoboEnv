@@ -8,6 +8,22 @@ from roboenv.devices.export import driver_access, write_driver
 
 ROOT = Path(__file__).resolve().parents[1]
 TIMESTAMP = "2026-09-09T00:00:00Z"
+NATIVE_LIMIT_NOTES = {
+    "behavior": "Native base-joint velocity targets clip to +/-1.5 m/s for translation and +/-pi "
+    "rad/s for yaw after conversion from body to native joint coordinates. These are "
+    "actuator-coordinate limits, not independent body-frame command bounds. Native "
+    "position controllers clip joint targets to model ranges. URDF-only "
+    "velocity/effort ratings are unspecified. Gripper profiles reject commands outside [0, 1].",
+    "robotwin": "SAPIEN enforces physical joint ranges. Native normalized gripper targets clip "
+    "to [0, 1] and retain native incremental targets and drive velocities at each physics step. "
+    "Gripper profiles reject commands outside [0, 1]. URDF-only arm velocity and effort "
+    "ratings are unspecified; no "
+    "additional command speed caps apply.",
+    "robodojo": "Only upstream ARX X5 is supported. Native arm actuators enforce 5 rad/s "
+    "velocity and 100 N m effort limits. Physical joint constraints and native "
+    "gripper clipping and interpolation apply; no added arm target-range rejection. "
+    "Gripper profiles reject commands outside [0, 1].",
+}
 
 
 def write_rig(root, robot, backend, embodiment, facts, *, bindings_out=None):
@@ -33,9 +49,10 @@ def write_rig(root, robot, backend, embodiment, facts, *, bindings_out=None):
                     "max_cartesian_velocity": None,
                     "max_joint_velocity": None,
                     "keep_out_zones": [],
-                    "notes": "Native joint limits and collisions apply. Stop holds its device. "
-                    "Coordinated writes may share step: {id: N, devices: [...]}; "
-                    "all participants must submit once before that step executes.",
+                    "notes": NATIVE_LIMIT_NOTES.get(
+                        backend, "Limits are handled by the native simulator."
+                    )
+                    + " Stop affects only its device; the world owns simulation time.",
                 },
                 "meta": {"created_at": TIMESTAMP, "updated_at": TIMESTAMP},
             },
@@ -85,7 +102,7 @@ def generate_robotwin(project, catalog, *, assets=None, bindings_out=None):
 def generate_robodojo(project, catalog, *, assets=None, bindings_out=None):
     from roboenv_runtime.adapters.robodojo.rig import describe
 
-    for embodiment, robot in (("arx_x5", "robodojo-arx-x5"), ("yam", "robodojo-yam")):
+    for embodiment, robot in (("arx_x5", "robodojo-arx-x5"),):
         facts, _, _ = describe(Path(project) / "third_party/RoboDojo", embodiment, assets=assets)
         write_rig(catalog, robot, "robodojo", embodiment, facts, bindings_out=bindings_out)
 
@@ -96,8 +113,9 @@ def generate_behavior(project, catalog, *, assets=None, bindings_out=None):
     if assets is not None:
         raise ValueError("BEHAVIOR uses its registered OmniGibson asset depot")
     try:
-        write_rig(catalog, "behavior-r1pro", "behavior", "r1pro", compile_rig(),
-                  bindings_out=bindings_out)
+        write_rig(
+            catalog, "behavior-r1pro", "behavior", "r1pro", compile_rig(), bindings_out=bindings_out
+        )
     finally:
         # A task-free compile still owns an Isaac application. Release it before
         # interpreter teardown rather than leaving native threads to destructors.

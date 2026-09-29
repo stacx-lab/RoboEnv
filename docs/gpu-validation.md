@@ -44,8 +44,8 @@ programs are tested as supplied; portability to other seeds is not assumed.
 Use `--modes probe` for boot, registry and device-read checks without motion. By
 default this exercises supported rigs with matching selected tasks: scene-specific
 LIBERO Panda, RoboCasa Panda/Omron, RoboTwin Piper and ALOHA-AgileX, and RoboDojo
-ARX-X5 and YAM. `--robots` restricts that list using catalog-relative paths such as
-`robodojo/robodojo-yam`. YAM selects `env_cfg_type: yam` and `layout_config: arx_x5`.
+ARX-X5. `--robots` restricts that list using catalog-relative paths such as
+`robodojo/robodojo-arx-x5`.
 
 BEHAVIOR R1Pro requires an **additional explicit task source**:
 

@@ -46,6 +46,7 @@ def intrinsics(sim, indexes, chain, home, name):
         "home": {joint["name"]: float(value) for joint, value in zip(joints, home, strict=True)},
         "control": {
             "mode": "position",
+            "limit_handling": "native",
         },
         "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
         "stop": {"behavior": "hold", "affected_devices": [name]},
@@ -89,7 +90,6 @@ def bind(spec, root, context):
     frame = "flange" if part == "right" else "top"
     facts["kinematics"]["frame"] = frame
     facts["frames"] = {frame: None}
-    limits = [joint["limits"] for joint in facts["model"]["joints"]]
 
     def read():
         return {
@@ -103,12 +103,7 @@ def bind(spec, root, context):
 
     def write(target):
         """Stage the native joint reference."""
-        command = vector(
-            target,
-            len(indexes),
-            lower=[v["min"] if v else -np.inf for v in limits],
-            upper=[v["max"] if v else np.inf for v in limits],
-        )
+        command = vector(target, len(indexes))
 
         world.step({part: command})
         return {}

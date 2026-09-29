@@ -15,14 +15,12 @@ safety:
   max_cartesian_velocity: null
   max_joint_velocity: null
   keep_out_zones: []
-  notes: Use the supplied device drivers. Manipulators accept absolute joint targets;
-    controller tools use the same read/write/stop flow for either simulation clock.
-    Stop affects only its device. Native Panda torque control does not impose a hard
-    Cartesian or joint velocity cap. Base velocity limits bound targets, not measured
-    speed. Null safety caps impose no additional limits; native dynamics still apply.
-    Reads and recording do not request physics steps. Simulation frames are counted
-    without a horizon limit. Perceive scene geometry and objects from camera images;
-    budgets and verification remain environment-owned.
+  notes: Native Omron actuators clamp translation control to +/-1 m/s and yaw to +/-1.5
+    rad/s after rotation and scaling of normalized body commands; actuator force is
+    limited to +/-600 N (translation) and N m (yaw). These are actuator controls,
+    not measured-speed or independent body-frame command limits. Gripper direction
+    commands must be in [-1, 1] and use their sign. Arm/torso target ranges are governed
+    by native dynamics. Stop affects only its device; the world owns simulation time.
 meta:
   created_at: '2026-08-31T03:30:00Z'
   updated_at: '2026-08-31T03:30:00Z'

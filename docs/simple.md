@@ -92,12 +92,12 @@ with roboenv.connect() as env:
     )
 ```
 
-Velocity is expressed in pelvis-frame m/s and yaw rad/s: bounds are ±0.5 m/s
-and ±1 rad/s. Height is a ground-relative pelvis-height reference, 0.2–0.74 m.
-Torso roll/pitch/yaw are radians relative to the WBC heading frame. Torso yaw is
-not turning velocity. Orientation bounds use native waist limits as policy-input
-bounds, not guarantees of attainable torso poses. All declared components are
-required. The managed metric hook bypasses upstream teleop turn-flag semantics.
+Velocity is expressed in pelvis-frame m/s and yaw rad/s. Height is a
+ground-relative pelvis-height reference. Torso roll/pitch/yaw are radians
+relative to the WBC heading frame; torso yaw is not turning velocity. All
+declared components are required and must be finite. These command values have
+no added range bounds. Physical joint constraints and native torque clipping
+remain active. The managed metric hook bypasses upstream teleop turn-flag semantics.
 
 WBC alone writes legs and waist. There is no waist device. Base feedback declares
 `intrinsics.frames.torso: null` and supplies `read.frame_poses.torso`, the measured

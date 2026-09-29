@@ -30,6 +30,7 @@ intrinsics:
     torso_joint4: 0.0
   control:
     mode: position
+    limit_handling: native
   feedback:
     velocities: true
     efforts: false
@@ -46,29 +47,29 @@ intrinsics:
       limits:
         min: -1.1345
         max: 1.8326
-      max_velocity: 2.5
-      max_effort: 100.0
+      max_velocity: null
+      max_effort: null
     - name: torso_joint2
       type: revolute
       limits:
         min: -2.7925
         max: 2.5307
-      max_velocity: 2.5
-      max_effort: 100.0
+      max_velocity: null
+      max_effort: null
     - name: torso_joint3
       type: revolute
       limits:
         min: -1.8326
         max: 1.5708
-      max_velocity: 2.5
-      max_effort: 100.0
+      max_velocity: null
+      max_effort: null
     - name: torso_joint4
       type: revolute
       limits:
         min: -3.0543
         max: 3.0543
-      max_velocity: 2.5
-      max_effort: 100.0
+      max_velocity: null
+      max_effort: null
     chain:
     - origin:
       - -0.079032

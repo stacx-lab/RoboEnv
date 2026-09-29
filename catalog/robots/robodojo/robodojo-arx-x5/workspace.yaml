@@ -15,9 +15,11 @@ safety:
   max_cartesian_velocity: null
   max_joint_velocity: null
   keep_out_zones: []
-  notes: 'Native joint limits and collisions apply. Stop holds its device. Coordinated
-    writes may share step: {id: N, devices: [...]}; all participants must submit once
-    before that step executes.'
+  notes: Only upstream ARX X5 is supported. Native arm actuators enforce 5 rad/s velocity
+    and 100 N m effort limits. Physical joint constraints and native gripper clipping
+    and interpolation apply; no added arm target-range rejection. Gripper profiles
+    reject commands outside [0, 1]. Stop affects only its device; the world owns simulation
+    time.
 meta:
   created_at: '2026-09-09T00:00:00Z'
   updated_at: '2026-09-09T00:00:00Z'

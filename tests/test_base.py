@@ -10,7 +10,7 @@ from roboenv.devices.velocity import command, command_schema
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.fixture(params=["robocasa/robocasa-panda-omron", "isaaclab/isaaclab-g1"])
+@pytest.fixture(params=["robocasa/robocasa-panda-omron", "simple/simple-g1"])
 def control(request):
     path = ROOT / "catalog/robots" / request.param / "devices/base/profile.yaml"
     return yaml.safe_load(path.read_text())["intrinsics"]["control"]
@@ -34,7 +34,6 @@ def test_posture_is_required_only_for_tracked_axes(control):
         {"mode": "unsupported"},
         {"target": [0, 0, 0]},
         {"velocity": {"vx": 0, "vy": 0}},
-        {"velocity": {"vx": 2, "vy": 0, "wz": 0}},
         {"velocity": {"vx": True, "vy": 0, "wz": 0}},
         {"posture": {"height": 0.7, "pitch": True}},
         {"posture": {"height": 0.7, "typo": 0}},
@@ -45,7 +44,12 @@ def test_schema_and_validator_reject_invalid_commands(control, patch):
         "mode": next(iter(control["modes"])),
         "velocity": {"vx": 0, "vy": 0, "wz": 0},
         **(
-            {"posture": {"height": 0.7}}
+            {
+                "posture": {
+                    c["axis"]: c["default"]
+                    for c in control["modes"][next(iter(control["modes"]))]["posture"]["components"]
+                }
+            }
             if control["modes"][next(iter(control["modes"]))]["posture"]
             else {}
         ),
@@ -68,7 +72,14 @@ def test_declared_axes_require_finite_numbers(control, value):
                 "mode": next(iter(control["modes"])),
                 "velocity": {"vx": value, "vy": 0, "wz": 0},
                 **(
-                    {"posture": {"height": 0.7}}
+                    {
+                        "posture": {
+                            c["axis"]: c["default"]
+                            for c in control["modes"][next(iter(control["modes"]))]["posture"][
+                                "components"
+                            ]
+                        }
+                    }
                     if control["modes"][next(iter(control["modes"]))]["posture"]
                     else {}
                 ),

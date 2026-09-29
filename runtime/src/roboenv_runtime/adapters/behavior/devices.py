@@ -139,7 +139,7 @@ class BehaviorDevices(BehaviorBackend):
             if len(group["action_indices"]) != len(group["indices"]):
                 raise ValueError("Native controller must accept one command per controlled joint")
             if name == "base":
-                limits[name] = [(-0.5, 0.5), (-0.5, 0.5), (-1.0, 1.0)]
+                limits[name] = [(None, None)] * 3
                 targets[name] = [0.0, 0.0, 0.0]
             elif name.endswith("_gripper"):
                 group["lower"] = lower[group["indices"]]

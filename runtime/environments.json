@@ -112,7 +112,7 @@
       ],
       "known_blockers": [],
       "import_probes": [
-        "roboenv_runtime.adapters.isaaclab"
+        "isaaclab"
       ],
       "asset_instructions": "docs/isaaclab.md",
       "index_strategy": "unsafe-best-match"

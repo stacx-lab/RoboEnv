@@ -29,7 +29,7 @@ class EnvAdapter(Protocol):
     Attributes:
         name: Registry key (``"robodojo"``, ``"robotwin"``, ...).
         embodiment: Native robot embodiment (``"arx_x5"``,
-            ``"piper"``, ``"panda"``, ``"yam"``, ...).
+            ``"piper"``, ``"panda"``, ...).
         capabilities: Optional features, see :class:`roboenv_runtime.core.Capability`.
     """
 
@@ -158,7 +158,6 @@ BUILTIN_ADAPTERS: dict[str, str] = {
     "robotwin": "roboenv_runtime.adapters.robotwin",
     "libero": "roboenv_runtime.adapters.libero",
     "robocasa": "roboenv_runtime.adapters.robocasa",
-    "isaaclab": "roboenv_runtime.adapters.isaaclab",
     "simple": "roboenv_runtime.adapters.simple",
     "behavior": "roboenv_runtime.adapters.behavior",
 }

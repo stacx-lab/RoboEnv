@@ -135,51 +135,6 @@
     ]
   },
   {
-    "model": "yam",
-    "flange": "gripper",
-    "names": [
-      "joint7",
-      "joint8"
-    ],
-    "urdf": "<robot name=\"yam\"><joint name=\"joint7\" type=\"prismatic\">\n        <origin xyz=\"-0.0239931 0.0445119 -0.0566829\" rpy=\"1.02229e-14 4.71845e-16 1.68314e-15\" />\n        <axis xyz=\"6.86541e-15 1 0\" />\n        <parent link=\"gripper\" />\n        <child link=\"tip_left\" />\n        <limit effort=\"1\" velocity=\"1\" lower=\"-0.04695\" upper=\"4.60927e-15\" />\n    </joint>\n    <joint name=\"joint8\" type=\"prismatic\">\n        <origin xyz=\"0.0239931 -0.0445119 -0.0566829\" rpy=\"9.6084e-15 -2.77556e-16 -3.77189e-15\" />\n        <axis xyz=\"-6.86541e-15 -1 0\" />\n        <parent link=\"gripper\" />\n        <child link=\"tip_right\" />\n        <limit effort=\"1\" velocity=\"1\" lower=\"-0.04695\" upper=\"0\" />\n    </joint>\n<link name=\"gripper\" /><link name=\"tip_left\" /><link name=\"tip_right\" /></robot>",
-    "triangles": [
-      [
-        [
-          0.023993210432,
-          -0.044542981742,
-          -0.076108504884
-        ],
-        [
-          0.028941930768,
-          -0.044542981742,
-          -0.089659605972
-        ],
-        [
-          0.019044489165,
-          -0.044542981742,
-          -0.089659605972
-        ]
-      ],
-      [
-        [
-          -0.028941920835,
-          0.04454300003,
-          -0.089659605972
-        ],
-        [
-          -0.019044479232,
-          0.04454300003,
-          -0.089659605972
-        ],
-        [
-          -0.023993199568,
-          0.04454300003,
-          -0.076108504884
-        ]
-      ]
-    ]
-  },
-  {
     "model": "r1pro",
     "flange": "left_arm_link7",
     "names": [

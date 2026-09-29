@@ -173,6 +173,7 @@ def joint_intrinsics(model, home, name):
         },
         "control": {
             "mode": "position",
+            "limit_handling": "native",
         },
         "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
         "stop": {"behavior": "hold", "affected_devices": [name]},

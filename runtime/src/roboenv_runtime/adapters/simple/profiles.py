@@ -62,6 +62,7 @@ def profiles(model):
             "home": part["home"],
             "control": {
                 "mode": "position",
+                "limit_handling": "native",
             },
             "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
             "stop": {"behavior": "hold", "affected_devices": [name]},

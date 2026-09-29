@@ -45,17 +45,7 @@ def target_schema(joints):
                 "type": "array",
                 "minItems": len(joints),
                 "maxItems": len(joints),
-                "prefixItems": [
-                    {
-                        "type": "number",
-                        **(
-                            {"minimum": j["limits"]["min"], "maximum": j["limits"]["max"]}
-                            if j["limits"]
-                            else {}
-                        ),
-                    }
-                    for j in joints
-                ],
+                "items": {"type": "number"},
             },
         },
     }

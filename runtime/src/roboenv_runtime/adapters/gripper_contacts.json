@@ -146,56 +146,6 @@
       "revision": "0a709fe7863f6c869a8d141676585a883fce4270"
     }
   },
-  "yam": {
-    "approach_axis": [
-      0,
-      0,
-      -1
-    ],
-    "contacts": [
-      {
-        "point_m": [
-          0.0239931,
-          -0.044542981742,
-          -0.0813171
-        ],
-        "normal": [
-          0.0,
-          1.0,
-          0.0
-        ],
-        "size_m": null
-      },
-      {
-        "point_m": [
-          -0.0239931,
-          0.04454300003,
-          -0.0813171
-        ],
-        "normal": [
-          -0.0,
-          -1.0,
-          -0.0
-        ],
-        "size_m": null
-      }
-    ],
-    "source": {
-      "files": [
-        {
-          "file": "i2rt/robot_models/arm/yam/v1/assets/tip_left.stl",
-          "sha256": "281354d77e4914ccd994b6c71fecce49a91527701f268d318f801769a6913685"
-        },
-        {
-          "file": "i2rt/robot_models/arm/yam/v1/assets/tip_right.stl",
-          "sha256": "070925233d4b742c05c4d5508e951deba5947c2fabfa336a4e33db599c70ac3a"
-        }
-      ],
-      "repository": "https://github.com/i2rt-robotics/i2rt",
-      "revision": "5b72c47239bd056d0fa6c1a39edeb0537c89443c",
-      "geometry": "visual mesh used by the pinned YAM collision conversion"
-    }
-  },
   "r1pro": {
     "approach_axis": [
       0,

@@ -33,6 +33,7 @@ intrinsics:
     left_arm_joint7: 0.0
   control:
     mode: position
+    limit_handling: native
   feedback:
     velocities: true
     efforts: false
@@ -49,50 +50,50 @@ intrinsics:
       limits:
         min: -4.4506
         max: 1.309
-      max_velocity: 7.1209
-      max_effort: 55.0
+      max_velocity: null
+      max_effort: null
     - name: left_arm_joint2
       type: revolute
       limits:
         min: -0.1745
         max: 3.1416
-      max_velocity: 7.1209
-      max_effort: 55.0
+      max_velocity: null
+      max_effort: null
     - name: left_arm_joint3
       type: revolute
       limits:
         min: -2.356196
         max: 2.356196
-      max_velocity: 8.3776
-      max_effort: 25.0
+      max_velocity: null
+      max_effort: null
     - name: left_arm_joint4
       type: revolute
       limits:
         min: -2.0944
         max: 0.3491
-      max_velocity: 8.3776
-      max_effort: 25.0
+      max_velocity: null
+      max_effort: null
     - name: left_arm_joint5
       type: revolute
       limits:
         min: -2.356196
         max: 2.356196
-      max_velocity: 10.472
-      max_effort: 18.0
+      max_velocity: null
+      max_effort: null
     - name: left_arm_joint6
       type: revolute
       limits:
         min: -1.047198
         max: 1.047198
-      max_velocity: 10.472
-      max_effort: 18.0
+      max_velocity: null
+      max_effort: null
     - name: left_arm_joint7
       type: revolute
       limits:
         min: -1.5708
         max: 1.5708
-      max_velocity: 10.472
-      max_effort: 18.0
+      max_velocity: null
+      max_effort: null
     chain:
     - origin:
       - 0.0

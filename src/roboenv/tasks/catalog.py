@@ -18,7 +18,6 @@ from roboenv.tasks.model import Task
 BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab", "simple")
 ROBOTS = {
     "simple": "simple/simple-g1",
-    "isaaclab": "isaaclab/isaaclab-g1",
     "libero": "libero/libero-panda-tabletop",
     "robocasa": "robocasa/robocasa-panda-omron",
     "robotwin": "robotwin/robotwin-dual-piper",
@@ -166,7 +165,6 @@ def _robotwin(root, issues):
 
 def _robodojo(root, issues):
     base = root / "third_party/RoboDojo/task/RoboDojo"
-    index = yaml.safe_load((base / "config/_task.yml").read_text())
     for config in sorted((base / "config").glob("*.yml")):
         name = config.stem
         source = base / "tasks" / (name + ".py")
@@ -184,31 +182,6 @@ def _robodojo(root, issues):
                 "robodojo." + name,
                 {"task_name": name, "env_cfg_type": "arx_x5"},
                 description,
-            ),
-            source,
-        )
-        config_name = (
-            index["tasks"]
-            .get(name, {})
-            .get("robot_config", index.get("common", {}).get("robot_config", "dual_x5"))
-        )
-        if config_name != "dual_x5":
-            issues.append(
-                {
-                    "backend": "robodojo",
-                    "task": name,
-                    "embodiment": "yam",
-                    "reason": "Native task overrides its robot configuration: " + config_name,
-                }
-            )
-            continue
-        yield (
-            _task(
-                "robodojo",
-                "robodojo.yam_" + name,
-                {"task_name": name, "env_cfg_type": "yam", "layout_config": "arx_x5"},
-                description,
-                robot="robodojo/robodojo-yam",
             ),
             source,
         )
