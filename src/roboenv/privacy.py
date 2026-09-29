@@ -1,6 +1,5 @@
 """Audit publishable files for development-machine identifiers and private paths."""
 
-import hashlib
 import os
 import re
 import socket
@@ -92,7 +91,3 @@ def owned_files(root):
         for name in sorted(names):
             if name not in SKIP:
                 yield Path(directory) / name
-
-
-def content_identity(path):
-    return {"name": Path(path).name, "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest()}
