@@ -99,7 +99,7 @@ class Client:
             socket_path or os.environ.get("ROBOENV_SOCKET") or "/run/roboenv/sim.sock"
         )
         self.session = (
-            session if session is not None else os.environ.get("ROBOENV_SESSION", "harbor")
+            session if session is not None else os.environ.get("ROBOENV_SESSION", "local")
         )
         if not isinstance(self.session, str) or not IDENTIFIER.fullmatch(self.session):
             raise ValueError("session must be a protocol identifier")

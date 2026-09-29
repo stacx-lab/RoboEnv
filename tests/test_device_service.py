@@ -66,14 +66,12 @@ def test_status_and_duplicate_timeout_do_not_wait_for_or_poison_motion(device_se
         started = time.monotonic()
         assert client.operation("slow")["state"] == "running"
         assert time.monotonic() - started < 0.75
-        health = subprocess.run(
-            [sys.executable, str(ROOT / "src/roboenv/assets/healthcheck.py")],
-            env={**os.environ, "ROBOENV_SOCKET": client.socket_path},
-            capture_output=True,
-            text=True,
-            timeout=1,
-        )
-        assert health.returncode == 0, health.stderr
+        # A fresh client with the default identity answers health without queueing
+        # behind the motion: the registry is immutable once ready.
+        health = Client(client.socket_path).request("health", timeout=1)
+        assert health["worker"]["state"] == "ready"
+        assert health["device_service"]["ready"] is True
+        assert time.monotonic() - started < 0.75
         with pytest.raises(RemoteError) as error:
             client.device("controller").call(
                 "write",
@@ -146,7 +144,7 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
     assert "submit" not in report and not client.request("score.peek")["submitted"]
     # With the run's own identity the same certifier submits once, seals the world and
     # leaves a fail-closed verdict beside the retained journal.
-    report = certify(session="harbor", **{**identity, "out": tmp_path / "verdict"})
+    report = certify(session="local", **{**identity, "out": tmp_path / "verdict"})
     assert report["valid"] is True and report["trial_success"] is True
     assert json.loads((tmp_path / "verdict/reward.json").read_text()) == {"reward": 1.0}
     assert report["journal"]["sha256"] == report["journal_artifact"]["sha256"]
@@ -224,7 +222,7 @@ def test_partial_device_motion_is_not_certified(device_service):
     assert client.request("observe")["budget"]["used"] == 50
     raw = supervisor.journal.path.read_bytes()
     with pytest.raises(ValueError, match="indeterminate"):
-        validate_journal(raw, session="harbor", submit_id="none", verdict={})
+        validate_journal(raw, session="local", submit_id="none", verdict={})
 
 
 def test_timeout_fences_request_and_never_claims_emergency_stop(device_service):
@@ -255,13 +253,13 @@ def test_restart_retrieves_terminal_results_and_fences_unfinished_intents(tmp_pa
         task="test",
         seed=0,
         budget_mode="official",
-        session="harbor",
+        session="local",
         cache_entries=1,
     )
     before = Supervisor(config)
     raw = {
         "protocol": "roboenv/1",
-        "session": "harbor",
+        "session": "local",
         "generation": 0,
         "request_id": "done",
         "deadline_s": 1,

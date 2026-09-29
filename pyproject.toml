@@ -23,7 +23,7 @@ roboenv = "roboenv.cli.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-roboenv = ["assets/*.json", "assets/*.py", "assets/*.sh", "assets/*.Dockerfile", "specs/*.json"]
+roboenv = ["assets/*.json", "assets/*.py", "specs/*.json"]
 "roboenv.devices.bindings" = ["defaults/*/*.yaml"]
 
 [tool.ruff]
