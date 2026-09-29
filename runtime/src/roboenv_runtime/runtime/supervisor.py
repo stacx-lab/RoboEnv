@@ -15,7 +15,6 @@ import os
 import signal
 import socket
 import socketserver
-import stat
 import subprocess
 import sys
 import threading
@@ -33,6 +32,7 @@ from roboenv_runtime.runtime.protocol import (
     ALLOWED_OPS,
     MAX_NDJSON_BYTES,
     PROTOCOL_VERSION,
+    PUBLIC_RECORD_OPS,
     ProtocolError,
     Request,
     RequestCache,
@@ -40,6 +40,7 @@ from roboenv_runtime.runtime.protocol import (
     Response,
     encode_ndjson,
     read_ndjson,
+    remove_stale_socket,
     socket_address,
 )
 
@@ -55,16 +56,6 @@ def _inside(root: Path, candidate: str | os.PathLike[str]) -> Path:
     except ValueError as exc:
         raise ValueError(f"path {path} escapes run directory {root}") from exc
     return path
-
-
-def _remove_stale_socket(path: Path) -> None:
-    try:
-        mode = path.lstat().st_mode
-    except FileNotFoundError:
-        return
-    if not stat.S_ISSOCK(mode):
-        raise RuntimeError(f"refusing to replace non-socket path: {path}")
-    path.unlink()
 
 
 @dataclass
@@ -292,7 +283,7 @@ class Supervisor:
     def start_worker(self) -> None:
         if self._worker is not None:
             raise RuntimeError("worker already started")
-        _remove_stale_socket(self.config.worker_socket)
+        remove_stale_socket(self.config.worker_socket)
         log_path = self.config.run_dir / "logs" / "worker.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         self._worker_log = log_path.open("ab", buffering=0)
@@ -527,28 +518,11 @@ class Supervisor:
         with self._cache_lock:
             active = self._inflight.get(target)
         if active is not None:
-            if public and active.op not in {
-                "devices.list",
-                "devices.describe",
-                "devices.call",
-                "devices.cancel",
-                "environment.describe",
-            }:
+            if public and active.op not in PUBLIC_RECORD_OPS:
                 raise ProtocolError("unsupported_op", "Owner operation is not public")
             return {"request_id": target, "state": "running", "op": active.op}
         request, response = self._history(target)
-        if (
-            public
-            and request is not None
-            and request.op
-            not in {
-                "devices.list",
-                "devices.describe",
-                "devices.call",
-                "devices.cancel",
-                "environment.describe",
-            }
-        ):
+        if public and request is not None and request.op not in PUBLIC_RECORD_OPS:
             raise ProtocolError("unsupported_op", "Owner operation is not public")
         if response is not None:
             code = (response.get("error") or {}).get("code")
@@ -914,7 +888,7 @@ class Supervisor:
     def open_server(self) -> None:
         if self._server is not None:
             raise RuntimeError("server already open")
-        _remove_stale_socket(self.config.public_socket)
+        remove_stale_socket(self.config.public_socket)
         self._server = _ThreadingUnixServer(
             socket_address(self.config.public_socket), self._handler_type()
         )

@@ -10,7 +10,6 @@ import os
 import queue
 import signal
 import socketserver
-import stat
 import struct
 import sys
 import threading
@@ -35,6 +34,7 @@ from roboenv_runtime.runtime.protocol import (
     Response,
     encode_ndjson,
     read_ndjson,
+    remove_stale_socket,
     socket_address,
 )
 from roboenv_runtime.runtime.scoring import SimpleScorer
@@ -832,16 +832,6 @@ def build_adapter(task):
     return make_adapter(task.backend, **task.backend_kwargs)
 
 
-def _remove_worker_socket(path: Path) -> None:
-    try:
-        mode = path.lstat().st_mode
-    except FileNotFoundError:
-        return
-    if not stat.S_ISSOCK(mode):
-        raise RuntimeError(f"refusing to replace non-socket path: {path}")
-    path.unlink()
-
-
 def build_parser() -> argparse.ArgumentParser:
     """CLI of ``python -m roboenv_runtime.runtime.worker``."""
     parser = argparse.ArgumentParser(description="roboenv simulator worker")
@@ -877,7 +867,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     socket_path.parent.mkdir(parents=True, exist_ok=True)
-    _remove_worker_socket(socket_path)
+    remove_stale_socket(socket_path)
 
     from roboenv.tasks.model import Task, task_path
 

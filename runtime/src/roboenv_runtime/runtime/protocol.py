@@ -14,17 +14,20 @@ import hashlib
 import json
 import math
 import os
-import re
+import stat
 from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO
 
+from roboenv.client import IDENTIFIER as _IDENTIFIER_RE
+from roboenv.client import MAX_BYTES as MAX_NDJSON_BYTES
+from roboenv.client import PROTOCOL as PROTOCOL_VERSION
+from roboenv.devices.contract import DEVICE_OPS
 from roboenv.validation import json_loads
 
-PROTOCOL_VERSION = "roboenv/1"
-MAX_NDJSON_BYTES = 8 * 1024 * 1024
+# The SDK owns the wire protocol's name, size limit and identifier syntax; both sides import them.
 
 # Device operations and private owner operations share one validated envelope.
 ALLOWED_OPS = frozenset(
@@ -60,7 +63,19 @@ _REQUEST_FIELDS = frozenset(
         "args",
     }
 )
-_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@+-]{0,127}$")
+# Operations whose records a public (HTTP) client may look up through operations.get.
+PUBLIC_RECORD_OPS = DEVICE_OPS | {"environment.describe"}
+
+
+def remove_stale_socket(path: Path) -> None:
+    """Remove a socket left by an earlier process; refuse to replace anything else."""
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return
+    if not stat.S_ISSOCK(mode):
+        raise RuntimeError(f"refusing to replace non-socket path: {path}")
+    path.unlink()
 
 
 #: AF_UNIX addresses are capped at 108 bytes on Linux; leave room for a NUL and slack.
