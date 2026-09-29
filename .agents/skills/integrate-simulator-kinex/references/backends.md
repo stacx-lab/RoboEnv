@@ -76,22 +76,18 @@ and native success rules. Do not restore primitive dispatch or a second driver p
 
 ## RoboDojo
 
-- Inspect `adapters/robodojo/{adapter,devices,rig,backend}.py`, retained legacy
-  callers, and the selected upstream environment, robot, camera and task
-  configuration. The typed catalogs include ARX-X5 and YAM; their default route
-  uses source-backed `EvalEnv` with an injected client.
-- Match catalog selection to actual native creation parameters. In the baseline,
-  YAM requires `env_cfg_type=yam`; changing only the robot ID is insufficient.
-  Resolve single/dual-arm devices and aliases against the selected native inventory.
-- Published scene layouts currently use the `arx_x5` collection. Generated YAM
-  practice aliases explicitly set `layout_config=arx_x5` while keeping the YAM
-  robot configuration. Record that adaptation in initialization/replay and do not
-  call it an official YAM benchmark. Missing layouts must never trigger a silent
-  fallback; inspect the selected collection and preserve its original contents.
-- Preserve useful motor/held-control machinery while moving `pick`, `place`, pose
-  planners and object queries out of the public device surface. Neither a websocket
-  policy client nor a second agent service is required for Kinex device control.
-  Check controller and camera initialization without contacting a policy server.
+- Inspect `adapters/robodojo/{adapter,devices,rig,backend}.py` and the selected
+  upstream environment, robot, camera and task configuration. The typed catalog is
+  ARX-X5; its default route uses source-backed `EvalEnv` with an injected client.
+- Match catalog selection to actual native creation parameters (`env_cfg_type`);
+  changing only the robot ID is insufficient. Resolve single/dual-arm devices and
+  aliases against the selected native inventory.
+- Published scene layouts use the `arx_x5` collection. Missing layouts must never
+  trigger a silent fallback; inspect the selected collection and preserve its
+  original contents.
+- Keep pose planners and object queries out of the public device surface. Neither a
+  websocket policy client nor a second agent service is required for Kinex device
+  control. Check controller and camera initialization without contacting a policy server.
 - Distinguish `step_lim` action frames, observation collection intervals and raw
   physics steps. Define which operations advance each counter and preserve native
   truncation and task-specific success requirements. Cover rendering/read calls
@@ -110,14 +106,6 @@ and native success rules. Do not restore primitive dispatch or a second driver p
   camera rotations use intrinsic XYZ, while URDF rpy uses a different convention.
   CPU contact reports may be disabled by Isaac Lab: an owner fixture can enable
   the observation channel, but must still prove physical contact and release.
-- For YAM, verify the managed USD conversion version and actual finger collision
-  hierarchy. Current conversion decomposes the two concave finger meshes while
-  preserving source visuals, joints and older USD/receipt archives. A fixed
-  contact fixture can pass while a single-hull finger ejects a free object;
-  require unsupported dynamic retention and release as well as loaded contacts.
-  Quiesce the asset depot before upgrading and refresh affected native/Kinex
-  evidence afterward. Conversion subprocess success requires both its exit code
-  and a saved success receipt: Kit shutdown can hide a Python exception.
 - Verify the selected Isaac Sim/Isaac Lab, cuRobo and asset dependencies together
   in a new interpreter. Source-lock syntax success is not a clean-install proof.
   Configure cold-start/warmup deadlines from observed boot behavior and include
