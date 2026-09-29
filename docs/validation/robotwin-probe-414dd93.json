@@ -1,0 +1,137 @@
+{
+  "schema": "roboenv/simulator-validation/1",
+  "phase": "completed",
+  "roboenv_version": "0.9.0",
+  "model_calls": 0,
+  "reference_official": false,
+  "cases": [
+    {
+      "id": "robotwin/probe-robotwin-robotwin-dual-piper-handover-mic",
+      "path": "cases/000-robotwin-probe-robotwin-robotwin-dual-piper-handover-mic-s0",
+      "mode": "probe",
+      "seed": 0,
+      "backend": "robotwin",
+      "backend_task": "robotwin.handover_mic",
+      "robot": "robotwin/robotwin-dual-piper",
+      "execution_mode": "realtime",
+      "budget_mode": "practice",
+      "source_task_sha256": "e169c3ae1e407a57bd9cae5eeba71f178a7d8e74f20b44b2a45cc6855cd3cc82",
+      "program_sha256": "efd692dc80caeefd5deecd707058699feee636942472dc8ee12b5cf90082e20b",
+      "bindings_sha256": "051e5e05442fff2856aaa8fab16fccdd05b0673e30c116339ec76f664f2ea368",
+      "expected_devices": [
+        "head_camera",
+        "left_arm",
+        "left_camera",
+        "left_gripper",
+        "right_arm",
+        "right_camera",
+        "right_gripper",
+        "world"
+      ],
+      "expected_reads": [
+        "head_camera",
+        "left_arm",
+        "left_camera",
+        "left_gripper",
+        "right_arm",
+        "right_camera",
+        "right_gripper",
+        "world"
+      ],
+      "execution_attempted": true,
+      "boot_verified": true,
+      "program_completed": true,
+      "world_stopped": true,
+      "replay_exit_code": 0,
+      "verify_exit_code": 0,
+      "verifier_valid": true,
+      "final_verifier_success": false,
+      "device_read_probe_passed": true,
+      "reference_replay_passed": false,
+      "reward": 0.0,
+      "budget": {
+        "used": 70,
+        "max": null,
+        "unit": "action_frames"
+      },
+      "journal": {
+        "sha256": "ddaee47925643afbef4b4e437470453436502918d66d61f460dffd3741b7d1a5",
+        "bytes": 68548,
+        "requests": 14,
+        "validated": true
+      },
+      "timing_s": {
+        "launch_s": 17.402,
+        "replay_s": 4.986,
+        "verify_s": 0.156
+      },
+      "failure_category": null,
+      "failed_device_reads": []
+    },
+    {
+      "id": "robotwin/probe-robotwin-robotwin-aloha-agilex-handover-mic",
+      "path": "cases/001-robotwin-probe-robotwin-robotwin-aloha-agilex-handover-mic-s0",
+      "mode": "probe",
+      "seed": 0,
+      "backend": "robotwin",
+      "backend_task": "robotwin.handover_mic",
+      "robot": "robotwin/robotwin-aloha-agilex",
+      "execution_mode": "realtime",
+      "budget_mode": "practice",
+      "source_task_sha256": "e169c3ae1e407a57bd9cae5eeba71f178a7d8e74f20b44b2a45cc6855cd3cc82",
+      "program_sha256": "efd692dc80caeefd5deecd707058699feee636942472dc8ee12b5cf90082e20b",
+      "bindings_sha256": "f25d2caf3ce88e0d36808b3f7d645f371b12e31edb30a9b9546175d392e57f92",
+      "expected_devices": [
+        "head_camera",
+        "left_arm",
+        "left_camera",
+        "left_gripper",
+        "right_arm",
+        "right_camera",
+        "right_gripper",
+        "world"
+      ],
+      "expected_reads": [
+        "head_camera",
+        "left_arm",
+        "left_camera",
+        "left_gripper",
+        "right_arm",
+        "right_camera",
+        "right_gripper",
+        "world"
+      ],
+      "execution_attempted": true,
+      "boot_verified": true,
+      "program_completed": true,
+      "world_stopped": true,
+      "replay_exit_code": 0,
+      "verify_exit_code": 0,
+      "verifier_valid": true,
+      "final_verifier_success": false,
+      "device_read_probe_passed": true,
+      "reference_replay_passed": false,
+      "reward": 0.0,
+      "budget": {
+        "used": 124,
+        "max": null,
+        "unit": "action_frames"
+      },
+      "journal": {
+        "sha256": "d79592673e50eda0a68c97da731652a08ad97c308d5af2acba950d3b4e29d380",
+        "bytes": 68807,
+        "requests": 14,
+        "validated": true
+      },
+      "timing_s": {
+        "launch_s": 53.966,
+        "replay_s": 12.181,
+        "verify_s": 0.164
+      },
+      "failure_category": null,
+      "failed_device_reads": []
+    }
+  ],
+  "all_selected_checks_passed": true,
+  "fresh_process_replay_certificate": false
+}

@@ -1,0 +1,239 @@
+{
+  "schema": "roboenv/simulator-validation/1",
+  "phase": "completed",
+  "roboenv_version": "0.9.0",
+  "model_calls": 0,
+  "reference_official": false,
+  "cases": [
+    {
+      "id": "libero/probe-libero-libero-panda-tabletop-bowl-onto-plate",
+      "path": "cases/000-libero-probe-libero-libero-panda-tabletop-bowl-onto-plate-s0",
+      "mode": "probe",
+      "seed": 0,
+      "backend": "libero",
+      "backend_task": "libero.spatial_0",
+      "robot": "libero/libero-panda-tabletop",
+      "execution_mode": "realtime",
+      "budget_mode": "practice",
+      "source_task_sha256": "ba172e9335171b5fa35bdcecf2a734a098beb36cd27c5060e50d4cdaae5ecfaf",
+      "program_sha256": "53f48bfb2b2fa3cb33e114dc3ca3c6e6c3859984df00141e4309c7312459393a",
+      "bindings_sha256": "1c17c9ba8c531ce5834d2d304a339c08a2a04a51ce5016ee28674fadfe12ac3f",
+      "expected_devices": [
+        "arm",
+        "camera",
+        "camera_wrist",
+        "gripper",
+        "world"
+      ],
+      "expected_reads": [
+        "arm",
+        "camera",
+        "camera_wrist",
+        "gripper",
+        "world"
+      ],
+      "execution_attempted": true,
+      "boot_verified": true,
+      "program_completed": true,
+      "world_stopped": true,
+      "replay_exit_code": 0,
+      "verify_exit_code": 0,
+      "verifier_valid": true,
+      "final_verifier_success": false,
+      "device_read_probe_passed": true,
+      "reference_replay_passed": false,
+      "reward": 0.0,
+      "budget": {
+        "used": 21,
+        "max": null,
+        "unit": "action_frames"
+      },
+      "journal": {
+        "sha256": "3bd1c460480542c35a89d388bdd0cbc478755f3d7f32ea719b2c3483eb92d614",
+        "bytes": 40100,
+        "requests": 11,
+        "validated": true
+      },
+      "timing_s": {
+        "launch_s": 10.081,
+        "replay_s": 0.431,
+        "verify_s": 0.179
+      },
+      "failure_category": null,
+      "failed_device_reads": []
+    },
+    {
+      "id": "libero/probe-libero-libero-panda-tabletop-bowl-onto-plate",
+      "path": "cases/000-libero-probe-libero-libero-panda-tabletop-bowl-onto-plate-s1",
+      "mode": "probe",
+      "seed": 1,
+      "backend": "libero",
+      "backend_task": "libero.spatial_0",
+      "robot": "libero/libero-panda-tabletop",
+      "execution_mode": "realtime",
+      "budget_mode": "practice",
+      "source_task_sha256": "ba172e9335171b5fa35bdcecf2a734a098beb36cd27c5060e50d4cdaae5ecfaf",
+      "program_sha256": "53f48bfb2b2fa3cb33e114dc3ca3c6e6c3859984df00141e4309c7312459393a",
+      "bindings_sha256": "1c17c9ba8c531ce5834d2d304a339c08a2a04a51ce5016ee28674fadfe12ac3f",
+      "expected_devices": [
+        "arm",
+        "camera",
+        "camera_wrist",
+        "gripper",
+        "world"
+      ],
+      "expected_reads": [
+        "arm",
+        "camera",
+        "camera_wrist",
+        "gripper",
+        "world"
+      ],
+      "execution_attempted": true,
+      "boot_verified": true,
+      "program_completed": true,
+      "world_stopped": true,
+      "replay_exit_code": 0,
+      "verify_exit_code": 0,
+      "verifier_valid": true,
+      "final_verifier_success": false,
+      "device_read_probe_passed": true,
+      "reference_replay_passed": false,
+      "reward": 0.0,
+      "budget": {
+        "used": 22,
+        "max": null,
+        "unit": "action_frames"
+      },
+      "journal": {
+        "sha256": "e1786d5f476a275606054c0f7458af0b0c450dce7a422cbf4739fb1f814fd18a",
+        "bytes": 40097,
+        "requests": 11,
+        "validated": true
+      },
+      "timing_s": {
+        "launch_s": 10.705,
+        "replay_s": 0.467,
+        "verify_s": 0.136
+      },
+      "failure_category": null,
+      "failed_device_reads": []
+    },
+    {
+      "id": "libero/probe-libero-libero-panda-kitchen-bowl-into-bottom-drawer",
+      "path": "cases/001-libero-probe-libero-libero-panda-kitchen-bowl-into-bottom-drawer-s0",
+      "mode": "probe",
+      "seed": 0,
+      "backend": "libero",
+      "backend_task": "libero.10_3",
+      "robot": "libero/libero-panda-kitchen",
+      "execution_mode": "realtime",
+      "budget_mode": "practice",
+      "source_task_sha256": "853d44107ae79698872637d223bf12123353dcc8eff616eba355f10432743452",
+      "program_sha256": "53f48bfb2b2fa3cb33e114dc3ca3c6e6c3859984df00141e4309c7312459393a",
+      "bindings_sha256": "1c17c9ba8c531ce5834d2d304a339c08a2a04a51ce5016ee28674fadfe12ac3f",
+      "expected_devices": [
+        "arm",
+        "camera",
+        "camera_wrist",
+        "gripper",
+        "world"
+      ],
+      "expected_reads": [
+        "arm",
+        "camera",
+        "camera_wrist",
+        "gripper",
+        "world"
+      ],
+      "execution_attempted": true,
+      "boot_verified": true,
+      "program_completed": true,
+      "world_stopped": true,
+      "replay_exit_code": 0,
+      "verify_exit_code": 0,
+      "verifier_valid": true,
+      "final_verifier_success": false,
+      "device_read_probe_passed": true,
+      "reference_replay_passed": false,
+      "reward": 0.0,
+      "budget": {
+        "used": 21,
+        "max": null,
+        "unit": "action_frames"
+      },
+      "journal": {
+        "sha256": "172492118537aa1b3421b1fb311b93df05b221320531e0f1915f3ba14de1318a",
+        "bytes": 39269,
+        "requests": 11,
+        "validated": true
+      },
+      "timing_s": {
+        "launch_s": 8.054,
+        "replay_s": 0.395,
+        "verify_s": 0.135
+      },
+      "failure_category": null,
+      "failed_device_reads": []
+    },
+    {
+      "id": "libero/probe-libero-libero-panda-kitchen-bowl-into-bottom-drawer",
+      "path": "cases/001-libero-probe-libero-libero-panda-kitchen-bowl-into-bottom-drawer-s1",
+      "mode": "probe",
+      "seed": 1,
+      "backend": "libero",
+      "backend_task": "libero.10_3",
+      "robot": "libero/libero-panda-kitchen",
+      "execution_mode": "realtime",
+      "budget_mode": "practice",
+      "source_task_sha256": "853d44107ae79698872637d223bf12123353dcc8eff616eba355f10432743452",
+      "program_sha256": "53f48bfb2b2fa3cb33e114dc3ca3c6e6c3859984df00141e4309c7312459393a",
+      "bindings_sha256": "1c17c9ba8c531ce5834d2d304a339c08a2a04a51ce5016ee28674fadfe12ac3f",
+      "expected_devices": [
+        "arm",
+        "camera",
+        "camera_wrist",
+        "gripper",
+        "world"
+      ],
+      "expected_reads": [
+        "arm",
+        "camera",
+        "camera_wrist",
+        "gripper",
+        "world"
+      ],
+      "execution_attempted": true,
+      "boot_verified": true,
+      "program_completed": true,
+      "world_stopped": true,
+      "replay_exit_code": 0,
+      "verify_exit_code": 0,
+      "verifier_valid": true,
+      "final_verifier_success": false,
+      "device_read_probe_passed": true,
+      "reference_replay_passed": false,
+      "reward": 0.0,
+      "budget": {
+        "used": 20,
+        "max": null,
+        "unit": "action_frames"
+      },
+      "journal": {
+        "sha256": "e41a556ee89b766b3434add04f75e65652f529d2d76ef60a150ff02e0a74771e",
+        "bytes": 39274,
+        "requests": 11,
+        "validated": true
+      },
+      "timing_s": {
+        "launch_s": 7.773,
+        "replay_s": 0.354,
+        "verify_s": 0.146
+      },
+      "failure_category": null,
+      "failed_device_reads": []
+    }
+  ],
+  "all_selected_checks_passed": true,
+  "fresh_process_replay_certificate": false
+}

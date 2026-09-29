@@ -1,0 +1,74 @@
+{
+  "schema": "roboenv/simulator-validation/1",
+  "phase": "completed",
+  "roboenv_version": "0.9.0",
+  "model_calls": 0,
+  "reference_official": false,
+  "cases": [
+    {
+      "id": "robocasa/probe-robocasa-robocasa-panda-omron-arrange-vegetables",
+      "path": "cases/000-robocasa-probe-robocasa-robocasa-panda-omron-arrange-vegetables-s0",
+      "mode": "probe",
+      "seed": 0,
+      "backend": "robocasa",
+      "backend_task": "robocasa.ArrangeVegetables",
+      "robot": "robocasa/robocasa-panda-omron",
+      "execution_mode": "realtime",
+      "budget_mode": "official",
+      "source_task_sha256": "1e0db1c2fd1e3dc34f903be30d7804a06f19cd0b81579dcf7d1e98a1e7abac6d",
+      "program_sha256": "105dfb96524f71bbac9e0c5265e52d0a2a15729efe4f64031a12f51ea92cbc39",
+      "bindings_sha256": "5e3372f2e5207a842bfc274f8d2ce26d3a50632268ecaf4b1657073ce650f74c",
+      "expected_devices": [
+        "arm",
+        "base",
+        "camera_left",
+        "camera_right",
+        "camera_wrist",
+        "gripper",
+        "torso",
+        "world"
+      ],
+      "expected_reads": [
+        "arm",
+        "base",
+        "camera_left",
+        "camera_right",
+        "camera_wrist",
+        "gripper",
+        "torso",
+        "world"
+      ],
+      "execution_attempted": true,
+      "boot_verified": true,
+      "program_completed": true,
+      "world_stopped": true,
+      "replay_exit_code": 0,
+      "verify_exit_code": 0,
+      "verifier_valid": true,
+      "final_verifier_success": false,
+      "device_read_probe_passed": true,
+      "reference_replay_passed": false,
+      "reward": 0.0,
+      "budget": {
+        "used": 22,
+        "max": null,
+        "unit": "action_frames"
+      },
+      "journal": {
+        "sha256": "d18e6bfcd0d3bcfcba031fe38b01cb9167982bb9061b1d176001e5a25d2465a1",
+        "bytes": 54508,
+        "requests": 14,
+        "validated": true
+      },
+      "timing_s": {
+        "launch_s": 20.127,
+        "replay_s": 0.688,
+        "verify_s": 0.177
+      },
+      "failure_category": null,
+      "failed_device_reads": []
+    }
+  ],
+  "all_selected_checks_passed": true,
+  "fresh_process_replay_certificate": false
+}
