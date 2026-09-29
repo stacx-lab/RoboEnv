@@ -1,0 +1,6 @@
+{
+  "origin": "project-reference",
+  "official": false,
+  "retired": true,
+  "reason": "Written for the RoboCasa tool API (get_object_pose, goto_pose, place_object, ...) that typed devices replaced in 1461641; it cannot run against device-only worlds. Kept as the historical program."
+}
