@@ -9,4 +9,3 @@ seed: 0
 budget_mode: practice
 backend_kwargs:
   task_name: stack_blocks_three
-action_abstraction: devices

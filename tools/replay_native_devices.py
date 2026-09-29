@@ -16,13 +16,18 @@ def replay(record, *, out=None):
     backend = record["backend"]
     if backend not in TOLERANCES:
         raise ValueError("Unsupported native replay backend")
+    mode = record.get("execution_mode")
+    if mode not in ("stepped", "realtime"):
+        raise ValueError("Replay requires execution_mode: stepped or realtime")
     budget = record["budget"]
     final_frame = budget["used"]
-    if type(final_frame) is not int or final_frame < 0 or final_frame > budget["max"]:
+    if (type(final_frame) is not int or final_frame < 0
+            or (budget["max"] is not None and final_frame > budget["max"])):
         raise ValueError("Invalid recorded action-frame budget")
     adapter = make_adapter(backend, **record["environment"])
     report = {"schema": "roboenv/native-replay/1", "passed": False}
     try:
+        adapter.configure_execution_mode(mode)
         adapter.reset(record["initialization"]["requested_seed"])
         native = adapter._env
         # Optional native imports can expose vendored distribution metadata.

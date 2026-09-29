@@ -1,30 +1,4 @@
-"""The simulator worker: one adapter, one process, a small NDJSON socket API.
-
-The worker owns the only simulator object.  It never accepts attribute paths
-or arbitrary callables from the wire: ``call`` dispatches only the adapter's
-allow-listed tools, scoring is owned by a :class:`roboenv_runtime.runtime.scoring.
-ScoreAuthority`. Programs and callbacks execute only in the agent container;
-neither official nor practice workers execute submitted Python.
-
-Operations (:data:`roboenv_runtime.runtime.protocol.ALLOWED_OPS`):
-
-======================  =====================================================
-op                      what
-======================  =====================================================
-``health``              liveness and counters
-``api``                 tools (signature/doc/read_only), capabilities, prompt context
-``observe``             normalised ground truth + budget + latched/submitted
-``call``                ``{"name": tool, ...kwargs}`` → tool result
-``score.peek``          read-only evaluation
-``submit``              the one final evaluation; mutating calls freeze after it
-``reset``               same task, optional ``seed`` (``reset_same_task`` alias)
-``checkpoint`` / ``restore``  when the adapter has ``Capability.CHECKPOINT``
-``capture``             ``{"path": "captures/x.png"}`` → PNG inside the run dir
-``exec``                always refused; programs execute in the agent container
-``skill``               refused: primitives run client-side so each call is journaled
-``shutdown``            stop serving
-======================  =====================================================
-"""
+"""One native world, typed device dispatch, and private owner operations."""
 
 from __future__ import annotations
 
@@ -44,18 +18,14 @@ import time
 import zlib
 from collections.abc import Mapping, Sequence
 from concurrent.futures import Future
-from functools import wraps
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from roboenv.devices.execution import map_result
 from roboenv.devices.status import status_feedback
-from roboenv.tasks.model import DEVICE_BACKENDS
 
-from roboenv_runtime.core.access import is_read_only
 from roboenv_runtime.core.adapter import EnvAdapter, make_adapter
-from roboenv_runtime.core.tools import ToolSpec
 from roboenv_runtime.runtime.protocol import (
     ALLOWED_OPS,
     MAX_NDJSON_BYTES,
@@ -67,7 +37,7 @@ from roboenv_runtime.runtime.protocol import (
     read_ndjson,
     socket_address,
 )
-from roboenv_runtime.runtime.scoring import ScoreAuthority, make_score_authority
+from roboenv_runtime.runtime.scoring import SimpleScorer
 from roboenv_runtime.runtime.world import WorldSession
 
 __all__ = ["SimWorker", "WorkerRPCError", "WorkerUnixServer", "handle_mapping", "main"]
@@ -76,12 +46,6 @@ __all__ = ["SimWorker", "WorkerRPCError", "WorkerUnixServer", "handle_mapping", 
 log = logging.getLogger(__name__)
 
 WORKER_OPS = ALLOWED_OPS - {"operations.get"}
-READ_ONLY_PREFIXES = ("get_", "list_", "check_", "is_", "observe", "render", "peek")
-"""Tools whose names start with these never move the world (allowed after submit)."""
-SCORING_TOOL_MARKERS = ("score", "reward", "completed")
-"""Tools that touch scoring are hidden from unprivileged clients."""
-EXCLUDED_TOOLS = frozenset({"a", "sim", "exec", "checkpoint", "restore"})
-"""Never exposed through ``call`` (checkpoint/restore have their own ops)."""
 
 
 class WorkerRPCError(RuntimeError):
@@ -162,21 +126,6 @@ def write_png(path: Path, frame: Any) -> tuple[int, int, int]:
     return height, width, channels
 
 
-def _parameter_names(fn: Any) -> list[str]:
-    """Positional-capable parameter names of ``fn`` (for remote positional calls)."""
-    import inspect
-
-    try:
-        signature = inspect.signature(fn)
-    except (TypeError, ValueError):
-        return []
-    return [
-        p.name
-        for p in signature.parameters.values()
-        if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
-    ]
-
-
 # ---------------------------------------------------------------- the worker
 
 
@@ -193,16 +142,12 @@ class SimWorker:
         budget_mode: str = "practice",
         session: str | None = None,
         generation: int = 0,
-        privileged: bool = False,
         reset_adapter: bool = True,
-        scorer_options: Mapping[str, Any] | None = None,
         device_root: str | os.PathLike[str] | None = None,
         execution_mode: str = "realtime",
     ) -> None:
         if budget_mode not in {"official", "practice"}:
             raise ValueError("budget_mode must be 'official' or 'practice'")
-        if privileged and budget_mode == "official":
-            raise ValueError("privileged workers are practice-only")
         self.adapter = adapter
         adapter.run_dir = Path(run_dir).resolve()
         self.world = WorldSession(adapter, execution_mode)
@@ -213,13 +158,10 @@ class SimWorker:
         self.budget_mode = budget_mode
         self.session = session
         self.generation = int(generation)
-        self.privileged = bool(privileged)
-        self.scorer_options = dict(scorer_options or {})
         self.started_monotonic = time.monotonic()
         self.shutdown_requested = False
         self.state = "starting"
         self.request_count = 0
-        self.basic_call_count = 0
         self.reset_count = 0
         self._checkpoints = {}
         self._closed = False
@@ -228,10 +170,7 @@ class SimWorker:
         self._termination_reason = None
         if reset_adapter:
             self.world.reset(self.seed)
-        self.scorer: ScoreAuthority = make_score_authority(
-            self.adapter, self.run_dir, budget_mode=self.budget_mode, **self.scorer_options
-        )
-        self._tools = self._collect_tools()
+        self.scorer = SimpleScorer(self.adapter)
         self.devices = None
         self._device_root = device_root or os.environ.get("ROBOENV_SERVER_ROBOT")
         try:
@@ -254,78 +193,9 @@ class SimWorker:
         self.devices = assemble_devices(
             self._device_root,
             self.world,
-            self.dispatch,
             manifest_path=os.environ.get("ROBOENV_SERVER_MANIFEST"),
-            public_tools=self._tools,
         )
         self.devices.sequence = sequence
-
-    # ------------------------------------------------------------ tools
-
-    def _collect_tools(self) -> dict[str, Any]:
-        registry = self.adapter.tools()
-        if not isinstance(registry, Mapping):
-            raise TypeError("adapter.tools() must return a mapping")
-        tools: dict[str, Any] = {}
-        for raw_name, fn in registry.items():
-            name = str(raw_name)
-            if not callable(fn) or name in EXCLUDED_TOOLS:
-                continue
-            if not self.privileged and any(m in name.lower() for m in SCORING_TOOL_MARKERS):
-                continue
-            tools[name] = self._counted_controller(name, fn)
-        return tools
-
-    def _counted_controller(self, name, fn):
-        """Both device bindings and primitive RPC use this exact accounting point."""
-
-        @wraps(fn)
-        def invoke(*args, **kwargs):
-            if self.scorer.submitted and not self.is_read_only(name):
-                raise WorkerRPCError("already_submitted", "mutating calls are frozen after submit")
-            self.basic_call_count += 1
-            return fn(*args, **kwargs)
-
-        return invoke
-
-    @staticmethod
-    def is_read_only(name: str) -> bool:
-        """Heuristic: observation tools never mutate the world."""
-        return is_read_only(name)
-
-    def _tool(self, name: str) -> Any:
-        fn = self._tools.get(name)
-        if fn is None:
-            raise WorkerRPCError(
-                "unknown_tool",
-                f"tool {name!r} is not available",
-                details={"available": sorted(self._tools)},
-            )
-        return fn
-
-    def _invoke_tool(self, name: str, kwargs: Mapping[str, Any]) -> Any:
-        if self.scorer.submitted and not self.is_read_only(name):
-            raise WorkerRPCError("already_submitted", "mutating calls are frozen after submit")
-        if not isinstance(kwargs, Mapping):
-            raise WorkerRPCError("invalid_args", "tool kwargs must be an object")
-        return self._tool(name)(**dict(kwargs))
-
-    @staticmethod
-    def _named_kwargs(args: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
-        raw = dict(args)
-        name = raw.pop("name", raw.pop("fn", None))
-        if not isinstance(name, str) or not name:
-            raise WorkerRPCError("invalid_args", "call requires args.name (or args.fn)")
-        nested = raw.pop("kwargs", None)
-        if nested is None:
-            return name, raw
-        if not isinstance(nested, Mapping):
-            raise WorkerRPCError("invalid_args", "args.kwargs must be an object")
-        if raw:
-            raise WorkerRPCError(
-                "invalid_args", "put tool arguments either in kwargs or alongside name"
-            )
-        return name, dict(nested)
 
     # ------------------------------------------------------------ operations
 
@@ -338,63 +208,12 @@ class SimWorker:
             "task": self.task_id,
             "seed": self.seed,
             "budget_mode": self.budget_mode,
-            "privileged": self.privileged,
+            "execution_mode": self.world.mode,
             "uptime_s": round(time.monotonic() - self.started_monotonic, 3),
             "requests": self.request_count,
-            "basic_calls": self.basic_call_count,
             "resets": self.reset_count,
             "submitted": self.scorer.submitted,
             "success_latched": self.scorer.latched,
-        }
-
-    def api(self) -> dict[str, Any]:
-        """Tool documentation plus the prompt context clients need."""
-        tools = {}
-        for name, fn in sorted(self._tools.items()):
-            spec = ToolSpec.of(name, fn)
-            tools[name] = {
-                "signature": spec.signature,
-                "parameters": _parameter_names(fn),
-                "doc": spec.doc,
-                "read_only": self.is_read_only(name),
-            }
-        capabilities = sorted(getattr(self.adapter, "capabilities", ()) or ())
-        if self.budget_mode == "official":
-            capabilities = [
-                value for value in capabilities if value not in {"checkpoint", "privileged"}
-            ]
-        return {
-            "protocol": PROTOCOL_VERSION,
-            "device_contract": "roboenv/devices/1" if self.devices else None,
-            "operations": sorted(
-                WORKER_OPS
-                - {"skill", "exec"}
-                - (
-                    {"reset", "reset_same_task", "checkpoint", "restore"}
-                    if self.budget_mode == "official"
-                    else set()
-                )
-            ),
-            "tools": tools,
-            "context": {
-                "adapter": getattr(self.adapter, "name", ""),
-                "embodiment": getattr(self.adapter, "embodiment", "general"),
-                "capabilities": capabilities,
-                "situation": self.adapter.situation(),
-                "facts": self.adapter.facts(),
-                "goal": self.adapter.goal(),
-                "task": self.task_id,
-                "seed": self.seed,
-                "budget_mode": self.budget_mode,
-            },
-            "notes": {
-                "skill": (
-                    "primitives run client-side so every basic call is journaled; "
-                    "the worker refuses the skill op"
-                ),
-                "score": "score.peek is read-only; submit performs the sole final evaluation",
-                "exec": "programs execute in the agent container; server-side execution is disabled",
-            },
         }
 
     def observe(self) -> dict[str, Any]:
@@ -407,6 +226,7 @@ class SimWorker:
                 "task": self.task_id,
                 "seed": self.seed,
                 "budget_mode": self.budget_mode,
+                "execution_mode": self.world.mode,
                 "budget": self.adapter.budget().as_dict(),
                 "success_latched": self.scorer.latched,
                 "submitted": self.scorer.submitted,
@@ -476,7 +296,7 @@ class SimWorker:
                 budget = self.adapter.budget().as_dict()
                 if "budget" in verdict and any(
                     verdict["budget"].get(field) != budget.get(field)
-                    for field in ("used", "max", "unit", "official_cap")
+                    for field in ("used", "max", "unit")
                 ):
                     raise WorkerRPCError(
                         "budget_mismatch", "score authority and final native budget disagree"
@@ -550,13 +370,10 @@ class SimWorker:
                 self.devices.close()  # release old entity handles before replacing the world
             self.world.reset(seed)
             self.seed = seed
-            self.scorer = make_score_authority(
-                self.adapter, self.run_dir, budget_mode=self.budget_mode, **self.scorer_options
-            )
+            self.scorer = SimpleScorer(self.adapter)
             self._termination_reason = None
             self._final_result = None
             self._final_observation = None
-            self._tools = self._collect_tools()
             self._bind_devices()
             self.reset_count += 1
             self.state = "ready"
@@ -573,7 +390,7 @@ class SimWorker:
 
     def checkpoint(self) -> Any:
         """Snapshot the world when the adapter supports it."""
-        fn = getattr(self.adapter, "checkpoint", None) or self.adapter.tools().get("checkpoint")
+        fn = getattr(self.adapter, "checkpoint", None)
         if not callable(fn):
             raise WorkerRPCError("unsupported_op", "this adapter has no checkpoint capability")
         import uuid
@@ -586,7 +403,7 @@ class SimWorker:
         """Rewind the world to a snapshot."""
         if self.scorer.submitted:
             raise WorkerRPCError("already_submitted", "restore is frozen after submit")
-        fn = getattr(self.adapter, "restore", None) or self.adapter.tools().get("restore")
+        fn = getattr(self.adapter, "restore", None)
         if not callable(fn):
             raise WorkerRPCError("unsupported_op", "this adapter has no checkpoint capability")
         if "token" not in args:
@@ -633,29 +450,14 @@ class SimWorker:
             return self.simulation_status(include_verdict=True)
         if self.state == "failed" and op not in {
             "health",
-            "api",
             "environment.describe",
             "devices.list",
             "devices.describe",
             "reset",
-            "reset_same_task",
             "shutdown",
         }:
             raise WorkerRPCError(
                 "world_failed", "World lifecycle failed; owner recovery is required"
-            )
-        if self.adapter.name in DEVICE_BACKENDS and op in {
-            "call",
-            "skill",
-            "exec",
-            "reset",
-            "reset_same_task",
-            "checkpoint",
-            "restore",
-        }:
-            raise WorkerRPCError(
-                "unsupported_op",
-                "This backend accepts basic device operations; start a new service for a new episode",
             )
         if op not in WORKER_OPS:
             raise WorkerRPCError(
@@ -668,8 +470,6 @@ class SimWorker:
         self.request_count += 1
         if op == "health":
             return self.health()
-        if op == "api":
-            return self.api()
         if op == "observe":
             return self.observe()
         if op in {
@@ -693,27 +493,16 @@ class SimWorker:
                         return self.devices.inventory()
                     description = self.devices.environment()
                     task = description.get("task", {})
-                    if self.adapter.name in DEVICE_BACKENDS:
-                        description = {
-                            "task": {
-                                "id": task.get("id", self.task_id),
-                                "instruction": self.adapter.goal() or task.get("instruction", ""),
-                                "context": {},
-                            },
-                            "devices": description["devices"],
-                        }
-                        return {
-                            **description,
-                            "session": self.session,
-                            "generation": self.generation,
-                        }
                     return {
-                        **description,
+                        "task": {
+                            "id": task.get("id", self.task_id),
+                            "instruction": self.adapter.goal() or task.get("instruction", ""),
+                            "context": {},
+                        },
+                        "devices": description["devices"],
+                        "device_contract": "roboenv/devices/1",
                         "session": self.session,
                         "generation": self.generation,
-                        "task_id": self.task_id,
-                        "seed": self.seed,
-                        "budget_mode": self.budget_mode,
                     }
                 if op == "devices.describe":
                     if set(args) != {"device"}:
@@ -752,13 +541,6 @@ class SimWorker:
                 return map_result(result, finish, failed)
             except DeviceError as exc:
                 raise WorkerRPCError(exc.code, exc.message, details=exc.details) from exc
-        if op == "call":
-            name, kwargs = self._named_kwargs(args)
-            return self._invoke_tool(name, kwargs)
-        if op == "skill":
-            raise WorkerRPCError(
-                "client_side_skill", "skills execute client-side as basic-call compositions"
-            )
         if op == "score.peek":
             if self._final_result is not None:
                 return copy.deepcopy(self._final_result)
@@ -769,17 +551,12 @@ class SimWorker:
             if args:
                 raise WorkerRPCError("invalid_args", "submit takes no arguments")
             return self.submit()
-        if op in ("reset", "reset_same_task"):
+        if op == "reset":
             return self.reset(args)
         if op == "checkpoint":
             return self.checkpoint()
         if op == "restore":
             return self.restore(args)
-        if op == "exec":
-            raise WorkerRPCError(
-                "client_side_exec",
-                "programs execute in the agent container, never inside the simulator",
-            )
         if op == "shutdown":
             if args:
                 raise WorkerRPCError("invalid_args", "shutdown takes no arguments")
@@ -1051,23 +828,9 @@ class WorkerRequestHandler(socketserver.StreamRequestHandler):
 # ---------------------------------------------------------------- command line
 
 
-def build_adapter(
-    task_ref: str, budget_mode: str, *, practice_max_steps: int = 240_000
-) -> tuple[EnvAdapter, str]:
-    """Instantiate the adapter of ``task_ref`` for ``budget_mode``.
-
-    Returns ``(adapter, task_id)``.
-    """
-    from roboenv_runtime.tasks.loader import find_task
-
-    task = find_task(task_ref)
-    kwargs = dict(task.adapter_kwargs)
-    if task.adapter == "robodojo":
-        # Typed RoboDojo always clamps action frames to the native task horizon.
-        # The retired primitive wrapper's raw-step override is not its contract.
-        kwargs.setdefault("max_steps", practice_max_steps)
-    adapter = make_adapter(task.adapter, **kwargs)
-    return adapter, task.id
+def build_adapter(task):
+    """Instantiate the selected native backend without implicit budget overrides."""
+    return make_adapter(task.backend, **task.backend_kwargs)
 
 
 def _remove_worker_socket(path: Path) -> None:
@@ -1086,23 +849,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--socket", required=True, type=Path)
     parser.add_argument("--run-dir", required=True, type=Path)
     parser.add_argument("--task", required=True, help="task id or yaml path")
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--budget-mode", choices=("official", "practice"), default="practice")
-    parser.add_argument(
-        "--session", default=os.environ.get("ROBOENV_SESSION") or os.environ.get("DOJO_SESSION")
-    )
+    parser.add_argument("--seed", type=int)
+    parser.add_argument("--budget-mode", choices=("official", "practice"))
+    parser.add_argument("--session", default=os.environ.get("ROBOENV_SESSION"))
     parser.add_argument(
         "--generation",
         type=int,
-        default=int(os.environ.get("ROBOENV_GENERATION") or os.environ.get("DOJO_GENERATION") or 0),
-    )
-    parser.add_argument(
-        "--privileged",
-        action="store_true",
-        help="expose environment diagnostics (practice only); never server-side code",
+        default=int(os.environ.get("ROBOENV_GENERATION") or 0),
     )
     parser.add_argument("--execution-mode", choices=("stepped", "realtime"))
-    parser.add_argument("--practice-max-steps", type=int, default=240_000)
     parser.add_argument(
         "--source-lock",
         type=Path,
@@ -1136,33 +891,33 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         verify(args.source_lock, repo_root())
 
-    from roboenv_runtime.tasks.loader import find_task
+    from roboenv.tasks.model import Task, task_path
 
-    execution_mode = args.execution_mode or find_task(args.task).execution_mode
-    adapter, task_id = build_adapter(
-        args.task, args.budget_mode, practice_max_steps=args.practice_max_steps
-    )
+    from roboenv_runtime.paths import tasks_root
+
+    task = Task.load(task_path(args.task, tasks_root()))
+    execution_mode = args.execution_mode or task.execution_mode
+    adapter = build_adapter(task)
     worker: SimWorker | None = None
     server: WorkerUnixServer | None = None
     try:
         worker = SimWorker(
             adapter,
-            task_id=task_id,
-            seed=args.seed,
+            task_id=task.id,
+            seed=task.seed if args.seed is None else args.seed,
             run_dir=run_dir,
-            budget_mode=args.budget_mode,
+            budget_mode=args.budget_mode or task.budget_mode,
             execution_mode=execution_mode,
             session=args.session,
             generation=args.generation,
-            privileged=args.privileged,
         )
         server = create_worker_server(str(socket_path), worker, args.max_ndjson_bytes)
         os.chmod(socket_path, 0o600)
         log.info(
             "worker ready: task=%s seed=%s mode=%s socket=%s",
-            task_id,
-            args.seed,
-            args.budget_mode,
+            task.id,
+            worker.seed,
+            worker.budget_mode,
             socket_path,
         )
 

@@ -66,7 +66,6 @@ def discover_tasks(root):
                 robot="simple/simple-g1",
                 instruction=entry["description"],
                 budget_mode="practice",
-                action_abstraction="devices",
                 backend_kwargs={
                     "env_id": entry["env_id"],
                     "sim_mode": "mujoco_isaac",

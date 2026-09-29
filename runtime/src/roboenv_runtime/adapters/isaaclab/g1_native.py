@@ -23,6 +23,13 @@ def create(paths, model, device):
 
     class Episode(ManagerBasedRLEnv):
         allow_reset = True
+        step_limit_enabled = True
+
+        @property
+        def max_episode_length(self):
+            # The native timeout term compares its counter against this value.
+            # Other termination terms and their final state remain unchanged.
+            return super().max_episode_length if self.step_limit_enabled else float("inf")
 
         def _reset_idx(self, env_ids):
             # Keep the terminal state available to the owner/verifier. Explicit

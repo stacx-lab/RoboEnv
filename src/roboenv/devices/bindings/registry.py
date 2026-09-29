@@ -11,8 +11,6 @@ class BindingContext:
     backend: str
     embodiment: str
     native: Any
-    public_dispatch: Any = None
-    public_tools: Any = None
     devices: Any = None
     world: Any = None
 

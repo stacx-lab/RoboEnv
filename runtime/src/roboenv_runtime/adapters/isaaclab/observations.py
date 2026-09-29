@@ -4,9 +4,10 @@ from pathlib import Path
 
 
 def camera_state(camera, directory, stamp):
-    from roboenv_runtime.runtime.worker import write_png
-    from roboenv_runtime.bindings.backends.shared.depth import write_depth
     import uuid
+
+    from roboenv_runtime.bindings.backends.shared.depth import write_depth
+    from roboenv_runtime.runtime.worker import write_png
 
     camera.update(0.0, force_recompute=True)
     outputs = camera.data.output

@@ -26,6 +26,8 @@ def pose_matrix(pose):
 
 
 class RoboDojoDevices(RoboDojoEnv):
+    unbounded = False
+
     def __init__(
         self,
         task_name,
@@ -48,6 +50,7 @@ class RoboDojoDevices(RoboDojoEnv):
         self.requested_frame_limit = max_steps
         self.asset_roots = {"robodojo": robodojo_root() / "Assets"}
         super().__init__(task_name=task_name, env_cfg_type=env_cfg_type)
+        self.native_step_limit = int(self._env.step_lim)
         self.native_interval = int(self._env.obs_manager.collect_interval)
         # EvalEnv creates its native simulation on the first reset. Its configured
         # timestep is already available and defines the advertised control clock.
@@ -102,12 +105,7 @@ class RoboDojoDevices(RoboDojoEnv):
             "wall_time_s": time.monotonic() - started,
         }
         self.episode_start_steps = self.physics_steps
-        native_limit = int(self._env.step_lim)
-        if self.requested_frame_limit is not None and (
-            type(self.requested_frame_limit) is not int or self.requested_frame_limit < 1
-        ):
-            raise ValueError("max_steps must be a positive action-frame count")
-        self.frame_limit = min(native_limit, self.requested_frame_limit or native_limit)
+        self._configure_step_limit()
         self.actuators = {}
         self.gripper_holds = {}
         limits, targets = {}, {}
@@ -199,8 +197,25 @@ class RoboDojoDevices(RoboDojoEnv):
                 robot["need_planner"] = False
         return cfg
 
+    def _configure_step_limit(self):
+        if self.requested_frame_limit is not None and (
+            type(self.requested_frame_limit) is not int or self.requested_frame_limit < 1
+        ):
+            raise ValueError("max_steps must be a positive action-frame count")
+        # EvalEnv checks this counter inside take_action/is_episode_end too.
+        # Success/failure flags remain native when only the timeout is disabled.
+        if self.unbounded:
+            self.frame_limit = None
+            self._env.step_lim = float("inf")
+        else:
+            native_limit = self.native_step_limit
+            self._env.step_lim = native_limit
+            self.frame_limit = min(native_limit, self.requested_frame_limit or native_limit)
+
     def exhausted(self):
-        return bool(self._env.end_flag[0]) or self.control.frame >= self.frame_limit
+        return bool(self._env.end_flag[0]) or (
+            self.frame_limit is not None and self.control.frame >= self.frame_limit
+        )
 
     def _fraction(self, robot, primary):
         low, high = robot.gripper_scale

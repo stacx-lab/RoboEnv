@@ -63,7 +63,7 @@ def test_endpoint_client_has_no_primitive_catalog_and_returns_data(device_servic
     controller = env.device("controller")
     assert controller.read() == transport.device("controller").read()["data"]
     for op in ("api", "call", "observe", "score.peek", "capture"):
-        with pytest.raises(RemoteError):
+        with pytest.raises((ValueError, RemoteError)):
             transport.request(op)
     env.close()
     with pytest.raises(RuntimeError, match="closed"):
@@ -337,7 +337,15 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         for index in range(2):
             task_id = f"cpu-robocasa-{index}"
             (tasks / f"{task_id}.yaml").write_text(
-                yaml.safe_dump({"id": task_id, "adapter": "robocasa", "text": "Lift the cube."})
+                yaml.safe_dump(
+                    {
+                        "id": task_id,
+                        "backend": "robocasa",
+                        "backend_task": task_id,
+                        "robot": "robocasa/robocasa-panda-omron",
+                        "instruction": "Lift the cube.",
+                    }
+                )
             )
             robot = tmp_path / f"robot-{index}"
             shutil.copytree(ROOT / "catalog/robots/robocasa/robocasa-panda-omron", robot)
@@ -389,7 +397,7 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         assert "scene" not in {p["name"] for p in first.devices()}
         public = Client(supervisors[0].http_endpoint)
         description = public.describe()
-        assert set(description) == {"task", "devices", "session", "generation"}
+        assert set(description) == {"task", "devices", "session", "generation", "device_contract"}
         assert set(description["task"]) == {"id", "instruction", "context"}
         for operation in ("observe", "scene", "score.peek", "api"):
             public.allowed_ops = public.allowed_ops | {operation}

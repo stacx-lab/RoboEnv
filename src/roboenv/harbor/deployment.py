@@ -138,7 +138,7 @@ def native_service(path, task, *, portable=False):
             "ROBOENV_SESSION": "harbor",
             "ROBOENV_GENERATION": "0",
             "ROBOENV_RUN_DIR": "/run/roboenv/run",
-            "ROBOENV_TASK": task.backend_task,
+            "ROBOENV_TASK": task.id,
             "ROBOENV_SEED": str(task.seed),
             "ROBOENV_BUDGET_MODE": task.budget_mode,
             "NVIDIA_DRIVER_CAPABILITIES": "all",

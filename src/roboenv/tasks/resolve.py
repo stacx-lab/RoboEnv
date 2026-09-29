@@ -5,12 +5,7 @@ from pathlib import Path
 
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.project import project_root
-from roboenv.tasks.model import Task
-
-# SIMPLE advances its control loop at a fixed 50 Hz. Mirrors
-# roboenv_runtime.adapters.simple.profiles.CONTROL_INTERVAL_S, which this
-# package cannot import.
-SIMPLE_CONTROL_INTERVAL_S = 0.02
+from roboenv.tasks.model import Task, task_path
 
 
 @dataclass(frozen=True)
@@ -21,33 +16,10 @@ class ResolvedTask:
     robot: Path
     bindings: BindingPlan
 
-    def runtime_config(self):
-        return {
-            "id": self.task.backend_task,
-            "adapter": self.task.backend,
-            "execution_mode": self.task.execution_mode,
-            "adapter_kwargs": self.task.backend_kwargs,
-            "text": self.task.instruction,
-            "seeds": [self.task.seed],
-            "budget": {"mode": self.task.budget_mode},
-        }
-
 
 def resolve_task(reference, *, project=None, catalog=None, arm_gravity_compensation=None):
     catalog = Path(catalog).resolve() if catalog else project_root(project) / "catalog"
-    path = Path(reference)
-    if not path.is_file():
-        matches = [
-            candidate
-            for candidate in sorted((catalog / "tasks").rglob("task.yaml"))
-            if Task.load(candidate).id == str(reference)
-        ]
-        if len(matches) != 1:
-            raise ValueError(
-                f"Expected one task matching {reference!r}, found {len(matches)}; "
-                "use 'roboenv tasks list' or pass a task.yaml path and --catalog"
-            )
-        path = matches[0]
+    path = task_path(reference, catalog / "tasks")
     task = Task.load(path)
     if arm_gravity_compensation is not None:
         if type(arm_gravity_compensation) is not bool:

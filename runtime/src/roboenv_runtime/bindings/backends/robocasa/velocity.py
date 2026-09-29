@@ -1,8 +1,8 @@
 """Chassis facts and measured spatial velocity for the native Omron controller."""
 
-from roboenv_runtime.bindings.motion import control_binding
-
 import numpy as np
+
+from roboenv_runtime.bindings.motion import control_binding
 
 
 def intrinsics(world, pose_frame="world"):

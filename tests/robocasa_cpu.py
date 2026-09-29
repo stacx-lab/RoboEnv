@@ -40,6 +40,7 @@ def make_adapter():
     native._camera_names = DEFAULT_CAMERAS
     native._camera_size = (8, 12)
     native._frames = []
+    native.configured_max_steps = None
     native._max_steps = None
     native.stop_on_success = False
     native.on_step = None
@@ -191,7 +192,7 @@ def check(root, temporary):
                     pass
                 else:
                     raise AssertionError("Simulation exposes a local kinematics operation")
-        assert adapter.tools() == {}
+        assert not hasattr(adapter, "tools")
         assert {"read", "wait"} <= service.describe("world")["actions"].keys()
         assert "mount" not in service.describe("base")["extrinsics"]
         assert "needs_calibration" not in service.describe("base")["extrinsics"]

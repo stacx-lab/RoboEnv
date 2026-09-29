@@ -9,5 +9,4 @@ backend_kwargs:
   scene_model: house_double_floor_lower
 seed: 0
 budget_mode: practice
-action_abstraction: devices
 device_bindings: null

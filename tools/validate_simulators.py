@@ -191,7 +191,6 @@ def select_cases(
                 robot=robot,
                 device_bindings=task.device_bindings if task.robot == robot else None,
                 backend_kwargs={**task.backend_kwargs, **overrides},
-                action_abstraction=task.action_abstraction,
             )
             inventory = _probe_inventory(project, task)
             program = _probe_program(inventory["expected_devices"], inventory["expected_reads"])
@@ -417,7 +416,6 @@ def _trial_evidence(record, result_path):
                     mutating_probe_calls = True
             elif request.get("op") not in {
                 "health",
-                "api",
                 "observe",
                 "score.peek",
                 "environment.describe",
@@ -440,8 +438,7 @@ def _trial_evidence(record, result_path):
         and boot
         and program_completed
         and valid
-        # Earlier version-1 receipts required reads from every listed device.
-        and read_devices == set(record.get("expected_reads", record["expected_devices"]))
+        and read_devices == set(record["expected_reads"])
         and not mutating_probe_calls
     )
     failure = "harbor-exception" if result.get("exception_info") else None

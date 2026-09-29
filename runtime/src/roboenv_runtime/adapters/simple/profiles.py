@@ -2,7 +2,6 @@
 
 import copy
 
-
 # SIMPLE advances its control loop at a fixed 50 Hz.
 CONTROL_INTERVAL_S = 0.02
 NAMES = ("base", "left_arm", "right_arm", "left_hand", "right_hand")

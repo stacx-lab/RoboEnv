@@ -1,9 +1,0 @@
-{
-  "embodiment": "aloha_agilex",
-  "source": "roboenv/embodiments/aloha_agilex.yaml",
-  "calibration_claim": "only measured facts in facts.yaml; unknown values remain unknown",
-  "source_facts_sha256": "21084a37b63ae4665de76c13182cf1057b0c7b5c03fd3e26e428500e778b0b7d",
-  "rendered_facts_sha256": "0c2bb249951ca77d9e661e89dfecca5393a29794cbda0e2b4f2cb57c6fe14d9f",
-  "planner_override_source": "rigs/aloha_agilex.yaml"
-}
-

@@ -1,38 +1,12 @@
-"""The simulator contract: every simulator joins the harness as an *adapter*.
-
-An adapter is the only thing a simulator must provide.  Heavy integrations
-(Isaac boot, motion stacks, asset handling) stay in their own repositories;
-the adapter imports them lazily and exposes:
-
-* identity — ``name`` (registry key) and ``embodiment`` (which skill domain
-  applies, e.g. ``"arx_x5"``), plus declared ``capabilities``;
-* context — :meth:`EnvAdapter.situation`, :meth:`EnvAdapter.facts`,
-  :meth:`EnvAdapter.goal` prompt contributions;
-* tools — :meth:`EnvAdapter.tools`, optional compatibility primitives, alongside device bindings;
-* observation — :meth:`EnvAdapter.observe`, a normalised ground-truth snapshot;
-* lifecycle — :meth:`EnvAdapter.reset` / :meth:`EnvAdapter.close`;
-* evaluation — :meth:`EnvAdapter.score` and :meth:`EnvAdapter.budget`;
-* media — :meth:`EnvAdapter.frames` / :meth:`EnvAdapter.capture`.
-
-The protocol below is the *complete* surface the harness consumes.  (Its
-predecessor listed only half of it and every consumer reached for the rest
-with ``getattr``; that is the ambiguity this module removes.)
-
-Adapters register themselves with :func:`register_adapter`; built-in ones are
-imported lazily by :func:`make_adapter`, so a new simulator is one new module
-under :mod:`roboenv_runtime.adapters` and one line in :data:`BUILTIN_ADAPTERS`.
-"""
+"""Native lifecycle, control, private observations and verdicts for one world."""
 
 from __future__ import annotations
-
 
 import importlib
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping
 from typing import Any, ClassVar, Protocol, runtime_checkable
 
-from roboenv_runtime.core.tools import ToolBox
 from roboenv_runtime.core.types import Budget, ScoreReport
 
 __all__ = [
@@ -54,7 +28,7 @@ class EnvAdapter(Protocol):
 
     Attributes:
         name: Registry key (``"robodojo"``, ``"robotwin"``, ...).
-        embodiment: Skill domain of the robot being driven (``"arx_x5"``,
+        embodiment: Native robot embodiment (``"arx_x5"``,
             ``"piper"``, ``"panda"``, ``"yam"``, ...).
         capabilities: Optional features, see :class:`roboenv_runtime.core.Capability`.
     """
@@ -62,13 +36,10 @@ class EnvAdapter(Protocol):
     name: str
     embodiment: str
     capabilities: frozenset[str]
+    control_interval_s: float
 
-    def situation(self) -> str:
-        """Prompt section: what world and robot the agent is in."""
-        ...
-
-    def facts(self) -> str:
-        """Prompt section: environment mechanics worth knowing up front."""
+    def advance_control(self) -> None:
+        """Advance all active devices through one native control interval."""
         ...
 
     def goal(self) -> str:
@@ -79,12 +50,12 @@ class EnvAdapter(Protocol):
         """Start a fresh episode."""
         ...
 
-    def close(self) -> None:
-        """Release simulator resources."""
+    def configure_execution_mode(self, mode: str) -> None:
+        """Select episode-limit policy before resetting the world."""
         ...
 
-    def tools(self) -> Mapping[str, Callable[..., Any]]:
-        """Agent-callable functions keyed by public name (docstrings are the docs)."""
+    def close(self) -> None:
+        """Release simulator resources."""
         ...
 
     def observe(self) -> dict[str, Any]:
@@ -122,35 +93,22 @@ class SupportsCheckpoint(Protocol):
 
 
 class AdapterBase(ABC):
-    """Convenience base class implementing the optional parts of the contract.
-
-    Subclasses must implement :meth:`reset` and :meth:`score`; everything else
-    has a sensible default.  ``tools()`` collects ``@tool``-marked methods;
-    ``observe()`` derives a snapshot from the conventional
-    ``list_objects`` / ``get_object_pose`` / ``get_gripper_pose*`` tools.
-    """
+    """Optional defaults for native adapters; reset and score are required."""
 
     name: ClassVar[str] = "base"
     embodiment: ClassVar[str] = "general"
     capabilities: ClassVar[frozenset[str]] = frozenset()
-    situation_text: ClassVar[str] = ""
-    facts_text: ClassVar[str] = ""
-
-    # ------------------------------------------------------------ context
-
-    def situation(self) -> str:
-        """Default: the class-level ``situation_text``."""
-        return self.situation_text
-
-    def facts(self) -> str:
-        """Default: the class-level ``facts_text``."""
-        return self.facts_text
+    execution_mode = "realtime"
 
     def goal(self) -> str:
         """Default: no benchmark-provided goal text."""
         return ""
 
-    # ------------------------------------------------------------ lifecycle
+    def configure_execution_mode(self, mode: str) -> None:
+        """Realtime counts steps but does not enforce an episode step limit."""
+        if mode not in {"stepped", "realtime"}:
+            raise ValueError("execution mode must be stepped or realtime")
+        self.execution_mode = mode
 
     @abstractmethod
     def reset(self, seed: int) -> None:
@@ -160,8 +118,6 @@ class AdapterBase(ABC):
         """Default: nothing to release."""
         return None
 
-    # ------------------------------------------------------------ evaluation
-
     @abstractmethod
     def score(self) -> ScoreReport:
         """Evaluate the current world state."""
@@ -170,59 +126,9 @@ class AdapterBase(ABC):
         """Default: an unbounded placeholder; real adapters override."""
         return Budget()
 
-    # ------------------------------------------------------------ tools
-
-    def tools(self) -> Mapping[str, Callable[..., Any]]:
-        """Every ``@tool``-marked method, keyed by tool name."""
-        return ToolBox.collect(self).namespace()
-
-    def toolbox(self) -> ToolBox:
-        """The tools as a :class:`ToolBox` (documentation, subsetting)."""
-        return ToolBox.from_mapping(self.tools())
-
-    # ------------------------------------------------------------ observation
-
     def observe(self) -> dict[str, Any]:
-        """A normalised snapshot built from the conventional observation tools.
-
-        Returns a dict with ``objects`` (``name -> {position, quaternion_wxyz}``),
-        ``grippers`` (``arm -> {tip_position}``) and ``budget``.  Every read is
-        guarded so a partially-implemented adapter still yields a usable
-        snapshot; missing pieces are simply absent.
-        """
-        tools = self.tools()
-        out: dict[str, Any] = {"objects": {}, "grippers": {}, "budget": self.budget().as_dict()}
-        list_fn = tools.get("list_objects")
-        pose_fn = tools.get("get_object_pose")
-        if callable(list_fn) and callable(pose_fn):
-            try:
-                names = list(list_fn())
-            except Exception:
-                names = []
-            for name in names:
-                try:
-                    pos, quat = pose_fn(name)
-                    out["objects"][name] = {
-                        "position": [float(v) for v in list(pos)[:3]],
-                        "quaternion_wxyz": [float(v) for v in list(quat)[:4]],
-                    }
-                except Exception:
-                    out["objects"][name] = {"position": None, "quaternion_wxyz": None}
-        for arm in ("left", "right"):
-            fn = tools.get(f"get_gripper_pose_{arm}")
-            try:
-                if callable(fn):
-                    pose = list(fn())
-                elif callable(tools.get("get_gripper_pose")):
-                    pose = list(tools["get_gripper_pose"](arm))
-                else:
-                    continue
-                out["grippers"][arm] = {"tip_position": [float(v) for v in pose[:3]]}
-            except Exception:
-                continue
-        return out
-
-    # ------------------------------------------------------------ media
+        """Private owner snapshot; native adapters provide their recording state."""
+        return {"budget": self.budget().as_dict()}
 
     def frames(self) -> list[Any]:
         """Default: no video capture."""
@@ -233,20 +139,12 @@ class AdapterBase(ABC):
         frames = self.frames()
         return frames[-1] if frames else None
 
-    # ------------------------------------------------------------ compat / info
-
-    @property
-    def domain(self) -> str:
-        """Alias of ``embodiment`` kept for pre-refactor callers."""
-        return self.embodiment
-
     def describe(self) -> dict[str, Any]:
-        """A JSON-friendly description (used by ``roboenv adapters`` and workers)."""
+        """A JSON-friendly description (for owner diagnostics)."""
         return {
             "name": self.name,
             "embodiment": self.embodiment,
             "capabilities": sorted(self.capabilities),
-            "tools": [spec.__dict__ for spec in self.toolbox().specs()],
         }
 
 
@@ -306,7 +204,7 @@ def make_adapter(name: str, **kwargs: Any) -> EnvAdapter:
         except ImportError as exc:
             raise ImportError(
                 f"adapter {name!r} could not be imported from {module}: {exc}. "
-                "Activate the simulator's interpreter (see docs/REFACTOR_PLAN.md §5)."
+                "Prepare the simulator using roboenv prepare BACKEND."
             ) from exc
         if name not in _REGISTRY:
             raise KeyError(f"{module} imported but did not register adapter {name!r}")

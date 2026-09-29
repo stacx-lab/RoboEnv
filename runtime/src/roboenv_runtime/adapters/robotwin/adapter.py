@@ -4,6 +4,7 @@ from roboenv_runtime.adapters.native import NativeDeviceAdapter
 from roboenv_runtime.core.adapter import register_adapter
 from roboenv_runtime.core.types import ScoreReport
 
+
 @register_adapter
 class RoboTwinAdapter(NativeDeviceAdapter):
     name = "robotwin"

@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 from .config import CAMERA_SIZE, ensure_libero_config
 
 SUITES = ("libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90")
@@ -66,6 +65,7 @@ class LiberoEnv:
         self.init_state_index = init_state_index
         self._render = enable_render
         self._camera_names, self._camera_size = tuple(camera_names), tuple(camera_size)
+        self.configured_max_steps = max_steps
         self._max_steps, self._step_count = max_steps, 0
         self._success = False
         self.initialization = {}

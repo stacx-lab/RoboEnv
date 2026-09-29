@@ -283,9 +283,6 @@ class Supervisor:
                 "ROBOENV_SESSION": self.config.session,
                 "ROBOENV_GENERATION": str(self.config.generation),
                 # historical names, still read by moved RoboDojo helpers
-                "DOJO_RUN_DIR": str(root),
-                "DOJO_SESSION": self.config.session,
-                "DOJO_GENERATION": str(self.config.generation),
                 "ROBODOJO_RUN_ID": (f"{self.config.session}-g{self.config.generation}"),
                 "PYTHONDONTWRITEBYTECODE": "1",
                 "PYTHONUNBUFFERED": "1",
@@ -476,7 +473,9 @@ class Supervisor:
                 sock.connect(socket_address(self.config.worker_socket))
                 self._worker_state = "ready"
                 return sock
-            except (FileNotFoundError, ConnectionRefusedError) as exc:
+            except (FileNotFoundError, ConnectionRefusedError, BlockingIOError) as exc:
+                # A full Unix accept queue returns EAGAIN. No request has been
+                # sent yet, so waiting for connection capacity cannot replay it.
                 last_error = exc
                 sock.close()
                 time.sleep(min(0.05, max(0.0, remaining)))
@@ -1026,7 +1025,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     session = (
         args.session
         or os.environ.get("ROBOENV_SESSION")
-        or os.environ.get("DOJO_SESSION")
         or _session_default(args.task, args.seed)
     )
     config = SupervisorConfig(

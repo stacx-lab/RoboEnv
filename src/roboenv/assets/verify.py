@@ -79,7 +79,7 @@ def attach_budget(verdict, observation):
     return {**verdict, "budget": budget}
 
 
-def validate_score(result, *, official=True):
+def validate_score(result):
     """Validate typed score/budget data; return full-success eligibility."""
     reward = result.get("reward")
     if isinstance(reward, bool) or not isinstance(reward, (int, float)):
@@ -98,27 +98,25 @@ def validate_score(result, *, official=True):
         raise ValueError("invalid budget.max")
     if not isinstance(budget.get("unit"), str) or not budget["unit"]:
         raise ValueError("budget needs a named unit")
-    cap = budget.get("official_cap", maximum)
-    if "official_cap" in budget and (type(cap) is not int or cap <= 0):
-        raise ValueError("invalid official budget cap")
-    limits = [limit for limit in (maximum, cap if official else None) if limit is not None]
+    if set(budget) != {"used", "max", "unit"}:
+        raise ValueError("invalid budget fields")
     return bool(
         result["completed"]
         and reward >= 1 - 1e-9
-        and all(budget["used"] < limit for limit in limits)
+        and (maximum is None or budget["used"] < maximum)
     )
 
 
-def validate_journal(raw, *, session, submit_id, verdict, api, practice=False):
+def validate_journal(raw, *, session, submit_id, verdict, practice=False):
     """Reject incomplete history, resets, repeated submits and post-submit motion."""
     if not raw or not raw.endswith(b"\n"):
         raise ValueError("missing or truncated supervisor journal")
     pending, finished = {}, set()
     submitted = False
     count = 0
-    forbidden = {"reset", "reset_same_task", "restore", "checkpoint", "exec", "skill", "shutdown"}
+    forbidden = {"reset", "restore", "checkpoint", "shutdown"}
     if practice:
-        forbidden -= {"reset", "reset_same_task", "restore", "checkpoint"}
+        forbidden -= {"reset", "restore", "checkpoint"}
     for line in raw.splitlines():
         event = strict_json(line)
         request = event["request"]
@@ -156,9 +154,7 @@ def validate_journal(raw, *, session, submit_id, verdict, api, practice=False):
         op = request["op"]
         if op in forbidden:
             raise ValueError(f"operation forbidden in a single-episode trial: {op}")
-        tool_name = request["args"].get("name", request["args"].get("fn"))
         read_only = op in {
-            "api",
             "observe",
             "score.peek",
             "capture",
@@ -168,8 +164,6 @@ def validate_journal(raw, *, session, submit_id, verdict, api, practice=False):
             "devices.describe",
             "operations.get",
         }
-        if op == "call":
-            read_only = api.get("tools", {}).get(tool_name, {}).get("read_only") is True
         if op == "devices.call":
             # devices/1 enforces that these actions cannot dispatch mutating tools.
             read_only = request["args"].get("action") in {
@@ -180,9 +174,6 @@ def validate_journal(raw, *, session, submit_id, verdict, api, practice=False):
                 "unload",
                 "ik",
                 "fk",
-                "catalog",
-                "api",
-                "ping",
             }
             if (
                 phase == "error"
@@ -228,10 +219,9 @@ def main():
     raw = None
     try:
         task = strict_json(Path(__file__).with_name("task.json").read_bytes())
-        if task.get("backend") in {"robocasa", "libero", "robotwin", "robodojo", "behavior"}:
-            identity_path = Path(os.environ.get("ROBOENV_SOCKET", "/run/roboenv/sim.sock"))
-            identity = strict_json(identity_path.with_name("identity.json").read_bytes())
-            task["session"] = identity["session"]
+        identity_path = Path(os.environ.get("ROBOENV_SOCKET", "/run/roboenv/sim.sock"))
+        identity = strict_json(identity_path.with_name("identity.json").read_bytes())
+        task["session"] = identity["session"]
         mode = task.get("budget_mode", "official")
         if (
             type(task.get("seed")) is not int
@@ -261,19 +251,17 @@ def main():
             mode,
         ):
             raise ValueError("server task/seed/budget identity differs from task.json")
-        api, _ = rpc("api", task["session"])
         verdict, submit_id = rpc("submit", task["session"])
         report["submit"] = verdict
         observation, _ = rpc("observe", task["session"])
         report["observation"] = observation
         raw = retain_journal(out)
-        success = validate_score(attach_budget(verdict, observation), official=mode == "official")
+        success = validate_score(attach_budget(verdict, observation))
         report["journal"] = validate_journal(
             raw,
             session=task["session"],
             submit_id=submit_id,
             verdict=verdict,
-            api=api,
             practice=mode == "practice",
         )
         valid, reward = True, float(success)

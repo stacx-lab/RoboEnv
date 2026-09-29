@@ -201,7 +201,7 @@ def test_healthcheck_never_executes_depot_python_before_verification(tmp_path):
         )
     )
     task = SimpleNamespace(
-        backend="robodojo", backend_task="fixture", seed=0, budget_mode="official"
+        backend="robodojo", id="fixture", backend_task="fixture", seed=0, budget_mode="official"
     )
     service = native_service(manifest, task)
     health = service["healthcheck"]["test"]

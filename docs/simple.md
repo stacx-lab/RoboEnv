@@ -175,7 +175,8 @@ Realtime advances continuously; stepped advances during world waits.
 Independent devices share each tick;
 new commands replace prior motion on the same device. Stop cancels that device's active and
 queued commands, zeroing base travel or holding measured joints. It retains peer
-targets and posture. Native horizons and termination conditions remain active.
+targets and posture. Stepped retains the native horizon; realtime removes the
+step cap. Native non-timeout termination conditions remain active in both modes.
 Reads, status, stop, recording and local FK/IK never advance physics.
 
 ## Kinex and replay

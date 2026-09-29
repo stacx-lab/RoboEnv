@@ -31,7 +31,7 @@ class Environment:
     def __init__(self, transport):
         self._transport = transport
         description = transport.describe()
-        task = description.get("task", {"id": description.get("task_id", ""), "instruction": ""})
+        task = description["task"]
         self.task = TaskInfo(task["id"], task["instruction"], _freeze(task.get("context", {})))
         self._profiles = {p["name"]: p for p in transport.devices()["devices"]}
         self._closed = False
@@ -109,7 +109,7 @@ class Device:
         def invoke(*values, **args):
             parameter = {
                 "write": "actions"
-                if self._profile["type"] in {"joint", "dexterous_hand"}
+                if self._profile["type"] in {"joint", "dexterous_hand", "gripper", "suction"}
                 else "target",
                 "wait": "duration_s",
                 "fk": "joints",

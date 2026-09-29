@@ -23,6 +23,9 @@ class Engine:
         self.events = []
         self.fault = None
 
+    def configure_execution_mode(self, mode):
+        self.execution_mode = mode
+
     def budget(self):
         return Budget(used=self.frame, max=1000)
 

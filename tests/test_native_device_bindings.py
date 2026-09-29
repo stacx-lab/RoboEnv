@@ -185,6 +185,7 @@ def test_behavior_velocity_binding_accepts_named_commands_without_joint_feedback
         embodiment="r1pro",
         budget=lambda: Budget(used=0, max=None),
         advance_control=lambda: None,
+        configure_execution_mode=lambda mode: None,
     )
     session = WorldSession(owner, mode="stepped")
     wire = default_registry().assemble(

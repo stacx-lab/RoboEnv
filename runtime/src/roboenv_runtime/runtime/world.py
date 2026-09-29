@@ -11,6 +11,7 @@ class WorldSession:
     def __init__(self, native, mode="realtime"):
         if mode not in {"stepped", "realtime"}:
             raise ValueError("execution mode must be stepped or realtime")
+        native.configure_execution_mode(mode)
         self.mode = mode
         self.next_tick = time.monotonic()
         self.lag_s = 0.0
@@ -117,7 +118,7 @@ class WorldSession:
             pending, self._motions = self._motions, []
             error = None
             try:
-                if self.native.budget().exhausted:
+                if self.mode == "stepped" and self.native.budget().exhausted:
                     raise DeviceError("episode_finished", "native episode budget exhausted")
                 self.native.advance_control()
                 self.time_s += self.native.control_interval_s

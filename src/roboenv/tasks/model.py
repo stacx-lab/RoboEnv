@@ -7,18 +7,6 @@ from pathlib import Path
 
 from roboenv.validation import json_value, yaml_load
 
-DEVICE_BACKENDS = frozenset(
-    {
-        "libero",
-        "robocasa",
-        "isaaclab",
-        "robotwin",
-        "robodojo",
-        "behavior",
-        "simple",
-    }
-)
-
 
 @dataclass(frozen=True)
 class Task:
@@ -30,7 +18,6 @@ class Task:
     backend_kwargs: dict = field(default_factory=dict)
     seed: int = 0
     budget_mode: str = "official"
-    action_abstraction: str = "cartesian-primitives"
     device_bindings: dict | None = None
     execution_mode: str = "realtime"
 
@@ -38,27 +25,11 @@ class Task:
     def load(cls, path):
         with Path(path).open() as stream:
             value = yaml_load(stream)
-        task = cls.from_dict(value)
-        if "execution_mode" not in value:
-            raise ValueError(
-                "task catalog entries must declare execution_mode: stepped or realtime"
-            )
-        return task
+        return cls.from_dict(value)
 
     @classmethod
     def from_dict(cls, value):
-        """Validate the canonical task, including legacy flat task files."""
-        if isinstance(value, dict) and "simulation" in value:
-            value = dict(value)
-            simulation = value.pop("simulation")
-            allowed = {"backend", "robot", "backend_kwargs", "device_bindings"}
-            if not isinstance(simulation, dict) or set(simulation) - allowed:
-                raise ValueError(
-                    "simulation must contain backend, robot and optional backend config"
-                )
-            if allowed & set(value):
-                raise ValueError("do not mix simulation configuration with flat task fields")
-            value.update(simulation)
+        """Validate the single environment task format."""
         fields = set(cls.__dataclass_fields__)
         if not isinstance(value, dict) or set(value) - fields:
             raise ValueError(
@@ -99,12 +70,6 @@ class Task:
                 BindingSpec.parse(name, binding)
         if type(task.seed) is not int or task.seed < 0:
             raise ValueError("seed must be a nonnegative integer")
-        if task.action_abstraction not in {
-            "devices",
-            "cartesian-primitives",
-            "symbolic-primitives",
-        }:
-            raise ValueError("unknown control abstraction")
         if task.execution_mode not in ("stepped", "realtime"):
             raise ValueError("execution_mode must be stepped or realtime")
         if task.budget_mode not in {"official", "practice"}:
@@ -133,3 +98,19 @@ class Task:
         if not isinstance(task.instruction, str) or not task.instruction.strip():
             raise ValueError("instruction must be nonempty text")
         return task
+
+
+def task_path(reference, root):
+    """Load a task file or resolve a public ID below a task directory."""
+    path = Path(reference)
+    if path.is_file():
+        return path
+    matches = [
+        path for path in sorted(Path(root).rglob("*.yaml")) if Task.load(path).id == str(reference)
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected one task matching {reference!r}, found {len(matches)}; "
+            "use roboenv tasks list or pass a task.yaml path"
+        )
+    return matches[0]

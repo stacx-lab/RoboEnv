@@ -8,6 +8,7 @@ import yaml
 from helpers import load_tool
 from roboenv.devices.bindings.spec import BindingPlan, binding_resource
 from roboenv.tasks.resolve import resolve_task
+from roboenv_runtime.bindings import default_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog"
@@ -28,7 +29,12 @@ def test_tasks_resolve_from_a_copied_public_catalog(tmp_path, path):
     shutil.copy2(path, task)
     resolved = resolve_task(task, catalog=copied)
     assert resolved.bindings == original.bindings
-    assert all(spec.definition(resolved.robot) for spec in resolved.bindings.devices)
+    assert resolved.task.execution_mode == "realtime"
+    registry = default_registry()
+    assert "world" in {spec.name for spec in resolved.bindings.devices}
+    for spec in resolved.bindings.devices:
+        assert spec.binding in registry._factories
+        assert spec.definition(resolved.robot).name == spec.name
     assert not (copied / "bindings").exists()
 
 
@@ -68,3 +74,12 @@ def test_native_generator_separates_public_catalog_and_internal_bindings(tmp_pat
     plan = yaml.safe_load((bindings / "test/test-robot.yaml").read_text())
     assert plan["devices"]["world"] == {"binding": "test.device/1", "entity": "world"}
     assert {p.name for p in catalog.iterdir()} == {"robots"}
+
+
+def test_all_robot_variants_have_registered_bindings():
+    registry = default_registry()
+    for workspace in sorted((CATALOG / "robots").rglob("workspace.yaml")):
+        robot = workspace.parent
+        for spec in BindingPlan.load(robot, backend=robot.parent.name).devices:
+            assert spec.binding in registry._factories
+            assert spec.definition(robot).name == spec.name

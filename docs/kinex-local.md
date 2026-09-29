@@ -24,6 +24,12 @@ Preparation is needed only if the simulator is not already prepared. Wait for
 `Ready` and keep this process running. Launch initializes the kitchen and the
 simulation service; it neither generates nor updates the catalog configuration.
 
+Realtime runs have no episode step cap, so leaving the service idle while starting
+Kinex does not exhaust a native action-frame budget. Frames are still counted;
+`budget.max` is null. Use `--execution-mode stepped` when you want idle physics
+paused and the task's configured/native step limit enforced. Restart the service
+to pick up runtime changes, then `/reload all` in Kinex to refresh its connections.
+
 For another task use another task ID. For parallel trials use different ports
 and separate Kinex processes with different `ROBOENV_ENDPOINT` values. Both
 can use byte-identical copies of the same robot configuration.

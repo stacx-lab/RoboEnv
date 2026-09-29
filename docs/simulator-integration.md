@@ -46,8 +46,8 @@ and seeds belong to private task state.
 New integrations default to sensor-only observations: instructions, device facts,
 and declared sensor readings. Keep scene truth and verdicts private. A benchmark
 requiring privileged observations needs an explicit, separately tested policy.
-Preserve original success rules and budget semantics; document deliberate deviations,
-such as RoboCasa's unbounded frame budget.
+Preserve native success rules and non-timeout terminations. Apply the shared clock
+policy: realtime has no episode step cap; stepped retains native/configured horizons.
 
 ## 2. Pin sources and prepare an interpreter
 
@@ -77,7 +77,7 @@ requirements alongside the Python lock; see [setup](setup.md).
 
 Implement [EnvAdapter](../runtime/src/roboenv_runtime/core/adapter.py): identity,
 reset/close, task instruction, budget, score, and required owner observation/media
-support. Override defaults that depend on old primitive APIs. Register the adapter
+support. Keep observations explicit and owner-only. Register the adapter
 with `@register_adapter` and add its lazy module path to `BUILTIN_ADAPTERS`; import
 heavy packages only when starting the backend.
 
@@ -135,8 +135,9 @@ an internal implementation detail. Do not expose a whole-robot action-vector sho
 
 Expose `control_interval_s` and `advance_control` on the adapter. Each pending
 command yields between intervals; the world advances once for all active devices.
-All native operations run on the simulation creation thread. Idle time never
-advances physics. Count native intervals against the existing episode budget.
+All native operations run on the simulation creation thread. Realtime advances
+while idle; stepped mode advances only during world waits. Count native intervals
+in both modes; realtime reports an unbounded limit, while stepped enforces its horizon.
 
 Put FK/IK in the joint driver. Export static geometry where needed; a serial
 chain can use Kinex's `kinex.kinematics`. The simulator supplies measured state
@@ -244,6 +245,42 @@ mount references together.
 
 ## 5. Connect tasks and deploy the service
 
+### Task format
+
+Every simulator uses the same flat `task.yaml`, parsed by `roboenv.tasks.model.Task`.
+Local startup and Harbor export serialize that resolved definition unchanged into
+private worker configuration. There is no second runtime task schema.
+
+```yaml
+id: libero/bowl-onto-plate
+backend: libero
+backend_task: libero.spatial_0
+robot: libero/libero-panda-tabletop
+instruction: Pick the akita black bowl between the plate and the ramekin and place it on the plate
+backend_kwargs:
+  suite_name: libero_spatial
+  task_id: 0
+  init_state_index: 0
+budget_mode: practice
+```
+
+The five required fields are `id`, `backend`, `backend_task`, `robot`, and
+`instruction`. Optional defaults are `backend_kwargs: {}`, `seed: 0`,
+`budget_mode: official`, `device_bindings: null`, and `execution_mode: realtime`.
+Backend-specific native inputs belong in `backend_kwargs`; robot profiles and
+binding plans describe actual hardware rather than forcing every robot to have
+the same device names. Unknown fields and obsolete task formats are rejected.
+
+Clock precedence is launch override, explicit task setting, then realtime.
+Realtime disables episode step caps and native horizon timeouts while continuing
+to count intervals with `budget.max: null`. Stepped retains existing native and
+configured horizons. Native non-timeout failures, success policies, explicit stop,
+request deadlines and Harbor trial timeouts remain active. World initialization
+applies the selected mode before reset; configured horizons are retained separately
+from effective limits. Budget mode does not select the clock.
+
+### Device bindings
+
 A binding plan selects existing native entities; logical and native names may differ:
 
 ```yaml
@@ -269,12 +306,13 @@ Catalog task IDs use `SIMULATOR/TASK`, matching their directory below
 `catalog/tasks/`. `roboenv tasks list --simulator SIMULATOR` lists that backend's
 IDs; pass the same ID to launch or export. Keep native `backend_task` identifiers
 separate from these public names. Discovery must emit the same directory structure.
-Tasks do not select an execution clock. All backends use command-driven
-the shared stepped/realtime executor and retain native horizons and termination conditions.
+Tasks default to realtime and can explicitly select stepped mode. All backends use the shared stepped/realtime
+executor. Stepped retains native horizons; realtime
+disables step/time caps while preserving native non-timeout termination conditions.
 
 Add lightweight discovery and default robot mapping in `src/roboenv/tasks/catalog.py`.
 Read task IDs, arguments, instructions, and provenance from pinned registries or
-configuration; record exclusions. Tasks use `action_abstraction: devices`. Start with
+configuration; record exclusions. Tasks expose typed devices. Start with
 one small example before generating task collections, which stay outside Git.
 
 ```sh

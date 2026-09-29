@@ -7,6 +7,10 @@ from roboenv_runtime.core.types import Budget
 class NativeDeviceAdapter(AdapterBase):
     owner_thread_required = True
 
+    def configure_execution_mode(self, mode):
+        super().configure_execution_mode(mode)
+        self._env.unbounded = mode == "realtime"
+
     @property
     def control_interval_s(self):
         return self._env.control_interval

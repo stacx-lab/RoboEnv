@@ -56,6 +56,7 @@ class Rig:
         if backend in {"libero", "robocasa"}:
             cls = LiberoEnv if backend == "libero" else RoboCasaEnv
             env = cls.__new__(cls)
+            env.configured_max_steps = None
             env._step_count, env._max_steps, env.terminal = 0, None, False
             env.env = SimpleNamespace(control_freq=20)
             env.command_log = []
@@ -71,6 +72,8 @@ class Rig:
             model = json.loads(
                 (ROOT / "runtime/src/roboenv_runtime/adapters" / backend / "g1.json").read_text()
             )
+            env.env = SimpleNamespace(step_limit_enabled=True)
+            env.configure_execution_mode = lambda mode: None
             env.model = model
             env.advance = lambda targets: self.tick(targets["left_arm"])
             env.control = (SimpleControl if backend == "simple" else IsaacControl)(env, model)

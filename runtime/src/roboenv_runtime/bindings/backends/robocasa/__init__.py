@@ -2,8 +2,9 @@
 
 
 def register(registry):
-    from . import camera, gripper, joint, velocity
     from roboenv.devices.model import BoundDevice
+
+    from . import camera, gripper, joint, velocity
 
     for name, factory in (
         ("joint", joint.bind),

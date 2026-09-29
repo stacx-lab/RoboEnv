@@ -50,9 +50,7 @@ code = (
     "assert '.whl/' in str(resource);"
     "plan = yaml_load(resource.read_text());"
     "assert plan['devices']['camera_wrist']['config']['camera'] == 'robot0_eye_in_hand';"
-    "from roboenv_runtime.bindings.simulators import binding_index;"
-    "[importlib.import_module('roboenv_runtime.bindings.backends.' + item['module']) "
-    "for item in binding_index().values()];"
+    "from roboenv_runtime.bindings import default_registry; default_registry();"
     "assert '.whl/' in roboenv.__file__;"
     "assert not {'torch','mujoco','harbor','roborl','kinex'} & sys.modules.keys()"
 )

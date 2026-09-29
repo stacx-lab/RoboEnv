@@ -4,8 +4,8 @@ RoboEnv exposes **a task and a set of devices** backed by one simulation service
 The task supplies an instruction. Devices supply basic sensor readings and actuator
 commands. The agent perceives the scene, plans, and writes control programs.
 
-RoboCasa implements this design. Other existing backends are not all migrated;
-their primitive APIs and observation policies are not templates for new integrations.
+All seven simulator backends use this task and typed-device contract. Native
+control, rendering and success predicates remain simulator-specific.
 See [RoboCasa devices](docs/robocasa.md) for implemented semantics and validation limits.
 
 ## Ownership and boundaries
@@ -27,9 +27,12 @@ to its existing entities. Loading a device never creates another world or resets
 A validated new motion replaces existing motion on its physical resources; observations bypass motion admission.
 All native calls execute on the simulation creation thread. Active commands yield
 between native control intervals, allowing camera reads, stops and peer commands.
-The world advances once for all pending devices. Task catalogs declare `execution_mode`:
-stepped (only world.wait advances physics) or realtime (time advances continuously).
+The world advances once for all pending devices. Tasks default to realtime (time advances continuously); explicit
+`execution_mode: stepped` advances physics only during world.wait.
 Launch uses that mode unless explicitly overridden. No physics steps are skipped.
+Realtime has no episode step cap: configured limits and native timeout conditions
+are disabled, while counters continue and budget maxima are null. Stepped keeps
+configured/native limits. Success and non-timeout failure conditions remain native.
 Stop cancels active and queued commands in its scope. Reset, submission and shutdown
 settle pending work before changing lifecycle state. Native budgets and failures
 end commands with their measured terminal state and partial progress.
@@ -228,7 +231,8 @@ control interval. Reads never advance physics.
 
 Realtime defaults to continuous advancement. Stepped advances only while a
 world.wait is pending, even when buffers remain. Both modes share the device
-API, native control thread, horizons and termination conditions. Goal planning
+API and native control thread. Realtime has no step/time horizon; stepped retains
+episode limits. Both preserve non-timeout termination conditions. Goal planning
 and arrival checks belong to the harness.
 
 Background motion retains resource ownership after submission. Faults stop the
@@ -256,7 +260,7 @@ The current RoboCasa Harbor exporter also stages live device descriptors and thi
 drivers under `/run/roboenv/robot`; this is trial-local output, never a catalog write.
 Kinex workspace setup remains the harness integration's responsibility.
 
-RoboEnv's verifier uses original success rules, budgets, and owner evidence.
+RoboEnv's verifier uses original success rules, execution-mode budgets, and owner evidence.
 Agent claims and recording outcome labels do not establish benchmark success.
 Task generation must pass the real installed Harbor loader; loading a task does
 not establish that the simulator boots or the agent can solve it.

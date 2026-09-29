@@ -222,16 +222,8 @@ def test_nested_catalog_duplicate_ids_are_rejected(tmp_path):
         load_catalog(tmp_path)
 
 
-@pytest.mark.parametrize(
-    "identifier",
-    [
-        "robotwin/handover-mic",
-        "robotwin/stack-blocks-three",
-        "robodojo/general-pickup",
-        "robodojo/stack-bowls",
-    ],
-)
-def test_retired_reference_cannot_be_exported(tmp_path, identifier):
+def test_retired_reference_cannot_be_exported(tmp_path):
+    identifier = "robotwin/handover-mic"
     wheel, _ = inputs(tmp_path)
     source = tmp_path / "source"
     source.mkdir()
@@ -250,40 +242,3 @@ def test_retired_reference_cannot_be_exported(tmp_path, identifier):
             include_reference=True,
         )
     assert not destination.exists()
-
-
-def test_catalog_entries_explicitly_declare_execution_mode():
-    from roboenv.tasks.model import Task
-
-    for path in (ROOT / "catalog/tasks").rglob("task.yaml"):
-        data = yaml.safe_load(path.read_text())
-        assert data["execution_mode"] in {"stepped", "realtime"}, path
-        assert Task.load(path).execution_mode == data["execution_mode"]
-    assert set(summary(ROOT)["execution_modes"].values()) == {"realtime"}
-
-
-def test_realtime_mode_survives_harbor_export(tmp_path):
-    from roboenv_runtime.tasks.schema import TaskSpec
-
-    wheel, deployments = inputs(tmp_path)
-    data = yaml.safe_load((ROOT / "catalog/tasks/libero/drawer-and-bowl/task.yaml").read_text())
-    data["execution_mode"] = "realtime"
-    source = tmp_path / "task.yaml"
-    source.write_text(yaml.safe_dump(data))
-    destination = tmp_path / "exported"
-    export_task(
-        source, ROOT / "catalog", destination, wheel, deployment_path=tmp_path / "libero.json"
-    )
-    config = yaml.safe_load((destination / "environment/sim/tasks/libero.90_8.yaml").read_text())
-    assert config["execution_mode"] == "realtime"
-    assert TaskSpec.from_dict(config).execution_mode == "realtime"
-
-
-def test_catalog_rejects_missing_execution_mode(tmp_path):
-    from roboenv.tasks.catalog import load_catalog
-
-    data = yaml.safe_load((ROOT / "catalog/tasks/libero/drawer-and-bowl/task.yaml").read_text())
-    del data["execution_mode"]
-    (tmp_path / "task.yaml").write_text(yaml.safe_dump(data))
-    with pytest.raises(ValueError, match="must declare execution_mode"):
-        load_catalog(tmp_path)

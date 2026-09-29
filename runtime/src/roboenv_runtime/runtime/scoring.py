@@ -1,29 +1,14 @@
-"""Who owns the score inside a worker.
-
-A worker never lets agent code touch the adapter's ``score()`` directly; a
-*score authority* answers ``score.peek`` (read-only) and ``submit`` (the one
-final evaluation), and remembers whether success was ever observed
-(``latched``).  Two implementations:
-
-* :class:`SimpleScorer` — wraps :meth:`EnvAdapter.score` for any adapter.
-* the RoboDojo ``ScoreClock`` (``roboenv_runtime.adapters.robodojo.score_clock``) —
-  seals the benchmark's registrars and advances its reward manager at the
-  official action-frame cadence.  Adapters that need such a thing expose it
-  through :meth:`SupportsScoreAuthority.score_authority`.
-"""
+"""One-shot owner evaluation and stable terminal snapshots of native verdicts."""
 
 from __future__ import annotations
 
-import contextlib
 import copy
 import threading
-from collections.abc import Iterator
-from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from roboenv_runtime.core.adapter import EnvAdapter
 
-__all__ = ["ScoreAuthority", "SimpleScorer", "SupportsScoreAuthority", "make_score_authority"]
+__all__ = ["ScoreAuthority", "SimpleScorer"]
 
 SUCCESS_THRESHOLD = 1.0 - 1e-3
 
@@ -50,21 +35,8 @@ class ScoreAuthority(Protocol):
         """Run the final evaluation once and freeze the episode."""
         ...
 
-    def native_action(self) -> contextlib.AbstractContextManager[None]:
-        """Context for one benchmark-native action frame."""
-        ...
-
     def close(self) -> None:
         """Release patches/resources so the adapter can be reset again."""
-        ...
-
-
-@runtime_checkable
-class SupportsScoreAuthority(Protocol):
-    """Adapters that provide their own score authority (official budgets)."""
-
-    def score_authority(self, run_dir: Path, **options: Any) -> ScoreAuthority:
-        """A fresh authority for the current episode (call after ``reset``)."""
         ...
 
 
@@ -129,28 +101,6 @@ class SimpleScorer:
                     raise
             return copy.deepcopy(self._result)
 
-    @contextlib.contextmanager
-    def native_action(self) -> Iterator[None]:
-        """No benchmark clock to advance; a plain context."""
-        yield
-
     def close(self) -> None:
         """Nothing to restore."""
         return None
-
-
-def make_score_authority(
-    adapter: EnvAdapter, run_dir: Path, *, budget_mode: str = "practice", **options: Any
-) -> ScoreAuthority:
-    """The adapter's own authority when it has one and the mode asks for it.
-
-    ``official`` runs use the adapter's benchmark-side authority (RoboDojo's ``ScoreClock``,
-    which seals the registrars and owns the reward cadence).  ``practice`` runs score through
-    :class:`SimpleScorer` → :meth:`EnvAdapter.score`, exactly as in-process trials do — so
-    programs that drive the reward clock themselves (the campaign REPL libraries) behave the
-    same under a worker as they did in the REPL.
-    """
-    factory = getattr(adapter, "score_authority", None)
-    if budget_mode == "official" and callable(factory):
-        return factory(run_dir, **options)
-    return SimpleScorer(adapter)

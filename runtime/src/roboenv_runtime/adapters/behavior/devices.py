@@ -60,6 +60,7 @@ def robot_config():
 class BehaviorDevices(BehaviorBackend):
     embodiment = "r1pro"
     control_interval = 1 / 30
+    unbounded = False
 
     def __init__(
         self,
@@ -78,6 +79,8 @@ class BehaviorDevices(BehaviorBackend):
 
     def build_config(self):
         cfg = super().build_config()
+        if self.unbounded:
+            cfg["task"]["termination_config"]["max_steps"] = float("inf")
         from omnigibson.tasks.behavior_task import BehaviorTask
 
         # The released full scene is template zero. Other initial states are
@@ -94,6 +97,7 @@ class BehaviorDevices(BehaviorBackend):
     def reset(self, seed=0):
         import torch
 
+        self._configure_step_limit()
         random.seed(seed)
         np.random.seed(int(seed) % 2**32)
         torch.manual_seed(seed)
@@ -188,7 +192,7 @@ class BehaviorDevices(BehaviorBackend):
                 "activity_name": self.activity_name,
                 "scene_model": self.scene_model,
                 "activity_instance_id": self.activity_instance_id,
-                "max_steps": self.frame_limit,
+                "max_steps": self.max_steps,
             },
             "behavior",
         )
@@ -199,9 +203,13 @@ class BehaviorDevices(BehaviorBackend):
             (Path(__file__).parent / "r1pro.yaml").read_bytes()
         ).hexdigest()
 
+    def _configure_step_limit(self):
+        self.frame_limit = None if self.unbounded else self.max_steps
+
     def exhausted(self):
         return self._native_done or (
-            self.control is not None and self.control.frame >= self.frame_limit
+            self.frame_limit is not None and self.control is not None
+            and self.control.frame >= self.frame_limit
         )
 
     def _measured_target(self, name):

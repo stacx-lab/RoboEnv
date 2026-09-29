@@ -36,7 +36,7 @@ def test_robotwin_discovery_uses_explicit_upstream_instruction(tmp_path, descrip
             "robotwin/robotwin-dual-piper", "robotwin/robotwin-aloha-agilex",
         }
         assert all(task.instruction == text.strip() for task, _ in entries)
-        assert all(task.action_abstraction == "devices" for task, _ in entries)
+        assert all(task.backend == "robotwin" for task, _ in entries)
         assert not issues
     else:
         assert not entries

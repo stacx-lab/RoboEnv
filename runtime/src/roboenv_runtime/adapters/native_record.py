@@ -111,6 +111,7 @@ def observe(adapter):
     return {
         "schema": "roboenv/native-device-episode/1",
         "backend": adapter.name,
+        "execution_mode": adapter.execution_mode,
         "embodiment": adapter.embodiment,
         "environment": copy.deepcopy(world.replay_config),
         "implementation": world.implementation_identity,
