@@ -80,11 +80,15 @@ def test_command_rejects_bad_values(key, bad):
 
 
 def test_command_bounds_and_required_fields():
+    assert {key: BOUNDS[key] for key in ("vx", "vy", "wz")} == {
+        "vx": (-1.0, 1.0), "vy": (-0.5, 0.5), "wz": (-np.pi / 6, np.pi / 6),
+    }
     for key, (lo, hi) in BOUNDS.items():
         validate_command(command(**{key: lo}))
         validate_command(command(**{key: hi}))
-        with pytest.raises(ValueError):
-            validate_command(command(**{key: hi + 0.001}))
+        for outside in (lo - 0.001, hi + 0.001):
+            with pytest.raises(ValueError):
+                validate_command(command(**{key: outside}))
     args = command()
     del args["posture"]["pitch"]
     with pytest.raises(ValueError):
@@ -120,6 +124,7 @@ def test_gait_feedback_and_output_scope():
 @pytest.mark.parametrize("task", ["control", "reach", "pick-place"])
 def test_complete_catalog_preserves_profiles(task):
     resolved = resolve_task(f"isaaclab/go2-d1-{task}", project=ROOT)
+    assert resolved.task.backend_kwargs["task_name"] == f"go2-d1-{task}"
     assert resolved.task.execution_mode == "realtime"
     assert "realtime" not in resolved.task.backend_kwargs
     assert "command_timeout_s" not in resolved.task.backend_kwargs
@@ -211,14 +216,6 @@ def test_center_of_mass_includes_fixed_payload_and_origin(tmp_path):
     path.write_text('<robot name="empty"><link name="base"/></robot>')
     with pytest.raises(ValueError, match="mass"):
         RobotModel(path).center_of_mass({})
-
-
-@pytest.mark.parametrize("axis,limit", [("vx", 1.0), ("vy", 0.5), ("wz", np.pi / 6)])
-def test_requested_high_speed_limits_and_rejection(axis, limit):
-    for sign in (-1, 1):
-        validate_command(command(**{axis: sign * limit}))
-        with pytest.raises(ValueError):
-            validate_command(command(**{axis: sign * (limit + 0.001)}))
 
 
 def test_high_speed_gait_retains_independent_posture_and_leg_scope():

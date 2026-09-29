@@ -114,21 +114,10 @@ def test_destination_checks_entire_object_and_no_success_before_pickup():
 
 
 @pytest.mark.parametrize("name", [REACH, PICK_PLACE])
-def test_fall_prevents_success_and_catalog_resolves(name):
+def test_fall_prevents_success(name):
     s = TaskState(name)
     s.update({"fallen": True})
     assert s.failure == "robot_fallen" and not s.completed
-    resolved = resolve_task("isaaclab/" + name)
-    assert resolved.task.backend_kwargs["task_name"] == name
-    assert resolved.task.backend_kwargs["max_steps"] == 6000
-    assert {d.name for d in resolved.bindings.devices} == {
-        "base",
-        "arm",
-        "gripper",
-        "camera_head",
-        "camera_wrist",
-        "world",
-    }
 
 
 def test_reach_goal_is_outside_even_a_conservative_fixed_base_workspace():

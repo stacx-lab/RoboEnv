@@ -91,25 +91,9 @@ def test_all_robot_variants_have_registered_bindings():
             assert spec.definition(robot).name == spec.name
 
 
-def test_go2_generator_tasks_use_supported_execution_mode(tmp_path, monkeypatch):
+def test_go2_generator_keeps_bindings_private_and_drivers_portable(tmp_path, monkeypatch):
     from roboenv.tasks.catalog import load_catalog
 
-    generator = load_tool("generate_go2_d1_catalog")
-    assets = tmp_path / "assets"
-    assets.mkdir()
-    (assets / "home.json").write_text("{}")
-    monkeypatch.setattr(generator, "RobotModel", lambda path: object())
-    monkeypatch.setattr(generator, "profiles", lambda model, home: {})
-    catalog = tmp_path / "catalog"
-    generator.generate(assets, catalog)
-    tasks = load_catalog(catalog / "tasks")
-    assert set(tasks) == {f"isaaclab/{name}" for name in generator.TASKS}
-    for task, _ in tasks.values():
-        assert task.execution_mode == "realtime"
-        assert "realtime" not in task.backend_kwargs
-
-
-def test_go2_generator_keeps_bindings_private_and_drivers_portable(tmp_path, monkeypatch):
     generator = load_tool("generate_go2_d1_catalog")
     source = CATALOG / "robots/isaaclab/isaaclab-go2-d1"
     facts = {}
@@ -126,6 +110,11 @@ def test_go2_generator_keeps_bindings_private_and_drivers_portable(tmp_path, mon
     catalog = tmp_path / "catalog"
     generator.generate(assets, catalog)
     assert {p.name for p in catalog.iterdir()} == {"robots", "tasks"}
+    tasks = load_catalog(catalog / "tasks")
+    assert set(tasks) == {f"isaaclab/{name}" for name in generator.TASKS}
+    for task, _ in tasks.values():
+        assert task.execution_mode == "realtime"
+        assert "realtime" not in task.backend_kwargs
     rig = catalog / "robots/isaaclab/isaaclab-go2-d1"
     assert list(rig.rglob("_roboenv.py")) == [rig / "devices/_roboenv.py"]
     manifest = yaml.safe_load((rig / "workspace.yaml").read_text())

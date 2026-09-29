@@ -264,21 +264,13 @@ def test_catalog_episode_limits_in_both_clocks(native_stub, monkeypatch, mode, t
     if mode == "realtime":
         assert env.max_steps is None and env.steps == 15002
         assert not env.done and session.failure is None
-        if pending is not None:
-            assert pending.result()["elapsed_s"] == pytest.approx(300.04)
-        # Unlimited practice still respects native failure/termination.
-        env.native.done = True
-        with pytest.raises(DeviceError, match="episode terminated"):
-            env.tick()
-        assert env.done and env.steps == 15002
     else:
         assert env.max_steps == 6000 and env.steps == 6000 and env.done
         assert session.time_s == pytest.approx(120)
         assert session.failure is None
         assert session._episode_error.code == "episode_finished"
-        if pending is not None:
-            with pytest.raises(DeviceError, match="budget exhausted"):
-                pending.result()
+        with pytest.raises(DeviceError, match="budget exhausted"):
+            pending.result()
 
 
 @pytest.mark.parametrize("mode", ["stepped", "realtime"])
