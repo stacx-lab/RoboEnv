@@ -107,13 +107,15 @@ def main():
         'COPY workspace/ /app/\nWORKDIR /app\nCMD ["sleep", "infinity"]\n'
     )
     (task / "solution").mkdir(exist_ok=True)
-    (task / "solution/solve.sh").write_text(
+    solve = task / "solution/solve.sh"
+    solve.write_text(
         "#!/bin/bash\nset -euo pipefail\n"
         "roboenv describe\nroboenv devices --name controller\n"
-        "roboenv device controller invoke "
-        '\'{"tool_name":"push","kwargs":{"dx":0.3}}\' --request-id smoke-push\n'
+        "roboenv device controller write '{\"target\":[0.3]}' --request-id smoke-push\n"
         "roboenv operation smoke-push\nroboenv device controller read '{}'\n"
     )
+    # Uploads keep this mode; the main container's root has no capability to add it.
+    solve.chmod(0o755)
     (task / "solution/source.json").write_text(
         json.dumps(
             {
@@ -143,17 +145,22 @@ def main():
     if args.agent_bundle:
         tool = out / "tool"
         tool.mkdir()
+        # Kinex commands only actuated device types. The probe reads the synthetic
+        # "other" puck through normal Kinex dispatch and moves it with the main
+        # image's RoboEnv SDK, which the tool runs as its interpreter.
         (tool / "tool.yaml").write_text(
             "name: harbor_probe\nkind: controller\n"
             "description: Exercise the synthetic device through normal Kinex dispatch.\n"
-            "timeout_s: 30\ndevices: [other]\n"
+            "timeout_s: 30\ndevices: [other]\ninterpreter: /opt/roboenv-sdk/bin/python\n"
             "parameters: {type: object, properties: {}, additionalProperties: false}\n"
         )
         (tool / "tool.py").write_text(
-            "from kinex import device, finish\n"
-            "device('controller', 'read')\n"
-            "device('controller', 'invoke', tool_name='push', kwargs={'dx': 0.3})\n"
-            "finish({'completed': True})\n"
+            "import os\nimport roboenv\nfrom kinex import device, finish\n"
+            "before = device('controller')['data']\n"
+            "with roboenv.connect(os.environ['ROBOENV_ENDPOINT']) as env:\n"
+            "    env.device('controller').write(target=[0.3])\n"
+            "after = device('controller')['data']\n"
+            "finish({'completed': True, 'before': before, 'after': after})\n"
         )
         agents = [
             {
