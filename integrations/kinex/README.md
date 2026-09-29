@@ -72,8 +72,13 @@ task success are checked independently.
 
 Live development requires authorized model use, `mode: "develop"`,
 `--model openai/MODEL` and an explicit `effort` (`minimal`, `low`, `medium`, `high`
-or `xhigh`) in agent kwargs. Supply credentials through Harbor's agent environment,
-outside bundles and tasks.
+or `xhigh`) in agent kwargs. Supply the login through Harbor's agent environment:
+`KINEX_AUTH_JSON_PATH` names a Kinex `auth.json` on the owner's host, such as
+`{"openai": {"type": "api_key", "key": "..."}}` or the one Kinex's `/login` writes to
+`$KINEX_DATA_DIR/agent/auth.json`. The agent copies only the selected provider's
+entry into the trial, readable only by the agent user, and removes it after the run;
+it never enters bundles, tasks, logs or the exported workspace. The development
+session runs as that user, so its tools can read the login while the trial runs.
 
 The bridge runs the Kinex application in-process in headless JSON mode; its event
 stream is `agent/kinex.log`. It allows device, Python tool, file and shell

@@ -65,7 +65,22 @@ def test_bundle_requires_node_kinex_and_the_bridge(tmp_path):
         path.unlink()
 
 
-def develop(**options):
+LOGINS = {
+    "openai": {"type": "api_key", "key": "openai-secret"},
+    "anthropic": {"type": "api_key", "key": "other-secret"},
+}
+SECRETS = ("openai-secret", "other-secret")
+
+
+def login(tmp_path, content=LOGINS):
+    path = tmp_path / "auth.json"
+    path.write_text(json.dumps(content))
+    return {"KINEX_AUTH_JSON_PATH": str(path)}
+
+
+def develop(tmp_path, **options):
+    if "extra_env" not in options:
+        options["extra_env"] = login(tmp_path)
     return {"mode": "develop", "model_name": "openai/gpt-6", "effort": "high", **options}
 
 
@@ -94,18 +109,22 @@ def test_invalid_agent_configuration_fails_before_setup(tmp_path, options):
         {"effort": None},
         {"effort": "off"},
         {"effort": "max"},
+        {"extra_env": {}},
     ],
 )
-def test_invalid_development_configuration_fails_before_setup(tmp_path, override):
+def test_invalid_development_configuration_fails_before_setup(tmp_path, monkeypatch, override):
+    monkeypatch.delenv("KINEX_AUTH_JSON_PATH", raising=False)
     with pytest.raises(ValueError):
         KinexAgent(
-            logs_dir=tmp_path, bundle=bundle(tmp_path / "agent.tar.gz"), **develop(**override)
+            logs_dir=tmp_path,
+            bundle=bundle(tmp_path / "agent.tar.gz"),
+            **develop(tmp_path, **override),
         )
 
 
 def test_development_runs_the_selected_model_and_effort(tmp_path):
     agent = KinexAgent(
-        logs_dir=tmp_path / "logs", bundle=bundle(tmp_path / "agent.tar.gz"), **develop()
+        logs_dir=tmp_path / "logs", bundle=bundle(tmp_path / "agent.tar.gz"), **develop(tmp_path)
     )
     agent.logs_dir.mkdir()
     uploads = {}
@@ -124,6 +143,61 @@ def test_development_runs_the_selected_model_and_effort(tmp_path):
     runner = json.loads(uploads[agent.root + "/runner.json"])
     assert runner["prompt"] == "Fixture instruction"
     assert runner["model"] == {"provider": "openai", "id": "gpt-6", "effort": "high"}
+
+
+def test_development_login_must_exist_for_the_selected_provider(tmp_path, monkeypatch):
+    agent = bundle(tmp_path / "agent.tar.gz")
+    # Like Harbor's own agents, the owner's process environment may name the login.
+    monkeypatch.setenv("KINEX_AUTH_JSON_PATH", login(tmp_path)["KINEX_AUTH_JSON_PATH"])
+    KinexAgent(logs_dir=tmp_path, bundle=agent, **develop(tmp_path, extra_env={}))
+    for content in ({"anthropic": {"type": "api_key", "key": "k"}}, {"openai": "key"}, []):
+        with pytest.raises(ValueError, match="KINEX_AUTH_JSON_PATH"):
+            KinexAgent(
+                logs_dir=tmp_path,
+                bundle=agent,
+                **develop(tmp_path, extra_env=login(tmp_path, content)),
+            )
+
+
+@pytest.mark.parametrize("model", ["openai/gpt-6"])
+def test_development_installs_only_the_selected_login_and_removes_it(tmp_path, model):
+    agent = KinexAgent(
+        logs_dir=tmp_path / "logs",
+        bundle=bundle(tmp_path / "agent.tar.gz"),
+        **develop(tmp_path, model_name=model),
+    )
+    agent.logs_dir.mkdir()
+    commands, uploads = [], {}
+
+    class Environment:
+        async def exec(self, command, **kwargs):
+            commands.append((command, kwargs))
+            failed = "runner.json >" in command
+            return SimpleNamespace(return_code=int(failed), stdout="", stderr="")
+
+        async def upload_file(self, source, target):
+            uploads[target] = Path(source).read_text()
+
+        async def download_file(self, source, target):
+            Path(target).write_text(json.dumps({"passed": True, "mode": "develop"}))
+
+    # A failed run still removes the login before the workspace is exported.
+    with pytest.raises(RuntimeError, match="Kinex command exited 1"):
+        asyncio.run(agent.run("Fixture instruction", Environment(), AgentContext()))
+    provider = model.split("/")[0]
+    assert json.loads(uploads[agent.auth + ".upload"]) == {provider: LOGINS[provider]}
+    order = [command for command, _ in commands]
+    install = order.index(
+        f"install -m 600 {agent.auth}.upload {agent.auth} && rm {agent.auth}.upload"
+    )
+    run = next(index for index, command in enumerate(order) if "runner.json >" in command)
+    remove = order.index(f"rm -f {agent.auth} {agent.auth}.upload")
+    export = next(index for index, command in enumerate(order) if "workspace.tar.gz" in command)
+    assert install < run < remove < export
+    # The login never appears in a command, its environment or the trial's logs.
+    logs = [path.read_text() for path in agent.logs_dir.rglob("*") if path.is_file()]
+    assert all(options.get("user") is None for _, options in commands)
+    assert not any(secret in str([logs, commands]) for secret in SECRETS)
 
 
 def fake_kinex(root, *, installed="1.0.0"):

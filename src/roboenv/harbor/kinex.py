@@ -7,6 +7,7 @@ import json
 import math
 import shlex
 import tarfile
+import tempfile
 from pathlib import Path, PurePosixPath
 
 from harbor.agents.base import BaseAgent
@@ -16,6 +17,17 @@ from roboenv.validation import json_loads
 # development always states an explicit effort.
 PROVIDERS = ("openai",)
 EFFORTS = ("minimal", "low", "medium", "high", "xhigh")
+# Names a Kinex agent auth.json on the owner's host, like Harbor's CODEX_AUTH_JSON_PATH.
+AUTH = "KINEX_AUTH_JSON_PATH"
+
+
+def provider_credential(path, provider):
+    """Select one provider's entry from a Kinex auth.json; other logins stay on the host."""
+    content = json_loads(Path(path).read_text())
+    entry = content.get(provider) if isinstance(content, dict) else None
+    if not isinstance(entry, dict) or entry.get("type") not in {"api_key", "oauth"}:
+        raise ValueError(f"{AUTH} has no API key or OAuth login for {provider}")
+    return {provider: entry}
 
 
 def inspect_bundle(path):
@@ -83,6 +95,12 @@ class KinexAgent(BaseAgent):
         provider, _, model = (model_name or "").partition("/")
         if mode == "develop" and (provider not in PROVIDERS or not model or effort not in EFFORTS):
             raise ValueError("Development requires an explicit openai/MODEL and effort")
+        # Credentials come only from Harbor's agent environment, never bundles or tasks.
+        self.login = self._get_env(AUTH) if mode == "develop" else None
+        if mode == "develop":
+            if not self.login:
+                raise ValueError(f"Development requires {AUTH} in the Harbor agent environment")
+            provider_credential(self.login, provider)
         for timeout in (agent_timeout_sec or 300, setup_timeout_sec):
             if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
                 raise ValueError("Kinex timeouts must be positive finite seconds")
@@ -113,6 +131,8 @@ class KinexAgent(BaseAgent):
         self.root = "/app/.roboenv-agent"
         self.bridge = self.root + "/kinex/integrations/roboenv"
         self.workspace = "/app/workspace"
+        # Kinex's agent state (KINEX_DATA_DIR/agent) holds the trial's provider login.
+        self.auth = self.root + "/data/agent/auth.json"
 
     @staticmethod
     def name():
@@ -146,6 +166,25 @@ class KinexAgent(BaseAgent):
         path = self.logs_dir / name
         path.write_text(json.dumps(content, indent=2) + "\n")
         await environment.upload_file(path, self.root + "/" + name)
+
+    async def upload_credential(self, environment):
+        """Install the selected provider's login for Kinex, readable only by the agent user."""
+        provider = self.model_name.split("/", 1)[0]
+        credential = provider_credential(self.login, provider)
+        await self.checked(environment, f"mkdir -p -m 700 {self.root}/data/agent", timeout=30)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "auth.json"
+            path.write_text(json.dumps(credential) + "\n")
+            # Uploads keep their mode but not an owner the agent user controls, and the
+            # main container has no capability to change ownership. The agent copies
+            # the login into its private directory; the temporary copy is removed.
+            path.chmod(0o644)
+            await environment.upload_file(path, self.auth + ".upload")
+        await self.checked(
+            environment,
+            f"install -m 600 {self.auth}.upload {self.auth} && rm {self.auth}.upload",
+            timeout=30,
+        )
 
     async def receipt(self, environment, name):
         target = self.logs_dir / name
@@ -220,6 +259,8 @@ class KinexAgent(BaseAgent):
             "completed": False,
         }
         try:
+            if self.mode == "develop":
+                await self.upload_credential(environment)
             await self.checked(
                 environment,
                 f"{self.root}/bin/node {self.bridge}/run.ts "
@@ -240,8 +281,10 @@ class KinexAgent(BaseAgent):
                 await self.receipt(environment, "media.json")
             context.metadata["completed"] = True
         finally:
+            if self.mode == "develop":
+                await self.checked(environment, f"rm -f {self.auth} {self.auth}.upload", timeout=30)
             # Preserve agent code, recordings and the Python lock for review/freeze.
-            # Never export auth.
+            # The login lives outside the workspace and is removed above.
             await self.checked(
                 environment,
                 "tar --exclude=./.kinex/python/.venv -czf "
