@@ -36,8 +36,15 @@ termination, faults, explicit stop and request deadlines remain active in both.
 
 At a stepped horizon, physics freezes and unfinished buffers or waits end with
 `episode_finished`. Final reads and stop/submit remain available; budget exhaustion
-does not fail the world. Finalization preserves the native verdict and records
+does not fail the world. The worker automatically seals the native verdict and records
 `step_limit` when unsuccessful. Harbor's existing reward budget rules still apply.
+
+RoboCasa, LIBERO, RoboTwin, BEHAVIOR, RoboDojo, SIMPLE and the test backend accept
+`backend_kwargs: {stop_on_success: true}` to end at the first successful control
+interval in either clock mode. The default is `false`: success alone does not end
+execution. Natural episode completion cleans unfinished buffers without another
+physics tick before sealing the final snapshot. Explicit cancellation remains an
+interruption; cleanup failures cannot produce a successful final verdict.
 
 ```sh
 roboenv tasks list --simulator robocasa

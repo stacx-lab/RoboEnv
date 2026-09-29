@@ -33,17 +33,22 @@ class WorldSession:
 
     def _check_admission(self):
         if self.mode == "stepped" and self.native.budget().exhausted:
-            self._finish_budget()
+            self.finish_episode("native episode budget exhausted")
         if self._closed or self._frozen or self.failure:
             raise DeviceError("episode_finished", "world is frozen", details={"effects": "none"})
 
-    def _finish_budget(self):
-        self._episode_error = DeviceError(
-            "episode_finished", "native episode budget exhausted", details={"effects": "none"}
-        )
-        self._frozen = True
-        self.poll_motions()
-        self._settle_waiters()
+    def finish_episode(self, message="the episode ended", *, settle=True):
+        """End natural execution and clean buffers without advancing physics."""
+        self._check_thread()
+        with self.lock:
+            if self._episode_error is None:
+                self._episode_error = DeviceError(
+                    "episode_finished", message, details={"effects": "none"}
+                )
+            self._frozen = True
+            self.poll_motions()
+            if settle:
+                self._settle_waiters()
 
     def _check_thread(self):
         if self.owner_thread_required and threading.get_ident() != self._owner_thread:
@@ -93,7 +98,7 @@ class WorldSession:
     def _resume(self, job, *, error=None):
         future, motion, cancel = job
         try:
-            if cancel.is_set():
+            if cancel.is_set() and self.failure is None:
                 error = DeviceError("operation_interrupted", "device motion interrupted by stop")
             if error is not None:
                 motion.throw(error)
@@ -119,7 +124,7 @@ class WorldSession:
             for job in pending:
                 if job[2].is_set() or self._frozen or self.failure:
                     self._resume(
-                        job, error=self._episode_error or DeviceError(
+                        job, error=self.failure or self._episode_error or DeviceError(
                             "operation_interrupted", "world execution ended"
                         )
                     )
@@ -149,32 +154,35 @@ class WorldSession:
             error = None
             self._advancing = True
             try:
+                try:
+                    if self.mode == "stepped" and self.native.budget().exhausted:
+                        raise DeviceError(
+                            "episode_finished", "native episode budget exhausted",
+                            details={"effects": "none"},
+                        )
+                    self.native.advance_control()
+                    self.time_s += self.native.control_interval_s
+                except Exception as exc:
+                    error = exc
+                    if (getattr(exc, "code", None) == "episode_finished"
+                            and (getattr(exc, "details", None) or {}).get("effects") == "none"):
+                        self._episode_error = exc
+                        self._frozen = True
+                    else:
+                        self.failure = exc
+                for job in pending:
+                    self._resume(job, error=error)
                 if self.mode == "stepped" and self.native.budget().exhausted:
-                    raise DeviceError(
-                        "episode_finished", "native episode budget exhausted",
-                        details={"effects": "none"},
-                    )
-                self.native.advance_control()
-                self.time_s += self.native.control_interval_s
-            except Exception as exc:
-                error = exc
-                if (getattr(exc, "code", None) == "episode_finished"
-                        and (getattr(exc, "details", None) or {}).get("effects") == "none"):
-                    self._episode_error = exc
-                    self._frozen = True
+                    self.finish_episode("native episode budget exhausted", settle=False)
                 else:
-                    self.failure = exc
+                    self.poll_motions()
             finally:
                 self._advancing = False
-            for job in pending:
-                self._resume(job, error=error)
-            if self.mode == "stepped" and self.native.budget().exhausted:
-                self._finish_budget()
-            else:
-                self.poll_motions()
+            try:
+                if self.failure is None and self.after_advance is not None:
+                    self.after_advance()
+            finally:
                 self._settle_waiters()
-            if self.failure is None and self.after_advance is not None:
-                self.after_advance()
 
     def resolve(self, value):
         if not isinstance(value, Future):
@@ -185,10 +193,10 @@ class WorldSession:
                 time.sleep(min(0.01, max(0, self.next_tick - time.monotonic())))
         return value.result()
 
-    def freeze(self):
+    def freeze(self, *, settle=True):
         with self.lock:
             self._frozen = True
-            if not self._advancing:
+            if settle and not self._advancing:
                 self._settle_waiters()
 
     def reset(self, seed):

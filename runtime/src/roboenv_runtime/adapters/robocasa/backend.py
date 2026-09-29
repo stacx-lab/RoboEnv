@@ -68,8 +68,6 @@ class RoboCasaEnv:
         if type(stop_on_success) is not bool:
             raise ValueError("stop_on_success must be a boolean")
         self.stop_on_success = stop_on_success
-        self.on_step = None
-        self.terminal = False
         _ensure_offscreen_rendering()
         import robocasa  # noqa: F401  (importing it registers the kitchen environments)
         import robosuite
@@ -332,7 +330,6 @@ class RoboCasaEnv:
             self.env.rng = np.random.default_rng(seed)
         self._obs = self.env.reset()
         self._step_count = 0
-        self.terminal = False
         self._stream_commands = {}
         self._frames.clear()
         for part in self._robot.part_controllers:
@@ -345,7 +342,7 @@ class RoboCasaEnv:
 
     def step(self, commands):
         """Stage validated native references without advancing physics."""
-        if self.terminal or (self._max_steps is not None and self._step_count >= self._max_steps):
+        if self._max_steps is not None and self._step_count >= self._max_steps:
             raise RuntimeError("episode_finished: no further motion is permitted")
         for part, command in commands.items():
             controller = self._robot.part_controllers[part]
@@ -382,7 +379,7 @@ class RoboCasaEnv:
         Only its policy goal update is replaced during this locked call: arm and
         torso goals persist, while velocity / gripper inputs run continuously.
         """
-        if self.terminal or (self._max_steps is not None and self._step_count >= self._max_steps):
+        if self._max_steps is not None and self._step_count >= self._max_steps:
             return
         composite = self._robot.composite_controller
 
@@ -404,8 +401,6 @@ class RoboCasaEnv:
             self._obs, _, _, _ = self.env.step(np.zeros(self._robot.action_dim))
             self.sim.forward()  # Publish transforms consistent with the integrated joints.
             self._step_count += 1
-            if self.on_step is not None:
-                self.on_step()
         finally:
             if previous is None:
                 del composite.set_goal

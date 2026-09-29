@@ -175,12 +175,12 @@ def validate_journal(raw, *, session, submit_id, verdict, practice=False):
                 "ik",
                 "fk",
             }
-            if (
-                phase == "error"
-                and isinstance(response.get("error", {}).get("details"), dict)
-                and response["error"]["details"].get("effects") == "none"
-            ):
-                read_only = True  # explicit server-side rejection before dispatch
+        if (
+            phase == "error"
+            and isinstance(response.get("error", {}).get("details"), dict)
+            and response["error"]["details"].get("effects") == "none"
+        ):
+            read_only = True  # explicit server-side rejection before dispatch, any operation
         if submitted and not read_only:
             raise ValueError("mutation or repeated submit after final verdict")
         if phase == "error":
