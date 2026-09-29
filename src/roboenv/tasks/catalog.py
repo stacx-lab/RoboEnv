@@ -49,15 +49,6 @@ def summary(project=None, tasks_root=None):
     }
 
 
-def _literal(path, variable):
-    for node in ast.parse(path.read_text()).body:
-        if isinstance(node, ast.Assign) and any(
-            isinstance(n, ast.Name) and n.id == variable for n in node.targets
-        ):
-            return ast.literal_eval(node.value)
-    raise ValueError(f"upstream metadata variable not found: {variable}")
-
-
 def _task(backend, identifier, kwargs, instruction, *, robot=None, device_bindings=None):
     task_name = identifier.removeprefix(backend + ".")
     return Task(
