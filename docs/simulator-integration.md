@@ -81,6 +81,13 @@ support. Keep observations explicit and owner-only. Register the adapter
 with `@register_adapter` and add its lazy module path to `BUILTIN_ADAPTERS`; import
 heavy packages only when starting the backend.
 
+The runtime no longer exports `Capability` or exposes adapter `capabilities`
+metadata. `AdapterBase.describe()` returns only `name` and `embodiment`; update
+consumers that imported those constants or read that field. Optional practice
+snapshots use `checkpoint()` and `restore(token)` methods (the
+`SupportsCheckpoint` protocol); the worker detects these methods directly.
+Simulation-status and Harbor-manifest capability fields are separate and unchanged.
+
 Use [RoboCasa's adapter](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py)
 and [native binding](../runtime/src/roboenv_runtime/bindings/backends/robocasa/devices.py)
 as examples. Register a fixed binding ID in the
@@ -290,6 +297,24 @@ configured horizons. Native non-timeout failures, success policies, explicit sto
 request deadlines and Harbor trial timeouts remain active. World initialization
 applies the selected mode before reset; configured horizons are retained separately
 from effective limits. Budget mode does not select the clock.
+
+The worker owns episode policy. Adapters expose native `score()` and `budget()`;
+adapters supporting `stop_on_success` consume and validate that boolean before
+constructing the native environment. It defaults to false and must not be passed
+to a native constructor that does not support it. LIBERO, RoboTwin, BEHAVIOR,
+RoboDojo, RoboCasa, SIMPLE and FakeShell support this option in `backend_kwargs`.
+The worker checks enabled success stopping and stepped budget exhaustion after
+each world control interval, then seals the terminal verdict automatically.
+Adapters do not declare `bounded_episodes` or install additional tick callbacks
+for this policy. Status derives the capability from success stopping and the
+effective stepped budget.
+
+Natural termination ends pending buffers and waits with `episode_finished` and
+known effects. Buffer cleanup runs without an extra tick and precedes the final
+observation and score; cleanup failure prevents certification. A buffer or wait
+that completes exactly at the terminal frame may still return normally. Final
+reads and repeated submit/stop use the sealed verdict. Existing native success
+predicates, non-timeout termination and Harbor reward budget rules remain intact.
 
 ### Device bindings
 

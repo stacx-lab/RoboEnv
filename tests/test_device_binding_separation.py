@@ -123,6 +123,7 @@ def test_reset_and_restore_rebind_devices_but_preserve_sequence(robot, tmp_path)
     )
     command = {"device": "controller", "action": "write", "args": {"target": [0.1]}}
     try:
+        assert worker.adapter.describe() == {"name": "fakeshell", "embodiment": "general"}
         first = worker.devices
         result = worker.dispatch("devices.call", command)
         closed_positions = []

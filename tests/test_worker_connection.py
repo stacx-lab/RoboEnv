@@ -1,11 +1,11 @@
-"""Backpressure before worker dispatch must not reject concurrent device loads."""
+"""Safe socket setup and backpressure before worker dispatch."""
 
 import socket
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from roboenv_runtime.runtime.protocol import socket_address
+from roboenv_runtime.runtime.protocol import _remove_socket, socket_address
 from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
 
 
@@ -54,3 +54,25 @@ def test_worker_connection_backpressure_respects_deadline(saturated_worker):
     supervisor, _ = saturated_worker
     with pytest.raises(TimeoutError, match="worker socket was not ready"):
         supervisor._connect_worker(time.monotonic() + 0.1)
+
+
+def test_socket_cleanup_removes_only_the_socket(tmp_path):
+    path = tmp_path / "stale.sock"
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+        listener.bind(socket_address(path))
+    _remove_socket(path)
+    assert not path.exists()
+    _remove_socket(path)  # A first launch has no old socket.
+
+
+@pytest.mark.parametrize("symlink", [False, True])
+def test_socket_cleanup_preserves_non_socket_paths(tmp_path, symlink):
+    target = tmp_path / "retained"
+    target.write_text("keep")
+    path = tmp_path / "worker.sock" if symlink else target
+    if symlink:
+        path.symlink_to(target)
+    with pytest.raises(RuntimeError, match="refusing to replace non-socket"):
+        _remove_socket(path)
+    assert target.read_text() == "keep"
+    assert path.is_symlink() is symlink

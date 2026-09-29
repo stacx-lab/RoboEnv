@@ -16,6 +16,7 @@ import math
 import os
 import re
 import socket
+import stat
 from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -66,6 +67,16 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@+-]{0,127}$")
 
 #: AF_UNIX addresses are capped at 108 bytes on Linux; leave room for a NUL and slack.
 SOCKET_PATH_LIMIT = 100
+
+
+def _remove_socket(path: Path) -> None:
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return
+    if not stat.S_ISSOCK(mode):
+        raise RuntimeError(f"refusing to replace non-socket path: {path}")
+    path.unlink()
 
 
 def socket_address(path: Path | str) -> str:

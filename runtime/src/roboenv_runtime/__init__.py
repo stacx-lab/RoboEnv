@@ -9,7 +9,6 @@ from __future__ import annotations
 from roboenv_runtime.core import (
     AdapterBase,
     Budget,
-    Capability,
     EnvAdapter,
     ScoreReport,
     list_adapters,
@@ -22,7 +21,6 @@ __version__ = "0.9.0"
 __all__ = [
     "AdapterBase",
     "Budget",
-    "Capability",
     "EnvAdapter",
     "ScoreReport",
     "__version__",

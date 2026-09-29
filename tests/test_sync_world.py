@@ -3,6 +3,7 @@
 import threading
 
 import pytest
+from roboenv.devices.model import DeviceError
 from roboenv_runtime.core.types import Budget
 from roboenv_runtime.runtime.world import WorldSession
 
@@ -72,6 +73,30 @@ def test_independent_commands_share_ticks_and_freeze_cancels_without_ticks():
         left.result()
     world.advance()
     assert native.frames == 2
+    world.close()
+
+
+@pytest.mark.parametrize("cancel,fail,code", [
+    (False, False, "episode_finished"),
+    (True, False, "operation_interrupted"),
+    (False, True, "world_failed"),
+    (True, True, "world_failed"),
+])
+def test_natural_finish_preserves_failure_and_explicit_cancellation(cancel, fail, code):
+    native = Native(maximum=None)
+    world = WorldSession(native, mode="stepped")
+    event = threading.Event()
+    pending = world.schedule(motion(3), event)
+    if cancel:
+        event.set()
+    if fail:
+        world.failure = DeviceError(
+            "world_failed", "native failure", details={"effects": "unknown"}
+        )
+    world.finish_episode()
+    assert pending.exception().code == code
+    assert native.frames == 0 and not world.pending
+    assert (world.failure is not None) is fail
     world.close()
 
 
