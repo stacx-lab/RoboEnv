@@ -513,10 +513,12 @@ class SimWorker:
                     from roboenv.devices.contract import READ_ACTIONS
 
                     if args.get("action") not in READ_ACTIONS:
+                        # Refused before dispatch: the sealed episode is unchanged, and the
+                        # verifier can certify a journal that holds this refusal.
                         raise WorkerRPCError(
                             "episode_finished",
                             "Episode finished; call roboenv stop for the final judgment",
-                            details=self.simulation_status(),
+                            details={**self.simulation_status(), "effects": "none"},
                         )
                 operation = {
                     "devices.cancel": self.devices.cancel,

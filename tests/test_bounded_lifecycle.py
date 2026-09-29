@@ -1,6 +1,7 @@
 """Bounded episodes use the real worker, transport and durable owner snapshot."""
 
 import json
+import runpy
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -60,6 +61,31 @@ def test_external_yaml_without_checkout_and_success_at_limit(tmp_path):
         stopped = env.stop()
         assert stopped["success"] is True and stopped["reason"] == "success"
         assert "success" not in env.status() and "reason" not in env.status()
+
+
+def test_actions_refused_after_the_end_leave_a_certifiable_journal(tmp_path):
+    # An agent that keeps acting after its episode ended (it rarely checks) must not cost the
+    # trial its verdict: the refusal happens before dispatch, so the journal stays determinate.
+    with bounded(tmp_path, limit=50) as run:
+        env = roboenv.connect(run.endpoint)
+        assert env.device("controller").write([0.3])["simulation"]["terminal"]
+        with pytest.raises(RemoteError) as caught:
+            env.device("controller").write([0.3])
+        assert caught.value.code == "episode_finished"
+        assert caught.value.details["effects"] == "none"
+        owner = Client(
+            run.record["socket"],
+            session=run.record["session"],
+            generation=run.record["generation"],
+        )
+        owner.allowed_ops = owner.allowed_ops | {"submit"}
+        verdict = owner.request("submit", request_id="verifier-submit")
+        raw = (run.path.parent / "evidence/journal/actions.jsonl").read_bytes()
+    validate = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))["validate_journal"]
+    report = validate(
+        raw, session=run.record["session"], submit_id="verifier-submit", verdict=verdict
+    )
+    assert report["requests"] >= 3 and verdict["completed"] is True
 
 
 def test_step_limit_freezes_and_stop_receipt_survives_worker_shutdown(tmp_path):
