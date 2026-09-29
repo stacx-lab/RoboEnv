@@ -48,8 +48,15 @@ try {
   cancelled.abort(new Error('cancel one world wait'))
   await rejected
   assert.ok((await peer).data.elapsed_s >= .2 - 1e-9)
-  assert.ok(Number.isFinite((await runtime.devices.dispatch('world', 'read')).data.time_s))
-
+  const clock = (await runtime.devices.dispatch('world', 'read')).data
+  assert.ok(Number.isFinite(clock.time_s))
+  // Kinex validates the informational budget as {elapsed_s, max_s} seconds; this fixture is uncapped.
+  assert.deepEqual(Object.keys(clock.budget).sort(), ['elapsed_s', 'max_s'])
+  assert.ok(Math.abs(clock.budget.elapsed_s - clock.time_s) < 1e-6)
+  assert.equal(clock.budget.max_s, null)
+  const status = (await runtime.devices.dispatch('world', 'status')).data
+  assert.deepEqual(Object.keys(status.budget).sort(), ['elapsed_s', 'max_s'])
+  assert.ok(status.budget.elapsed_s >= clock.budget.elapsed_s)
 
 } finally {
   await runtime.dispose()

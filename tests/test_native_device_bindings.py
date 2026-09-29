@@ -87,7 +87,12 @@ def test_public_world_has_no_truth_or_mutation_shortcuts(tmp_path):
     wire, world, *_ = service(tmp_path)
     try:
         assert {"read", "wait"} <= wire.describe("world")["actions"].keys()
-        assert wire.call({"device": "world", "action": "read", "args": {}})["data"] == {"time_s": 0}
+        # The public clock carries time and the informational episode budget in seconds
+        # (three frames at 0.04 s), never state, score or scene truth.
+        assert wire.call({"device": "world", "action": "read", "args": {}})["data"] == {
+            "time_s": 0,
+            "budget": {"elapsed_s": 0.0, "max_s": 3 * 0.04},
+        }
         for action in ("state", "invoke", "score", "reset", "restore"):
             with pytest.raises(DeviceError):
                 wire.call({"device": "world", "action": action, "args": {}})

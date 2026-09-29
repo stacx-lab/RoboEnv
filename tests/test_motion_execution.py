@@ -268,6 +268,38 @@ def test_write_returns_immediately_and_wait_keeps_background_ownership():
     assert not service._active
 
 
+def test_world_read_and_status_report_the_budget_in_seconds():
+    from helpers import assert_kinex_world_budget
+    from roboenv_runtime.bindings.world import clock_actions
+
+    native, world, _ = fixture(period=0.05)
+    clock = clock_actions(BindingContext("fixture", "fixture", native, world=world))
+
+    def call(action, **args):
+        return clock[action].handler(args, None)
+
+    # The fixture counts frames against a 1000-frame cap: 50 s at 0.05 s per frame.
+    assert call("read") == {"time_s": 0.0, "budget": {"elapsed_s": 0.0, "max_s": 50.0}}
+    waited = world.resolve(call("wait", duration_s=0.2))
+    assert set(waited) == {"time_s", "elapsed_s"}
+    assert native.frame == 4
+    assert call("read") == {
+        "time_s": pytest.approx(0.2),
+        "budget": {"elapsed_s": pytest.approx(0.2), "max_s": 50.0},
+    }
+    assert call("status") == {"loaded": True, "budget": call("read")["budget"]}
+    for action in ("read", "status"):
+        assert_kinex_world_budget(call(action)["budget"])
+    # An uncapped episode reports max_s null, the way Kinex expresses "no cap".
+    native.budget = lambda: Budget(used=4, max=None)
+    assert call("read")["budget"] == {"elapsed_s": pytest.approx(0.2), "max_s": None}
+    assert_kinex_world_budget(call("status")["budget"])
+    # A count the control interval cannot convert to time is not reported at all.
+    native.budget = lambda: Budget(used=4, max=10, unit="api_calls")
+    assert call("read") == {"time_s": pytest.approx(0.2)}
+    assert call("status") == {"loaded": True}
+
+
 def test_write_rejects_blocking_argument_before_replacing_motion():
     native, world, service = fixture()
     submit(service, "left", actions=[[1]], duration_s=0.1)
