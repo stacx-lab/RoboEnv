@@ -54,7 +54,8 @@ def check(out, kinex, node):
                 stdout=log,
                 stderr=log,
                 check=True,
-                timeout=150,
+                # Includes Kinex preparing the workspace's Python environment on first use.
+                timeout=330,
             )
         result = tool("finalize_episode").finalize(run.path, out / "owner")
         (out / "episode.json").write_text(json.dumps({**identity, "verdict": result["verdict"]}))

@@ -27,6 +27,7 @@ def check(out):
             assert set(first.client.request("environment.describe")) == {
                 "task",
                 "devices",
+                "device_contract",
                 "session",
                 "generation",
             }
@@ -53,20 +54,27 @@ def check(out):
                 pass
             else:
                 raise AssertionError("Owner cache was exposed")
+            # A visible motion, so the other episode's isolation is meaningful.
+            target = a.device("arm").read()["positions"]
+            target[0] += 0.05
             command = {
                 "device": "arm",
                 "action": "write",
-                "args": {
-                    "actions": [a.device("arm").read()["positions"]],
-                    "duration_s": len([a.device("arm").read()["positions"]]) / 20,
-                },
+                "args": {"actions": [target], "duration_s": 1 / 20},
             }
-            before = owner.request("observe")["budget"]["used"]
             x = public.request("devices.call", command, request_id="deduplicated-motion")
             y = public.request("devices.call", command, request_id="deduplicated-motion")
-            assert x == y
-            assert owner.request("observe")["budget"]["used"] == before + 1
-            assert b.device("arm").read() == before_b
+            # Writes are asynchronous buffers and the realtime world's budget follows world time,
+            # not requests; the replayed response and its single execution_id show one motion.
+            assert x == y and x["data"]["execution_id"]
+            a.device("world").wait(0.5)
+            assert abs(a.device("arm").read()["positions"][0] - target[0]) < 0.01
+            # Both worlds run in realtime, so compare state, not sample times.
+            after_b = b.device("arm").read()
+            assert after_b["sample_time_s"] > before_b["sample_time_s"]
+            assert max(
+                abs(p - q) for p, q in zip(after_b["positions"], before_b["positions"], strict=True)
+            ) < 1e-6
             for camera in ("camera", "camera_wrist"):
                 path = Path(a.device(camera).read()["file"])
                 assert path.read_bytes().startswith(b"\x89PNG")

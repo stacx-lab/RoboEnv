@@ -79,7 +79,9 @@ def probe(suite, task, init, directory, render=False):
         assert np.allclose(answer, q, atol=0.0001)
         before = world.sim.get_state().flatten().copy()
         before_goal = world._robot.controller.goal_qpos.copy()
-        for target in ([0] * 6, [True] * 7, [float("nan")] * 7, [float("inf")] * 7, [100] * 7):
+        # Joint ranges are the simulator's to enforce (limit_handling: native); the binding
+        # still rejects malformed targets before any effect.
+        for target in ([0] * 6, [True] * 7, [float("nan")] * 7, [float("inf")] * 7):
             try:
                 call("arm", "write", actions=[target], duration_s=len([target]) / 20)
             except Exception:
