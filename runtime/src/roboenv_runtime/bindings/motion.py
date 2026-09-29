@@ -99,27 +99,60 @@ def control_binding(factory):
             def motion():
                 index = None
                 ticks = math.ceil(duration / period - 1e-9)
+                elapsed = 0.0
+
+                def apply(target):
+                    if context.native.budget().exhausted:
+                        raise DeviceError(
+                            "episode_finished", "native episode budget exhausted",
+                            details={"effects": "none"},
+                        )
+                    setter.handler(target, execution)
+
+                def stop():
+                    try:
+                        result = stopper.handler({}, execution)
+                        if not isinstance(result, dict) or result.get("stopped") is not True:
+                            raise RuntimeError("native stop was not acknowledged")
+                    except Exception as error:
+                        raise DeviceError(
+                            "stop_failed", str(error), details={"effects": "unknown"}
+                        ) from error
+
                 try:
                     for tick in range(ticks):
                         next_index = min(
                             int(tick * period * len(values) / duration), len(values) - 1
                         )
                         if next_index != index:
-                            setter.handler(values[next_index], execution)
+                            apply(values[next_index])
                             index = next_index
                         yield
+                        elapsed = (tick + 1) * period
                         if reader.handler({}, execution).get("faults"):
                             raise DeviceError("device_fault", "native device reported faults")
                     if kind == "velocity":
-                        stopper.handler({}, execution)
+                        stop()
                     elif index != len(values) - 1:
-                        setter.handler(values[-1], execution)
+                        apply(values[-1])
                 except Exception as error:
+                    if getattr(error, "code", None) == "stop_failed":
+                        raise
                     if getattr(error, "code", None) != "operation_interrupted":
                         try:
-                            stopper.handler({}, execution)
+                            stop()
                         except Exception as cleanup:
-                            raise DeviceError("stop_failed", str(cleanup)) from error
+                            raise DeviceError(
+                                "stop_failed", str(cleanup), details={"effects": "unknown"}
+                            ) from error
+                    if (getattr(error, "code", None) == "episode_finished"
+                            and (getattr(error, "details", None) or {}).get("effects")
+                            in ("none", "partial")):
+                        raise DeviceError(
+                            "episode_finished", str(error),
+                            details={"effects": "partial",
+                                     "elapsed_s": elapsed, "execution_id": identity},
+                        ) from error
                     raise
 
             future = schedule(motion())

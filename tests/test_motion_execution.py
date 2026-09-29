@@ -18,6 +18,8 @@ class Engine:
 
     def __init__(self):
         self.frame = 0
+        self.maximum = 1000
+        self.stop_failure = False
         self.positions = {name: 0.0 for name in ("left", "right")}
         self.targets = dict(self.positions)
         self.events = []
@@ -27,7 +29,7 @@ class Engine:
         self.execution_mode = mode
 
     def budget(self):
-        return Budget(used=self.frame, max=1000)
+        return Budget(used=self.frame, max=self.maximum)
 
     def advance_control(self):
         self.frame += 1
@@ -56,6 +58,8 @@ def fixture(mode="stepped", *, period=0.01, kind="joint", control=None):
         }
 
         def write(args, _):
+            if getattr(native, "write_error", None) is not None:
+                raise native.write_error
             native.targets[name] = args["target"][0]
             native.events.append((native.frame, name, "write", native.targets[name]))
 
@@ -69,6 +73,8 @@ def fixture(mode="stepped", *, period=0.01, kind="joint", control=None):
             }
 
         def stop(args, _):
+            if native.stop_failure:
+                raise RuntimeError("broken stop")
             native.targets[name] = native.positions[name]
             native.events.append((native.frame, name, "stop", native.targets[name]))
             return {"stopped": True, **facts["stop"]}
@@ -276,3 +282,74 @@ def test_write_rejects_blocking_argument_before_replacing_motion():
     world.resolve(world.wait(0.1))
     assert native.targets["left"] == 1
     assert not any(event[2] == "stop" for event in native.events)
+
+
+@pytest.mark.parametrize("stop_failure", [False, True])
+def test_budget_cut_preserves_readings_and_distinguishes_cleanup_failure(stop_failure):
+    native, world, service = fixture()
+    native.maximum = 3
+    native.stop_failure = stop_failure
+    submit(service, "left", actions=[[0.1], [0.2], [0.3], [0.4]], duration_s=0.04)
+    submit(service, "right", actions=[[0.2]], duration_s=0.1)
+    with pytest.raises(DeviceError) as ended:
+        world.resolve(world.wait(0.1))
+    assert native.frame == 3
+    assert ended.value.code == ("stop_failed" if stop_failure else "episode_finished")
+    assert (world.failure is not None) == stop_failure
+    if not stop_failure:
+        assert native.targets == native.positions
+        assert not service.call({"device": "left", "action": "read", "args": {}})["data"]["faults"]
+        assert not service._active and not world.pending
+        with pytest.raises(DeviceError) as rejected:
+            world.resolve(submit(service, "left", actions=[[1]], duration_s=0.1))
+        assert rejected.value.code == "episode_finished"
+        assert rejected.value.details["effects"] == "none"
+        assert native.frame == 3
+
+
+def test_exact_horizon_buffer_and_wait_complete_without_extra_reference():
+    native, world, service = fixture()
+    native.maximum = 3
+    submit(service, "left", actions=[[0.1], [0.2], [0.3]], duration_s=0.03)
+    assert world.resolve(world.wait(0.03))["elapsed_s"] == pytest.approx(0.03)
+    assert native.frame == 3 and world.failure is None and not world.pending
+    assert native.targets["left"] == 0.3
+    assert not service._faults
+    with pytest.raises(DeviceError, match="frozen"):
+        world.wait(0.01)
+    world.advance()
+    assert native.frame == 3
+
+
+def test_unknown_native_episode_effects_are_not_certified_as_budget_termination():
+    native, world, service = fixture()
+    native.write_error = DeviceError("episode_finished", "unknown native effects",
+                                     details={"effects": "unknown"})
+    with pytest.raises(DeviceError) as failed:
+        world.resolve(submit(service, "left", actions=[[0.1]], duration_s=0.1))
+    assert failed.value.details["effects"] == "unknown"
+    assert world.failure is not None
+
+
+def test_exhausted_budget_rejects_before_staging_any_reference():
+    native, world, service = fixture()
+    native.maximum = native.frame = 3
+    with pytest.raises(DeviceError) as rejected:
+        world.resolve(submit(service, "left", actions=[[0.1]], duration_s=0.1))
+    assert rejected.value.code == "episode_finished"
+    assert rejected.value.details["effects"] == "none"
+    assert not native.events and world.failure is None
+    assert native.frame == 3
+
+
+def test_native_rejection_with_acknowledged_cleanup_records_partial_effects():
+    native, world, service = fixture()
+    native.targets["left"] = 1  # A previously retained reference.
+    native.write_error = DeviceError("episode_finished", "native budget guard",
+                                     details={"effects": "none"})
+    with pytest.raises(DeviceError) as ended:
+        world.resolve(submit(service, "left", actions=[[0.1]], duration_s=0.1))
+    # Stopping changed the retained reference even though the write itself was rejected.
+    assert ended.value.details["effects"] == "partial"
+    assert native.targets["left"] == native.positions["left"]
+    assert native.frame == 0 and world.failure is None

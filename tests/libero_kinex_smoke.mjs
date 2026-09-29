@@ -10,13 +10,13 @@ const runtime = createKinexRuntime({ directory: cwd, host: {
   ask: async () => {}, questions: async () => ({}),
 } })
 const invocation = { sessionID: 'libero-smoke', signal: AbortSignal.timeout(120_000) }
-async function call(name: string, args: object) {
+async function call(name, args) {
   const result = await runtime.tools.call(name, args, invocation)
   assert.ok(!result.isError, result.output)
   return JSON.parse(result.output)
 }
 try {
-  const devices = await runtime.profiles.listDevices()
+  const devices = await runtime.devices.list()
   for (const device of devices) await (await runtime.devices.load(device.name)).ready
   const first = (await runtime.devices.dispatch('arm', 'read')).data
   const target = [...first.positions]

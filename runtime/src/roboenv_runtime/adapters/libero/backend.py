@@ -6,6 +6,7 @@ import random
 from pathlib import Path
 
 import numpy as np
+from roboenv.devices.model import DeviceError
 
 from .config import CAMERA_SIZE, ensure_libero_config
 
@@ -153,7 +154,8 @@ class LiberoEnv:
     def step(self, commands):
         """Stage validated native references without advancing physics."""
         if self._max_steps is not None and self._step_count >= self._max_steps:
-            raise RuntimeError("LIBERO action frame budget exhausted")
+            raise DeviceError("episode_finished", "LIBERO action frame budget exhausted",
+                              details={"effects": "none"})
         controller = self._joint_controller()
         for part, value in commands.items():
             if part == "arm":
@@ -191,7 +193,8 @@ class LiberoEnv:
 
     def tick(self):
         if self._max_steps is not None and self._step_count >= self._max_steps:
-            raise RuntimeError("LIBERO action frame budget exhausted")
+            raise DeviceError("episode_finished", "LIBERO action frame budget exhausted",
+                              details={"effects": "none"})
         controller = self._joint_controller()
         previous = controller.__dict__.get("set_goal")
         # robosuite 1.4 updates policy goals at the first substep. Suppress only
@@ -210,7 +213,8 @@ class LiberoEnv:
     def _advance(self, action):
         """One native action interval, shared by joint devices and explicit OSC rollouts."""
         if self._max_steps is not None and self._step_count >= self._max_steps:
-            raise RuntimeError("LIBERO action frame budget exhausted")
+            raise DeviceError("episode_finished", "LIBERO action frame budget exhausted",
+                              details={"effects": "none"})
         self.env.step(action)
         self.sim.forward()
         self._step_count += 1

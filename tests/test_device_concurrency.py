@@ -155,7 +155,7 @@ def test_duplicate_submission_executes_once(concurrent_service):
 def test_kinex_recording_through_portable_drivers(concurrent_service, tmp_path):
     client, supervisor, _ = concurrent_service
     kinex, _ = kinex_sources()
-    node = shutil.which("node")
+    node = shutil.which(os.environ.get("NODE", "node"))
     if not node or not (kinex / "packages/core/dist/index.js").is_file():
         pytest.skip("Set KINEX_ROOT to a built Kinex checkout and use Node >=22.19")
     workspace = tmp_path / "workspace"
@@ -218,7 +218,7 @@ def test_invalid_lifecycle_does_not_interrupt_motion(concurrent_service):
 def test_kinex_buffers_and_upper_layer_planning(concurrent_service, tmp_path):
     client, supervisor, _ = concurrent_service
     kinex, _ = kinex_sources()
-    node = shutil.which("node")
+    node = shutil.which(os.environ.get("NODE", "node"))
     if not node or not (kinex / "packages/core/dist/index.js").is_file():
         pytest.skip("requires built Kinex and Node >=22.19")
     workspace = tmp_path / "buffer-workspace"

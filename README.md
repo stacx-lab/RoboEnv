@@ -34,6 +34,11 @@ time limits. Frames are still counted and budgets report `max: null`. Stepped
 mode retains configured/native horizons. Success policies, non-timeout native
 termination, faults, explicit stop and request deadlines remain active in both.
 
+At a stepped horizon, physics freezes and unfinished buffers or waits end with
+`episode_finished`. Final reads and stop/submit remain available; budget exhaustion
+does not fail the world. Finalization preserves the native verdict and records
+`step_limit` when unsuccessful. Harbor's existing reward budget rules still apply.
+
 ```sh
 roboenv tasks list --simulator robocasa
 roboenv launch robocasa/pick-place-microwave --port 8123

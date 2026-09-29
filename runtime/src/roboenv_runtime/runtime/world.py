@@ -27,6 +27,23 @@ class WorldSession:
         self._waiters = []
         self.time_s = 0.0
         self.failure = None
+        self._episode_error = None
+        self._advancing = False
+        self.after_advance = None
+
+    def _check_admission(self):
+        if self.mode == "stepped" and self.native.budget().exhausted:
+            self._finish_budget()
+        if self._closed or self._frozen or self.failure:
+            raise DeviceError("episode_finished", "world is frozen", details={"effects": "none"})
+
+    def _finish_budget(self):
+        self._episode_error = DeviceError(
+            "episode_finished", "native episode budget exhausted", details={"effects": "none"}
+        )
+        self._frozen = True
+        self.poll_motions()
+        self._settle_waiters()
 
     def _check_thread(self):
         if self.owner_thread_required and threading.get_ident() != self._owner_thread:
@@ -36,8 +53,7 @@ class WorldSession:
         self._check_thread()
         future = Future()
         with self.lock:
-            if self._closed or self._frozen or self.failure:
-                raise DeviceError("episode_finished", "world is frozen")
+            self._check_admission()
             self._waiters.append((future, self.time_s, self.time_s + duration_s))
             self._settle_waiters()
         return future
@@ -47,15 +63,22 @@ class WorldSession:
         for future, start, end in pending:
             if future.done():
                 continue
-            if self._closed or self._frozen or self.failure:
+            if self.failure is None and self.time_s + 1e-9 >= end:
+                future.set_result({"time_s": self.time_s, "elapsed_s": self.time_s - start})
+            elif self._closed or self._frozen or self.failure:
+                error = self.failure or self._episode_error
                 future.set_exception(
                     DeviceError(
-                        getattr(self.failure, "code", "episode_finished"),
-                        str(self.failure) if self.failure else "world execution ended",
+                        getattr(error, "code", "world_failed" if self.failure else "episode_finished"),
+                        str(error) if error else "world execution ended",
+                        details={
+                            "effects": "unknown" if self.failure else "partial"
+                            if self.time_s > start else "none",
+                            "elapsed_s": self.time_s - start,
+                            "time_s": self.time_s,
+                        },
                     )
                 )
-            elif self.time_s + 1e-9 >= end:
-                future.set_result({"time_s": self.time_s, "elapsed_s": self.time_s - start})
             else:
                 self._waiters.append((future, start, end))
 
@@ -63,8 +86,7 @@ class WorldSession:
         self._check_thread()
         future = Future()
         with self.lock:
-            if self._closed or self._frozen or self.failure:
-                raise DeviceError("episode_finished", "world is frozen")
+            self._check_admission()
             self._resume((future, motion, cancel))
         return future
 
@@ -81,6 +103,12 @@ class WorldSession:
         except StopIteration as done:
             future.set_result(done.value)
         except BaseException as exc:
+            code = getattr(exc, "code", None)
+            if code == "stop_failed" or (
+                code == "episode_finished"
+                and (getattr(exc, "details", None) or {}).get("effects") not in ("none", "partial")
+            ):
+                self.failure = exc
             future.set_exception(exc)
 
     def poll_motions(self):
@@ -91,7 +119,9 @@ class WorldSession:
             for job in pending:
                 if job[2].is_set() or self._frozen or self.failure:
                     self._resume(
-                        job, error=DeviceError("operation_interrupted", "world execution ended")
+                        job, error=self._episode_error or DeviceError(
+                            "operation_interrupted", "world execution ended"
+                        )
                     )
                 else:
                     self._motions.append(job)
@@ -117,17 +147,34 @@ class WorldSession:
                 self.next_tick += self.native.control_interval_s
             pending, self._motions = self._motions, []
             error = None
+            self._advancing = True
             try:
                 if self.mode == "stepped" and self.native.budget().exhausted:
-                    raise DeviceError("episode_finished", "native episode budget exhausted")
+                    raise DeviceError(
+                        "episode_finished", "native episode budget exhausted",
+                        details={"effects": "none"},
+                    )
                 self.native.advance_control()
                 self.time_s += self.native.control_interval_s
             except Exception as exc:
-                self.failure = error = exc
+                error = exc
+                if (getattr(exc, "code", None) == "episode_finished"
+                        and (getattr(exc, "details", None) or {}).get("effects") == "none"):
+                    self._episode_error = exc
+                    self._frozen = True
+                else:
+                    self.failure = exc
+            finally:
+                self._advancing = False
             for job in pending:
                 self._resume(job, error=error)
-            self.poll_motions()
-            self._settle_waiters()
+            if self.mode == "stepped" and self.native.budget().exhausted:
+                self._finish_budget()
+            else:
+                self.poll_motions()
+                self._settle_waiters()
+            if self.failure is None and self.after_advance is not None:
+                self.after_advance()
 
     def resolve(self, value):
         if not isinstance(value, Future):
@@ -141,7 +188,8 @@ class WorldSession:
     def freeze(self):
         with self.lock:
             self._frozen = True
-            self._settle_waiters()
+            if not self._advancing:
+                self._settle_waiters()
 
     def reset(self, seed):
         self._check_thread()
@@ -155,6 +203,7 @@ class WorldSession:
             self.time_s = 0.0
             self._frozen = False
             self.failure = None
+            self._episode_error = None
             self.next_tick = time.monotonic()
 
     def close(self):

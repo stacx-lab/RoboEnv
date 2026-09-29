@@ -122,8 +122,8 @@ def run(args):
                 str(args.out / name),
                 "--kinex",
                 str(args.kinex.resolve()),
-                "--bun",
-                args.bun,
+                "--node",
+                args.node,
                 "--sim-mode",
                 args.sim_mode,
                 "--task",
@@ -149,8 +149,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--python", type=Path, required=True)
-    parser.add_argument("--kinex", type=Path, default=ROOT.parent / "kinex")
-    parser.add_argument("--bun", default="bun")
+    parser.add_argument(
+        "--kinex", type=Path,
+        default=Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")),
+    )
+    parser.add_argument("--node", default=os.environ.get("NODE", "node"))
     parser.add_argument("--sim-mode", choices=("mujoco", "mujoco_isaac"), default="mujoco_isaac")
     parser.add_argument("--jobs", type=int, choices=(1, 2), default=1)
     parser.add_argument("--timeout", type=int, default=600, help="Seconds per child stage")
