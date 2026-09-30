@@ -96,21 +96,31 @@
     },
     "isaaclab": {
       "python": "3.12",
-      "lock": "runtime/locks/isaaclab-resolved.txt",
+      "lock": null,
       "editables": [
         "third_party/IsaacLab/source/isaaclab",
         "third_party/IsaacLab/source/isaaclab_assets",
-        "third_party/IsaacLab/source/isaaclab_tasks",
-        "third_party/IsaacLab/source/isaaclab_teleop",
+        "third_party/IsaacLab/source/isaaclab_contrib",
+        "third_party/IsaacLab/source/isaaclab_experimental",
+        "third_party/IsaacLab/source/isaaclab_mimic",
+        "third_party/IsaacLab/source/isaaclab_newton",
+        "third_party/IsaacLab/source/isaaclab_ov",
         "third_party/IsaacLab/source/isaaclab_physx",
-        "third_party/IsaacLab/source/isaaclab_ov"
+        "third_party/IsaacLab/source/isaaclab_ppisp",
+        "third_party/IsaacLab/source/isaaclab_rl",
+        "third_party/IsaacLab/source/isaaclab_tasks",
+        "third_party/IsaacLab/source/isaaclab_tasks_experimental",
+        "third_party/IsaacLab/source/isaaclab_teleop",
+        "third_party/IsaacLab/source/isaaclab_visualizers"
       ],
       "index_url": "https://pypi.org/simple",
       "extra_indexes": [
         "https://pypi.nvidia.com",
-        "https://download.pytorch.org/whl/cu128"
+        "https://download.pytorch.org/whl/cu130"
       ],
-      "known_blockers": [],
+      "known_blockers": [
+        "IsaacLab 998bf88 requires overrides of Isaac Sim 6.1 package requirements; no dependency-consistent install lock is available (see docs/isaaclab.md)"
+      ],
       "import_probes": [
         "isaaclab"
       ],

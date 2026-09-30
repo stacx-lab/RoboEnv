@@ -10,6 +10,11 @@ source .venv/bin/activate
 This installs the CLI into a Python 3.12 development environment. Activate it in
 each new shell, or use `.venv/bin/roboenv` directly. Simulator dependencies use
 separate interpreters defined in [runtime/environments.json](../runtime/environments.json).
+Isaac rendering also needs host graphics libraries outside those Python
+environments, including `libGLU.so.1` (`libglu1-mesa` on Ubuntu). Python dependency
+and import checks do not certify native renderer startup. Use a supported RTX GPU;
+NVIDIA lists GPUs without RT cores, including A100 and H100, as unsupported in its
+[Isaac Sim requirements](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/requirements.html).
 
 ## Prepare a simulator
 
@@ -35,8 +40,12 @@ roboenv prepare robotwin --prefix .venv-sim/robotwin-fresh
 ```
 
 `prepare` defaults to `.venv-sim/robotwin`, checks dependencies and import origins, and
-records the interpreter for launch. Repeating it reuses a registered interpreter
-if its executable still exists; it does not upgrade or certify that environment
+records the interpreter for launch. Every preparation discards local edits to the
+selected third-party sources, restores their locked upstream commits, and reapplies
+managed patches. Keep intended source changes in checksum-locked patch files;
+downloaded assets, environments, caches, recordings and nested checkouts are preserved.
+Repeating preparation reuses a registered interpreter if its executable still
+exists; refreshing source does not reinstall dependencies or certify that environment
 again. For RoboCasa, each preparation also verifies downloaded kitchen assets
 and downloads missing or damaged bundles, including with a reused interpreter.
 `doctor` provides read-only diagnostics. Existing environments are never

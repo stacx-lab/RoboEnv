@@ -84,6 +84,7 @@ class BehaviorBackend:
         import yaml
 
         cfg = yaml.safe_load((Path(__file__).parent / "r1pro.yaml").read_text())
+        cfg["env"]["num_envs"] = 1
         cfg["task"]["activity_name"] = self.activity_name
         cfg["task"]["activity_instance_id"] = self.activity_instance_id
         cfg["task"]["termination_config"]["max_steps"] = self.max_steps
@@ -100,7 +101,9 @@ class BehaviorBackend:
         import omnigibson as og
 
         self.env = og.Environment(configs=self.build_config())
-        self.robot = self.env.robots[0]
+        if self.env.num_envs != 1 or len(self.env.robots[0]) != 1:
+            raise ValueError("BEHAVIOR requires one scene with one robot")
+        self.robot = self.env.robots[0][0]
         log.info("BEHAVIOR env up: %s on %s", self.activity_name, self.scene_model)
 
     def goal_report(self) -> dict[str, Any]:
@@ -108,9 +111,9 @@ class BehaviorBackend:
         task = self.env.task
         predicate = task._termination_conditions.get("predicate")
         if predicate is not None and getattr(predicate, "_check_goal_fn", None):
-            done, status = predicate._check_goal_fn()
+            done, status = predicate._check_goal_fn(0)
         else:  # fall back to the last stepped status
-            done, status = bool(task.success), {"satisfied": [], "unsatisfied": []}
+            done, status = bool(task.success[0]), {"satisfied": [], "unsatisfied": []}
         return {
             "instruction": self.challenge.get("instruction", ""),
             "conditions": list(task.activity_natural_language_goal_conditions),

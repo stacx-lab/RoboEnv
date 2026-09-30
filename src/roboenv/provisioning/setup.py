@@ -453,25 +453,33 @@ def prepare(backend, *, project=None, install_to=None, progress=None):
     # Validate the backend before using it in a filesystem path or syncing sources.
     with stage(progress, "Checking simulator configuration and existing sources"):
         audit(backend, root)
+    record = None
     if install_to is None:
         registration = root / ".cache/roboenv/installations" / f"{backend}.json"
         if registration.is_file():
-            record = json_loads(registration.read_text())
-            if Path(record["python"]).is_file():
-                if progress:
-                    progress(
-                        "Reusing registered interpreter; no installation or revalidation performed."
-                    )
-                return _prepare_assets(backend, root, record["report"], progress)
+            candidate = json_loads(registration.read_text())
+            if Path(candidate["python"]).is_file():
+                record = candidate
         destination = root / ".venv-sim" / backend
     else:
         destination = Path(install_to)
-    if destination.exists() or destination.is_symlink():
+    if record is None and (destination.exists() or destination.is_symlink()):
         raise ValueError("Select a new --prefix; existing environments are preserved")
     from roboenv.provisioning.sources import sync
 
-    with stage(progress, "Synchronizing pinned simulator sources and patches"):
-        sync(root, [backend])
+    with stage(progress, "Refreshing sources: discarding source edits and reapplying patches"):
+        sync(root, [backend], reset=True)
+    if record is not None:
+        if progress:
+            progress(
+                "Sources refreshed; reusing registered interpreter without dependency reinstall."
+            )
+        # The old receipt describes its original pins and dependency lock. Re-audit
+        # current inputs rather than relabeling that historical installation proof.
+        report, _ = audit(backend, root)
+        report.update(sources_ready=True, clean_install_verified=False)
+        return _prepare_assets(backend, root, report, progress)
+
     report = install(backend, destination, project=root, progress=progress)
     return _prepare_assets(backend, root, report, progress)
 

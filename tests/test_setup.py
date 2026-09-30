@@ -12,31 +12,22 @@ from roboenv.provisioning.assets import create, inventory, verify
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_isaaclab_cloudxr_is_opt_in(monkeypatch):
-    import runpy
-    import sys
-    from types import ModuleType
-
+def test_isaaclab_cloudxr_is_opt_in():
     import tomllib
     from packaging.requirements import Requirement
 
-    package = ROOT / "third_party/IsaacLab/source/isaaclab_teleop"
-    if not (package / "setup.py").exists():
+    checkout = ROOT / "third_party/IsaacLab"
+    if not (checkout / ".git").exists():
         pytest.skip("Isaac Lab source is not initialized")
-    metadata = {}
-    setuptools = ModuleType("setuptools")
-    setuptools.setup = lambda **kwargs: metadata.update(kwargs)
-    setuptools.find_packages = lambda: []
-    toml = ModuleType("toml")
-    toml.load = lambda path: tomllib.loads(Path(path).read_text())
-    monkeypatch.setitem(sys.modules, "setuptools", setuptools)
-    monkeypatch.setitem(sys.modules, "toml", toml)
-    runpy.run_path(str(package / "setup.py"))
-    required = [Requirement(value) for value in metadata["install_requires"]]
-    teleop = next(value for value in required if value.name == "isaacteleop")
+    root = tomllib.loads((checkout / "pyproject.toml").read_text())["project"]
+    teleop = next(Requirement(value) for value in root["optional-dependencies"]["teleop"]
+                  if Requirement(value).name == "isaacteleop")
     assert teleop.extras == {"retargeters", "ui"}
-    optional = [Requirement(value) for value in metadata["extras_require"]["cloudxr"]]
-    assert any(value.name == "isaacteleop" and "cloudxr" in value.extras for value in optional)
+    package = checkout / "source/isaaclab_teleop/pyproject.toml"
+    metadata = tomllib.loads(package.read_text())["project"]
+    for project in (root, metadata):
+        optional = [Requirement(value) for value in project["optional-dependencies"]["cloudxr"]]
+        assert any(value.name == "isaacteleop" and "cloudxr" in value.extras for value in optional)
 
 
 def test_robocasa_uses_resolved_lock():
@@ -57,15 +48,15 @@ def test_prepare_default_install_and_reuse(tmp_path, monkeypatch):
     monkeypatch.setattr(setup, "project_root", lambda project: tmp_path)
     monkeypatch.setattr(setup, "audit", lambda *args: ({}, {}))
     calls = []
-    monkeypatch.setattr(upstreams, "sync", lambda *args: calls.append("sync"))
+    monkeypatch.setattr(upstreams, "sync", lambda *args, **kwargs: calls.append(("sync", kwargs)))
     monkeypatch.setattr(
         setup, "install", lambda backend, destination, **kwargs: calls.append(destination)
     )
     progress = []
     monkeypatch.setattr(setup, "_prepare_assets", lambda backend, root, report, progress: report)
     setup.prepare("robotwin", progress=progress.append)
-    assert any("Synchronizing" in message for message in progress)
-    assert calls == ["sync", tmp_path / ".venv-sim/robotwin"]
+    assert any("Refreshing sources" in message for message in progress)
+    assert calls == [("sync", {"reset": True}), tmp_path / ".venv-sim/robotwin"]
     calls.clear()
     interpreter = tmp_path / ".venv-sim/robotwin/bin/python"
     interpreter.parent.mkdir(parents=True)
@@ -73,9 +64,12 @@ def test_prepare_default_install_and_reuse(tmp_path, monkeypatch):
     registration = tmp_path / ".cache/roboenv/installations/robotwin.json"
     registration.parent.mkdir(parents=True)
     registration.write_text(json.dumps({"python": str(interpreter), "report": {"reused": True}}))
-    assert setup.prepare("robotwin", progress=progress.append) == {"reused": True}
-    assert "Reusing registered interpreter" in progress[-1]
-    assert not calls
+    assert setup.prepare("robotwin", progress=progress.append) == {
+        "sources_ready": True, "clean_install_verified": False,
+    }
+    assert "reusing registered interpreter" in progress[-1]
+    assert calls == [("sync", {"reset": True})]
+    calls.clear()
     interpreter.unlink()
     with pytest.raises(ValueError, match="existing environments are preserved"):
         setup.prepare("robotwin")
@@ -88,6 +82,36 @@ def test_prepare_rejects_unknown_backend_without_effects(tmp_path):
     with pytest.raises(ValueError, match="unknown simulator"):
         setup.prepare("../unknown", project=ROOT, install_to=tmp_path / "unused")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_prepare_reuse_does_not_hide_source_refresh_failure(tmp_path, monkeypatch):
+    from roboenv.provisioning import sources
+
+    monkeypatch.setattr(setup, "project_root", lambda project: tmp_path)
+    monkeypatch.setattr(setup, "audit", lambda *args: ({}, {}))
+    interpreter = tmp_path / "python"
+    interpreter.touch()
+    registration = tmp_path / ".cache/roboenv/installations/robotwin.json"
+    registration.parent.mkdir(parents=True)
+    registration.write_text(json.dumps({"python": str(interpreter), "report": {}}))
+
+    def fail(*args, **kwargs):
+        raise ValueError("patch checksum mismatch")
+
+    monkeypatch.setattr(sources, "sync", fail)
+    monkeypatch.setattr(setup, "_prepare_assets", lambda *args: pytest.fail("must not run"))
+    with pytest.raises(ValueError, match="patch checksum mismatch"):
+        setup.prepare("robotwin")
+    assert interpreter.is_file()
+
+
+def test_isaaclab_does_not_certify_a_stale_dependency_lock(recipe_project, monkeypatch):
+    project, _ = recipe_project
+    monkeypatch.setattr(setup, "status", lambda *args: {"ready": True})
+    report, _ = setup.audit("isaaclab", project=project)
+    assert report["lock"] is None
+    assert not report["install_preflight_passed"]
+    assert any("Isaac Sim 6.1" in item for item in report["blockers"])
 
 
 def test_dependency_lock_rejects_duplicates_ranges_and_unpinned_git(tmp_path):

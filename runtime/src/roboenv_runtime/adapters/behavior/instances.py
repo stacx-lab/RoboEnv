@@ -18,6 +18,9 @@ def restore_instance(env, robot, instance_id):
     from omnigibson.utils.python_utils import recursively_convert_to_torch
 
     task = env.task
+    if len(task.object_scopes) != 1:
+        raise ValueError("BEHAVIOR instance restoration requires one scene")
+    object_scope = task.object_scopes[0]
     filename = task.get_cached_activity_scene_filename(
         task.scene_name, task.activity_name, task.activity_definition_id, instance_id
     )
@@ -34,19 +37,21 @@ def restore_instance(env, robot, instance_id):
     available = poses.get("robot", poses.get(robot.model))
     if not available:
         raise ValueError(f"Instance {instance_id} has no start pose for {robot.model}")
-    unknown = set(state) - {"robot_poses"} - task.object_scope.keys()
+    unknown = set(state) - {"robot_poses"} - object_scope.keys()
     if unknown:
         raise ValueError(f"Instance contains unknown task entities: {sorted(unknown)}")
     for key, value in state.items():
         if key == "robot_poses":
-            robot.set_position_orientation(available[0]["position"], available[0]["orientation"])
+            robot.set_position_orientation(
+                available[0]["position"], available[0]["orientation"], frame="scene"
+            )
             env.scene.write_task_metadata(key=key, data=value)
         else:
-            task.object_scope[key].load_state(value, serialized=False)
+            object_scope[key].load_state(value, serialized=False)
     og.sim.update_handles()
     for _ in range(25):
         og.sim.step_physics()
-        for name, entity in task.object_scope.items():
+        for name, entity in object_scope.items():
             if entity is not None and not is_system_bddl_inst(name):
                 entity.keep_still()
     env.scene.update_initial_file()

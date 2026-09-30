@@ -238,7 +238,7 @@ class BehaviorDevices(BehaviorBackend):
     def _advance(self):
         _, _, terminated, truncated, _ = self.env.step(self.action)
         self._native_success = self._native_success or bool(self.goal_report()["success"])
-        self._native_done = bool(terminated or truncated)
+        self._native_done = bool(terminated[0] or truncated[0])
 
     def device_write(self, name, target):
         return self.control.write(name, target)
@@ -346,11 +346,11 @@ def compile_rig():
         configs={
             "scene": {"type": "Scene"},
             "robots": [robot_config()],
-            "env": {"action_frequency": 30, "physics_frequency": 120},
+            "env": {"num_envs": 1, "action_frequency": 30, "physics_frequency": 120},
         }
     )
     try:
         og.sim.render()
-        return describe(env.robots[0])[0]
+        return describe(env.robots[0][0])[0]
     finally:
         og.clear()

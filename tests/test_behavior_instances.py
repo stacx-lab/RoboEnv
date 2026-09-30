@@ -23,13 +23,13 @@ def fixture(monkeypatch, tmp_path, *, generic=True):
     )
     robot = SimpleNamespace(
         model="r1pro",
-        set_position_orientation=lambda *pose: events.append(("pose", pose)),
+        set_position_orientation=lambda *pose, **kwargs: events.append(("pose", pose, kwargs)),
         keep_still=lambda: events.append("robot_still"),
     )
     task = SimpleNamespace(
         scene_name="house", activity_name="turning_on_radio", activity_definition_id=0,
         get_cached_activity_scene_filename=lambda *args: "instance_" + str(args[-1]),
-        object_scope={"radio.n.01_1": entity, "agent.n.01_1": robot, "water.n.06_1": None},
+        object_scopes=[{"radio.n.01_1": entity, "agent.n.01_1": robot, "water.n.06_1": None}],
     )
     scene = SimpleNamespace(
         write_task_metadata=lambda **kwargs: events.append("metadata"),
@@ -66,7 +66,7 @@ def test_selected_state_and_robot_pose_precede_settling_and_snapshot(
         {"mode": "train"},
     )
     assert events[1][0] == "load" and events[1][2] is False
-    assert events[2] == ("pose", ([4, 5, 6], [0, 0, 0, 1]))
+    assert events[2] == ("pose", ([4, 5, 6], [0, 0, 0, 1]), {"frame": "scene"})
     assert events[3:5] == ["metadata", "handles"]
     assert events[5:-2] == ["physics", "still", "robot_still"] * 25
     assert events[-2:] == ["snapshot", "reset"]
@@ -91,6 +91,14 @@ def test_unknown_instance_entities_are_rejected_before_effects(monkeypatch, tmp_
     with pytest.raises(ValueError, match="unknown task entities"):
         restore_instance(env, robot, 7)
     assert len(events) == 1 and events[0][0] == "path"
+
+
+def test_multiple_scenes_are_rejected_before_restoring_an_instance(monkeypatch, tmp_path):
+    env, robot, _, events = fixture(monkeypatch, tmp_path)
+    env.task.object_scopes.append({})
+    with pytest.raises(ValueError, match="requires one scene"):
+        restore_instance(env, robot, 7)
+    assert not events
 
 
 def test_close_clears_world_once_and_defers_application_exit(monkeypatch):

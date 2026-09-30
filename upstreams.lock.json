@@ -39,7 +39,7 @@
     "robodojo": {
       "path": "third_party/RoboDojo",
       "url": "https://github.com/RoboDojo-Benchmark/RoboDojo.git",
-      "revision": "ee67a1468510da7624a089164402359f2afc72c8",
+      "revision": "726e9aabfaa642203722eb126f5eaf0f37f3e1ad",
       "backends": [
         "robodojo"
       ],
@@ -77,7 +77,7 @@
     "robotwin": {
       "path": "third_party/RoboTwin",
       "url": "https://github.com/RoboTwin-Platform/RoboTwin.git",
-      "revision": "96c1feab536306b50c26af200044fcdf126e8904",
+      "revision": "ea8b21121ebb3cd201ff5b3fe361944ac94eda3f",
       "backends": [
         "robotwin"
       ],
@@ -91,32 +91,28 @@
     "behavior": {
       "path": "third_party/BEHAVIOR-1K",
       "url": "https://github.com/StanfordVL/BEHAVIOR-1K.git",
-      "revision": "e008fcb7b2c52cc3c1209287babedd9018dc3202",
+      "revision": "bd049de3119acdcdf2334fe9e1ebe060fa20c108",
       "backends": [
         "behavior"
       ],
       "patches": [
         {
           "path": "third_party/patches/behavior-optional-workflows.patch",
-          "sha256": "09aff01909de47138c32d97f30055d1a6924d38f796cdda5228d903b1f8c298b"
+          "sha256": "9b91c1d8a1f7fcb000ebd96fe520c9636f9b888d83a48172203ac00cf3ce3871"
         }
       ]
     },
     "isaaclab_native": {
       "path": "third_party/IsaacLab",
       "url": "https://github.com/isaac-sim/IsaacLab.git",
-      "revision": "99f1423e5d4a26216c0eedeb2aa78099a8c3a7d1",
+      "revision": "998bf887af42c46d13207fd0a95b47f2559f9259",
       "backends": [
         "isaaclab"
       ],
       "patches": [
         {
-          "path": "third_party/patches/isaaclab-install.patch",
-          "sha256": "3e4dfccc8e8f3b496c6f8f46b3a388afa4caf1557c3c2a33489df0e394f6492b"
-        },
-        {
           "path": "third_party/patches/isaaclab-optional-cloudxr.patch",
-          "sha256": "c6fd5fd7adc502da9fd8010964766bf7da8d7a5886ad7da4c4414749a261c5d9"
+          "sha256": "78f48777ff7f4e2e28f11340ef9dc905ccbe250e7465333cf676102f48033630"
         }
       ]
     },
@@ -171,7 +167,7 @@
       "path": "third_party/SIMPLE/third_party/gear_sonic",
       "parent": "simple",
       "url": "https://github.com/songlin/gear_sonic.git",
-      "revision": "e61eeb1dec9678dcc02f97c5ac27ca6a4fe82128",
+      "revision": "d9bfffbd69a0b8c1d94a8a1b6113a589038d345a",
       "backends": [
         "simple"
       ]
