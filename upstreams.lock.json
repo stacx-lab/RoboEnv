@@ -13,7 +13,7 @@
     "robocasa": {
       "path": "third_party/robocasa",
       "url": "https://github.com/robocasa/robocasa.git",
-      "revision": "4f8a2980def75a55dff96b990745b83540425f09",
+      "revision": "456174f62b89b8fca99eaaf33949c29fec9cfc2a",
       "backends": [
         "robocasa"
       ],
@@ -21,6 +21,10 @@
         {
           "path": "third_party/patches/robocasa-readonly-assets.patch",
           "sha256": "1ca1dee4eff91bf951d11f7d0759be643cf9f68dce3faa16e241e001290518cb"
+        },
+        {
+          "path": "third_party/patches/robocasa-deterministic-counter-regions.patch",
+          "sha256": "d5fb879b99da3eb7630975be8ee9d6290b9279a37cec929e128a8b2decae7174"
         }
       ]
     },

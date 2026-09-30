@@ -48,17 +48,23 @@ checkout over local edits. Keep historical receipts tied to their original base;
 CPU and patch checks do not certify simulator replay on the new revision.
 
 RoboCasa tracks upstream `main` in `.gitmodules`, while the gitlink and source
-lock pin an exact upstream commit for reproducibility. The refresh from
-`a07e365` to `4f8a298` changes only three upstream test scripts (robosuite API,
-task names, and fixture-style coverage); its MIT license bytes are unchanged.
-The sole RoboCasa patch remains `robocasa-readonly-assets.patch`, unchanged:
-it redirects temporary object XML through RoboEnv's writable staging helper.
+lock pin an exact upstream commit for reproducibility. The current base is
+`456174f`; the update from `4f8a298` changes only the upstream README, and its
+MIT license bytes are unchanged.
+RoboCasa carries two patches. `robocasa-readonly-assets.patch` redirects
+temporary object XML through RoboEnv's writable staging helper.
+`robocasa-deterministic-counter-regions.patch` de-duplicates candidate
+counter-top regions in their original order instead of through a `set`: a set
+of XML elements iterates in memory-address order, so at a fixed seed the
+region picked for an object (and so the kitchen) changed from one build or
+process to the next. Upstream `456174f` still has the `set`.
 Device profiles, RGB-D transport, kinematics and control bindings live in
 RoboEnv. No downstream commits are created in the RoboCasa submodule.
-Fresh CPU/source/packaging checks for this base are recorded in
-[the validation receipt](../docs/validation/robocasa-device-cpu-4f8a298.json).
-Historical simulator receipts remain unchanged; kitchen GPU boot, task success
-and fresh-process replay are not certified by this CPU check.
+The [historical CPU validation receipt](../docs/validation/robocasa-device-cpu-4f8a298.json)
+remains evidence for `4f8a298`, not this base. The scene-determinism regression
+checks repeated CPU kitchen construction through the current adapter; device and
+Kinex compatibility use the current conformance tests. These checks do not certify
+kitchen GPU boot, task success or fresh-process command replay.
 
 The 2026-09-06 source review advances RoboDojo to `ee67a14` (optional
 articulation drive reset and evaluation/download tooling) and LIBERO-PRO to

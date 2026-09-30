@@ -3,7 +3,7 @@
   "scope": "Source notice inventory only; not asset, checkpoint, binary, or redistribution approval.",
   "sources": {
     "robocasa": {
-      "revision": "4f8a2980def75a55dff96b990745b83540425f09",
+      "revision": "456174f62b89b8fca99eaaf33949c29fec9cfc2a",
       "notices": [
         {
           "path": "LICENSE",

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import kinex_sources
+from helpers import kinex_sources, native_interpreter
 from roboenv.client import Client, RemoteError
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.client import Environment
@@ -101,16 +101,6 @@ def test_type_specific_handles_and_profile_only_world(tmp_path):
     export_devices([env.device("world").profile], tmp_path, {"endpoint": "http://sim:8123"})
     assert (tmp_path / "world/profile.yaml").is_file()
     assert (tmp_path / "world/driver.py").exists()
-
-
-def native_interpreter():
-    registration = ROOT / ".cache/roboenv/installations/robocasa.json"
-    interpreter = os.environ.get("ROBOENV_ROBOCASA_TEST_PYTHON")
-    if interpreter is None and registration.is_file():
-        interpreter = json.loads(registration.read_text())["python"]
-    if not interpreter or not Path(interpreter).is_file():
-        pytest.skip("Requires prepared RoboCasa interpreter; never install simulator deps in SDK")
-    return interpreter
 
 
 def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
