@@ -1,0 +1,22 @@
+schema_version: roboenv/bindings/1
+backend: isaaclab
+embodiment: go2_d1
+devices:
+  base:
+    binding: isaaclab.go2-d1/1
+    entity: base
+  arm:
+    binding: isaaclab.go2-d1/1
+    entity: arm
+  gripper:
+    binding: isaaclab.go2-d1/1
+    entity: gripper
+  camera_wrist:
+    binding: isaaclab.go2-d1/1
+    entity: camera_wrist
+  camera_head:
+    binding: isaaclab.go2-d1/1
+    entity: camera_head
+  world:
+    binding: isaaclab.go2-d1/1
+    entity: world

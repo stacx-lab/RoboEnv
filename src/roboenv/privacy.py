@@ -20,6 +20,7 @@ SKIP = {
 }
 HOST_ROOTS = ("localscratch", "nethome", "scratch")
 LEGACY_MARKER = "".join(("one", "world"))
+HTTP_URL_PATH = re.compile(r"https?://[^/\s\"'<>?#]+(?P<path>/[^\s\"'<>?#]*)")
 
 
 def _patterns():
@@ -35,10 +36,22 @@ def _patterns():
     return result
 
 
+def _has_private_match(code, pattern, text):
+    url_paths = (
+        [match.span("path") for match in HTTP_URL_PATH.finditer(text)]
+        if code in {"host_path", "user_home"}
+        else []
+    )
+    return any(
+        not any(start <= match.start() and match.end() <= end for start, end in url_paths)
+        for match in pattern.finditer(text)
+    )
+
+
 def validate_public_text(content, label):
     """Reject known private identifiers without echoing the matching value."""
     for code, pattern in _patterns():
-        if pattern.search(content) or pattern.search(label):
+        if _has_private_match(code, pattern, content) or _has_private_match(code, pattern, label):
             raise ValueError(f"publishable content rejected by privacy check: {code}")
 
 
@@ -62,7 +75,9 @@ def audit(root):
         except UnicodeError:
             continue
         for code, pattern in patterns:
-            if pattern.search(str(relative)) or pattern.search(content):
+            if _has_private_match(code, pattern, str(relative)) or _has_private_match(
+                code, pattern, content
+            ):
                 safe = str(relative)
                 for _, secret_pattern in patterns:
                     safe = secret_pattern.sub("REDACTED", safe)

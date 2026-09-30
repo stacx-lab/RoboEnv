@@ -8,7 +8,8 @@ roboenv prepare isaaclab
 roboenv doctor isaaclab
 ```
 
-There is no bundled Isaac Lab task or device adapter. The G1 practice task,
+The experimental [Go2–D1 environment](go2-d1.md) provides a bundled task and
+device adapter. The former G1 practice task,
 profiles, bindings, runtime and task-specific asset tools have been removed.
 SIMPLE's G1 integration is separate and remains supported.
 

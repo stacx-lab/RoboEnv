@@ -6,7 +6,7 @@ import shutil
 import socket
 import subprocess
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -401,13 +401,29 @@ def test_grouped_catalog_ids_and_listing(capsys):
     from roboenv.tasks.catalog import load_catalog
 
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 15
+    assert len(catalog) == 18
     for identifier, (task, path) in catalog.items():
         assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
         assert identifier.split("/")[0] == task.backend
-        assert resolve_task(identifier, project=ROOT).task == task
-        if task.backend == "robocasa":
-            assert "realtime" not in task.backend_kwargs
+        resolved = resolve_task(identifier, project=ROOT)
+        expected = task
+        if task.backend == "isaaclab":
+            gripper = next(d for d in resolved.bindings.devices if d.name == "gripper")
+            tcp = gripper.resolved_profile(resolved.robot)["extrinsics"]["mount"]["translation_m"]
+            expected = replace(task, backend_kwargs={
+                **task.backend_kwargs, "tcp_in_flange_m": tcp,
+                "device_profiles": {
+                    d.name: {k: v for k, v in d.resolved_profile(resolved.robot).items()
+                             if k in {"type", "intrinsics", "extrinsics"}}
+                    for d in resolved.bindings.devices
+                },
+            })
+        assert resolved.task == expected
+        assert "realtime" not in task.backend_kwargs
+    assert main(["tasks", "list", "--project", str(ROOT)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["ids"] == sorted(catalog)
+    assert result["execution_modes"] == {key: "realtime" for key in catalog}
     assert main(["tasks", "list", "--simulator", "robocasa", "--project", str(ROOT)]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["ids"] == ["robocasa/arrange-vegetables", "robocasa/pick-place-microwave"]

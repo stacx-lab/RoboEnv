@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from roboenv.privacy import audit
+from roboenv.privacy import audit, validate_public_text
 from roboenv.tasks.artifacts import Bundle
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,3 +24,33 @@ def test_container_paths_are_not_host_identifiers(tmp_path):
 def test_publishable_source_has_no_machine_identifiers():
     result = audit(ROOT)
     assert result["passed"], result["findings"]
+
+
+@pytest.mark.parametrize("prefix", ["https://example.com", "http://example.com/docs"])
+@pytest.mark.parametrize("root", ["home", "Users", "scratch", "nethome", "localscratch"])
+def test_public_url_paths_are_not_host_paths(tmp_path, prefix, root):
+    content = prefix + "/" + root + "/example-owner/documentation"
+    validate_public_text(content, "")
+    (tmp_path / "README.md").write_text(content)
+    assert audit(tmp_path)["passed"]
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "",
+        "file://",
+        "https://example.com/?path=",
+        "https://example.com/#",
+        "https://example.com/home/en/docs ",
+    ],
+)
+@pytest.mark.parametrize("root", ["home", "Users", "scratch", "nethome", "localscratch"])
+def test_private_paths_remain_rejected(tmp_path, prefix, root):
+    content = prefix + "/" + root + "/example-owner/asset"
+    with pytest.raises(ValueError, match="privacy check"):
+        validate_public_text(content, "")
+    with pytest.raises(ValueError, match="privacy check"):
+        validate_public_text("", content)
+    (tmp_path / "README.md").write_text(content)
+    assert not audit(tmp_path)["passed"]

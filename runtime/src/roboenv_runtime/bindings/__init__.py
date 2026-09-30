@@ -21,4 +21,7 @@ def default_registry():
     from .backends.simple import register as register_simple
 
     register_simple(registry)
+    from .backends.isaaclab.go2_d1 import bind as bind_go2
+
+    registry.register("isaaclab.go2-d1/1", bind_go2)
     return registry

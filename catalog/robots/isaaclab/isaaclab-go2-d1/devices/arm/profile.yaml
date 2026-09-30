@@ -1,0 +1,238 @@
+name: arm
+type: joint
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  frames:
+    flange: null
+  model:
+    format: serial_chain
+    joints:
+    - name: d1_Joint1
+      type: revolute
+      limits:
+        min: -2.35
+        max: 2.35
+      max_velocity: null
+      max_effort: 3.3
+    - name: d1_Joint2
+      type: revolute
+      limits:
+        min: -1.57
+        max: 1.57
+      max_velocity: null
+      max_effort: 3.3
+    - name: d1_Joint3
+      type: revolute
+      limits:
+        min: -1.57
+        max: 1.57
+      max_velocity: null
+      max_effort: 1.7
+    - name: d1_Joint4
+      type: revolute
+      limits:
+        min: -2.35
+        max: 2.35
+      max_velocity: null
+      max_effort: 1.7
+    - name: d1_Joint5
+      type: revolute
+      limits:
+        min: -1.57
+        max: 1.57
+      max_velocity: null
+      max_effort: 1.7
+    - name: d1_Joint6
+      type: revolute
+      limits:
+        min: -2.35
+        max: 2.35
+      max_velocity: null
+      max_effort: 1.7
+    chain:
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0533
+      - 0.0
+      - 0.0
+      - 0.9999999999932538
+      - 3.6732051033465744e-06
+      joint: 0
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0
+      - 0
+      - 0
+      reference: 0
+    - origin:
+      - 0.0
+      - 0.028
+      - 0.0563
+      - 2.5973530075574157e-06
+      - 0.7071080798547034
+      - 0.7071054825064661
+      - 2.597343466964615e-06
+      joint: 1
+      axis:
+      - 0.0
+      - 0.0
+      - -1.0
+      anchor:
+      - 0
+      - 0
+      - 0
+      reference: 0
+    - origin:
+      - 0.0
+      - 0.2693
+      - 0.0009
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 2
+      axis:
+      - 0.0
+      - 0.0
+      - -1.0
+      anchor:
+      - 0
+      - 0
+      - 0
+      reference: 0
+    - origin:
+      - 0.0577
+      - 0.042
+      - -0.0275
+      - -0.49999999999662686
+      - 0.5000018366025518
+      - -0.49999999999662686
+      - 0.4999981633974483
+      joint: 3
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0
+      - 0
+      - 0
+      reference: 0
+    - origin:
+      - -0.0001
+      - -0.0237
+      - 0.14018
+      - 0.49999999999662686
+      - -0.49999999999662686
+      - 0.5000018366025518
+      - 0.4999981633974483
+      joint: 4
+      axis:
+      - 0.0
+      - 0.0
+      - -1.0
+      anchor:
+      - 0
+      - 0
+      - 0
+      reference: 0
+    - origin:
+      - 0.0825
+      - -0.0010782
+      - -0.023822
+      - -0.49999999999662686
+      - 0.5000018366025518
+      - -0.49999999999662686
+      - 0.4999981633974483
+      joint: 5
+      axis:
+      - 0.0
+      - 0.0
+      - -1.0
+      anchor:
+      - 0
+      - 0
+      - 0
+      reference: 0
+  home:
+    d1_Joint1: 0.0
+    d1_Joint2: -0.65
+    d1_Joint3: 1.2
+    d1_Joint4: 0.0
+    d1_Joint5: -0.55
+    d1_Joint6: 0.0
+  kinematics:
+    frame: flange
+    fk: numerical
+    ik:
+      backend: numerical
+      method: damped_least_squares
+      position_tolerance_m: 0.001
+      rotation_tolerance_rad: 0.01
+      max_iterations: 200
+      damping: 0.01
+    feedback: driver
+    frame_to_reported:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
+  control:
+    mode: position
+    limit_handling: native
+  feedback:
+    velocities: true
+    efforts: false
+    clock: simulation
+  stop:
+    behavior: hold
+    affected_devices:
+    - arm
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mount:
+    parent: base
+    parent_frame: base
+    translation_m:
+    - 0.085
+    - 0.0
+    - 0.094
+    rotation_xyzw:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+meta:
+  created_at: '2026-09-23T00:00:00Z'
+  updated_at: '2026-09-23T00:00:00Z'
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: arm
+  driver:
+    entry: driver.py
+    persistent: true
+    actions:
+    - read
+    - write
+    - stop
+    - load
+    - unload
+    - status
+    - fk
+    - ik

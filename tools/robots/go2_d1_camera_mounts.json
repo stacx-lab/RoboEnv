@@ -1,0 +1,52 @@
+{
+  "wrist_d405": {
+    "model": "d405",
+    "parent": "d1_Link6",
+    "xyz_m": [
+      -0.087,
+      0.0,
+      0.008
+    ],
+    "rpy_rad": [
+      0,
+      -1.0471975511965976,
+      0
+    ],
+    "bracket_xyz_m": [
+      -0.0565,
+      0.0,
+      0.008
+    ],
+    "bracket_size_m": [
+      0.061,
+      0.025,
+      0.022
+    ],
+    "note": "Raised 45 mm along wrist-local -X; retains 30-degree downward tilt to show fingertips."
+  },
+  "head_d435": {
+    "model": "d435",
+    "parent": "Head_upper",
+    "xyz_m": [
+      -0.01,
+      0.0,
+      0.058
+    ],
+    "rpy_rad": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "bracket_xyz_m": [
+      -0.01,
+      0.0,
+      0.05
+    ],
+    "bracket_size_m": [
+      0.025,
+      0.032,
+      0.016
+    ],
+    "note": "On top of Go2 head; looks forward (+X of robot base)."
+  }
+}

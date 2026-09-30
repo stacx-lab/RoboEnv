@@ -1,5 +1,6 @@
 """Public catalogs resolve private assembly defaults from installed resources."""
 
+import runpy
 import shutil
 from pathlib import Path
 
@@ -12,6 +13,18 @@ from roboenv_runtime.bindings import default_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog"
+
+
+def test_go2_arm_driver_converts_native_frame_poses():
+    driver = CATALOG / "robots/isaaclab/isaaclab-go2-d1/devices/arm/driver.py"
+    normalize = runpy.run_path(str(driver))["kinex_reading"]
+    state = {"positions": [0.0], "frame_poses": {"flange": {
+        "translation_m": [1.0, 2.0, 3.0], "rotation_xyzw": [0.0, 0.0, 0.0, 1.0],
+    }}}
+    assert normalize(state)["frame_poses"]["flange"] == [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
+    assert state["frame_poses"]["flange"]["translation_m"] == [1.0, 2.0, 3.0]
+    with pytest.raises(KeyError, match="rotation_xyzw"):
+        normalize({"frame_poses": {"flange": {"translation_m": [1.0, 2.0, 3.0]}}})
 
 
 def test_public_catalog_contains_only_robot_and_task_definitions():
@@ -76,3 +89,37 @@ def test_all_robot_variants_have_registered_bindings():
         for spec in BindingPlan.load(robot, backend=robot.parent.name).devices:
             assert spec.binding in registry._factories
             assert spec.definition(robot).name == spec.name
+
+
+def test_copied_go2_catalog_keeps_bindings_private_and_drivers_portable(tmp_path):
+    from roboenv.tasks.catalog import load_catalog
+
+    source = CATALOG / "robots/isaaclab/isaaclab-go2-d1"
+    catalog = tmp_path / "catalog"
+    rig = catalog / "robots/isaaclab/isaaclab-go2-d1"
+    shutil.copytree(source, rig)
+    shutil.copytree(CATALOG / "tasks/isaaclab", catalog / "tasks/isaaclab")
+    tasks = load_catalog(catalog / "tasks")
+    assert set(tasks) == {"isaaclab/go2-d1-control", "isaaclab/go2-d1-reach",
+                          "isaaclab/go2-d1-pick-place"}
+    for task, _ in tasks.values():
+        assert task.execution_mode == "realtime"
+        assert "realtime" not in task.backend_kwargs
+    assert list(rig.rglob("_roboenv.py")) == [rig / "devices/_roboenv.py"]
+    base_control = yaml.safe_load((rig / "devices/base/profile.yaml").read_text())[
+        "intrinsics"
+    ]["control"]
+    arm_control = yaml.safe_load((rig / "devices/arm/profile.yaml").read_text())[
+        "intrinsics"
+    ]["control"]
+    assert "execution" not in base_control
+    assert arm_control == {"mode": "position", "limit_handling": "native"}
+    plan = BindingPlan.load(rig, backend="isaaclab")
+    assert {d.name for d in plan.devices} == {
+        "base", "arm", "gripper", "camera_head", "camera_wrist", "world"
+    }
+    assert binding_resource(rig, backend="isaaclab").is_file()
+    assert not (catalog / "bindings").exists()
+    rig.rename(rig.with_name("unknown-go2"))
+    with pytest.raises(ValueError, match="No default bindings"):
+        BindingPlan.load(rig.with_name("unknown-go2"), backend="isaaclab")
