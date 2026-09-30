@@ -67,13 +67,11 @@ def test_every_discoverable_upstream_task_resolves(tmp_path):
 
 
 def test_official_references_need_a_public_upstream_and_a_pinned_revision(tmp_path):
-    # The Harbor export enforced this rule while it existed; the catalog keeps it through
-    # the validation tool's policy, applied here to every checked-in provenance note.
+    # The task-bundle export enforced this rule while it existed; the catalog keeps it through
+    # the validation tool's policy, applied here to any checked-in provenance note.
     tool = load_tool("validate_simulators")
     policy = tool.check_reference_provenance
-    notes = sorted((ROOT / "catalog/tasks").glob("*/*/solution-source.json"))
-    assert notes
-    for note in notes:
+    for note in sorted((ROOT / "catalog/tasks").glob("*/*/solution-source.json")):
         policy(json.loads(note.read_text()))
     policy({"origin": "project-reference", "official": False})
     policy({"official": True, "upstream_url": "https://example.org/repo", "revision": "a" * 40})

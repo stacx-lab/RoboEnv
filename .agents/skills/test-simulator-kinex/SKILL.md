@@ -52,7 +52,7 @@ Check these entrypoints instead of assuming archived commands still work:
   backend's native conformance/replay tools.
 - Benchmark trials: RoboEnv carries no Harbor bridge; scheduled agent trials live
   in the benchmark repository built on the SDK (see `docs/harness-integration.md`).
-  Kinex supplies its normal APIs and `kinex python`; no campaign files belong
+  Kinex supplies its core runtime APIs and `kinex run`; no campaign files belong
   in its checkout.
 - LIBERO/RoboCasa may use separate native/protocol runners. Select their actual
   supported route. The generic `replay_native_devices.py` currently accepts

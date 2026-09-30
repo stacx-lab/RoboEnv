@@ -27,11 +27,13 @@ Preparation selects cases and writes their inputs without starting anything:
 
 Inspect `receipt.json` (phase `prepared`) and `cases/*/{task.yaml,program.py,
 program-source.json}`. Select backends and modes explicitly. `--modes reference`
-requires a `solution.py` beside the task; a retired reference (`solution-source.json`
-with `retired: true`) is skipped by default and refused when selected with `--cases`.
-The two checked-in RoboCasa references are retired (they were written for the tool
-API that typed devices replaced), so supply `--source DIRECTORY` with a current
-reference program. An additional source cannot replace a built-in example ID.
+requires a `solution.py` beside a task in an explicit `--source` catalog; a reference
+whose `solution-source.json` declares `retired: true` is skipped by default and
+refused when selected with `--cases`. The checked-in catalog contains no reference
+solutions: the two RoboCasa programs written for the tool API that typed devices
+replaced were removed. Use `--modes probe` for device connectivity checks, or supply
+`--source DIRECTORY` with a controller using the current public device API for
+reference validation. An additional source cannot replace a built-in example ID.
 
 ## Run
 

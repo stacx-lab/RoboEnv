@@ -193,15 +193,18 @@ test when needed; never copy task assets, owner evidence or simulator packages.
 
 Parse every profile with the selected Kinex Device schema, required-action checks
 and calibration plan. Prepare a fresh `.kinex/` workspace through the current
-helper, run `kinex python`, and verify the actual driver/tool interpreter. Pin the
+helper, call the core runtime's `python.prepare()`, and verify the actual
+driver/tool interpreter under `.kinex/python/.venv`. Pin the
 launched session/generation beside drivers, outside the static catalog. Activate
 devices through Kinex lifecycle and exercise discovery, sensor reads, local FK/IK,
-bounded servo and stop through normal tool execution.
+servo, world waits, measured feedback and stop through normal tool execution.
+Servo computes its trajectory duration and accepts no `duration_s` override;
+submission and elapsed duration do not prove arrival.
 
 Test persistent drivers and their support files in the agent environment. Cached
 profiles/connections must not survive an episode identity change unnoticed; reload
-or restart through lifecycle. No driver may start its own simulator. World and
-fixed-base profiles remain driverless according to the current schema.
+or restart through lifecycle. No driver may start its own simulator. World exposes
+read/wait through its driver; fixed-base profiles remain driverless static mounts.
 
 ## Complete acceptance through the testing skill
 

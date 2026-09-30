@@ -214,20 +214,36 @@ def test_reference_evidence_needs_full_success_and_a_matching_journal(tmp_path):
     assert not evidence["boot_verified"] and not evidence["final_verifier_success"]
 
 
-def test_retired_catalog_references_are_skipped_by_default_and_refused_when_selected():
+def test_default_reference_selection_finds_no_checked_in_program():
+    # The catalog ships no reference solutions; the default reference lane selects
+    # nothing until a source with a current program is supplied.
     tool = load_tool("validate_simulators")
     with pytest.raises(ValueError, match="no validation cases matched"):
-        tool.select_cases(backends=["robocasa"], modes=["reference"])
+        tool.select_cases(modes=["reference"])
+
+
+def test_retired_references_are_skipped_by_default_and_refused_when_selected(tmp_path):
+    tool = load_tool("validate_simulators")
+    options = toy_options(tmp_path)
+    (options["source"] / "validation-toy/solution-source.json").write_text(
+        json.dumps({"origin": "project-reference", "official": False, "retired": True,
+                    "reason": "written for an API the world no longer serves"})
+    )
+    with pytest.raises(ValueError, match="no validation cases matched"):
+        tool.select_cases(modes=["reference"], **options)
     with pytest.raises(ValueError, match="retired"):
-        tool.select_cases(
-            backends=["robocasa"], cases=["robocasa/arrange-vegetables"], modes=["reference"]
-        )
+        tool.select_cases(modes=["reference"], cases=["fakeshell/validation-toy"], **options)
 
 
-def test_reference_selection_requires_a_solution():
+@pytest.mark.parametrize("identifier", [
+    "robotwin/handover-mic",
+    "robocasa/pick-place-microwave",
+    "robocasa/arrange-vegetables",
+])
+def test_reference_selection_requires_a_solution(identifier):
     tool = load_tool("validate_simulators")
     with pytest.raises(ValueError, match="requires an explicit regular solution.py"):
-        tool.select_cases(backends=["robotwin"], cases=["robotwin/handover-mic"])
+        tool.select_cases(backends=[identifier.split("/")[0]], cases=[identifier])
 
 
 def test_probe_plans_use_scene_robots_and_explicit_behavior_config(tmp_path):

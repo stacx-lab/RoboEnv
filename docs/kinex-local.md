@@ -79,27 +79,29 @@ Camera stream recording requires `ffmpeg`: Kinex encodes each recorded camera to
 Confirm `devices/` exists and contains arm, base, torso, gripper, camera_left, camera_right,
 camera_wrist, and world for this example. There is no public composite robot device.
 The task instruction is available through `roboenv.connect(ROBOENV_ENDPOINT).task`.
-For these direct calls before starting Kinex, prepare the fresh workspace's uv
-project explicitly (Kinex creates a missing manifest when executing Python):
+For these direct calls before starting Kinex, prepare its separate Python project
+explicitly. Kinex uses `.kinex/python/.venv`; ordinary shell environments remain
+independent. Existing environments need explicit dependency updates.
 
 ```sh
-uv init --bare
-uv add numpy scipy pillow pyyaml opencv-python-headless
+uv init --bare .kinex/python
+uv add --project .kinex/python numpy scipy pillow pyyaml 'opencv-python-headless>=4.7,<5'
 export PYTHONPATH="$kinex_repo/packages/core/assets/python${PYTHONPATH:+:$PYTHONPATH}"
 ```
 
 Check the driver without starting a model request:
 
 ```sh
-uv run python .kinex/devices/arm/driver.py status '{}'
-uv run python .kinex/devices/camera_left/driver.py read '{}'
+uv run --project .kinex/python python .kinex/devices/arm/driver.py status '{}'
+uv run --project .kinex/python python .kinex/devices/camera_left/driver.py read '{}'
 ```
 
 Expect `ok: true`; camera output must include an existing local RGB PNG `file`
 and aligned 16-bit PGM `depth_file`, with acquisition Unix timestamps. The profile declares
 `intrinsics.depth.scale_m_per_unit: 0.001`.
-Open that image to confirm that it depicts the initialized kitchen. Neither operation requests physics steps. A realtime world keeps running while idle; a
-stepped one advances only during world waits.
+Open that image to confirm that it depicts the initialized kitchen. Neither
+operation requests physics steps. A realtime world keeps running while idle;
+a stepped one advances only during world waits.
 
 ## 3. TUI recording smoke test
 
@@ -112,35 +114,41 @@ Run these built-in slash commands in the TUI:
 ```text
 /ping all
 /record snap camera_left camera_right camera_wrist initial kitchen
-/record stream camera_left=2:all camera_right=2:all camera_wrist=2:all arm=5:all base=2:all local device smoke test
+/record start camera_left=2 camera_right=2 camera_wrist=2 arm=5 base=2 local device smoke test
 /record status
 ```
 
-`:all` is deliberate: it records while the user pauses, including during this
-manual smoke test. The thin drivers do not implement native video streaming;
-Kinex uses its supported stills sampler. Requested Hz is a target; inspect
-effective rates and skipped samples. Reads do not request physics steps. Realtime continues during recording; stepped advances only during world waits.
+Recording continues between turns and while the user pauses until `/record stop`.
+The thin drivers do not implement native video streaming; Kinex samples camera
+reads and encodes the frames. Requested Hz is a target; inspect effective rates
+and skipped samples. Reads do not request physics steps. Realtime continues
+during recording; stepped advances only during world waits.
 
 With the recording running, use a separate terminal with the same copied workspace, `ROBOENV_ENDPOINT`, and
 `PYTHONPATH`. Read the current joint configuration and send it back as a hold target:
 
 ```sh
-target=$(uv run python .kinex/devices/arm/driver.py read '{}' | uv run python -c \
+target=$(uv run --project .kinex/python python .kinex/devices/arm/driver.py read '{}' | uv run --project .kinex/python python -c \
   'import json,sys; r=json.load(sys.stdin); assert r["ok"], r; print(json.dumps({"actions":[r["positions"]],"duration_s":0.5}))')
-uv run python .kinex/devices/arm/driver.py write "$target"
-uv run python .kinex/devices/arm/driver.py stop '{}'
+uv run --project .kinex/python python .kinex/devices/arm/driver.py write "$target"
+uv run --project .kinex/python python .kinex/devices/world/driver.py wait '{"duration_s":0.5}'
+uv run --project .kinex/python python .kinex/devices/arm/driver.py read '{}'
+uv run --project .kinex/python python .kinex/devices/arm/driver.py stop '{}'
 ```
 
-`actions` is a sequence of targets spread over `duration_s` world seconds; the last one
-is then held. Each target contains seven absolute joint positions in radians, in the
-profile’s model joint order. Small measured soft-limit overshoots can make a write fail;
+`write` submits an action buffer and returns immediately. The executor consumes
+the references over `duration_s` world seconds and retains the final reference.
+Each target contains seven absolute joint positions in radians, in the profile’s
+model joint order. `world.wait` allows execution time; compare the subsequent
+measured positions with the target to check arrival. Neither acceptance nor elapsed
+duration proves arrival. Small measured soft-limit overshoots can make a write fail;
 consult the joint-limit recovery notes before commanding another target. `stop`
-holds the arm while world physics continues. Acceptance does not prove arrival.
+clears pending references and holds the arm; it does not stop the world's clock.
 
-Direct shell driver calls bypass Kinex's dispatch event log; the `:all`
+Direct shell driver calls bypass Kinex's dispatch event log; the background
 samplers still record resulting images/state. To verify complete command
 tracing, perform a second test through Kinex's `device` tool: ask the agent to
-read arm state, issue one such write, stop, and read again. That step
+read arm state, issue one such write, wait through world, read feedback, and stop. That step
 requires your configured model and normal motion approval. Start a fresh
 simulation episode before attempting the full task.
 
@@ -179,7 +187,7 @@ provide visual playback. No new visualization server is required.
 |---|---|
 | Kitchen boot | Ready service, actual kitchen image, unchanged catalog |
 | Configuration | Kinex sees the eight standard devices; driver status/read succeed |
-| Basic control | One write reaches its target over `duration_s` and holds it; physics continues without requests and after device stop |
+| Basic control | Write submission returns immediately; world wait allows execution and measured feedback checks the hold target; realtime physics continues after device stop |
 | Recording | Nonempty camera/state events, readable saved images, completed manifest |
 | Visualization | Playable per-camera MP4s show the captured kitchen |
 | Dispatch tracing | Kinex-issued read/write/stop appear in device events |

@@ -55,9 +55,9 @@ and native success rules. Do not restore primitive dispatch or a second driver p
   If retained, isolate the expert prepass as owner initialization, record its
   time/work and errors, and rebuild the evaluated initial state afterward. Its
   actions/state are never candidate inputs or evidence of candidate success.
-  Record requested seed, `actual_seed` and every internal retry; predeclare whether
-  seed substitution is allowed. Replay uses the effective state identity. Two
-  requested seeds that fall back to the same state are not distinct cases.
+  Record requested seed, `initialization["effective_seed"]` and every internal retry;
+  predeclare whether seed substitution is allowed. Replay uses the effective state
+  identity. Two requested seeds that fall back to the same state are not distinct cases.
 - Extract both arms' actual joint order, limits, flange/TCP transforms, gripper
   mapping and cameras from the selected embodiment. Prevent alias/composite
   commands from controlling the same joints twice. Verify atomic left/right/hand

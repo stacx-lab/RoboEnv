@@ -154,7 +154,7 @@ def cameras(source):
     return result
 
 
-def generate(out, facts_out, provenance, *, bindings_out=None):
+def generate(out, facts_out, *, bindings_out=None):
     source = ROOT / "third_party/SIMPLE"
     robot_xml = ROOT / ".cache/simple/data/robots/g1_sonic/g1_29dof_with_hand.xml"
     model = {
@@ -286,27 +286,6 @@ def generate(out, facts_out, provenance, *, bindings_out=None):
         target.write_text(yaml.safe_dump(asdict(task), sort_keys=False))
     facts_out.parent.mkdir(parents=True, exist_ok=True)
     facts_out.write_text(json.dumps(model, indent=2) + "\n")
-    provenance.parent.mkdir(parents=True, exist_ok=True)
-    provenance.write_text(
-        json.dumps(
-            {
-                "schema": "roboenv/simple-config/1",
-                "robot_sha256": model["robot_sha256"],
-                "facts_sha256": digest(facts_out),
-                "asset_pin_sha256": digest(ROOT / "src/roboenv/assets/simple-g1.json"),
-                "source_lock_sha256": digest(ROOT / "upstreams.lock.json"),
-                "hand_geometry": {
-                    name: {
-                        "definition": model["parts"][name]["geometry"]["description"],
-                        "sources": model["parts"][name]["geometry_sources"],
-                    }
-                    for name in ("left_hand", "right_hand")
-                },
-            },
-            indent=2,
-        )
-        + "\n"
-    )
 
 
 if __name__ == "__main__":
@@ -317,9 +296,6 @@ if __name__ == "__main__":
         type=Path,
         default=ROOT / "runtime/src/roboenv_runtime/adapters/simple/g1.json",
     )
-    parser.add_argument(
-        "--provenance", type=Path, default=ROOT / "docs/simple-native-limits.provenance.json"
-    )
     parser.add_argument("--bindings-out", type=Path, help="Separate internal binding resource root")
     options = parser.parse_args()
-    generate(options.out, options.facts_out, options.provenance, bindings_out=options.bindings_out)
+    generate(options.out, options.facts_out, bindings_out=options.bindings_out)

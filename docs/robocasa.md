@@ -23,8 +23,10 @@ import roboenv
 with roboenv.connect("http://127.0.0.1:8123") as env:
     print(env.task.instruction)
     arm = env.device("arm")
-    # One target (seven joint positions), reached over half a second and then held.
+    # Submit a hold reference; write returns immediately.
     arm.write([arm.read()["positions"]], duration_s=0.5)
+    env.device("world").wait(0.5)
+    print(arm.read()["positions"])  # Measured feedback, not an arrival guarantee.
     arm.stop()
     image = env.device("camera_left").read()
     print(image["file"])
@@ -126,14 +128,12 @@ that copy. Launch reads the catalog without rewriting it.
 Profiles derive from the pinned compiled MJCF, robot initialization, native
 controllers, and RoboCasa camera definitions. A real Panda URDF is not a substitute
 for the simulated model. Model-derived sections use `source: introspected`; home
-joints are initialization defaults, not a task's current pose. Exact source hashes
-are recorded in [the provenance receipt](robocasa-config.provenance.json).
+joints are initialization defaults, not a task's current pose.
 
 Regenerate explicitly with the prepared RoboCasa interpreter:
 
 ```sh
-/path/to/robocasa/python tools/generate_robocasa_config.py \
-  --provenance docs/robocasa-config.provenance.json
+/path/to/robocasa/python tools/generate_robocasa_config.py
 ```
 
 The [generator](../tools/generate_robocasa_config.py) compiles the robot in an empty

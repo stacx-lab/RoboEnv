@@ -128,10 +128,6 @@ and Kinex use neither.
   `harbor`; both default to `local` now, and the catalog copies of `_roboenv.py`
   are regenerated. A deployment that relied on the implicit default must set
   `ROBOENV_SESSION`; launch already pins a unique session per run.
-- `docs/robocasa-config.provenance.json` records the hash of the previous
-  `_roboenv.py`; it is a historical receipt of the last RoboCasa catalog generation
-  and is refreshed by the next `tools/generate_robocasa_config.py --provenance` run
-  with the prepared interpreter, not by this change.
 - `roboenv.verify.READ_ONLY_OPS` lists `simulation.status`. The supervisor proxies
   it to the worker, whose status is a pure read, and counts it among its own
   read-only operations; a status poll after the verifier's submit, which
@@ -156,7 +152,8 @@ and Kinex use neither.
    on that branch. This is a prerequisite regardless of Harbor.
 2. Re-stage Kinex 0.9.0: RLE's `third_party/kinex` is 0.8.2 (4db60e9, six commits
    behind 0.9.0 at 18bcbdc). The 0.9 port work sits in RoboEnv PRs #45, #51 and
-   #49 and should be re-targeted to RLE.
+   #49 and should be re-targeted to RLE; the maintainers' review of #51 says the
+   same ("harbor support should be handled by other repos").
 3. Enforce provider evidence in `kinex_run.mjs` (model and effort assertion, at
    least one delivered image, zstd Codex bodies) from PRs #51 and #45.
 4. Harden `native_tasks/verify.py` by importing or copying `roboenv.verify`: single
