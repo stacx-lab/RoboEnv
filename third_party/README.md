@@ -73,17 +73,16 @@ Kinex compatibility use the current conformance tests. These checks do not certi
 kitchen GPU boot, task success or fresh-process command replay.
 
 The 2026-09-29 refresh advances RoboTwin to `ea8b211`, RoboDojo to `726e9aa`,
-BEHAVIOR to `bd049de`, standalone Isaac Lab to `998bf88`, and SIMPLE's nested
-gear_sonic to `d9bfffb`. The other eight pins already match their default branches.
+BEHAVIOR to `bd049de`, and SIMPLE's nested gear_sonic to `d9bfffb`. Eight other
+pins matched their default branches at that review. Standalone Isaac Lab remains
+at `99f1423` with its existing recipe and patches because the proposed `998bf88`
+update has incompatible dependency requirements.
 RoboTwin and RoboDojo retain their runtime/optional-client patches. BEHAVIOR's
 optional-workflow patch follows the new environment exports and makes Warp a
 base dependency because the new normal runtime imports it. RoboEnv's BEHAVIOR
 adapter selects scene zero, its robot and its BDDL object scope through the new
-batched environment API. Isaac Lab now defines
-dependencies in `pyproject.toml`: its old coverage patch is obsolete, while the
-CloudXR opt-in patch moves to the root teleoperation extra and package metadata.
-The source notices record the new BEHAVIOR root license (same MIT text) and
-Isaac Lab's copyright-year update; the other inventoried notice bytes are unchanged.
+batched environment API. The source notices record the new BEHAVIOR root license
+(same MIT text); the other inventoried notice bytes are unchanged.
 Historical validation receipts retain their original source revisions. See
 [Isaac Lab](../docs/isaaclab.md) for its current installation compatibility limits.
 

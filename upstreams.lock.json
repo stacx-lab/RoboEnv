@@ -105,14 +105,18 @@
     "isaaclab_native": {
       "path": "third_party/IsaacLab",
       "url": "https://github.com/isaac-sim/IsaacLab.git",
-      "revision": "998bf887af42c46d13207fd0a95b47f2559f9259",
+      "revision": "99f1423e5d4a26216c0eedeb2aa78099a8c3a7d1",
       "backends": [
         "isaaclab"
       ],
       "patches": [
         {
+          "path": "third_party/patches/isaaclab-install.patch",
+          "sha256": "3e4dfccc8e8f3b496c6f8f46b3a388afa4caf1557c3c2a33489df0e394f6492b"
+        },
+        {
           "path": "third_party/patches/isaaclab-optional-cloudxr.patch",
-          "sha256": "78f48777ff7f4e2e28f11340ef9dc905ccbe250e7465333cf676102f48033630"
+          "sha256": "c6fd5fd7adc502da9fd8010964766bf7da8d7a5886ad7da4c4414749a261c5d9"
         }
       ]
     },

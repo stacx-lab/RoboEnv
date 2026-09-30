@@ -82,11 +82,11 @@
       ]
     },
     "isaaclab_native": {
-      "revision": "998bf887af42c46d13207fd0a95b47f2559f9259",
+      "revision": "99f1423e5d4a26216c0eedeb2aa78099a8c3a7d1",
       "notices": [
         {
           "path": "LICENSE",
-          "sha256": "6acf26ea8f8c42c454e30e9ad4206bd90d8fce85a54c011568faaf10c7ccab61"
+          "sha256": "df351ebfa8af317bf5a9ad83df63a8b68e4f5c04b71f30767cdb27aa434eac62"
         }
       ]
     },

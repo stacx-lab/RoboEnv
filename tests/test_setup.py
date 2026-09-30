@@ -12,22 +12,31 @@ from roboenv.provisioning.assets import create, inventory, verify
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_isaaclab_cloudxr_is_opt_in():
+def test_isaaclab_cloudxr_is_opt_in(monkeypatch):
+    import runpy
+    import sys
+    from types import ModuleType
+
     import tomllib
     from packaging.requirements import Requirement
 
-    checkout = ROOT / "third_party/IsaacLab"
-    if not (checkout / ".git").exists():
+    package = ROOT / "third_party/IsaacLab/source/isaaclab_teleop"
+    if not (package / "setup.py").exists():
         pytest.skip("Isaac Lab source is not initialized")
-    root = tomllib.loads((checkout / "pyproject.toml").read_text())["project"]
-    teleop = next(Requirement(value) for value in root["optional-dependencies"]["teleop"]
-                  if Requirement(value).name == "isaacteleop")
+    metadata = {}
+    setuptools = ModuleType("setuptools")
+    setuptools.setup = lambda **kwargs: metadata.update(kwargs)
+    setuptools.find_packages = lambda: []
+    toml = ModuleType("toml")
+    toml.load = lambda path: tomllib.loads(Path(path).read_text())
+    monkeypatch.setitem(sys.modules, "setuptools", setuptools)
+    monkeypatch.setitem(sys.modules, "toml", toml)
+    runpy.run_path(str(package / "setup.py"))
+    required = [Requirement(value) for value in metadata["install_requires"]]
+    teleop = next(value for value in required if value.name == "isaacteleop")
     assert teleop.extras == {"retargeters", "ui"}
-    package = checkout / "source/isaaclab_teleop/pyproject.toml"
-    metadata = tomllib.loads(package.read_text())["project"]
-    for project in (root, metadata):
-        optional = [Requirement(value) for value in project["optional-dependencies"]["cloudxr"]]
-        assert any(value.name == "isaacteleop" and "cloudxr" in value.extras for value in optional)
+    optional = [Requirement(value) for value in metadata["extras_require"]["cloudxr"]]
+    assert any(value.name == "isaacteleop" and "cloudxr" in value.extras for value in optional)
 
 
 def test_robocasa_uses_resolved_lock():
@@ -103,15 +112,6 @@ def test_prepare_reuse_does_not_hide_source_refresh_failure(tmp_path, monkeypatc
     with pytest.raises(ValueError, match="patch checksum mismatch"):
         setup.prepare("robotwin")
     assert interpreter.is_file()
-
-
-def test_isaaclab_does_not_certify_a_stale_dependency_lock(recipe_project, monkeypatch):
-    project, _ = recipe_project
-    monkeypatch.setattr(setup, "status", lambda *args: {"ready": True})
-    report, _ = setup.audit("isaaclab", project=project)
-    assert report["lock"] is None
-    assert not report["install_preflight_passed"]
-    assert any("Isaac Sim 6.1" in item for item in report["blockers"])
 
 
 def test_dependency_lock_rejects_duplicates_ranges_and_unpinned_git(tmp_path):
