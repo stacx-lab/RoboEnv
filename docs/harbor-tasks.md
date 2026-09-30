@@ -96,8 +96,9 @@ The verifier entry is `tests/test.sh`; it writes `/logs/verifier/reward.json`.
 `bundle.json` supplements the [Harbor task format](https://www.harborframework.com/docs/tasks).
 Generated tasks carry `execution_verified=false` until independently executed.
 
-Solutions are omitted by default. `--include-references` reads `solution.py` beside
-an input task; `solution-source.json` can declare `origin`, `official`,
+The checked-in catalog contains no reference solutions. For an explicit source
+catalog, solutions are omitted by default; `--include-references` reads
+`solution.py` beside an input task. `solution-source.json` can declare `origin`, `official`,
 `upstream_url` and `revision`. Without provenance it is a project reference, with
 `official=false`. Official attribution requires source and license review.
 The generator records the program hash with `replay_verified=false`; a supplied

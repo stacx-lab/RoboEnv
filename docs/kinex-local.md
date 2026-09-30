@@ -27,11 +27,16 @@ simulation service; it neither generates nor updates the catalog configuration.
 Realtime runs have no episode step cap, so leaving the service idle while starting
 Kinex does not exhaust a native action-frame budget. Frames are still counted;
 `budget.max` is null. Use `--execution-mode stepped` when you want idle physics
-paused and the task's configured/native step limit enforced. World `read` and `status`
-results carry the episode `budget` in the shape Kinex reads, `{elapsed_s, max_s}` in
-seconds (`max_s` is null without a cap); `wait` results and other device readings omit
-it. Restart the service to pick up runtime changes, then `/reload all` in Kinex to
-refresh its connections.
+paused and the task's configured/native step limit enforced. Restart the service
+to pick up runtime changes, then `/reload all` in Kinex to refresh its connections.
+
+World `read` exposes native `action_frames` budgets as `budget: {elapsed_s, max_s}`
+in seconds; `max_s` is null in realtime. Counted initialization frames are included,
+so budget consumption can differ from `time_s`. This is native episode accounting,
+not wall-clock time or a Harbor deadline. Budgets with other units (`sim_steps`,
+`api_calls`, or unknown units) are omitted because their duration is not established.
+World `status` remains `{loaded: true}`; `wait` returns `time_s` and the wait's
+`elapsed_s`, without a budget.
 
 For another task use another task ID. For parallel trials use different ports
 and separate Kinex processes with different `ROBOENV_ENDPOINT` values. Both
@@ -57,7 +62,7 @@ Use a working Kinex installation with its TUI dependencies already installed
 uses standard-library transport in the shared `devices/_roboenv.py`; profile loading needs
 PyYAML and typed actuator operations need Kinex’s Python helpers. Kinex supplies
 its Python library to drivers; for direct shell calls, set
-`export PYTHONPATH="$kinex_repo/python${PYTHONPATH:+:$PYTHONPATH}"`.
+`export PYTHONPATH="$kinex_repo/packages/core/assets/python${PYTHONPATH:+:$PYTHONPATH}"`.
 The agent environment does not need RoboEnv or simulator dependencies. There is
 one transport module per device collection, outside the individual device folders.
 Drivers resolve it relative to their own file, so the working directory is irrelevant.
@@ -74,31 +79,34 @@ On EOF or SIGTERM, a connected persistent actuator also attempts a bounded stop;
 a failed stop is logged, not treated as success. This does not stop the world.
 Direct single-call scripts retain their targets after exiting.
 
-Video export requires `ffmpeg`; the keyframe script requires Pillow.
+Camera stream recording requires `ffmpeg`: Kinex encodes each recorded camera to MP4.
 
 Confirm `devices/` exists and contains arm, base, torso, gripper, camera_left, camera_right,
 camera_wrist, and world for this example. There is no public composite robot device.
 The task instruction is available through `roboenv.connect(ROBOENV_ENDPOINT).task`.
-For these direct calls before starting Kinex, prepare the fresh workspace's uv
-project explicitly (Kinex creates a missing manifest when executing Python):
+For these direct calls before starting Kinex, prepare its separate Python project
+explicitly. Kinex uses `.kinex/python/.venv`; ordinary shell environments remain
+independent. Existing environments need explicit dependency updates.
 
 ```sh
-uv init --bare
-uv add numpy scipy pillow pyyaml opencv-python-headless
-export PYTHONPATH="$kinex_repo/python${PYTHONPATH:+:$PYTHONPATH}"
+uv init --bare .kinex/python
+uv add --project .kinex/python numpy scipy pillow pyyaml 'opencv-python-headless>=4.7,<5'
+export PYTHONPATH="$kinex_repo/packages/core/assets/python${PYTHONPATH:+:$PYTHONPATH}"
 ```
 
 Check the driver without starting a model request:
 
 ```sh
-uv run python .kinex/devices/arm/driver.py status '{}'
-uv run python .kinex/devices/camera_left/driver.py read '{}'
+uv run --project .kinex/python python .kinex/devices/arm/driver.py status '{}'
+uv run --project .kinex/python python .kinex/devices/camera_left/driver.py read '{}'
 ```
 
 Expect `ok: true`; camera output must include an existing local RGB PNG `file`
 and aligned 16-bit PGM `depth_file`, with acquisition Unix timestamps. The profile declares
 `intrinsics.depth.scale_m_per_unit: 0.001`.
-Open that image to confirm that it depicts the initialized kitchen. Neither operation requests extra physics steps; idle simulation stays paused.
+Open that image to confirm that it depicts the initialized kitchen. Neither
+operation requests physics steps. A realtime world keeps running while idle;
+a stepped one advances only during world waits.
 
 ## 3. TUI recording smoke test
 
@@ -111,34 +119,41 @@ Run these built-in slash commands in the TUI:
 ```text
 /ping all
 /record snap camera_left camera_right camera_wrist initial kitchen
-/record stream camera_left=2:all camera_right=2:all camera_wrist=2:all arm=5:all base=2:all local device smoke test
+/record start camera_left=2 camera_right=2 camera_wrist=2 arm=5 base=2 local device smoke test
 /record status
 ```
 
-`:all` is deliberate: it records while the user pauses, including during this
-manual smoke test. The thin drivers do not implement native video streaming;
-Kinex uses its supported stills sampler. Requested Hz is a target; inspect
-effective rates and skipped samples. Reads do not request physics steps. Realtime continues during recording; stepped advances only during world waits.
+Recording continues between turns and while the user pauses until `/record stop`.
+The thin drivers do not implement native video streaming; Kinex samples camera
+reads and encodes the frames. Requested Hz is a target; inspect effective rates
+and skipped samples. Reads do not request physics steps. Realtime continues
+during recording; stepped advances only during world waits.
 
 With the recording running, use a separate terminal with the same copied workspace, `ROBOENV_ENDPOINT`, and
-`PYTHONPATH`. Read the current joint configuration and send it as an absolute hold target:
+`PYTHONPATH`. Read the current joint configuration and send it back as a hold target:
 
 ```sh
-target=$(uv run python .kinex/devices/arm/driver.py read '{}' | uv run python -c \
-  'import json,sys; r=json.load(sys.stdin); assert r["ok"], r; print(json.dumps({"target":r["positions"]}))')
-uv run python .kinex/devices/arm/driver.py write "$target"
-uv run python .kinex/devices/arm/driver.py stop '{}'
+target=$(uv run --project .kinex/python python .kinex/devices/arm/driver.py read '{}' | uv run --project .kinex/python python -c \
+  'import json,sys; r=json.load(sys.stdin); assert r["ok"], r; print(json.dumps({"actions":[r["positions"]],"duration_s":0.5}))')
+uv run --project .kinex/python python .kinex/devices/arm/driver.py write "$target"
+uv run --project .kinex/python python .kinex/devices/world/driver.py wait '{"duration_s":0.5}'
+uv run --project .kinex/python python .kinex/devices/arm/driver.py read '{}'
+uv run --project .kinex/python python .kinex/devices/arm/driver.py stop '{}'
 ```
 
-The target contains seven absolute joint positions in radians, in the profile’s
-model joint order. Small measured soft-limit overshoots can make a write fail;
+`write` submits an action buffer and returns immediately. The executor consumes
+the references over `duration_s` world seconds and retains the final reference.
+Each target contains seven absolute joint positions in radians, in the profile’s
+model joint order. `world.wait` allows execution time; compare the subsequent
+measured positions with the target to check arrival. Neither acceptance nor elapsed
+duration proves arrival. Small measured soft-limit overshoots can make a write fail;
 consult the joint-limit recovery notes before commanding another target. `stop`
-holds the arm while world physics continues. Acceptance does not prove arrival.
+clears pending references and holds the arm; it does not stop the world's clock.
 
-Direct shell driver calls bypass Kinex's dispatch event log; the `:all`
+Direct shell driver calls bypass Kinex's dispatch event log; the background
 samplers still record resulting images/state. To verify complete command
 tracing, perform a second test through Kinex's `device` tool: ask the agent to
-read arm state, issue one such write, stop, and read again. That step
+read arm state, issue one such write, wait through world, read feedback, and stop. That step
 requires your configured model and normal motion approval. Start a fresh
 simulation episode before attempting the full task.
 
@@ -160,13 +175,13 @@ After leaving the TUI, in terminal B:
 
 ```sh
 recording_dir="$trial_workspace/.kinex/recordings/RECORDING_ID"
-uv run python "$kinex_repo/builtin/skill/reflect/scripts/keyframes.py" "$recording_dir" --device camera_left
-uv run python "$kinex_repo/builtin/skill/reflect/scripts/video.py" "$recording_dir" --device camera_left
+ls "$recording_dir"/devices/*/stream/video.mp4
 ```
 
 Replace `RECORDING_ID` with the stream ID from `/record status` (not a separate
-snap ID). Open `analysis/keyframes-camera_left.jpg` and `analysis/camera_left.mp4` under
-that directory with your desktop viewer. Repeat with `--device camera_right` and `--device camera_wrist` for the other views.
+snap ID). Kinex encoded one MP4 per recorded camera; `recording.json` lists each
+under `devices.<name>.stream.video`. Open `devices/camera_left/stream/video.mp4`, and
+likewise for camera_right and camera_wrist, with your desktop viewer.
 These show wall-clock samples, not a
 frame-perfect simulation replay. The TUI controls recording; these artifacts
 provide visual playback. No new visualization server is required.
@@ -177,9 +192,9 @@ provide visual playback. No new visualization server is required.
 |---|---|
 | Kitchen boot | Ready service, actual kitchen image, unchanged catalog |
 | Configuration | Kinex sees the eight standard devices; driver status/read succeed |
-| Basic control | One write sets a persistent goal; physics continues without requests and after device stop |
+| Basic control | Write submission returns immediately; world wait allows execution and measured feedback checks the hold target; realtime physics continues after device stop |
 | Recording | Nonempty camera/state events, readable saved images, completed manifest |
-| Visualization | Keyframe sheet and playable MP4 show the captured kitchen |
+| Visualization | Playable per-camera MP4s show the captured kitchen |
 | Dispatch tracing | Kinex-issued read/write/stop appear in device events |
 | Episode isolation | Existing SDK clients reject replacement episodes; a fresh driver attaches without rewriting configs |
 | Task success | Separate full attempt with the original RoboEnv verifier verdict |

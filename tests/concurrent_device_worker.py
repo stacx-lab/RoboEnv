@@ -98,6 +98,8 @@ if __name__ == "__main__":
     FakeShell.control_interval_s = 0.02
     FakeShell.advance_control = lambda self: self.control.tick()
     FakeShell.owner_thread_required = os.environ.get("TEST_OWNER_THREAD") == "1"
-    FakeShell.budget = lambda self: Budget(used=self.control.frame, max=None)
+    FakeShell.budget = lambda self: Budget(
+        used=self.control.frame, max=None, unit="action_frames"
+    )
     assembly.default_registry = registry
     raise SystemExit(main())

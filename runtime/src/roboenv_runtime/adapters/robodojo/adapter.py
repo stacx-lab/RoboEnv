@@ -10,7 +10,11 @@ class RoboDojoAdapter(NativeDeviceAdapter):
     name = "robodojo"
     embodiment = "arx_x5"
 
-    def __init__(self, task_name="pack_objects_into_box", env_cfg_type="arx_x5", **kwargs):
+    def __init__(
+        self, task_name="pack_objects_into_box", env_cfg_type="arx_x5", *, stop_on_success=False,
+        **kwargs,
+    ):
+        self._set_stop_on_success(stop_on_success)
         from .devices import RoboDojoDevices
 
         self.embodiment = env_cfg_type

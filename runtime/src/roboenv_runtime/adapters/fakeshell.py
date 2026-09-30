@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from roboenv_runtime.core.adapter import AdapterBase, register_adapter
-from roboenv_runtime.core.types import Budget, Capability, ScoreReport
+from roboenv_runtime.core.types import Budget, ScoreReport
 
 __all__ = ["FakeShell"]
 
@@ -21,9 +21,6 @@ class FakeShell(AdapterBase):
 
     name: ClassVar[str] = "fakeshell"
     embodiment: ClassVar[str] = "general"
-    capabilities: ClassVar[frozenset[str]] = frozenset({Capability.CHECKPOINT})
-    situation_text: ClassVar[str] = "Toy world: one puck on a line, world frame x to the right."
-    facts_text: ClassVar[str] = "Each push costs 50 budget units."
 
     control_interval_s = 0.02
 
@@ -42,12 +39,9 @@ class FakeShell(AdapterBase):
     ) -> None:
         if max_steps is not None and (type(max_steps) is not int or max_steps <= 0):
             raise ValueError("max_steps must be positive")
-        if type(stop_on_success) is not bool:
-            raise ValueError("FakeShell supports synchronous boolean episode policies")
+        self._set_stop_on_success(stop_on_success)
         self.max_budget = max_steps if max_steps is not None else max_budget
         self.configured_max_steps = self.max_budget
-        self.stop_on_success = stop_on_success
-        self.bounded_episodes = max_steps is not None or stop_on_success
         self.goal_x = self.GOAL_X if goal_x is None else goal_x
         self.pos = [0.0, 0.0, 0.0]
         self.used = 0
@@ -59,7 +53,6 @@ class FakeShell(AdapterBase):
     def configure_execution_mode(self, mode):
         super().configure_execution_mode(mode)
         self.max_budget = None if mode == "realtime" else self.configured_max_steps
-        self.bounded_episodes = self.max_budget is not None or self.stop_on_success
 
     def reset(self, seed: int) -> None:
         """Put the puck back at the origin."""
@@ -81,11 +74,7 @@ class FakeShell(AdapterBase):
         """The language goal."""
         return f"Push the puck to x >= {self.goal_x}."
 
-    # ------------------------------------------------------------ tools
-
-    def list_objects(self) -> list[str]:
-        """Names of the objects in the world."""
-        return ["puck"]
+    # ------------------------------------------------------------ owner-side state
 
     def get_object_pose(self, name: str) -> tuple[list[float], list[float]]:
         """Ground-truth pose: ``(position xyz, quaternion wxyz)``."""

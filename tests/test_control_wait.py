@@ -54,7 +54,7 @@ class Rig:
             cls = LiberoEnv if backend == "libero" else RoboCasaEnv
             env = cls.__new__(cls)
             env.configured_max_steps = None
-            env._step_count, env._max_steps, env.terminal = 0, None, False
+            env._step_count, env._max_steps = 0, None
             env.env = SimpleNamespace(control_freq=20)
             env.command_log = []
             controller = SimpleNamespace(goal_qpos=np.array([0.0]))

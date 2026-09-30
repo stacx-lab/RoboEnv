@@ -39,12 +39,9 @@ def make_adapter():
     native._render = True
     native._camera_names = DEFAULT_CAMERAS
     native._camera_size = (8, 12)
-    native._frames = []
     native.configured_max_steps = None
     native._max_steps = None
     native.stop_on_success = False
-    native.on_step = None
-    native.terminal = False
     native.horizon = 1000
     # Synthetic pixels test transport only. No GPU/render certification implied.
     native.render = lambda camera=None: np.full(
@@ -65,7 +62,6 @@ def make_adapter():
         return result
 
     native.reset = reset_scene
-    native.task_fixtures = lambda: {}
     adapter = RoboCasaAdapter.__new__(RoboCasaAdapter)
     adapter._env = native
     return adapter

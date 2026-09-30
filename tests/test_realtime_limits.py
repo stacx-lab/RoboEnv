@@ -99,7 +99,7 @@ def test_mujoco_ticks_pass_configured_cap_only_in_realtime(adapter_type, env_typ
     env.configured_max_steps = 2
     env._step_count, env._max_steps, env._success = 0, 2, False
     env._gripper_command = 0
-    env.terminal, env.on_step, env._stream_commands = False, None, {}
+    env._stream_commands = {}
     adapter = adapter_type.__new__(adapter_type)
     adapter._env = env
     adapter.configure_execution_mode("realtime")

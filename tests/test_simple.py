@@ -224,6 +224,7 @@ def test_contract_bindings_have_only_basic_actions():
     owner._env = world
     world.max_steps = None
     session = WorldSession(owner)
+    context = BindingContext("simple", "g1", owner, world=session)
     service = default_registry().assemble(
         resolved.bindings,
         resolved.robot,
@@ -409,8 +410,6 @@ def test_generator_reproduces_catalog_and_facts(tmp_path):
             str(tmp_path / "catalog"),
             "--facts-out",
             str(tmp_path / "g1.json"),
-            "--provenance",
-            str(tmp_path / "provenance.json"),
             "--bindings-out",
             str(tmp_path / "bindings"),
         ],
@@ -418,9 +417,6 @@ def test_generator_reproduces_catalog_and_facts(tmp_path):
         cwd=ROOT,
     )
     assert (tmp_path / "g1.json").read_bytes() == FACTS.read_bytes()
-    assert (tmp_path / "provenance.json").read_bytes() == (
-        ROOT / "docs/simple-native-limits.provenance.json"
-    ).read_bytes()
     for directory in ("robots/simple", "tasks/simple"):
         original = ROOT / "catalog" / directory
         copied = tmp_path / "catalog" / directory

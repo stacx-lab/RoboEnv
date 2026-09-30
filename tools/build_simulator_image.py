@@ -257,11 +257,6 @@ def main():
         for entry in pin["archives"]:
             name = entry["file"] + ".json"
             shutil.copy2(root / ".cache/simple" / name, receipts / name)
-    descriptions = root / ".cache/robot_descriptions"
-    if descriptions.is_dir():
-        shutil.copytree(
-            descriptions, context / "runtime-data/.cache/robot_descriptions", symlinks=True
-        )
     for name in ("Dockerfile", "relocate.py", "nvidia_icd.json", "10_nvidia.json"):
         shutil.copy2(WORKSPACE / "runtime/packaging" / name, context / name)
     (context / "wheels").mkdir()

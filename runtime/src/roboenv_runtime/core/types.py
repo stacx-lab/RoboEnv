@@ -15,32 +15,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-__all__ = ["Budget", "Capability", "ScoreReport"]
-
-
-class Capability:
-    """Optional features an adapter may declare in ``capabilities``.
-
-    Capabilities are plain strings so that adapters written against an older
-    harness keep working; the constants exist to avoid typos.
-    """
-
-    CHECKPOINT = "checkpoint"
-    """``checkpoint()`` / ``restore(id)`` tools rewind the world in place."""
-    FUNCTIONAL_POINTS = "functional_points"
-    """Objects carry named functional points (rim, handle, bottom, ...)."""
-    OFFICIAL_BUDGET = "official_budget"
-    """The benchmark defines an official per-task step cap."""
-    BASE_MOTION = "base_motion"
-    """The robot has a mobile base (e.g. RoboCasa's Panda-Omron)."""
-    VIDEO = "video"
-    """``frames()`` returns captured camera frames after an episode."""
-    PRIVILEGED = "privileged"
-    """Ground-truth state (poses, checker internals) is readable."""
-
-    ALL = frozenset(
-        {CHECKPOINT, FUNCTIONAL_POINTS, OFFICIAL_BUDGET, BASE_MOTION, VIDEO, PRIVILEGED}
-    )
+__all__ = ["Budget", "ScoreReport"]
 
 
 @dataclass
@@ -66,13 +41,6 @@ class ScoreReport:
     def as_dict(self) -> dict[str, Any]:
         """A JSON-serialisable view."""
         return asdict(self)
-
-    def summary(self) -> str:
-        """Compact one-line rendering used in agent feedback."""
-        return (
-            f"{{reward: {self.reward}, raw: {self.raw_score}, tier: {self.tier}, "
-            f"completed: {self.completed}}}"
-        )
 
 
 @dataclass

@@ -60,7 +60,8 @@ Preflight the actual executables, imports and entrypoints, not just their names:
 
 - Bootstrap RoboEnv's development CLI using `tools/bootstrap.sh`; inspect the
   selected recipe, source lock, asset preparation and diagnostics.
-- Prepare Kinex with its declared Bun version and dependency lock. Trace current
+- Prepare Kinex with its declared Node version (`engines`) and npm lock (`npm ci`,
+  `npm run build`). Trace current
   schemas, lifecycle, Python tools, recording, provider and model/effort routing.
 - Locate a working campaign runner and all its imports/bridges/protocol files in
   the selected Kinex checkout. A README reference or archived experiment is not an
@@ -77,9 +78,10 @@ paths work. Track implementation, infrastructure and controller failures separat
 
 Read RoboEnv README.md, DESIGN.md, docs/setup.md, docs/simulator-integration.md,
 and the selected adapter/backend/bindings/generator. Inspect the RoboCasa and
-LIBERO implementations where their contracts apply. In Kinex, read src/calibration/,
-src/device/interface.ts, src/device/dispatch.ts, src/device/driver.ts,
-src/tool/python-runner.ts, src/python/, python/kinex/ and builtin/device/templates/.
+LIBERO implementations where their contracts apply. In Kinex, read
+packages/core/src/{calibration/,device/interface.ts,device/dispatch.ts,device/driver.ts},
+packages/core/src/tool/python-runner.ts, packages/core/src/python/,
+packages/core/assets/python/kinex/ and packages/core/assets/builtin/device/templates/.
 
 Trace this path before choosing edits:
 
@@ -191,15 +193,18 @@ test when needed; never copy task assets, owner evidence or simulator packages.
 
 Parse every profile with the selected Kinex Device schema, required-action checks
 and calibration plan. Prepare a fresh `.kinex/` workspace through the current
-helper, run `kinex python`, and verify the actual driver/tool interpreter. Pin the
+helper, call the core runtime's `python.prepare()`, and verify the actual
+driver/tool interpreter under `.kinex/python/.venv`. Pin the
 launched session/generation beside drivers, outside the static catalog. Activate
 devices through Kinex lifecycle and exercise discovery, sensor reads, local FK/IK,
-bounded servo and stop through normal tool execution.
+servo, world waits, measured feedback and stop through normal tool execution.
+Servo computes its trajectory duration and accepts no `duration_s` override;
+submission and elapsed duration do not prove arrival.
 
 Test persistent drivers and their support files in the agent environment. Cached
 profiles/connections must not survive an episode identity change unnoticed; reload
-or restart through lifecycle. No driver may start its own simulator. World and
-fixed-base profiles remain driverless according to the current schema.
+or restart through lifecycle. No driver may start its own simulator. World exposes
+read/wait through its driver; fixed-base profiles remain driverless static mounts.
 
 ## Complete acceptance through the testing skill
 

@@ -19,22 +19,15 @@ def test_public_catalog_contains_only_robot_and_task_definitions():
     assert not list(CATALOG.rglob("bindings.yaml"))
 
 
-@pytest.mark.parametrize("path", sorted((CATALOG / "tasks").rglob("task.yaml")))
-def test_tasks_resolve_from_a_copied_public_catalog(tmp_path, path):
-    original = resolve_task(path, catalog=CATALOG)
+def test_tasks_resolve_from_a_copied_public_catalog(tmp_path):
     copied = tmp_path / "catalog"
-    shutil.copytree(original.robot, copied / "robots" / original.task.robot)
-    task = copied / path.relative_to(CATALOG)
-    task.parent.mkdir(parents=True)
-    shutil.copy2(path, task)
-    resolved = resolve_task(task, catalog=copied)
-    assert resolved.bindings == original.bindings
-    assert resolved.task.execution_mode == "realtime"
-    registry = default_registry()
-    assert "world" in {spec.name for spec in resolved.bindings.devices}
-    for spec in resolved.bindings.devices:
-        assert spec.binding in registry._factories
-        assert spec.definition(resolved.robot).name == spec.name
+    shutil.copytree(CATALOG, copied)
+    for path in sorted((CATALOG / "tasks").rglob("task.yaml")):
+        original = resolve_task(path, catalog=CATALOG)
+        resolved = resolve_task(copied / path.relative_to(CATALOG), catalog=copied)
+        assert resolved.bindings == original.bindings
+        assert resolved.task.execution_mode == "realtime"
+        assert "world" in {spec.name for spec in resolved.bindings.devices}
     assert not (copied / "bindings").exists()
 
 

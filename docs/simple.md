@@ -89,10 +89,12 @@ with roboenv.connect() as env:
         mode="locomotion",
         velocity={"vx": 0.15, "vy": 0.0, "wz": 0.1},
         posture={"height": 0.72, "roll": 0.0, "pitch": 0.05, "yaw": 0.0},
+        duration_s=1.0,
     )
 ```
 
-Velocity is expressed in pelvis-frame m/s and yaw rad/s. Height is a
+A base write is a bounded segment: the command applies for `duration_s` world
+seconds. Velocity is expressed in pelvis-frame m/s and yaw rad/s. Height is a
 ground-relative pelvis-height reference. Torso roll/pitch/yaw are radians
 relative to the WBC heading frame; torso yaw is not turning velocity. All
 declared components are required and must be finite. These command values have
@@ -237,8 +239,8 @@ configured host; MuJoCo checks alone do not establish Isaac support or visual pa
 Full Harbor deployment certification and task-performance evaluation remain separate.
 
 Source and asset pins, managed patch checksums and dependency locks are versioned.
-`tools/generate_simple_config.py` regenerates the catalog, private model facts and
-provenance from pinned robot geometry and camera definitions. Pass
+`tools/generate_simple_config.py` regenerates the catalog and private model facts
+from pinned robot geometry and camera definitions. Pass
 `--bindings-out src/roboenv/devices/bindings/defaults` separately when maintaining
 internal binding defaults. Startup checks native
 geometry against those facts without rewriting static profiles.

@@ -186,43 +186,23 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
         assert "simulator" not in str(
             yaml.safe_load((root / "devices/arm/profile.yaml").read_text())["access"]
         )
-    kinex_root, kinex_src = kinex_sources()
-    bun = shutil.which(os.environ.get("BUN", "bun"))
+    kinex_root, _ = kinex_sources()
+    node = shutil.which(os.environ.get("NODE", "node"))
     require(
-        bun and kinex_src and (kinex_root / "node_modules/zod").exists(),
-        "Kinex schema integration requires prepared Kinex and Bun",
+        node and (kinex_root / "packages/core/dist/index.js").is_file(),
+        "Kinex schema integration requires built Kinex and Node >=22.19",
     )
-    payload = tmp_path / "profiles.json"
-    payload.write_text(json.dumps(profiles))
     workspace = tmp_path / "workspace"
     load_tool("prepare_kinex_workspace").prepare("libero/bowl-onto-plate", workspace, project=ROOT)
     checked = subprocess.run(
-        [
-            bun,
-            "-e",
-            f"const {{Device}} = await import('{kinex_src}/device/profile/schema.ts'); "
-            f"const {{missingActions}} = await import('{kinex_src}/device/interface.ts'); "
-            "for (const p of JSON.parse(await Bun.file(process.argv[1]).text())) { "
-            "const d = Device.parse(p); "
-            "if(missingActions(d, d.access?.driver?.actions ?? []).length) "
-            "throw new Error('missing actions'); } "
-            f"const {{calibrationPlan}} = await import('{kinex_src}/calibration/dag.ts'); "
-            "const p = await calibrationPlan(process.argv[2]); "
-            "if(!p.items.some(i=>i.id==='intrinsics:arm')) throw new Error('no devices'); "
-            "for(const i of p.items) if(i.device && i.status!=='done') "
-            "throw new Error(JSON.stringify(i)); "
-            "if(p.items.find(i=>i.id==='task-ready')?.status!=='done') "
-            "throw new Error('not ready');",
-            str(payload),
-            str(workspace),
-        ],
-        cwd=kinex_root,
+        [node, str(ROOT / "tests/native_rigs_kinex.mjs"), str(kinex_root), str(workspace)],
         capture_output=True,
         text=True,
         timeout=30,
         env={**os.environ, "KINEX_CONFIG_DIR": str(tmp_path / "config")},
     )
     assert checked.returncode == 0, checked.stdout + checked.stderr
+    assert json.loads(checked.stdout)["results"][0]["profiles"] == 5
 
 
 def test_static_generation_is_deterministic(tmp_path):

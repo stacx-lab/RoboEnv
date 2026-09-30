@@ -10,7 +10,10 @@ class RoboTwinAdapter(NativeDeviceAdapter):
     name = "robotwin"
     embodiment = "piper"
 
-    def __init__(self, task_name="handover_block", embodiment="piper", **kwargs):
+    def __init__(
+        self, task_name="handover_block", embodiment="piper", *, stop_on_success=False, **kwargs
+    ):
+        self._set_stop_on_success(stop_on_success)
         from .devices import RoboTwinDevices
 
         self.embodiment = embodiment

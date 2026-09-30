@@ -7,10 +7,8 @@ import os
 import sys
 import time
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Any
 
-import numpy as np
-import transforms3d as t3d
 import yaml
 
 from roboenv_runtime.paths import robotwin_root
@@ -28,35 +26,21 @@ import sapien  # noqa: E402, F401  (probe: fails fast outside .venv-robotwin)
 # root. Defer both until an env is actually constructed: the launch process can
 # then still resolve its own relative paths (config, output dir) while workers
 # get chdir'ed when they build the env.
-ArmTag = None
 _ROBOTWIN_IMPORTED = False
 
 
 def _ensure_robotwin_imported() -> None:
-    global _ROBOTWIN_IMPORTED, ArmTag
+    global _ROBOTWIN_IMPORTED
     if _ROBOTWIN_IMPORTED:
         os.chdir(ROBOTWIN_ROOT)  # keep CWD stable for repeated env builds
         return
     os.chdir(ROBOTWIN_ROOT)
-    from envs.utils.action import ArmTag as _ArmTag  # noqa: PLC0415
+    import envs.utils.action  # noqa: F401, PLC0415  (reads ./assets at import time)
 
-    ArmTag = _ArmTag
     _ROBOTWIN_IMPORTED = True
 
 
 _CONFIGS_PATH = os.path.join(ROBOTWIN_ROOT, "env_cfg", "task_config")
-
-Side = Literal["left", "right"]
-
-
-def list_robotwin_tasks() -> list[str]:
-    """Enumerate RoboTwin task names by scanning the vendored envs directory."""
-    envs_dir = os.path.join(ROBOTWIN_ROOT, "envs")
-    return sorted(
-        f[:-3]
-        for f in os.listdir(envs_dir)
-        if f.endswith(".py") and not f.startswith("_") and f != "robot"
-    )
 
 
 def _load_yaml(path: str) -> dict[str, Any]:
@@ -153,18 +137,9 @@ class RoboTwinEnv:
         task_module = importlib.import_module(f"envs.{task_name}")
         self._task_cls = getattr(task_module, task_name)
         self.task = None
-
-        self._env_active = False
         self._sim_step_count = 0
 
-        self._record_frames = False
-        self._record_wrist_camera = False
-        self._frame_buffer: list[np.ndarray] = []
-        self._wrist_frame_buffer: list[np.ndarray] = []
-
-    def reset(
-        self, *, seed: int | None = None, options: dict[str, Any] | None = None
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+    def reset(self, *, seed: int | None = None) -> None:
         if seed is None:
             seed = self.seed if self.seed is not None else 0
         self._close_task()
@@ -180,7 +155,7 @@ class RoboTwinEnv:
         _prev_cwd = os.getcwd()
         os.chdir(ROBOTWIN_ROOT)
         try:
-            return self._reset_inner(seed)
+            self._reset_inner(seed)
         finally:
             os.chdir(_prev_cwd)
 
@@ -247,7 +222,6 @@ class RoboTwinEnv:
         args = deepcopy(self._base_args)
         args["eval_mode"] = getattr(self, "evaluation_mode", False)
         self.task.setup_demo(now_ep_num=try_seed, seed=try_seed, is_test=True, **args)
-        self.actual_seed = try_seed
         self.initialization = {
             "requested_seed": seed,
             "effective_seed": try_seed,
@@ -260,21 +234,10 @@ class RoboTwinEnv:
             "expert_physics_steps": expert_steps,
             "wall_time_s": time.monotonic() - started,
         }
-        self._env_active = True
-
-        # Video: motion loops call _take_picture() every save_freq sim steps;
-        # replace it with our lightweight head-camera capture (save_data stays
-        # False so no pkl dumping can trigger). The same hook doubles as a
-        # periodic success poll for tasks with momentary success events
-        # (opt-in via a LATCH_SUCCESS class attribute on the task).
-        self.task._take_picture = self._video_tick
-        self._success_latched = False
-        self._poll_success = bool(getattr(self.task, "LATCH_SUCCESS", False))
-
+        # Upstream motion loops call _take_picture() every save_freq steps to record data;
+        # device control never runs them, and nothing here records through that hook.
+        self.task._take_picture = lambda: None
         self._sim_step_count = 0
-        obs = self.get_observation()
-        info = {"task_prompt": self.task_name.replace("_", " ")}
-        return obs, info
 
     def _new_task(self):
         """Count this world's native initialization without patching global classes."""
@@ -300,72 +263,3 @@ class RoboTwinEnv:
                 self.task.close_env(clear_cache=False)
             except Exception:
                 pass
-        self._env_active = False
-
-    def get_arm_pose(self, side: Side) -> np.ndarray:
-        """End-effector pose in world frame: [x, y, z, qw, qx, qy, qz]."""
-        return np.asarray(self.task.get_arm_pose(ArmTag(side)), dtype=np.float64)
-
-    def get_observation(self) -> dict[str, Any]:
-        raw = self.task.get_obs()
-        obs: dict[str, Any] = {}
-
-        for cam_name, cam in raw["observation"].items():
-            entry: dict[str, Any] = {"images": {}}
-            K = np.asarray(cam["intrinsic_cv"], dtype=np.float64)
-            extr = np.asarray(cam["extrinsic_cv"], dtype=np.float64)
-            world2cam = np.eye(4)
-            world2cam[:3, :4] = extr
-            cam2world = np.linalg.inv(world2cam)
-            entry["pose_mat"] = cam2world
-            entry["pose"] = np.concatenate(
-                [cam2world[:3, 3], t3d.quaternions.mat2quat(cam2world[:3, :3])]
-            )
-            entry["intrinsics"] = K
-            if "rgb" in cam:
-                entry["images"]["rgb"] = np.asarray(cam["rgb"])
-            if "depth" in cam:
-                depth_m = np.asarray(cam["depth"], dtype=np.float64) / 1000.0
-                entry["images"]["depth"] = depth_m[..., None]
-            obs[cam_name] = entry
-
-        robot = self.task.robot
-        obs["robot_left_joint_pos"] = np.asarray(
-            robot.get_left_arm_real_jointState(), dtype=np.float64
-        )
-        obs["robot_right_joint_pos"] = np.asarray(
-            robot.get_right_arm_real_jointState(), dtype=np.float64
-        )
-        obs["robot_left_cartesian_pos"] = np.concatenate(
-            [self.get_arm_pose("left"), [robot.get_left_gripper_val()]]
-        )
-        obs["robot_right_cartesian_pos"] = np.concatenate(
-            [self.get_arm_pose("right"), [robot.get_right_gripper_val()]]
-        )
-        return obs
-
-    def _head_camera(self):
-        cams = self.task.cameras
-        idx = cams.static_camera_name.index("head_camera")
-        return cams.static_camera_list[idx]
-
-    def _capture_camera_rgb(self, camera) -> np.ndarray:
-        camera.take_picture()
-        rgba = camera.get_picture("Color")
-        return (np.clip(rgba[..., :3], 0, 1) * 255).astype(np.uint8)
-
-    def _video_tick(self) -> None:
-        """Head-camera frame capture; also patched in as task._take_picture."""
-        if self._poll_success and not self._success_latched:
-            try:
-                if bool(self.task.check_success()):
-                    self._success_latched = True
-            except Exception:
-                pass
-        if not self._record_frames:
-            return
-        self._frame_buffer.append(self._capture_camera_rgb(self._head_camera()))
-        if self._record_wrist_camera:
-            cams = self.task.cameras
-            if getattr(cams, "collect_wrist_camera", False):
-                self._wrist_frame_buffer.append(self._capture_camera_rgb(cams.left_camera))

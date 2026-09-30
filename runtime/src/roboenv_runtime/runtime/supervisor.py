@@ -15,7 +15,6 @@ import os
 import signal
 import socket
 import socketserver
-import stat
 import subprocess
 import sys
 import threading
@@ -38,6 +37,7 @@ from roboenv_runtime.runtime.protocol import (
     RequestCache,
     RequestIdConflict,
     Response,
+    _remove_socket,
     encode_ndjson,
     read_ndjson,
     socket_address,
@@ -55,16 +55,6 @@ def _inside(root: Path, candidate: str | os.PathLike[str]) -> Path:
     except ValueError as exc:
         raise ValueError(f"path {path} escapes run directory {root}") from exc
     return path
-
-
-def _remove_stale_socket(path: Path) -> None:
-    try:
-        mode = path.lstat().st_mode
-    except FileNotFoundError:
-        return
-    if not stat.S_ISSOCK(mode):
-        raise RuntimeError(f"refusing to replace non-socket path: {path}")
-    path.unlink()
 
 
 @dataclass
@@ -279,7 +269,6 @@ class Supervisor:
         env.update(
             {
                 "ROBOENV_RUN_DIR": str(root),
-                "ROBOENV_WORKER_SOCKET": str(self.config.worker_socket),
                 "ROBOENV_SESSION": self.config.session,
                 "ROBOENV_GENERATION": str(self.config.generation),
                 # historical names, still read by moved RoboDojo helpers
@@ -293,7 +282,7 @@ class Supervisor:
     def start_worker(self) -> None:
         if self._worker is not None:
             raise RuntimeError("worker already started")
-        _remove_stale_socket(self.config.worker_socket)
+        _remove_socket(self.config.worker_socket)
         log_path = self.config.run_dir / "logs" / "worker.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         self._worker_log = log_path.open("ab", buffering=0)
@@ -418,34 +407,10 @@ class Supervisor:
 
     @staticmethod
     def _normalize_worker_response(request: Request, raw: Mapping[str, Any]) -> Response:
-        # Preferred full campaign envelope.
-        if {"protocol", "session", "generation", "request_id"} <= set(raw):
-            response = Response.from_mapping(raw)
-            Supervisor._match_response(request, response)
-            return response
-
-        # Transitional worker envelope: {id/request_id, ok, result|error}.
-        worker_id = raw.get("request_id", raw.get("id"))
-        if worker_id != request.request_id:
-            raise ProtocolError("invalid_response", "worker response id does not match request")
-        ok = raw.get("ok")
-        if ok is True:
-            return Response.success(request, raw.get("result"))
-        if ok is not False:
-            raise ProtocolError("invalid_response", "worker response ok must be boolean")
-        error = raw.get("error")
-        if not isinstance(error, dict):
-            raise ProtocolError("invalid_response", "worker error must be an object")
-        code = error.get("code", error.get("type", "worker_error"))
-        message = error.get("message", str(error))
-        details = {k: v for k, v in error.items() if k not in {"code", "type", "message"}}
-        return Response.failure(
-            request,
-            str(code),
-            str(message),
-            details=details or None,
-            retryable=bool(error.get("retryable", False)),
-        )
+        # The worker answers every request on its private socket with a full envelope.
+        response = Response.from_mapping(raw)
+        Supervisor._match_response(request, response)
+        return response
 
     def _connect_worker(self, deadline: float) -> socket.socket:
         self._refresh_worker_state()
@@ -939,7 +904,7 @@ class Supervisor:
     def open_server(self) -> None:
         if self._server is not None:
             raise RuntimeError("server already open")
-        _remove_stale_socket(self.config.public_socket)
+        _remove_socket(self.config.public_socket)
         self._server = _ThreadingUnixServer(
             socket_address(self.config.public_socket), self._handler_type()
         )

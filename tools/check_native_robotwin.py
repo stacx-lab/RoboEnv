@@ -127,6 +127,38 @@ def projection(world, models, out, stage):
     return report
 
 
+CONTACT_SEPARATION_M = 1e-3
+
+
+def gripper_contacts(world, marker, side):
+    """Owner-only ground truth: whether this arm's finger links physically touch the fixture.
+
+    PhysX reports a pair as soon as two shapes are within their contact offsets (up to about
+    2 cm apart on these grippers), so only points with an impulse or a separation of at most
+    1 mm count as touching.
+    """
+    robot = world.task.robot
+    wanted = {joint[0].child_link.get_name() for joint in getattr(robot, side + "_gripper")}
+    wanted |= set(getattr(robot, side + "_fix_gripper_name") or [])
+    fingers = {
+        int(link.entity.per_scene_id): link.get_name()
+        for link in getattr(robot, side + "_entity").get_links()
+        if link.get_name() in wanted
+    }
+    fixture = int(marker.actor.per_scene_id)
+    touching = set()
+    for contact in world.task.scene.get_contacts():
+        ids = [int(body.entity.per_scene_id) for body in contact.bodies]
+        finger = next((i for i in ids if i in fingers), None)
+        if fixture not in ids or finger is None:
+            continue
+        for point in contact.points:
+            impulse = float(np.linalg.norm(np.asarray(point.impulse, dtype=float)))
+            if impulse > 0.0 or float(point.separation) <= CONTACT_SEPARATION_M:
+                touching.add(fingers[finger])
+    return {"touching": bool(touching), "finger_links": sorted(touching)}
+
+
 def contacts(world):
     import sapien
     from envs.utils.create_actor import create_box
@@ -148,7 +180,7 @@ def contacts(world):
         try:
             for _ in range(30):
                 interval(world, {name: [0.0]})
-            contact = world.gripper_contacts(marker, side)
+            contact = gripper_contacts(world, marker, side)
             held = world.device_read(name)
             require(
                 contact["touching"] and len(contact["finger_links"]) >= 2,
@@ -159,7 +191,7 @@ def contacts(world):
             require(world.control.frame == frame, "Gripper stop advanced physics")
             for _ in range(25):
                 interval(world, {name: [1.0]})
-            release = world.gripper_contacts(marker, side)
+            release = gripper_contacts(world, marker, side)
             require(not release["touching"], f"{side}: gripper did not release")
             report[name] = {
                 "contact": contact,
@@ -227,7 +259,9 @@ def check(world, out):
     for value in goals.values():
         value[0] += 0.1
     state = copy.deepcopy((world.owner_state(), world.control.targets, world.control.commands))
-    invalid = [[float("nan")] * 6, [float("inf")] * 6, [0.0], [True] * 6, [1e9] * 6]
+    # Joint ranges are the simulator's to enforce (limit_handling: native); malformed
+    # targets are still refused before any effect.
+    invalid = [[float("nan")] * 6, [float("inf")] * 6, [0.0], [True] * 6]
     for target in invalid:
         try:
             world.device_write("left_arm", target)
@@ -312,7 +346,7 @@ def main():
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    sys.path.insert(0, str(args.kinex.resolve() / "python"))
+    sys.path.insert(0, str(args.kinex.resolve() / "packages/core/assets/python"))
     report = {
         "passed": False,
         "schema": "roboenv/robotwin-conformance/1",

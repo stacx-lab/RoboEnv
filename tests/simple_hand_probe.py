@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 from functools import cache
 from pathlib import Path
@@ -17,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @cache
 def predictor(kinex):
-    sys.path.insert(0, str(kinex / "python"))
+    sys.path.insert(0, str(kinex / "packages/core/assets/python"))
     from kinex.hand import forward
 
     return forward
@@ -93,6 +94,9 @@ def check(out, kinex):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--kinex", type=Path, default=ROOT.parent / "kinex")
+    parser.add_argument(
+        "--kinex", type=Path,
+        default=Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")),
+    )
     args = parser.parse_args()
     check(args.out, args.kinex.resolve())

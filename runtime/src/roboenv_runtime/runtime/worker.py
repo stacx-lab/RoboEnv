@@ -10,7 +10,6 @@ import os
 import queue
 import signal
 import socketserver
-import stat
 import struct
 import sys
 import threading
@@ -33,6 +32,7 @@ from roboenv_runtime.runtime.protocol import (
     ProtocolError,
     Request,
     Response,
+    _remove_socket,
     encode_ndjson,
     read_ndjson,
     socket_address,
@@ -167,6 +167,7 @@ class SimWorker:
         self._closed = False
         self._final_result: dict[str, Any] | None = None
         self._final_observation: dict[str, Any] | None = None
+        self._finalizing = False
         self._termination_reason = None
         if reset_adapter:
             self.world.reset(self.seed)
@@ -176,8 +177,7 @@ class SimWorker:
         try:
             self._bind_devices()
             self.state = "ready"
-            if hasattr(self.adapter, "set_step_callback"):
-                self.adapter.set_step_callback(self._check_terminal)
+            self.world.after_advance = self._check_terminal
         except BaseException:
             self.close()
             raise
@@ -234,13 +234,22 @@ class SimWorker:
         )
         return observation
 
+    @property
+    def _bounded_episodes(self):
+        return bool(getattr(self.adapter, "stop_on_success", False)) or (
+            self.world.mode == "stepped" and self.adapter.budget().max is not None
+        )
+
     def _check_terminal(self):
         """Called in the world's lane after each native control interval."""
-        if self._final_result is not None or not getattr(self.adapter, "bounded_episodes", False):
+        # Native and buffer-completion callbacks run inside advance. Seal only
+        # after the shared clock and all peer buffers have settled.
+        if self.world._advancing or self._finalizing:
+            return
+        if self._final_result is not None or self.state == "failed" or self.world.failure is not None:
             return
         success = getattr(self.adapter, "stop_on_success", False) and self.adapter.score().completed
-        if success or self.adapter.budget().exhausted:
-            self._termination_reason = "success" if success else "step_limit"
+        if success or (self.world.mode == "stepped" and self.adapter.budget().exhausted):
             self.submit(interrupt=False)
 
     def simulation_status(self, *, include_verdict=False):
@@ -258,7 +267,7 @@ class SimWorker:
             "simulation_time_s": getattr(self.adapter, "simulation_time_s", None),
             "capabilities": {
                 "terminal_feedback": True,
-                "bounded_episodes": bool(getattr(self.adapter, "bounded_episodes", False)),
+                "bounded_episodes": self._bounded_episodes,
             },
         }
         return status if include_verdict else status_feedback(status)
@@ -281,16 +290,19 @@ class SimWorker:
                 return copy.deepcopy(self._final_result)
             if self.state == "failed" or self.world.failure is not None:
                 raise WorkerRPCError("world_failed", "owner recovery is required")
-            if self.devices is not None:
-                # Natural terminal frames complete current segments normally.
-                # Explicit stop interrupts them; neither admits queued goals.
-                self.devices.interrupt(active=interrupt)
-            self.world.freeze()
-            if hasattr(self.adapter, "freeze_episode"):
-                self.adapter.freeze_episode()
-            if self.scorer.submitted:
+            if self._finalizing or self.scorer.submitted:
                 raise WorkerRPCError("submit_failed", "the final evaluation did not complete")
+            self._finalizing = True
             try:
+                if self.devices is not None:
+                    self.devices.interrupt(active=interrupt)
+                if interrupt:
+                    self.world.freeze(settle=False)
+                    self.world.poll_motions()
+                else:
+                    self.world.finish_episode(settle=False)
+                if self.world.failure is not None:
+                    raise WorkerRPCError("world_failed", "terminal buffer cleanup failed")
                 observation = self.observe()
                 verdict = copy.deepcopy(self.scorer.submit())
                 budget = self.adapter.budget().as_dict()
@@ -310,7 +322,9 @@ class SimWorker:
                 self._final_observation = copy.deepcopy(observation)
                 self._final_result = copy.deepcopy(verdict)
                 self._termination_reason = self._termination_reason or (
-                    "success" if verdict["completed"] else "stopped"
+                    "success" if verdict["completed"] else
+                    "step_limit" if self.world.mode == "stepped"
+                    and self.adapter.budget().exhausted else "stopped"
                 )
                 from roboenv_runtime.runtime.atomic import atomic_write_json
 
@@ -328,8 +342,9 @@ class SimWorker:
                 # to take more actions or evaluate a different terminal state.
                 self.state = "failed"
                 raise
-            # Publish the sealed verdict before completing terminal segments.
-            self.world.poll_motions()
+            finally:
+                self._finalizing = False
+                self.world._settle_waiters()
             return copy.deepcopy(self._final_result)
 
     def _budget_snapshot(self) -> dict[str, Any]:
@@ -417,7 +432,6 @@ class SimWorker:
             if self.devices is not None:
                 self.devices.close()
             fn(self._checkpoints[token])
-            self.world.epoch += 1
             self._bind_devices()
             self.state = "ready"
         except Exception:
@@ -508,16 +522,14 @@ class SimWorker:
                     if set(args) != {"device"}:
                         raise DeviceError("invalid_args", "Expected device name only")
                     return self.devices.describe(args["device"])
-                if self._final_result is not None and getattr(
-                    self.adapter, "bounded_episodes", False
-                ):
+                if self._final_result is not None and self._bounded_episodes:
                     from roboenv.devices.contract import READ_ACTIONS
 
                     if args.get("action") not in READ_ACTIONS:
                         raise WorkerRPCError(
                             "episode_finished",
                             "Episode finished; call roboenv stop for the final judgment",
-                            details=self.simulation_status(),
+                            details={**self.simulation_status(), "effects": "none"},
                         )
                 operation = {
                     "devices.cancel": self.devices.cancel,
@@ -833,16 +845,6 @@ def build_adapter(task):
     return make_adapter(task.backend, **task.backend_kwargs)
 
 
-def _remove_worker_socket(path: Path) -> None:
-    try:
-        mode = path.lstat().st_mode
-    except FileNotFoundError:
-        return
-    if not stat.S_ISSOCK(mode):
-        raise RuntimeError(f"refusing to replace non-socket path: {path}")
-    path.unlink()
-
-
 def build_parser() -> argparse.ArgumentParser:
     """CLI of ``python -m roboenv_runtime.runtime.worker``."""
     parser = argparse.ArgumentParser(description="roboenv simulator worker")
@@ -858,12 +860,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=int(os.environ.get("ROBOENV_GENERATION") or 0),
     )
     parser.add_argument("--execution-mode", choices=("stepped", "realtime"))
-    parser.add_argument(
-        "--source-lock",
-        type=Path,
-        default=None,
-        help="verify dependency hashes before booting",
-    )
     parser.add_argument("--max-ndjson-bytes", type=int, default=MAX_NDJSON_BYTES)
     return parser
 
@@ -884,12 +880,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     socket_path.parent.mkdir(parents=True, exist_ok=True)
-    _remove_worker_socket(socket_path)
-    if args.source_lock is not None:
-        from roboenv_runtime.paths import repo_root
-        from roboenv_runtime.runtime.source_lock import verify
-
-        verify(args.source_lock, repo_root())
+    _remove_socket(socket_path)
 
     from roboenv.tasks.model import Task, task_path
 

@@ -1,6 +1,7 @@
 """Bounded episodes use the real worker, transport and durable owner snapshot."""
 
 import json
+import runpy
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -50,6 +51,7 @@ def test_external_yaml_without_checkout_and_success_at_limit(tmp_path):
         with pytest.raises(RemoteError) as caught:
             env.device("controller").write([0.3])
         assert caught.value.code == "episode_finished"
+        assert caught.value.details["effects"] == "none"
         assert "success" not in caught.value.details and "reason" not in caught.value.details
         assert "success" not in str(caught.value)
         assert "objects" not in env.status()
@@ -57,6 +59,24 @@ def test_external_yaml_without_checkout_and_success_at_limit(tmp_path):
         assert terminal["verdict"]["completed"] is True
         assert terminal["status"]["success"] is True
         assert terminal["status"]["reason"] == "success"
+        owner = Client(run.record["socket"], session=run.record["session"],
+                       generation=run.record["generation"])
+        owner.allowed_ops = owner.allowed_ops | {"submit"}
+        # A late stop may cancel buffers that the terminal frame already cleaned.
+        # Refusals must leave the journal certifiable on either side of submit.
+        for phase in ("before", "after"):
+            with pytest.raises(RemoteError) as cancelled:
+                owner.request("devices.cancel", {"execution_id": "ended-buffer"},
+                              request_id=f"cancel-{phase}")
+            assert cancelled.value.code == "episode_finished"
+            assert cancelled.value.details["effects"] == "none"
+            if phase == "before":
+                verdict = owner.request("submit", request_id="verifier-submit")
+        raw = (run.path.parent / "evidence/journal/actions.jsonl").read_bytes()
+        validate = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))["validate_journal"]
+        assert validate(raw, session=run.record["session"], submit_id="verifier-submit",
+                        verdict=verdict)
+        assert verdict == terminal["verdict"]
         stopped = env.stop()
         assert stopped["success"] is True and stopped["reason"] == "success"
         assert "success" not in env.status() and "reason" not in env.status()

@@ -30,12 +30,10 @@ class EnvAdapter(Protocol):
         name: Registry key (``"robodojo"``, ``"robotwin"``, ...).
         embodiment: Native robot embodiment (``"arx_x5"``,
             ``"piper"``, ``"panda"``, ...).
-        capabilities: Optional features, see :class:`roboenv_runtime.core.Capability`.
     """
 
     name: str
     embodiment: str
-    capabilities: frozenset[str]
     control_interval_s: float
 
     def advance_control(self) -> None:
@@ -81,7 +79,7 @@ class EnvAdapter(Protocol):
 
 @runtime_checkable
 class SupportsCheckpoint(Protocol):
-    """Adapters whose world can be rewound in place (``Capability.CHECKPOINT``)."""
+    """Adapters whose world can be rewound using an opaque checkpoint token."""
 
     def checkpoint(self) -> Any:
         """Snapshot the world; returns an opaque token."""
@@ -97,8 +95,14 @@ class AdapterBase(ABC):
 
     name: ClassVar[str] = "base"
     embodiment: ClassVar[str] = "general"
-    capabilities: ClassVar[frozenset[str]] = frozenset()
     execution_mode = "realtime"
+    stop_on_success = False
+
+    def _set_stop_on_success(self, value: bool) -> None:
+        """Store owner policy without passing it to the native constructor."""
+        if type(value) is not bool:
+            raise ValueError("stop_on_success must be a boolean")
+        self.stop_on_success = value
 
     def goal(self) -> str:
         """Default: no benchmark-provided goal text."""
@@ -144,7 +148,6 @@ class AdapterBase(ABC):
         return {
             "name": self.name,
             "embodiment": self.embodiment,
-            "capabilities": sorted(self.capabilities),
         }
 
 

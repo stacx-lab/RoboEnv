@@ -12,7 +12,8 @@ class LiberoAdapter(AdapterBase):
     # keeps synchronous camera reads on that thread, not on RPC handler threads.
     owner_thread_required = True
 
-    def __init__(self, suite_name="libero_spatial", task_id=0, **kwargs):
+    def __init__(self, suite_name="libero_spatial", task_id=0, *, stop_on_success=False, **kwargs):
+        self._set_stop_on_success(stop_on_success)
         from .backend import LiberoEnv
 
         self._env = LiberoEnv(suite_name, task_id, **kwargs)

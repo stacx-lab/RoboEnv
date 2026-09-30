@@ -3,6 +3,7 @@
 import threading
 
 import pytest
+from roboenv.devices.model import DeviceError
 from roboenv_runtime.core.types import Budget
 from roboenv_runtime.runtime.world import WorldSession
 
@@ -51,7 +52,8 @@ def test_pending_commands_end_at_budget_or_failure(fail):
         world.resolve(world.wait(1))
     assert future.done()
     assert native.frames == (0 if fail else 3)
-    assert world.failure is not None and not world.pending
+    assert (world.failure is not None) == fail
+    assert not world.pending
     world.close()
     world.close()
     assert native.closed
@@ -71,6 +73,30 @@ def test_independent_commands_share_ticks_and_freeze_cancels_without_ticks():
         left.result()
     world.advance()
     assert native.frames == 2
+    world.close()
+
+
+@pytest.mark.parametrize("cancel,fail,code", [
+    (False, False, "episode_finished"),
+    (True, False, "operation_interrupted"),
+    (False, True, "world_failed"),
+    (True, True, "world_failed"),
+])
+def test_natural_finish_preserves_failure_and_explicit_cancellation(cancel, fail, code):
+    native = Native(maximum=None)
+    world = WorldSession(native, mode="stepped")
+    event = threading.Event()
+    pending = world.schedule(motion(3), event)
+    if cancel:
+        event.set()
+    if fail:
+        world.failure = DeviceError(
+            "world_failed", "native failure", details={"effects": "unknown"}
+        )
+    world.finish_episode()
+    assert pending.exception().code == code
+    assert native.frames == 0 and not world.pending
+    assert (world.failure is not None) is fail
     world.close()
 
 
@@ -118,3 +144,29 @@ def test_realtime_advances_without_wait(monkeypatch):
     world.advance()
     assert world.time_s == 0.04
     assert world.native.frames == 2 and world.failure is None
+
+
+def test_native_budget_guard_is_distinct_from_a_fault_at_the_last_frame():
+    from roboenv.devices.model import DeviceError
+
+    class Guarded(Native):
+        def advance_control(self):
+            raise DeviceError("episode_finished", "native budget exhausted",
+                              details={"effects": "none"})
+
+    world = WorldSession(Guarded(), mode="stepped")
+    with pytest.raises(DeviceError, match="budget exhausted") as ended:
+        world.resolve(world.wait(1))
+    assert ended.value.details["effects"] == "none"
+    assert world.failure is None and world.time_s == 0
+
+    class Broken(Native):
+        def advance_control(self):
+            self.frames = self.maximum
+            raise RuntimeError("physics failed at horizon")
+
+    world = WorldSession(Broken(), mode="stepped")
+    with pytest.raises(DeviceError, match="physics failed") as failed:
+        world.resolve(world.wait(1))
+    assert failed.value.details["effects"] == "unknown"
+    assert world.failure is not None

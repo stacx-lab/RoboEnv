@@ -279,7 +279,7 @@ def native(enabled, out, models, pose_error):
 def main(args):
     os.environ.setdefault("MUJOCO_GL", "egl")
     args.out.mkdir(parents=True, exist_ok=False)
-    sys.path.insert(0, str(args.kinex / "python"))
+    sys.path.insert(0, str(args.kinex / "packages/core/assets/python"))
     from kinex.joints import JointDevice
     from kinex.motion import pose_error
 
@@ -320,6 +320,9 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--kinex", type=Path, default=ROOT.parent / "kinex")
+    parser.add_argument(
+        "--kinex", type=Path,
+        default=Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")),
+    )
     parser.add_argument("--native-setting", choices=("on", "off"), help=argparse.SUPPRESS)
     main(parser.parse_args())

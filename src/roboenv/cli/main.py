@@ -131,7 +131,6 @@ def main(argv=None):
             from roboenv.tasks.catalog import BACKENDS, discover, summary
 
             if args.tasks_command == "list":
-                result = summary(args.project, args.source)
                 if args.simulator:
                     from roboenv.project import project_root
                     from roboenv.tasks.catalog import load_catalog
@@ -142,8 +141,10 @@ def main(argv=None):
                     ids = sorted(t.id for t, _ in entries.values() if t.backend == args.simulator)
                     result = {
                         "tasks": len(ids), "backends": {args.simulator: len(ids)}, "ids": ids,
-                        "execution_modes": {key: result["execution_modes"][key] for key in ids},
+                        "execution_modes": {key: entries[key][0].execution_mode for key in ids},
                     }
+                else:
+                    result = summary(args.project, args.source)
             elif args.tasks_command == "discover":
                 result = discover(args.project, args.out, args.backends or BACKENDS)
             elif args.tasks_command == "generate":
