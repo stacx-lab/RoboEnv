@@ -12,7 +12,7 @@ from roboenv.project import project_root
 
 
 def git(root, *args, timeout=600, extra_env=None):
-    return subprocess.run(
+    output = subprocess.run(
         ["git", "-C", str(root), *args],
         check=True,
         capture_output=True,
@@ -24,7 +24,8 @@ def git(root, *args, timeout=600, extra_env=None):
             "GIT_TERMINAL_PROMPT": "0",
             **(extra_env or {}),
         },
-    ).stdout.strip()
+    ).stdout
+    return output if "-z" in args else output.strip()
 
 
 def load_lock(project=None):
@@ -203,74 +204,129 @@ def check_updates(project=None, backends=None):
     return {"sources": results, "up_to_date": all(item["up_to_date"] for item in results)}
 
 
-def sync(project=None, backends=None):
+def _initialize_source(root, lock, name):
+    item = lock["sources"][name]
+    checkout = root / item["path"]
+    if not (checkout / ".git").exists():
+        if item.get("parent"):
+            parent = root / lock["sources"][item["parent"]]["path"]
+            relative = str(checkout.relative_to(parent))
+            registrations = git(parent, "config", "-f", ".gitmodules", "--get-regexp",
+                                r"submodule\..*\.path").splitlines()
+            keys = [line.split()[0].removesuffix(".path") for line in registrations
+                    if line.split(maxsplit=1)[1] == relative]
+            if len(keys) != 1:
+                raise ValueError(f"Expected one parent submodule registration for {name}")
+            git(
+                parent,
+                "-c", keys[0] + ".url=" + item["url"],
+                "submodule",
+                "update",
+                "--init",
+                "--depth",
+                "1",
+                "--",
+                str(checkout.relative_to(parent)),
+            )
+        else:
+            modules = root / ".gitmodules"
+            registered = (
+                modules.is_file()
+                and item["path"]
+                in git(
+                    root, "config", "-f", ".gitmodules", "--get-regexp", r"submodule\..*\.path"
+                ).split()
+            )
+            if registered:
+                git(root, "submodule", "update", "--init", "--depth", "1", "--", item["path"])
+            else:
+                git(
+                    root,
+                    "submodule",
+                    "add",
+                    "--name",
+                    name,
+                    "--depth",
+                    "1",
+                    item["url"],
+                    item["path"],
+                )
+
+
+def _check_patch_sequence(root, checkout, item):
+    """Validate the entire target tree without changing the checkout or real index."""
+    with tempfile.TemporaryDirectory(prefix="roboenv-patch-index-") as temporary:
+        environment = {"GIT_INDEX_FILE": str(Path(temporary) / "index")}
+        git(checkout, "read-tree", item["revision"], extra_env=environment)
+        for patch in item.get("patches", []):
+            git(checkout, "apply", "--cached", str(root / patch["path"]),
+                extra_env=environment)
+
+
+def _discard_source_edits(checkout, children):
+    # Capture nonignored source files BEFORE restoring .gitignore: managed patches
+    # may protect asset depots. Never clean ignored data or recurse into submodules.
+    untracked = git(checkout, "ls-files", "--others", "--exclude-standard", "-z")
+    for relative in filter(None, untracked.split("\0")):
+        path = checkout / relative
+        if any(path == child or child in path.parents for child in children):
+            continue
+        if path.is_symlink() and path.is_dir():
+            continue  # external asset/depot link
+        if path.is_file() or path.is_symlink():
+            path.unlink()
+    git(checkout, "reset", "--hard", "--no-recurse-submodules", "HEAD")
+
+
+def sync(project=None, backends=None, *, reset=False):
+    """Sync exact managed sources; prepare explicitly discards disposable source edits."""
     root, lock = load_lock(project)
+    names = selected_sources(lock, backends or lock["backends"])
+    # Check every selected patch before initialization or destructive refresh.
+    for name in names:
+        item = lock["sources"][name]
+        for patch in item.get("patches", []):
+            path = root / patch["path"]
+            if hashlib.sha256(path.read_bytes()).hexdigest() != patch["sha256"]:
+                raise ValueError(f"patch checksum mismatch: {path.name}")
+        checkout = root / item["path"]
+        if (checkout / ".git").exists():
+            origin = git(checkout, "remote", "get-url", "origin").removesuffix(".git").rstrip("/")
+            if origin != item["url"].removesuffix(".git").rstrip("/"):
+                raise ValueError(f"origin mismatch for {name}")
     if not (root / ".git").exists():
         git(root, "init", "--initial-branch=main")
     if Path(git(root, "rev-parse", "--show-toplevel")).resolve() != root:
         raise ValueError("Refusing to register submodules in an unrelated parent repository")
-    names = selected_sources(lock, backends or lock["backends"])
+    for name in names:
+        _initialize_source(root, lock, name)
+        item = lock["sources"][name]
+        checkout = root / item["path"]
+        origin = git(checkout, "remote", "get-url", "origin").removesuffix(".git").rstrip("/")
+        if origin != item["url"].removesuffix(".git").rstrip("/"):
+            raise ValueError(f"origin mismatch for {name}")
+        try:
+            git(checkout, "cat-file", "-e", item["revision"] + "^{commit}")
+        except subprocess.CalledProcessError:
+            git(checkout, "fetch", "--depth", "1", "origin", item["revision"])
+        if reset:
+            _check_patch_sequence(root, checkout, item)
+    # All target patch sequences are valid before any existing source edits are discarded.
     for name in names:
         item = lock["sources"][name]
         checkout = root / item["path"]
-        if not (checkout / ".git").exists():
-            if item.get("parent"):
-                parent = root / lock["sources"][item["parent"]]["path"]
-                relative = str(checkout.relative_to(parent))
-                registrations = git(parent, "config", "-f", ".gitmodules", "--get-regexp",
-                                    r"submodule\..*\.path").splitlines()
-                keys = [line.split()[0].removesuffix(".path") for line in registrations
-                        if line.split(maxsplit=1)[1] == relative]
-                if len(keys) != 1:
-                    raise ValueError(f"Expected one parent submodule registration for {name}")
-                git(
-                    parent,
-                    "-c", keys[0] + ".url=" + item["url"],
-                    "submodule",
-                    "update",
-                    "--init",
-                    "--depth",
-                    "1",
-                    "--",
-                    str(checkout.relative_to(parent)),
-                )
-            else:
-                modules = root / ".gitmodules"
-                registered = (
-                    modules.is_file()
-                    and item["path"]
-                    in git(
-                        root, "config", "-f", ".gitmodules", "--get-regexp", r"submodule\..*\.path"
-                    ).split()
-                )
-                if registered:
-                    git(root, "submodule", "update", "--init", "--depth", "1", "--", item["path"])
-                else:
-                    git(
-                        root,
-                        "submodule",
-                        "add",
-                        "--name",
-                        name,
-                        "--depth",
-                        "1",
-                        item["url"],
-                        item["path"],
-                    )
-        actual_url = git(checkout, "remote", "get-url", "origin").removesuffix(".git").rstrip("/")
-        if actual_url != item["url"].removesuffix(".git").rstrip("/"):
-            raise ValueError(f"origin mismatch for {name}")
+        if reset:
+            children = [root / source["path"] for source in lock["sources"].values()
+                        if source.get("parent") == name]
+            _discard_source_edits(checkout, children)
         if git(checkout, "rev-parse", "HEAD") != item["revision"]:
             if git(
                 checkout, "status", "--porcelain", "--untracked-files=no", "--ignore-submodules"
             ):
                 raise ValueError(f"refusing to change dirty upstream {name}")
-            git(checkout, "fetch", "--depth", "1", "origin", item["revision"])
-            git(checkout, "checkout", "--detach", item["revision"])
+            git(checkout, "checkout", "--detach", "--no-overwrite-ignore", item["revision"])
         for patch in item.get("patches", []):
             path = root / patch["path"]
-            if hashlib.sha256(path.read_bytes()).hexdigest() != patch["sha256"]:
-                raise ValueError(f"patch checksum mismatch: {path.name}")
             try:
                 git(checkout, "apply", "--reverse", "--check", str(path))
             except subprocess.CalledProcessError:
@@ -278,4 +334,7 @@ def sync(project=None, backends=None):
                 git(checkout, "apply", str(path))
         if not item.get("parent"):
             git(root, "add", "--", item["path"])
-    return status(root, backends)
+    report = status(root, backends)
+    if reset and not report["ready"]:
+        raise ValueError("Source refresh did not produce the exact managed trees")
+    return report

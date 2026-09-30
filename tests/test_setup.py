@@ -57,15 +57,15 @@ def test_prepare_default_install_and_reuse(tmp_path, monkeypatch):
     monkeypatch.setattr(setup, "project_root", lambda project: tmp_path)
     monkeypatch.setattr(setup, "audit", lambda *args: ({}, {}))
     calls = []
-    monkeypatch.setattr(upstreams, "sync", lambda *args: calls.append("sync"))
+    monkeypatch.setattr(upstreams, "sync", lambda *args, **kwargs: calls.append(("sync", kwargs)))
     monkeypatch.setattr(
         setup, "install", lambda backend, destination, **kwargs: calls.append(destination)
     )
     progress = []
     monkeypatch.setattr(setup, "_prepare_assets", lambda backend, root, report, progress: report)
     setup.prepare("robotwin", progress=progress.append)
-    assert any("Synchronizing" in message for message in progress)
-    assert calls == ["sync", tmp_path / ".venv-sim/robotwin"]
+    assert any("Refreshing sources" in message for message in progress)
+    assert calls == [("sync", {"reset": True}), tmp_path / ".venv-sim/robotwin"]
     calls.clear()
     interpreter = tmp_path / ".venv-sim/robotwin/bin/python"
     interpreter.parent.mkdir(parents=True)
@@ -73,9 +73,12 @@ def test_prepare_default_install_and_reuse(tmp_path, monkeypatch):
     registration = tmp_path / ".cache/roboenv/installations/robotwin.json"
     registration.parent.mkdir(parents=True)
     registration.write_text(json.dumps({"python": str(interpreter), "report": {"reused": True}}))
-    assert setup.prepare("robotwin", progress=progress.append) == {"reused": True}
-    assert "Reusing registered interpreter" in progress[-1]
-    assert not calls
+    assert setup.prepare("robotwin", progress=progress.append) == {
+        "sources_ready": True, "clean_install_verified": False,
+    }
+    assert "reusing registered interpreter" in progress[-1]
+    assert calls == [("sync", {"reset": True})]
+    calls.clear()
     interpreter.unlink()
     with pytest.raises(ValueError, match="existing environments are preserved"):
         setup.prepare("robotwin")
@@ -88,6 +91,27 @@ def test_prepare_rejects_unknown_backend_without_effects(tmp_path):
     with pytest.raises(ValueError, match="unknown simulator"):
         setup.prepare("../unknown", project=ROOT, install_to=tmp_path / "unused")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_prepare_reuse_does_not_hide_source_refresh_failure(tmp_path, monkeypatch):
+    from roboenv.provisioning import sources
+
+    monkeypatch.setattr(setup, "project_root", lambda project: tmp_path)
+    monkeypatch.setattr(setup, "audit", lambda *args: ({}, {}))
+    interpreter = tmp_path / "python"
+    interpreter.touch()
+    registration = tmp_path / ".cache/roboenv/installations/robotwin.json"
+    registration.parent.mkdir(parents=True)
+    registration.write_text(json.dumps({"python": str(interpreter), "report": {}}))
+
+    def fail(*args, **kwargs):
+        raise ValueError("patch checksum mismatch")
+
+    monkeypatch.setattr(sources, "sync", fail)
+    monkeypatch.setattr(setup, "_prepare_assets", lambda *args: pytest.fail("must not run"))
+    with pytest.raises(ValueError, match="patch checksum mismatch"):
+        setup.prepare("robotwin")
+    assert interpreter.is_file()
 
 
 def test_dependency_lock_rejects_duplicates_ranges_and_unpinned_git(tmp_path):

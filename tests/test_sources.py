@@ -1,6 +1,8 @@
 """Source locks are public, pinned, selective, and independent of checkout state."""
 
 import hashlib
+import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -143,3 +145,139 @@ def test_exact_managed_tree_check_preserves_user_index(tmp_path):
     (checkout / "unexpected.py").write_text("pass\n")
     assert not managed_tree_matches(tmp_path, checkout, patches)
     assert (checkout / ".git/index").read_bytes() == original_index
+
+
+@pytest.fixture
+def disposable_sources(tmp_path):
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / "pyproject.toml").touch()
+    (root / "runtime").mkdir()
+    (root / "runtime/pyproject.toml").touch()
+    (root / "src/roboenv").mkdir(parents=True)
+    git(root, "init", "--initial-branch=main")
+    checkout = root / "third_party/test"
+    checkout.mkdir(parents=True)
+    git(checkout, "init", "--initial-branch=main")
+    git(checkout, "config", "user.name", "Test")
+    git(checkout, "config", "user.email", "test@example.invalid")
+    git(checkout, "remote", "add", "origin", "https://github.com/example/test")
+    (checkout / "controller.py").write_text("value = 1\n")
+    (checkout / ".gitignore").write_text("assets/\n.cache/\nrecordings/\n.venv/\n")
+    git(checkout, "add", ".")
+    git(checkout, "commit", "-m", "upstream")
+    revision = git(checkout, "rev-parse", "HEAD")
+    patch = root / "third_party/patches/change.patch"
+    patch.parent.mkdir()
+    patch.write_text(
+        "--- a/controller.py\n+++ b/controller.py\n@@ -1 +1 @@\n-value = 1\n+value = 2\n"
+    )
+    item = {
+        "path": "third_party/test", "url": "https://github.com/example/test",
+        "revision": revision, "backends": ["test"],
+        "patches": [{"path": str(patch.relative_to(root)),
+                     "sha256": hashlib.sha256(patch.read_bytes()).hexdigest()}],
+    }
+    lock = {"schema": "roboenv/upstreams/1", "backends": ["test"], "sources": {"test": item}}
+    (root / "upstreams.lock.json").write_text(json.dumps(lock))
+    git(root, "update-index", "--add", "--cacheinfo", "160000", revision, item["path"])
+    return root, checkout, patch, lock
+
+
+def test_refresh_discards_edits_and_reapplies_on_every_call(disposable_sources):
+    from roboenv.provisioning.sources import sync
+
+    root, checkout, _, _ = disposable_sources
+    assert sync(root, ["test"], reset=True)["ready"]
+    (checkout / "controller.py").write_text("unrecorded = True\n")
+    git(checkout, "add", "controller.py")
+    (checkout / "old-patch-helper.py").write_text("obsolete = True\n")
+    (checkout / " leading-space.py").write_text("obsolete = True\n")
+    for name in ("assets", ".cache", "recordings", ".venv"):
+        (checkout / name).mkdir()
+        (checkout / name / "keep").write_text("preserve")
+    assert sync(root, ["test"], reset=True)["ready"]
+    assert (checkout / "controller.py").read_text() == "value = 2\n"
+    assert not (checkout / "old-patch-helper.py").exists()
+    assert not (checkout / " leading-space.py").exists()
+    assert not git(checkout, "diff", "--cached")
+    for name in ("assets", ".cache", "recordings", ".venv"):
+        assert (checkout / name / "keep").read_text() == "preserve"
+    assert sync(root, ["test"], reset=True)["ready"]
+
+
+@pytest.mark.parametrize("invalid", ["checksum", "application"])
+def test_refresh_validates_before_discarding_edits(disposable_sources, invalid):
+    from roboenv.provisioning.sources import sync
+
+    root, checkout, patch, lock = disposable_sources
+    (checkout / "controller.py").write_text("keep until preflight succeeds\n")
+    (checkout / "untracked.py").write_text("keep")
+    patch.write_text(patch.read_text().replace("value = 1", "absent = 1"))
+    if invalid == "application":
+        lock["sources"]["test"]["patches"][0]["sha256"] = hashlib.sha256(
+            patch.read_bytes()
+        ).hexdigest()
+        (root / "upstreams.lock.json").write_text(json.dumps(lock))
+    with pytest.raises((ValueError, subprocess.CalledProcessError)):
+        sync(root, ["test"], reset=True)
+    assert (checkout / "controller.py").read_text() == "keep until preflight succeeds\n"
+    assert (checkout / "untracked.py").read_text() == "keep"
+
+
+def test_refresh_changed_pin_and_removed_patch(disposable_sources):
+    from roboenv.provisioning.sources import sync
+
+    root, checkout, _, lock = disposable_sources
+    (checkout / "controller.py").write_text("value = 3\n")
+    git(checkout, "add", "controller.py")
+    git(checkout, "commit", "-m", "new upstream")
+    revision = git(checkout, "rev-parse", "HEAD")
+    git(checkout, "checkout", "--detach", lock["sources"]["test"]["revision"])
+    assert sync(root, ["test"])["ready"]
+    lock["sources"]["test"].update(revision=revision, patches=[])
+    (root / "upstreams.lock.json").write_text(json.dumps(lock))
+    with pytest.raises(ValueError, match="dirty upstream"):
+        sync(root, ["test"])
+    assert sync(root, ["test"], reset=True)["ready"]
+    assert git(checkout, "rev-parse", "HEAD") == revision
+    assert (checkout / "controller.py").read_text() == "value = 3\n"
+
+
+def test_refresh_preserves_nested_checkout_and_asset_link(disposable_sources):
+    from roboenv.provisioning.sources import _discard_source_edits
+
+    _, checkout, _, _ = disposable_sources
+    child = checkout / "nested"
+    child.mkdir()
+    git(child, "init", "--initial-branch=main")
+    (child / "keep.py").write_text("preserve")
+    depot = checkout.parent / "depot"
+    depot.mkdir()
+    (depot / "keep").write_text("preserve")
+    (checkout / "assets").symlink_to(depot, target_is_directory=True)
+    (checkout / "controller.py").write_text("discard\n")
+    _discard_source_edits(checkout, [child])
+    assert (child / "keep.py").read_text() == "preserve"
+    assert (checkout / "assets/keep").read_text() == "preserve"
+    assert (checkout / "controller.py").read_text() == "value = 1\n"
+
+
+def test_refresh_does_not_overwrite_ignored_asset_collision(disposable_sources):
+    from roboenv.provisioning.sources import sync
+
+    root, checkout, _, lock = disposable_sources
+    asset = checkout / "assets/keep"
+    asset.parent.mkdir()
+    asset.write_text("new upstream file")
+    git(checkout, "add", "-f", "assets/keep")
+    git(checkout, "commit", "-m", "upstream introduces conflicting path")
+    revision = git(checkout, "rev-parse", "HEAD")
+    git(checkout, "checkout", "--detach", lock["sources"]["test"]["revision"])
+    asset.parent.mkdir(exist_ok=True)
+    asset.write_text("preserve acquired asset")
+    lock["sources"]["test"]["revision"] = revision
+    (root / "upstreams.lock.json").write_text(json.dumps(lock))
+    with pytest.raises(subprocess.CalledProcessError):
+        sync(root, ["test"], reset=True)
+    assert asset.read_text() == "preserve acquired asset"

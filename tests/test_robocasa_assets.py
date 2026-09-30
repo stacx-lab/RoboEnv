@@ -79,7 +79,7 @@ def test_prepare_acquires_assets_for_new_and_registered_interpreters(project, mo
     monkeypatch.setattr(setup, "project_root", lambda _: project)
     monkeypatch.setattr(setup, "audit", lambda *a: ({}, {}))
     calls = []
-    monkeypatch.setattr(sources, "sync", lambda *a: calls.append("sync"))
+    monkeypatch.setattr(sources, "sync", lambda *a, **kw: calls.append(("sync", kw)))
     monkeypatch.setattr(setup, "install", lambda *a, **kw: calls.append("install") or {})
     monkeypatch.setattr(assets, "urlopen", lambda *a, **kw: bundle("fixtures/model.xml"))
     if reuse:
@@ -91,7 +91,7 @@ def test_prepare_acquires_assets_for_new_and_registered_interpreters(project, mo
     result = setup.prepare("robocasa")
     assert result["downloaded_assets_verified"]
     assert not result["gpu_replay_verified"]
-    assert calls == ([] if reuse else ["sync", "install"])
+    assert calls == [("sync", {"reset": True})] + ([] if reuse else ["install"])
 
 
 def test_extraction_rejects_existing_symlink_escape(project, tmp_path, monkeypatch):
@@ -109,6 +109,7 @@ def test_extraction_rejects_existing_symlink_escape(project, tmp_path, monkeypat
 def test_prepare_propagates_asset_failure_without_losing_registration(project, monkeypatch):
     monkeypatch.setattr(setup, "project_root", lambda _: project)
     monkeypatch.setattr(setup, "audit", lambda *a: ({}, {}))
+    monkeypatch.setattr(sources, "sync", lambda *a, **kw: None)
     interpreter = project / "python"
     interpreter.touch()
     registration = project / ".cache/roboenv/installations/robocasa.json"

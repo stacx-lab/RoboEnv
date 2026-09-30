@@ -17,15 +17,16 @@ without modifying the contributor's real Git index.
 
 | Backend | Source closure |
 |---|---|
-| LIBERO / LIBERO-PRO | cap-x; nested LIBERO-PRO and its robosuite fork |
+| LIBERO | official LIBERO |
 | RoboCasa | robocasa; top-level robosuite |
-| RoboTwin | cap-x; top-level RoboTwin |
-| RoboDojo | cap-x; RoboDojo; nested IsaacLab and curobo |
+| RoboTwin | top-level RoboTwin |
+| RoboDojo | RoboDojo; nested IsaacLab and curobo forks |
 | BEHAVIOR | BEHAVIOR-1K |
+| Isaac Lab | standalone IsaacLab |
+| SIMPLE | SIMPLE; nested decoupled_wbc, gear_sonic and unitree_sdk2_python |
 
-Do not substitute the two robosuite checkouts or recursively fetch unrelated
-policy repositories. RoboTwin is explicitly versioned here instead of relying
-on a hidden nested clone.
+Initialize only the selected source closure. RoboDojo's IsaacLab fork is separate
+from standalone Isaac Lab; their dependency recipes are not interchangeable.
 
 Our SDK, adapters, bindings, tests and scoring remain outside submodules. Changes
 to an upstream are recorded in patches/ and in the lock; do not make unrecorded
@@ -43,8 +44,13 @@ Review the upstream diff and test the existing patches against the latest commit
 in an isolated checkout or temporary index. If they need changes, preserve local
 work, regenerate the patch against the new base, and update its SHA256 in the lock.
 Advance the submodule gitlink and lock revision together, check license notices,
-and rerun source checks and tests before committing in RoboEnv. Do not force a
-checkout over local edits. Keep historical receipts tied to their original base;
+and rerun source checks and tests before committing in RoboEnv. Materialize intended
+local source changes in managed patches before refreshing.
+`prepare` treats selected source trees as disposable: it discards tracked edits
+and untracked source files, restores the lock and reapplies current patches on
+every call, including interpreter reuse. It preserves ignored assets, environments,
+caches, recordings and nested checkouts. Ordinary `sources sync` remains
+conservative about dirty checkouts. Keep historical receipts tied to their original base;
 CPU and patch checks do not certify simulator replay on the new revision.
 
 RoboCasa tracks upstream `main` in `.gitmodules`, while the gitlink and source
@@ -66,20 +72,19 @@ checks repeated CPU kitchen construction through the current adapter; device and
 Kinex compatibility use the current conformance tests. These checks do not certify
 kitchen GPU boot, task success or fresh-process command replay.
 
-The 2026-09-06 source review advances RoboDojo to `ee67a14` (optional
-articulation drive reset and evaluation/download tooling) and LIBERO-PRO to
-`47aaa80` (additional task variations, torch loading defaults and CLI entry
-points). Their managed patches and license bytes are unchanged. Isolated patch,
-syntax and notice checks are recorded in
-[the source review](../docs/validation/upstream-source-review-20260906.json);
-these new bases have no new simulator boot, device, success or replay certificate.
-Historical receipts retain their original revisions.
-
-LIBERO's robosuite fork remains at `a498b08`: latest upstream `cb173eb` removes
-`SingleArmEnv` and `load_controller_config`, which LIBERO and its runtime still
-require. Updating this source needs a compatibility migration, so
-`check-updates --backends libero` currently reports this one stale pin. All other
-source pins matched their upstream default-branch tips on 2026-09-06.
+The 2026-09-29 refresh advances RoboTwin to `ea8b211`, RoboDojo to `726e9aa`,
+BEHAVIOR to `bd049de`, and SIMPLE's nested gear_sonic to `d9bfffb`. Eight other
+pins matched their default branches at that review. Standalone Isaac Lab remains
+at `99f1423` with its existing recipe and patches because the proposed `998bf88`
+update has incompatible dependency requirements.
+RoboTwin and RoboDojo retain their runtime/optional-client patches. BEHAVIOR's
+optional-workflow patch follows the new environment exports and makes Warp a
+base dependency because the new normal runtime imports it. RoboEnv's BEHAVIOR
+adapter selects scene zero, its robot and its BDDL object scope through the new
+batched environment API. The source notices record the new BEHAVIOR root license
+(same MIT text); the other inventoried notice bytes are unchanged.
+Historical validation receipts retain their original source revisions. See
+[Isaac Lab](../docs/isaaclab.md) for its current installation compatibility limits.
 
 A patched submodule normally appears dirty in `git status`, including untracked
 files added by a patch. This is expected when `sources status` reports

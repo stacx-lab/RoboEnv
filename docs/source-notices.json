@@ -21,7 +21,7 @@
       ]
     },
     "robodojo": {
-      "revision": "ee67a1468510da7624a089164402359f2afc72c8",
+      "revision": "726e9aabfaa642203722eb126f5eaf0f37f3e1ad",
       "notices": [
         {
           "path": "LICENSE",
@@ -56,7 +56,7 @@
       ]
     },
     "robotwin": {
-      "revision": "96c1feab536306b50c26af200044fcdf126e8904",
+      "revision": "ea8b21121ebb3cd201ff5b3fe361944ac94eda3f",
       "notices": [
         {
           "path": "LICENSE",
@@ -65,8 +65,12 @@
       ]
     },
     "behavior": {
-      "revision": "e008fcb7b2c52cc3c1209287babedd9018dc3202",
+      "revision": "bd049de3119acdcdf2334fe9e1ebe060fa20c108",
       "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "bd06773d35549a0dfb4d6526190c80cea09d54a9e3033e98654999e51efcc0ca"
+        },
         {
           "path": "OmniGibson/LICENSE",
           "sha256": "bd06773d35549a0dfb4d6526190c80cea09d54a9e3033e98654999e51efcc0ca"
@@ -114,7 +118,7 @@
       ]
     },
     "simple_gear_sonic": {
-      "revision": "e61eeb1dec9678dcc02f97c5ac27ca6a4fe82128",
+      "revision": "d9bfffbd69a0b8c1d94a8a1b6113a589038d345a",
       "notices": [
         {
           "path": "pyproject.toml",

@@ -65,7 +65,14 @@ not official solutions and need explicit opt-in and provenance.
 - Preserve benchmark success rules, horizons, units, and observation restrictions.
 - Validate inputs before effects; unsupported actions must fail explicitly.
 - Keep read-only operations, lifecycle ownership, retries, and final snapshots consistent.
-- Record upstream changes as locked patches; never rely on unrecorded checkout edits.
+- Treat third-party source working trees as disposable. Materialize every intended
+  source change in a managed patch and record its checksum in upstreams.lock.json;
+  never rely on direct checkout edits or create downstream submodule commits.
+  `prepare` discards local source edits, restores the locked upstream commits, and
+  reapplies managed patches even when reusing an existing interpreter. Preserve
+  downloaded assets, environments, caches, recordings, and nested checkouts.
+  Before an upstream refresh, audit existing edits against the recorded patches
+  and materialize any intended unrecorded changes before discarding them.
 - Never create commits inside submodules. Before maintaining a selected upstream,
   run `roboenv sources check-updates --backends BACKEND`. Use the latest upstream
   default-branch commit as the base, review changes, and rebase managed patches.

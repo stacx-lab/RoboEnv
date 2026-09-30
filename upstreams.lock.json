@@ -39,7 +39,7 @@
     "robodojo": {
       "path": "third_party/RoboDojo",
       "url": "https://github.com/RoboDojo-Benchmark/RoboDojo.git",
-      "revision": "ee67a1468510da7624a089164402359f2afc72c8",
+      "revision": "726e9aabfaa642203722eb126f5eaf0f37f3e1ad",
       "backends": [
         "robodojo"
       ],
@@ -77,7 +77,7 @@
     "robotwin": {
       "path": "third_party/RoboTwin",
       "url": "https://github.com/RoboTwin-Platform/RoboTwin.git",
-      "revision": "96c1feab536306b50c26af200044fcdf126e8904",
+      "revision": "ea8b21121ebb3cd201ff5b3fe361944ac94eda3f",
       "backends": [
         "robotwin"
       ],
@@ -91,14 +91,14 @@
     "behavior": {
       "path": "third_party/BEHAVIOR-1K",
       "url": "https://github.com/StanfordVL/BEHAVIOR-1K.git",
-      "revision": "e008fcb7b2c52cc3c1209287babedd9018dc3202",
+      "revision": "bd049de3119acdcdf2334fe9e1ebe060fa20c108",
       "backends": [
         "behavior"
       ],
       "patches": [
         {
           "path": "third_party/patches/behavior-optional-workflows.patch",
-          "sha256": "09aff01909de47138c32d97f30055d1a6924d38f796cdda5228d903b1f8c298b"
+          "sha256": "9b91c1d8a1f7fcb000ebd96fe520c9636f9b888d83a48172203ac00cf3ce3871"
         }
       ]
     },
@@ -171,7 +171,7 @@
       "path": "third_party/SIMPLE/third_party/gear_sonic",
       "parent": "simple",
       "url": "https://github.com/songlin/gear_sonic.git",
-      "revision": "e61eeb1dec9678dcc02f97c5ac27ca6a4fe82128",
+      "revision": "d9bfffbd69a0b8c1d94a8a1b6113a589038d345a",
       "backends": [
         "simple"
       ]
