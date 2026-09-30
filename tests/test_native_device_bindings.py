@@ -87,11 +87,32 @@ def test_public_world_has_no_truth_or_mutation_shortcuts(tmp_path):
     wire, world, *_ = service(tmp_path)
     try:
         assert {"read", "wait"} <= wire.describe("world")["actions"].keys()
-        assert wire.call({"device": "world", "action": "read", "args": {}})["data"] == {"time_s": 0}
+        assert wire.call({"device": "world", "action": "read", "args": {}})["data"] == {
+            "time_s": 0, "budget": {"elapsed_s": 0.0, "max_s": 3 * 0.04},
+        }
+        assert wire.call({"device": "world", "action": "status", "args": {}})["data"] == {
+            "loaded": True,
+        }
         for action in ("state", "invoke", "score", "reset", "restore"):
             with pytest.raises(DeviceError):
                 wire.call({"device": "world", "action": action, "args": {}})
         assert world.steps == 0
+    finally:
+        wire.close()
+
+
+def test_world_budget_read_remains_available_at_the_stepped_horizon(tmp_path):
+    wire, world, *_ = service(tmp_path)
+    try:
+        with pytest.raises(DeviceError) as ended:
+            wire.call({"device": "world", "action": "wait", "args": {"duration_s": 0.2}})
+        assert ended.value.code == "episode_finished"
+        for _ in range(2):
+            assert wire.call({"device": "world", "action": "read", "args": {}})["data"] == {
+                "time_s": pytest.approx(0.12),
+                "budget": {"elapsed_s": pytest.approx(0.12), "max_s": pytest.approx(0.12)},
+            }
+        assert world.steps == 3
     finally:
         wire.close()
 

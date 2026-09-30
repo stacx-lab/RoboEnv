@@ -2,6 +2,7 @@
 
 import json
 import os
+import select
 import shutil
 import subprocess
 import sys
@@ -12,9 +13,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import kinex_sources
+from helpers import kinex_sources, load_script
 from roboenv.client import Client, RemoteError
-from roboenv.devices.export import write_driver
+from roboenv.devices.export import driver_access, write_driver
 from roboenv_runtime.runtime.supervisor import Supervisor, SupervisorConfig
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -265,6 +266,60 @@ def test_portable_cleanup_only_cancels_its_own_request(concurrent_service, tmp_p
         wire.close_all()
 
 
+def test_portable_world_read_reports_episode_budget(concurrent_service, tmp_path):
+    _, supervisor, _ = concurrent_service
+    devices = tmp_path / "devices"
+    for name, kind, actions in (
+        ("world", "world", ["read", "wait", "status"]),
+        ("left", "joint", ["read"]),
+    ):
+        directory = devices / name
+        write_driver(directory, kind)
+        (directory / "profile.yaml").write_text(yaml.safe_dump({
+            "name": name, "type": kind,
+            "access": driver_access(kind, name, actions, supervisor.http_endpoint),
+        }))
+        (directory / "connection.json").write_text(json.dumps({
+            "endpoint": supervisor.http_endpoint, "session": "concurrent", "generation": 0,
+        }))
+    proc = subprocess.Popen(
+        [sys.executable, str(devices / "world/driver.py"), "--serve"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    replies = {}
+    try:
+        for tag, action, args in (
+            ("before", "read", {}),
+            ("wait", "wait", {"duration_s": 0.2}),
+            ("status", "status", {}),
+            ("after", "read", {}),
+        ):
+            proc.stdin.write(json.dumps({"id": tag, "action": action, "args": args}) + "\n")
+            proc.stdin.flush()
+            assert select.select([proc.stdout], [], [], 5)[0], f"No reply for {tag}"
+            replies[tag] = json.loads(proc.stdout.readline())
+            assert replies[tag]["id"] == tag and replies[tag]["ok"], replies[tag]
+        proc.stdin.close()
+        assert proc.wait(timeout=5) == 0, proc.stderr.read()
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait()
+        proc.stdin.close()
+        proc.stdout.close()
+        proc.stderr.close()
+    assert replies["before"]["budget"] == {"elapsed_s": 0.0, "max_s": None}
+    assert replies["after"]["budget"] == {"elapsed_s": pytest.approx(0.2), "max_s": None}
+    assert "budget" not in replies["wait"]
+    assert replies["wait"]["elapsed_s"] == pytest.approx(0.2)
+    assert replies["status"] == {"id": "status", "ok": True, "loaded": True}
+    wire = load_script("src/roboenv/assets/_roboenv.py").Transport(devices / "left/driver.py")
+    try:
+        assert "budget" not in wire.remote("read", {})
+    finally:
+        wire.close_all()
+
+
 @pytest.mark.parametrize("execution_mode", ["realtime"])
 def test_realtime_worker_advances_while_idle(concurrent_service):
     client, _, owner = concurrent_service
@@ -272,6 +327,8 @@ def test_realtime_worker_advances_while_idle(concurrent_service):
     time.sleep(0.1)
     later = client.device("left").read()["data"]
     assert later["sample_time_s"] > first
+    clock = client.device("world").read()["data"]
+    assert clock["budget"] == {"elapsed_s": pytest.approx(clock["time_s"]), "max_s": None}
     assert not owner or later["owner_only"]
     result = client.device("left").write(actions=[[0.3]], duration_s=0.1)["data"]
     assert result["execution_id"]

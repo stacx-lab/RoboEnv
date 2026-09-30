@@ -28,7 +28,7 @@ class Engine:
         self.execution_mode = mode
 
     def budget(self):
-        return Budget(used=self.frame, max=self.maximum)
+        return Budget(used=self.frame, max=self.maximum, unit="action_frames")
 
     def advance_control(self):
         self.frame += 1

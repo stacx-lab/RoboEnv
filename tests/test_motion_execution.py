@@ -5,6 +5,40 @@ from motion_fixtures import fixture, submit
 from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.model import BoundDevice, DeviceDefinition, DeviceError
 from roboenv.devices.service import DeviceService
+from roboenv_runtime.bindings.world import clock_actions
+from roboenv_runtime.core.types import Budget
+
+
+@pytest.mark.parametrize("maximum", [1000, None])
+def test_world_read_reports_native_budget_seconds(maximum):
+    native, world, _ = fixture(period=0.05)
+    native.maximum = maximum
+    # Model initialization frames counted before the public world clock starts.
+    native.frame = 5
+    clock = clock_actions(BindingContext("fixture", "fixture", native, world=world))
+    cap = None if maximum is None else 50.0
+    assert clock["read"].handler({}, None) == {
+        "time_s": 0.0, "budget": {"elapsed_s": 0.25, "max_s": cap},
+    }
+    assert native.frame == 5
+    waited = world.resolve(clock["wait"].handler({"duration_s": 0.2}, None))
+    assert waited == {"time_s": pytest.approx(0.2), "elapsed_s": pytest.approx(0.2)}
+    assert clock["read"].handler({}, None) == {
+        "time_s": pytest.approx(0.2),
+        "budget": {"elapsed_s": pytest.approx(0.45), "max_s": cap},
+    }
+    assert clock["status"].handler({}, None) == {"loaded": True}
+    assert native.frame == 9
+
+
+@pytest.mark.parametrize("unit", ["sim_steps", "api_calls", "unknown"])
+def test_world_read_omits_budget_without_a_known_frame_duration(unit):
+    native, world, _ = fixture()
+    native.budget = lambda: Budget(used=5, max=10, unit=unit)
+    clock = clock_actions(BindingContext("fixture", "fixture", native, world=world))
+    assert clock["read"].handler({}, None) == {"time_s": 0.0}
+    assert clock["status"].handler({}, None) == {"loaded": True}
+    assert native.frame == 0
 
 
 @pytest.mark.parametrize("kind,control,actions,expected,bad", [

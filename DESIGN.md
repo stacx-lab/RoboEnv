@@ -224,7 +224,15 @@ The native executor consumes references at its fixed cadence; input frequency is
 retained. Velocity commands expire to zero velocity while preserving posture.
 Replacement does not call stop. Explicit stop clears its declared scope.
 
-`world.read()` returns `time_s`. `world.wait(duration_s)` waits in world time and
+`world.read()` returns `time_s` and, for native `action_frames` budgets, an optional
+`budget: {elapsed_s, max_s}` in seconds. Both values use the native control interval;
+`max_s` is null when uncapped, including realtime mode. Consumption includes any
+counted initialization frames, so `elapsed_s` can differ from `time_s`. This is
+native episode accounting, not wall-clock time or a Harbor deadline. Other budget
+units (`sim_steps`, `api_calls`, and unknown units) omit the field because their
+duration is not established. `world.status()` remains `{loaded: true}`.
+
+`world.wait(duration_s)` waits in world time and
 returns `time_s` and actual `elapsed_s`. Concurrent waits overlap; they do not
 multiply physics steps. Tick rounding may extend elapsed time by less than one
 control interval. Reads never advance physics.

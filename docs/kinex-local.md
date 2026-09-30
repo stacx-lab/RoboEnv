@@ -30,6 +30,14 @@ Kinex does not exhaust a native action-frame budget. Frames are still counted;
 paused and the task's configured/native step limit enforced. Restart the service
 to pick up runtime changes, then `/reload all` in Kinex to refresh its connections.
 
+World `read` exposes native `action_frames` budgets as `budget: {elapsed_s, max_s}`
+in seconds; `max_s` is null in realtime. Counted initialization frames are included,
+so budget consumption can differ from `time_s`. This is native episode accounting,
+not wall-clock time or a Harbor deadline. Budgets with other units (`sim_steps`,
+`api_calls`, or unknown units) are omitted because their duration is not established.
+World `status` remains `{loaded: true}`; `wait` returns `time_s` and the wait's
+`elapsed_s`, without a budget.
+
 For another task use another task ID. For parallel trials use different ports
 and separate Kinex processes with different `ROBOENV_ENDPOINT` values. Both
 can use byte-identical copies of the same robot configuration.

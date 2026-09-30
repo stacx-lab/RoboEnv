@@ -129,8 +129,15 @@ Joint writes submit `actions` with `duration_s` and return immediately.
 The executor samples buffers on native ticks. Planning and arrival checks belong
 to the harness. Reuse the [binding executor](../runtime/src/roboenv_runtime/bindings/motion.py)
 for validation, replacement and cancellation. Scalar and velocity writes use the
-same duration contract. World `read` returns `time_s`; `wait(duration_s)` waits
-on that clock. Realtime advances continuously; stepped advances during waits.
+same duration contract. World `read` returns `time_s` and an optional
+`budget: {elapsed_s, max_s}` in seconds for native `action_frames` budgets. The shared
+binding multiplies native consumption and cap by the control interval; an uncapped
+budget has `max_s: null`. Counted initialization frames remain included, so budget
+elapsed time can differ from the world clock. This does not represent wall-clock
+time or Harbor deadlines. Other units, including `sim_steps` and `api_calls`, omit
+the field because their duration is not established. `status` stays `{loaded: true}`;
+`wait(duration_s)` returns only `time_s` and the wait's `elapsed_s`.
+Realtime advances continuously; stepped advances during waits.
 
 Configure native controllers to implement the advertised action space. RoboCasa
 selects absolute `JOINT_POSITION` control for the arm and absolute lift goals;

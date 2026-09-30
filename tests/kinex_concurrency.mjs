@@ -47,9 +47,17 @@ try {
   await delay(20)
   cancelled.abort(new Error('cancel one world wait'))
   await rejected
-  assert.ok((await peer).data.elapsed_s >= .2 - 1e-9)
-  assert.ok(Number.isFinite((await runtime.devices.dispatch('world', 'read')).data.time_s))
-
+  const waited = (await peer).data
+  assert.ok(waited.elapsed_s >= .2 - 1e-9)
+  assert.equal('budget' in waited, false)
+  const clock = (await runtime.devices.dispatch('world', 'read')).data
+  assert.ok(Number.isFinite(clock.time_s))
+  assert.deepEqual(Object.keys(clock.budget).sort(), ['elapsed_s', 'max_s'])
+  // This fixture has no initialization frames or episode cap.
+  assert.ok(Math.abs(clock.budget.elapsed_s - clock.time_s) < 1e-6)
+  assert.equal(clock.budget.max_s, null)
+  assert.deepEqual((await runtime.devices.dispatch('world', 'status')).data, { loaded: true })
+  assert.equal('budget' in (await runtime.devices.dispatch('left', 'read')).data, false)
 
 } finally {
   await runtime.dispose()
