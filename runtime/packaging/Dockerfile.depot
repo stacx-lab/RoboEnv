@@ -14,7 +14,7 @@ COPY dependency-locks/ /opt/roboenv/dependency-locks/
 COPY verify_dependencies.py /opt/roboenv/verify-dependencies.py
 RUN ln -s /opt/roboenv/runtime/dependencies/sim-env /opt/sim-env \
     && ln -s /opt/roboenv/runtime/dependencies/python-base /opt/python \
-    && python3 -m zipfile -e /opt/wheels/roboenv_runtime-0.9.0-py3-none-any.whl /opt/roboenv-runtime
+    && python3 -m zipfile -e /opt/wheels/roboenv_runtime-0.9.1-py3-none-any.whl /opt/roboenv-runtime
 ENV ROBOENV_ROOT=/opt/roboenv/runtime \
     PYTHONPATH=/opt/roboenv-runtime:/opt/roboenv-contract-deps \
     NVIDIA_DRIVER_CAPABILITIES=all MUJOCO_GL=egl OMNI_KIT_ACCEPT_EULA=YES OMNIGIBSON_HEADLESS=1 \

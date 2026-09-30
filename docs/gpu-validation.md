@@ -12,7 +12,7 @@ After building the SDK wheel and preparing an immutable-image deployment map:
 ```sh
 .venv/bin/python tools/validate_simulators.py \
   --deployments deployments/local/map.json \
-  --sdk-wheel build/wheels/roboenv-0.9.0-py3-none-any.whl \
+  --sdk-wheel build/wheels/roboenv-0.9.1-py3-none-any.whl \
   --backends robocasa --modes probe --seeds 0 \
   --out .cache/validation-plan
 ```
@@ -32,7 +32,7 @@ overwritten. Select the permitted GPU using `ROBOENV_GPU` as for any Roboenv tas
 ```bash
 .venv/bin/python tools/validate_simulators.py \
   --deployments deployments/local/map.json \
-  --sdk-wheel build/wheels/roboenv-0.9.0-py3-none-any.whl \
+  --sdk-wheel build/wheels/roboenv-0.9.1-py3-none-any.whl \
   --backends libero --cases libero/bowl-onto-plate \
   --modes probe --seeds 0 1 2 --run \
   --out .cache/validation-run
@@ -55,7 +55,7 @@ BEHAVIOR R1Pro requires an **additional explicit task source**:
 ```bash
 .venv/bin/python tools/validate_simulators.py \
   --deployments deployments/local/map.json \
-  --sdk-wheel build/wheels/roboenv-0.9.0-py3-none-any.whl \
+  --sdk-wheel build/wheels/roboenv-0.9.1-py3-none-any.whl \
   --backends behavior --modes probe \
   --source generated/selected-behavior/tasks \
   --cases EXPLICIT_TASK_ID --out .cache/behavior-probe

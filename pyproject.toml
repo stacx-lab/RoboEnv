@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roboenv"
-version = "0.9.0"
+version = "0.9.1"
 description = "Agent-independent robotics environments, device access and Harbor tasks"
 readme = "README.md"
 requires-python = ">=3.10"
