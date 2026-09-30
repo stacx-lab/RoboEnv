@@ -138,9 +138,10 @@ and `roboenv launch simple/g1-xmove-pick`. It uses Isaac rendering over MuJoCo p
 and the current validation limits. The metric control interface is a practice
 protocol; native success predicates are preserved.
 
-Isaac Lab installation and diagnostics remain available. There is no bundled
-Isaac Lab task or device adapter; the G1 practice task has been removed.
-See [Isaac Lab setup](docs/isaaclab.md). SIMPLE's G1 integration remains available.
+The experimental [Go2–D1 Isaac Lab environment](docs/go2-d1.md) provides base
+velocity/height/tilt control, independent arm IK, a gripper, and two mounted RGB-D cameras.
+See [Isaac Lab setup](docs/isaaclab.md) for installation and diagnostics. The former
+Isaac Lab G1 practice task has been removed; SIMPLE's G1 integration remains available.
 
 Device reads and recording remain available during bounded writes. Independent
 devices accept concurrent writes through `env.device(name)`; writes to the same
@@ -227,6 +228,3 @@ environments stay outside Git.
 This is pre-release software. CPU and format checks do not certify GPU replay
 or benchmark success. Packages and simulator images are not automatically
 published; see [release rules](docs/releasing.md).
-
-The experimental [Go2–D1 Isaac Lab environment](docs/go2-d1.md) provides base
-velocity/height/tilt control, independent arm IK, a gripper, and two mounted RGB-D cameras.

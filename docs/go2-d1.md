@@ -22,8 +22,6 @@ python tools/prepare_go2_d1.py --source generated/go2-d1-cameras \
   --out .cache/isaaclab/go2-d1
 
 source .venv/bin/activate
-python tools/generate_go2_d1_catalog.py \
-  --bindings-out src/roboenv/devices/bindings/defaults
 roboenv launch isaaclab/go2-d1-control --port 8123
 ```
 
@@ -31,15 +29,17 @@ The Go2–D1 simulator worker defaults `OMNI_KIT_ACCEPT_EULA=YES` for this launc
 An explicitly set value takes precedence.
 
 Preparation converts mesh files to OBJ, records file checksums, and refuses to
-overwrite an existing bundle. To refine the URDF, prepare a new bundle, regenerate
-the catalog from it with `--assets`, and point the task's `asset_manifest` to the
+overwrite an existing bundle. To refine the URDF, prepare a new bundle, update the
+affected device profiles under `catalog/robots/isaaclab/isaaclab-go2-d1/devices/`
+to match its geometry, and point the task's `backend_kwargs.asset_manifest` to the
 new `assets.json`. Catalog/runtime geometry disagreement fails at startup.
 Do not edit a bundle during an episode; recordings pin its identity.
 
-The generator writes public robot and task definitions under `--out` (default:
-`catalog`). Internal binding defaults are written only when `--bindings-out` is
-provided, separately from the public catalog. The installed SDK includes the
-Go2–D1 default at
+Robot profiles and the three task definitions are checked in under
+`catalog/robots/isaaclab/isaaclab-go2-d1/` and `catalog/tasks/isaaclab/`.
+Launch uses these definitions directly; no catalog generation step is required.
+Internal binding defaults are separate from the public catalog. The installed
+SDK includes the Go2–D1 default at
 `roboenv/devices/bindings/defaults/isaaclab/isaaclab-go2-d1.yaml`, so copied catalogs
 resolve without a neighboring source-tree binding directory.
 
@@ -59,11 +59,13 @@ with live descriptors, independently of the Kinex file-driver projection.
 | `camera_wrist` | Read | D405-mounted RGB and registered optical-axis depth |
 | `world` | `read`, `wait(duration_s)` | Shared simulation time; static world reference |
 
-Base command bounds: `vx ±1.0 m/s`, `vy ±0.5 m/s`, `wz ±π/6 rad/s` (±30°/s),
+Base commands accept finite numeric values for all six velocity/posture components;
+the public profile declares no range bounds. The demonstration scripts exercise
+`vx ±1.0 m/s`, `vy ±0.5 m/s`, `wz ±π/6 rad/s` (±30°/s),
 `height 0.26–0.34 m`, and `roll/pitch ±0.12 rad` (about 6.9 degrees).
-These are accepted command bounds, not a guarantee of tracking every simultaneous
-extreme or arm configuration. Commands are rate limited; velocity and posture
-feedback correct the gait. Private leg targets are limited to reachable positions
+Tracking depends on the combined command and arm configuration. The gait rate
+limits its internal command and uses velocity/posture feedback. Its stride and
+feedback corrections are bounded, and private leg targets are limited to reachable positions
 and joint bounds. Foot lift is 6.5 cm, the gait period is 0.32 s, and each leg spends 60% of
 its cycle in stance. Acceleration limits are 0.5 m/s² longitudinally,
 0.4 m/s² laterally, and 1 rad/s² in yaw. The neutral support center is derived
@@ -147,11 +149,16 @@ into metres.
 
 ## Dynamics assumptions and validation
 
-The source D1 URDF has unusable zero effort/velocity limits. The prepared practice
-bundle explicitly substitutes 30 Nm / 1.5 rad/s for arm joints and 40 N / 0.1 m/s
-for finger joints. Camera inertias are approximated by uniform boxes. These are
-simulation parameters, not manufacturer specifications. The Go2 source torque
-limits are retained. Robot self-collisions are disabled in this first practice
+The source D1 URDF has unusable zero effort/velocity limits. Preparation and the
+native arm actuators use the torque mapping in
+[`limits.py`](../runtime/src/roboenv_runtime/adapters/isaaclab/go2_d1/limits.py):
+3.3 Nm for `d1_Joint1` and `d1_Joint2`, and 1.7 Nm for `d1_Joint3` through
+`d1_Joint6`, sourced from the D1 specification referenced there. That table does
+not distinguish continuous, peak or stall torque. Arm joint positions retain the
+URDF bounds; arm velocity is explicitly uncapped in simulation. Finger joints use
+the practice approximations 40 N / 0.1 m/s. Camera inertias are approximated by
+uniform boxes. The Go2 source torque limits are retained.
+Robot self-collisions are disabled in this first practice
 implementation; collision-free arm planning and hardware deployment are outside
 its validated scope.
 
@@ -174,6 +181,19 @@ recorded commands, assets, source identities, and final state; it never restores
 final state. Logs and generated assets stay outside Git. A reused installation,
 native run, CPU check, Kinex execution, task success, and model-driven acceptance
 are distinct evidence; the included checks do not certify the latter two.
+
+New recordings identify the Go2 implementation, the Isaac Lab dependency lock,
+and the Isaac Lab source entries and their dependencies/patch checksums from
+`upstreams.lock.json`. Unrelated backend updates and JSON formatting changes do
+not change this source identity. Changes to an identified input require a fresh
+recording and replay on the updated checkout.
+
+Older recordings hashed the entire upstream lock. They cannot be replayed by this
+updated implementation: strict source-identity comparison rejects them. Preserve
+those recordings and their original checkout for historical validation; collect
+new evidence for this version instead of editing recorded hashes or relabeling
+old results. For each native or transport check above, choose a new output
+directory and replay its new `record.json` in a fresh Isaac process.
 
 ## Velocity demonstration videos
 

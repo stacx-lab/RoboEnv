@@ -234,6 +234,9 @@ class Go2Env:
     @staticmethod
     def source_identity():
         import hashlib
+        import json
+
+        from roboenv.provisioning.sources import selected_sources
 
         from . import adapter, limits, native, tasks
 
@@ -249,8 +252,24 @@ class Go2Env:
         }
         from roboenv_runtime.paths import repo_root
 
-        for name in ("upstreams.lock.json", "runtime/locks/isaaclab-resolved.txt"):
-            sources[name] = hashlib.sha256((repo_root() / name).read_bytes()).hexdigest()
+        root = repo_root()
+        lock = json.loads((root / "upstreams.lock.json").read_text())
+        if lock.get("schema") != "roboenv/upstreams/1":
+            raise ValueError("Unsupported upstream lock")
+        # Include Isaac Lab's dependency closure and managed patch identities,
+        # without invalidating Go2 recordings when unrelated backends change.
+        selected = {
+            "schema": lock["schema"],
+            "sources": {
+                name: lock["sources"][name]
+                for name in selected_sources(lock, ["isaaclab"])
+            },
+        }
+        sources["upstreams.lock.json#isaaclab"] = hashlib.sha256(
+            json.dumps(selected, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        name = "runtime/locks/isaaclab-resolved.txt"
+        sources[name] = hashlib.sha256((root / name).read_bytes()).hexdigest()
         return sources
 
     def record(self):
