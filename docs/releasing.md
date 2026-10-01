@@ -20,7 +20,7 @@ Initialize the selected backends needed for the candidate; strict upstream
 verification requires every locked source to be available and match its patches.
 The clean-install check creates a temporary environment, installs both wheels
 with normal dependency resolution, and checks dependencies, import origins,
-CLI entry points and the real Harbor task loader outside the checkout. It needs
+CLI entry points outside the checkout, without agent frameworks installed. It needs
 an accessible package index or, with `--offline`, a populated uv cache. Receipts
 record wheel hashes; raw installation diagnostics stay private.
 
@@ -57,7 +57,7 @@ See [the notice inventory](third-party-notices.md) for separate upstream reviews
 
 The packaging script cannot prove the other rows. Missing GPU evidence means the
 backend remains experimental or unsupported in that release; do not infer support
-from a successful source discovery or Harbor parser run. Do not relabel old runs
+from a successful source discovery or schema-validation run. Do not relabel old runs
 as evidence for changed binaries. Keep successes and failures in the release notes.
 
 ## CI policy
@@ -78,8 +78,8 @@ An action pin does not by itself make every transitive download reproducible.
 Never run untrusted pull-request code on a long-lived GPU runner. GPU automation
 needs a disposable runner, trusted/ref-reviewed input, read-only depots, exclusive
 resource allocation and reviewed evidence retention. Configure that infrastructure
-before enabling a GPU schedule. See [GPU validation](gpu-validation.md#trusted-manual-gpu-ci)
-for runner configuration.
+before enabling a GPU schedule. See [simulator validation](gpu-validation.md)
+for evidence boundaries and backend-specific checks.
 
 ## Candidate artifacts and promotion
 
@@ -112,7 +112,7 @@ server extra. Candidate wheel file URLs are removed, replaced by real wheel
 hashes, and the resulting document is schema-validated again. The report records
 generator versions, UTC time, dependency versions and candidate/SBOM digests.
 This checks known advisories, not undiscovered vulnerabilities. The default
-development/Harbor environment and simulator images are different audit scopes.
+development environment and simulator images are different audit scopes.
 See the [pip-audit usage and security model](https://github.com/pypa/pip-audit).
 
 Keep package digests, sanitized preflight/security summaries and the SPDX artifact

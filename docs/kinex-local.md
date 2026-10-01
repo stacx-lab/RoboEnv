@@ -33,7 +33,7 @@ to pick up runtime changes, then `/reload all` in Kinex to refresh its connectio
 World `read` exposes native `action_frames` budgets as `budget: {elapsed_s, max_s}`
 in seconds; `max_s` is null in realtime. Counted initialization frames are included,
 so budget consumption can differ from `time_s`. This is native episode accounting,
-not wall-clock time or a Harbor deadline. Budgets with other units (`sim_steps`,
+not wall-clock time or an orchestrator deadline. Budgets with other units (`sim_steps`,
 `api_calls`, or unknown units) are omitted because their duration is not established.
 World `status` remains `{loaded: true}`; `wait` returns `time_s` and the wait's
 `elapsed_s`, without a budget.
@@ -206,5 +206,5 @@ A recording smoke test does not certify task success or reproducible replay.
 For observation-restricted evaluations, use an isolated agent process/container
 without access to simulator assets, owner sockets, or verifier evidence. A local
 TUI running as the simulator's Unix user is a functional test, not a filesystem
-security boundary. Harbor runs the agent as a separate unprivileged user; private
+security boundary. An external orchestrator must isolate the agent from owner data; private
 run evidence is owner-only.

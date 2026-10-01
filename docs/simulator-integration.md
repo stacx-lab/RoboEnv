@@ -8,7 +8,8 @@ Coding-agent workflows are defined in
 [integrate-simulator-kinex](../.agents/skills/integrate-simulator-kinex/SKILL.md)
 for implementation and
 [test-simulator-kinex](../.agents/skills/test-simulator-kinex/SKILL.md) for acceptance.
-See [Kinex Harbor integration](../integrations/kinex/README.md) for job commands.
+See [agent integration](device-documentation.md) for SDK/CLI consumers and
+[local Kinex use](kinex-local.md) for optional device compatibility.
 
 ## Choose the scope
 
@@ -41,7 +42,7 @@ and seeds belong to private task state.
 | DeviceService / supervisor | Validation, dispatch, episode identity, deduplication, and transport boundaries |
 | Driver | Portable device access and local utilities such as IK/FK |
 | Agent harness | Perception, planning, controller loops, and model calls |
-| Harbor | Trial scheduling, deployment, agent/verifier execution, and cleanup |
+| External orchestrator | Trial scheduling, deployment, agent execution, and cleanup |
 
 New integrations default to sensor-only observations: instructions, device facts,
 and declared sensor readings. Keep scene truth and verdicts private. A benchmark
@@ -86,7 +87,7 @@ metadata. `AdapterBase.describe()` returns only `name` and `embodiment`; update
 consumers that imported those constants or read that field. Optional practice
 snapshots use `checkpoint()` and `restore(token)` methods (the
 `SupportsCheckpoint` protocol); the worker detects these methods directly.
-Simulation-status and Harbor-manifest capability fields are separate and unchanged.
+Simulation-status capability fields are separate and unchanged.
 
 Use [RoboCasa's adapter](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py)
 and [native bindings](../runtime/src/roboenv_runtime/bindings/backends/robocasa/)
@@ -134,7 +135,7 @@ same duration contract. World `read` returns `time_s` and an optional
 binding multiplies native consumption and cap by the control interval; an uncapped
 budget has `max_s: null`. Counted initialization frames remain included, so budget
 elapsed time can differ from the world clock. This does not represent wall-clock
-time or Harbor deadlines. Other units, including `sim_steps` and `api_calls`, omit
+time or orchestrator deadlines. Other units, including `sim_steps` and `api_calls`, omit
 the field because their duration is not established. `status` stays `{loaded: true}`;
 `wait(duration_s)` returns only `time_s` and the wait's `elapsed_s`.
 Realtime advances continuously; stepped advances during waits.
@@ -275,7 +276,7 @@ mount references together.
 ### Task format
 
 Every simulator uses the same flat `task.yaml`, parsed by `roboenv.tasks.model.Task`.
-Local startup and Harbor export serialize that resolved definition unchanged into
+Local startup serializes that resolved definition unchanged into
 private worker configuration. There is no second runtime task schema.
 
 ```yaml
@@ -302,7 +303,7 @@ Clock precedence is launch override, explicit task setting, then realtime.
 Realtime disables episode step caps and native horizon timeouts while continuing
 to count intervals with `budget.max: null`. Stepped retains existing native and
 configured horizons. Native non-timeout failures, success policies, explicit stop,
-request deadlines and Harbor trial timeouts remain active. World initialization
+request deadlines and external trial timeouts remain active. World initialization
 applies the selected mode before reset; configured horizons are retained separately
 from effective limits. Budget mode does not select the clock.
 
@@ -322,7 +323,7 @@ known effects. Buffer cleanup runs without an extra tick and precedes the final
 observation and score; cleanup failure prevents certification. A buffer or wait
 that completes exactly at the terminal frame may still return normally. Final
 reads and repeated submit/stop use the sealed verdict. Existing native success
-predicates, non-timeout termination and Harbor reward budget rules remain intact.
+predicates, non-timeout termination and owner verification budget rules remain intact.
 
 ### Device bindings
 
@@ -364,15 +365,15 @@ one small example before generating task collections, which stay outside Git.
 roboenv launch TASK_ID --port 8123
 ```
 
-Local launch and Harbor use the same resolver and service. Ready means the world
+SDK and CLI launch use the same resolver and service. Ready means the world
 and selected devices are initialized. Connection failure must not create another
 world. Parallel trials use separate endpoints or isolated networks.
 
 Add backend mappings, runtime wheels, source/asset slices, and image support to
 `tools/build_simulator_image.py` and deployment recipes. Use real image digests.
-Harbor must cover readiness, endpoint delivery, verifier access, and failure cleanup;
-validate exports with its installed loader. See [Harbor tasks](harbor-tasks.md).
-Rebuild runtime wheels/images after runtime changes; re-exporting tasks alone does
+External orchestrators own readiness, endpoint delivery, owner access, and cleanup.
+See [image preparation](setup.md#standalone-simulator-images).
+Rebuild runtime wheels/images after runtime changes; updating task definitions alone does
 not update the deployed service implementation. Preserve previous deployment
 identities and validation evidence.
 

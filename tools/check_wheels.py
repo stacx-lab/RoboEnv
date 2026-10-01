@@ -25,6 +25,18 @@ for wheel in wheels:
             }
             if actual_bindings != expected_bindings:
                 raise SystemExit("Binding defaults missing or stale in SDK wheel")
+        retired = {
+            "roboenv/assets/main.Dockerfile", "roboenv/assets/serve-native.sh",
+            "roboenv/assets/verify.py",
+        }
+        if retired.intersection(names) or any(n.startswith("roboenv/harbor/") for n in names):
+            raise SystemExit("Removed orchestration files leaked into distribution")
+        metadata = next(n for n in names if n.endswith(".dist-info/METADATA"))
+        if any(
+            line.lower().startswith(("requires-dist: harbor", "provides-extra: harbor"))
+            for line in package.read(metadata).decode().splitlines()
+        ):
+            raise SystemExit("Removed orchestration dependency leaked into metadata")
         source = Path("src") if distribution == "roboenv" else Path("runtime/src")
         expected = {
             path.relative_to(source).as_posix() for path in (source / distribution).rglob("*.py")

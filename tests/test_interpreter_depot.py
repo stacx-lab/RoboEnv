@@ -1,13 +1,10 @@
 """No-GPU integrity and isolation regressions for executable dependency depots."""
 
 import ast
-import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from helpers import load_script
-from roboenv.harbor.deployment import native_service
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTAINER_PREFIX = "/opt/roboenv/runtime/dependencies"
@@ -186,31 +183,6 @@ def test_base_relocation_does_not_follow_a_bin_directory_link(tmp_path):
     assert (outside / "python").read_text() == "untouched"
 
 
-def test_healthcheck_never_executes_depot_python_before_verification(tmp_path):
-    manifest = tmp_path / "deployment.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "schema": "roboenv/deployment/1",
-                "backend": "robodojo",
-                "legacy_tree_required": False,
-                "image": "sha256:" + "a" * 64,
-                "mounts": [],
-                "environment": {},
-            }
-        )
-    )
-    task = SimpleNamespace(
-        backend="robodojo", id="fixture", backend_task="fixture", seed=0, budget_mode="official"
-    )
-    service = native_service(manifest, task)
-    health = service["healthcheck"]["test"]
-    assert health[:2] == ["CMD", "/usr/bin/python3"]
-    assert "/opt/sim-env/bin/python" not in health
-    script = (ROOT / "src/roboenv/assets/serve-native.sh").read_text()
-    assert script.index("/usr/bin/python3 -I") < script.index("exec /opt/sim-env/bin/python")
-
-
 def test_cross_depot_links_require_every_terminal_to_be_verified(tmp_path):
     module = load_script("runtime/packaging/verify_dependencies.py")
     sim, base = tmp_path / "sim", tmp_path / "base"
@@ -277,3 +249,33 @@ def test_relocation_rejects_symlinked_or_invalid_stage_marker(tmp_path):
     marker.write_text("{}")
     with pytest.raises(ValueError, match="staging marker"):
         module.relocate(tmp_path, {"replacements": {}})
+
+
+@pytest.mark.parametrize("verification", ["passed", "failed", "embedded"])
+def test_container_entrypoint_checks_depots_before_executing_command(tmp_path, verification):
+    import subprocess
+
+    manifests = tmp_path / "dependency-locks"
+    if verification != "embedded":
+        manifests.mkdir()
+    events = tmp_path / "events"
+    verifier = tmp_path / "verify.py"
+    verifier.write_text(
+        f"from pathlib import Path\nPath({str(events)!r}).write_text('verified\\n')\n"
+        f"raise SystemExit({1 if verification == 'failed' else 0})\n"
+    )
+    entrypoint = tmp_path / "entrypoint.sh"
+    entrypoint.write_text(
+        (ROOT / "runtime/packaging/entrypoint.sh").read_text()
+        .replace("/opt/roboenv/dependency-locks", str(manifests))
+        .replace("/opt/roboenv/verify-dependencies.py", str(verifier))
+    )
+    result = subprocess.run(
+        ["/bin/sh", str(entrypoint), "/bin/sh", "-c",
+         'echo executed >> "$1"', "probe", str(events)],
+        capture_output=True, text=True, timeout=10,
+    )
+    expected = {"passed": "verified\nexecuted\n", "failed": "verified\n",
+                "embedded": "executed\n"}
+    assert events.read_text() == expected[verification]
+    assert (result.returncode == 0) is (verification != "failed")

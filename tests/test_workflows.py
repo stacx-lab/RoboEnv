@@ -346,42 +346,6 @@ def test_prepare_reports_install_failure(monkeypatch, capsys):
     assert "installation blocked" in capsys.readouterr().out
 
 
-def test_simple_export_uses_the_shared_resolver(tmp_path):
-    from roboenv.harbor.workflow import export
-
-    wheel = tmp_path / "roboenv-test.whl"
-    wheel.write_bytes(b"test-only wheel; never installed")
-    deployment = tmp_path / "deployment.json"
-    deployment.write_text(
-        json.dumps(
-            {
-                "schema": "roboenv/deployment/1",
-                "backend": "fakeshell",
-                "image": "sha256:" + "a" * 64,
-                "legacy_tree_required": False,
-                "mounts": [],
-            }
-        )
-    )
-    out = tmp_path / "task"
-    export(
-        FIXTURE / "task.yaml",
-        project=ROOT,
-        catalog=FIXTURE / "catalog",
-        out=out,
-        deployment=deployment,
-        wheel=wheel,
-    )
-    generated = yaml.safe_load(
-        (out / "environment/sim/tasks/fakeshell.native-push.yaml").read_text()
-    )
-    assert (
-        generated
-        == asdict(resolve_task(FIXTURE / "task.yaml", catalog=FIXTURE / "catalog").task)
-    )
-    assert not (out / "solution").exists()
-
-
 def test_launch_never_changes_catalog():
     def snapshot():
         return {
@@ -486,3 +450,45 @@ def test_launch_uses_catalog_mode_unless_overridden(tmp_path, monkeypatch, overr
     config = yaml.safe_load((Path(env["ROBOENV_TASKS"]) / "fakeshell.native-push.yaml").read_text())
     assert config["execution_mode"] == expected
     shutil.rmtree(env["ROBOENV_SOCKET_ROOT"])
+
+
+@pytest.mark.parametrize("command", [
+    ["export"], ["tasks", "generate"], ["tasks", "validate"], ["tasks", "run"],
+])
+def test_removed_orchestration_commands_are_unknown(command, capsys):
+    from roboenv.cli.main import main
+
+    with pytest.raises(SystemExit) as error:
+        main(command)
+    assert error.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err
+
+
+def test_task_commands_do_not_import_agent_frameworks(tmp_path, monkeypatch, capsys):
+    import builtins
+
+    from roboenv.cli.main import main
+    from roboenv.tasks import catalog
+
+    original_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        assert not name.startswith(("harbor", "kinex", "roboenv.harbor")), name
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    assert main(["tasks", "list", "--project", str(ROOT)]) == 0
+    assert json.loads(capsys.readouterr().out)["tasks"] > 0
+    monkeypatch.setattr(catalog, "load_lock", lambda _: (ROOT, {"sources": {}}))
+    monkeypatch.setattr(catalog, "status", lambda *a: {"ready": True, "sources": []})
+    monkeypatch.setitem(catalog.DISCOVERERS, "libero", lambda *a: [(
+        catalog._task("libero", "libero.example", {"task_name": "Example"}, "Do it"),
+        ROOT / "README.md",
+    )])
+    destination = tmp_path / "source"
+    assert main(["tasks", "discover", "--backends", "libero", "--out", str(destination)]) == 0
+    assert json.loads(capsys.readouterr().out)["tasks"] == 1
+    inventory = json.loads((destination / "inventory.json").read_text())
+    assert inventory["schema"] == "roboenv/discovered-tasks/1"
+    assert not inventory["execution_verified"]
+    assert len(inventory["tasks"]["libero/example"]["source_sha256"]) == 64

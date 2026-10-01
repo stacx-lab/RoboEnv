@@ -256,18 +256,17 @@ HTTP downloads are episode-scoped and client-local. SDK files last until client
 cleanup; one-shot driver files remain readable after process exit. RGB-only custom
 profiles remain supported. Other benchmark observation policies need separate review.
 
-## Isolation, Harbor, and validation
+## Isolation and validation
 
 Task context is empty. Object poses, fixtures, layout/style, scene seeds, and verdicts
 stay private to the owner/verifier. The HTTP service exposes device operations and
 safe discovery/health/request status, with no scene API, task macros, or policy runner.
 Operation-status queries cannot retrieve cached owner results.
 
-Harbor uses the same task resolver and an isolated service network per trial, with
-`ROBOENV_ENDPOINT=http://sim:8123`. Readiness includes device binding and trial-local
-profile/driver publication under `/run/roboenv/robot`. The agent runs as `agent`;
-the verifier accesses the protected owner socket and evidence as `root`. Each restart
-creates a fresh episode identity. Harbor cleans up even when the agent fails.
+External orchestrators launch the same service and deliver its public endpoint to
+agents. They own container users, network isolation, resource allocation and cleanup.
+Owner sockets and evidence must remain inaccessible to agent containers. Each local
+launch creates a fresh episode identity; clients pin that identity on attachment.
 
 `bash tools/check.sh` covers CPU, privacy, format, and packaging checks. With a
 prepared RoboCasa interpreter, tests exercise real Panda–Omron controllers in a
@@ -282,7 +281,7 @@ style, instruction, object models and poses every time.
 
 Camera transport tests use synthetic pixels. Kitchen boot, rendered calibration,
 task success, and fresh-process replay require separate evidence. See
-[Kinex local testing](kinex-local.md), [Harbor tasks](harbor-tasks.md), and
+[Kinex local testing](kinex-local.md), [agent integration](device-documentation.md), and
 [simulator integration](simulator-integration.md) for those workflows.
 
 

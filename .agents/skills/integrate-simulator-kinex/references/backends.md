@@ -26,7 +26,7 @@ rig or old successful reference program does not prove typed Kinex integration.
 Inventory actual supported rigs and public operations before editing. Update task
 discovery's default robot and native configuration along with runtime registration;
 test generated tasks through the shared `roboenv.tasks.model.Task` schema, normal
-resolver and workspace preparation. Local launch and Harbor use that same schema.
+resolver and workspace preparation. SDK and CLI launch use that same schema.
 
 Trace clock selection in `src/roboenv/environment.py` and CLI launch as well as
 backend support. Tasks default to `execution_mode: realtime`; launch can override

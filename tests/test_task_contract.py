@@ -1,13 +1,10 @@
-"""One task schema and effective clock policy across every simulator and export."""
+"""One task schema and effective clock policy across every simulator."""
 
-import json
 from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 import yaml
-from roboenv.harbor.export import export_task
-from roboenv.harbor.taskset import validate_harbor_task
 from roboenv.tasks.catalog import BACKENDS, load_catalog
 from roboenv.tasks.model import Task
 from roboenv.tasks.resolve import resolve_task
@@ -20,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "isaaclab"])
 @pytest.mark.parametrize("mode", [None, "stepped"])
-def test_catalog_launch_and_export_share_task_and_clock(tmp_path, backend, mode):
+def test_catalog_resolution_preserves_task_and_clock(tmp_path, backend, mode):
     task = next(
         task for task, _ in load_catalog(ROOT / "catalog/tasks").values() if task.backend == backend
     )
@@ -33,37 +30,11 @@ def test_catalog_launch_and_export_share_task_and_clock(tmp_path, backend, mode)
     source.write_text(yaml.safe_dump(value))
     resolved = resolve_task(source, catalog=ROOT / "catalog")
     assert resolved.task.execution_mode == (mode or "realtime")
-    wheel = tmp_path / "sdk.whl"
-    wheel.write_bytes(b"test-only build input")
-    deployment = tmp_path / "deployment.json"
-    deployment.write_text(
-        json.dumps(
-            {
-                "schema": "roboenv/deployment/1",
-                "backend": backend,
-                "image": "sha256:" + "a" * 64,
-                "legacy_tree_required": False,
-            }
-        )
-    )
-    out = tmp_path / "export"
-    export_task(
-        source, ROOT / "catalog", out, wheel, seed=17, practice=True, deployment_path=deployment
-    )
-    assert validate_harbor_task(out)["schema_version"] == "1.4"
-    exported = Task.load(next((out / "environment/sim/tasks").glob("*.yaml")))
-    expected = {**asdict(resolved.task), "seed": 17, "budget_mode": "practice"}
-    assert asdict(exported) == expected
-    owner = json.loads((out / "environment/sim/environment.json").read_text())
-    assert owner["task"] == expected
-    verifier = json.loads((out / "tests/task.json").read_text())
-    assert (verifier["task_id"], verifier["seed"]) == (task.id, 17)
-    public = json.loads((out / "environment/definition/environment.json").read_text())
-    assert set(public["task"]) == {"id", "instruction", "context"}
-    assert public["task"]["context"] == {}
-    instruction = (out / "instruction.md").read_text()
-    assert ("no episode step cap" in instruction) is (mode is None)
-    assert ("Stepped mode" in instruction) is (mode == "stepped")
+    serialized = tmp_path / "resolved.yaml"
+    serialized.write_text(yaml.safe_dump(asdict(resolved.task)))
+    assert Task.load(serialized) == resolved.task
+    assert resolved.bindings.devices
+    assert resolved.task.id == task.id
 
 
 def test_task_rejects_unknown_fields():

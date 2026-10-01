@@ -1,17 +1,11 @@
-#!/usr/bin/env python3
-"""Independent Harbor verifier. Standard library only; never imports /app code.
+"""Owner-side score and journal checks, independent of agent orchestration.
 
-The simulator's live verdict plus its read-only supervisor journal are evidence.
-This verifies one trial, not a fresh-process replay certificate.
+These checks validate single-episode evidence, not fresh-process replay.
 """
 
 import hashlib
 import json
 import math
-import os
-import socket
-import uuid
-from pathlib import Path
 
 
 def strict_json(raw):
@@ -37,36 +31,6 @@ def strict_json(raw):
     return json.loads(
         raw, parse_constant=reject, parse_float=finite_float, object_pairs_hook=unique
     )
-
-
-def rpc(op, session, args=None):
-    """Send an identity-checked request without importing any client code."""
-    request = {
-        "protocol": "roboenv/1",
-        "session": session,
-        "generation": 0,
-        "request_id": f"verify-{uuid.uuid4().hex}",
-        "deadline_s": 240.0,
-        "op": op,
-        "args": args or {},
-    }
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-        sock.settimeout(245)
-        sock.connect(os.environ.get("ROBOENV_SOCKET", "/run/roboenv/sim.sock"))
-        sock.sendall(json.dumps(request).encode() + b"\n")
-        with sock.makefile("rb") as stream:
-            raw = stream.readline(8 * 1024 * 1024 + 1)
-    if len(raw) > 8 * 1024 * 1024 or not raw.endswith(b"\n"):
-        raise ValueError("incomplete or oversized response")
-    response = strict_json(raw)
-    if not isinstance(response, dict) or type(response.get("generation")) is not int:
-        raise ValueError("response must contain a typed episode identity")
-    for field in ("protocol", "session", "generation", "request_id"):
-        if response.get(field) != request[field]:
-            raise ValueError(f"response {field} mismatch")
-    if response.get("ok") is not True:
-        raise ValueError(f"{op} failed: {response.get('error')}")
-    return response["result"], request["request_id"]
 
 
 def attach_budget(verdict, observation):
@@ -206,94 +170,3 @@ def validate_journal(raw, *, session, submit_id, verdict, practice=False):
     if pending or not submitted:
         raise ValueError("unfinished actions or missing verifier submit")
     return {"sha256": hashlib.sha256(raw).hexdigest(), "requests": count}
-
-
-def retain_journal(out):
-    """Preserve the original bytes even when verification rejects the trial."""
-    journal = Path(os.environ.get("ROBOENV_RUN_DIR", "/run/roboenv/run")) / "journal/actions.jsonl"
-    raw = journal.read_bytes()
-    (out / "actions.jsonl").write_bytes(raw)
-    return raw
-
-
-def main():
-    """Write a fail-closed live-trial verdict and its independent evidence."""
-    out = Path(os.environ.get("ROBOENV_VERIFIER_OUT", "/logs/verifier"))
-    out.mkdir(parents=True, exist_ok=True)
-    # A malformed/missing task definition must not leave an old success behind.
-    (out / "reward.json").write_text('{"reward": 0.0}\n')
-    (out / "reward.txt").write_text("0.0\n")
-    report = {"certified": False, "benchmark_eligible": False}
-    reward, valid = 0.0, False
-    raw = None
-    try:
-        task = strict_json(Path(__file__).with_name("task.json").read_bytes())
-        identity_path = Path(os.environ.get("ROBOENV_SOCKET", "/run/roboenv/sim.sock"))
-        identity = strict_json(identity_path.with_name("identity.json").read_bytes())
-        task["session"] = identity["session"]
-        mode = task.get("budget_mode", "official")
-        if (
-            type(task.get("seed")) is not int
-            or task["seed"] < 0
-            or mode not in {"official", "practice"}
-            or any(
-                not isinstance(task.get(key), str) or not task[key]
-                for key in ("task_id", "session")
-            )
-        ):
-            raise ValueError("invalid verifier task identity or budget mode")
-        report.update(
-            task=task["task_id"],
-            seed=task["seed"],
-            budget_mode=mode,
-            benchmark_eligible=mode == "official",
-        )
-        health, _ = rpc("health", task["session"])
-        report["health"] = health
-        if type(health.get("seed")) is not int or (
-            health.get("task"),
-            health.get("seed"),
-            health.get("budget_mode"),
-        ) != (
-            task["task_id"],
-            task["seed"],
-            mode,
-        ):
-            raise ValueError("server task/seed/budget identity differs from task.json")
-        verdict, submit_id = rpc("submit", task["session"])
-        report["submit"] = verdict
-        observation, _ = rpc("observe", task["session"])
-        report["observation"] = observation
-        raw = retain_journal(out)
-        success = validate_score(attach_budget(verdict, observation))
-        report["journal"] = validate_journal(
-            raw,
-            session=task["session"],
-            submit_id=submit_id,
-            verdict=verdict,
-            practice=mode == "practice",
-        )
-        valid, reward = True, float(success)
-    except Exception as exc:
-        report["error"] = f"{type(exc).__name__}: {exc}"
-    if raw is None:
-        try:
-            raw = retain_journal(out)
-        except OSError as exc:
-            report["journal_capture_error"] = f"{type(exc).__name__}: {exc}"
-    if raw is not None:
-        report["journal_artifact"] = {
-            "sha256": hashlib.sha256(raw).hexdigest(),
-            "bytes": len(raw),
-            "validated": valid,
-        }
-    report.update(valid=valid, trial_success=bool(reward))
-    (out / "submit.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
-    (out / "reward.json").write_text(json.dumps({"reward": reward}) + "\n")
-    (out / "reward.txt").write_text(f"{reward}\n")
-    print(json.dumps(report, allow_nan=False))
-    return 0 if valid else 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

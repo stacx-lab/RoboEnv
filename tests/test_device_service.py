@@ -120,7 +120,6 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
         **os.environ,
         "ROBOENV_SOCKET": client.socket_path,
         "ROBOENV_RUN_DIR": str(supervisor.config.run_dir),
-        "ROBOENV_VERIFIER_OUT": str(tmp_path / "verdict"),
     }
     for arguments in (
         ["devices"],
@@ -136,28 +135,18 @@ def test_no_local_agent_dependency_cli_and_independent_verifier(device_service, 
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert json.loads(result.stdout)
-    assets = importlib.resources.files("roboenv").joinpath("assets")
-    verifier = tmp_path / "verify.py"
-    verifier.write_text(assets.joinpath("verify.py").read_text())
-    task = {
-        "task_id": "device-toy", "seed": 0, "session": "stale-deployment-session",
-        "backend": "fakeshell",
-    }
-    (tmp_path / "task.json").write_text(json.dumps(task))
+    from roboenv.verification import attach_budget, validate_journal, validate_score
 
-    def verify():
-        return subprocess.run(
-            [sys.executable, str(verifier)], cwd=tmp_path, env=env,
-            capture_output=True, text=True, timeout=15,
-        )
-
-    assert verify().returncode == 1  # Missing owner identity cannot certify a trial.
-    assert json.loads((tmp_path / "verdict/reward.json").read_text()) == {"reward": 0.0}
-    assert not client.request("score.peek")["submitted"]
-    Path(client.socket_path).with_name("identity.json").write_text('{"session":"harbor"}')
-    result = verify()
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert json.loads((tmp_path / "verdict/reward.json").read_text()) == {"reward": 1.0}
+    client.allowed_ops = client.allowed_ops | {"submit"}
+    verdict = client.request("submit", request_id="owner-submit")
+    observation = client.request("observe")
+    raw = supervisor.journal.path.read_bytes()
+    assert validate_score(attach_budget(verdict, observation))
+    assert validate_journal(
+        raw, session=client.session, submit_id="owner-submit", verdict=verdict
+    )["requests"] > 0
+    with pytest.raises(ValueError, match="identity changed"):
+        validate_journal(raw, session="wrong-session", submit_id="owner-submit", verdict=verdict)
     with pytest.raises(RemoteError, match="already_submitted"):
         invoke(client)
     client.device("controller").read()
@@ -230,10 +219,10 @@ def test_partial_device_motion_is_not_certified(device_service):
     with pytest.raises(RemoteError, match="partial motion"):
         invoke(client, fail_after=True)
     assert client.request("observe")["budget"]["used"] == 50
-    verifier = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
+    verifier = runpy.run_path(str(ROOT / "src/roboenv/verification.py"))
     raw = supervisor.journal.path.read_bytes()
     with pytest.raises(ValueError, match="indeterminate"):
-        verifier["validate_journal"](raw, session="harbor", submit_id="none", verdict={})
+        verifier["validate_journal"](raw, session="roboenv", submit_id="none", verdict={})
 
 
 @pytest.mark.parametrize("journal_delay_s", [0, 0.2])
@@ -284,13 +273,13 @@ def test_restart_retrieves_terminal_results_and_fences_unfinished_intents(tmp_pa
         task="test",
         seed=0,
         budget_mode="official",
-        session="harbor",
+        session="roboenv",
         cache_entries=1,
     )
     before = Supervisor(config)
     raw = {
         "protocol": "roboenv/1",
-        "session": "harbor",
+        "session": "roboenv",
         "generation": 0,
         "request_id": "done",
         "deadline_s": 1,

@@ -19,7 +19,7 @@ from roboenv_runtime.runtime.atomic import AtomicJournal
 from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError, handle_mapping
 
 ROOT = Path(__file__).resolve().parents[1]
-VERIFY = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
+VERIFY = runpy.run_path(str(ROOT / "src/roboenv/verification.py"))
 
 
 def journal_call(worker, journal, ident, op, args):

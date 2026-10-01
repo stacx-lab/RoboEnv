@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "roboenv"
 version = "0.9.1"
-description = "Agent-independent robotics environments, device access and Harbor tasks"
+description = "Agent-independent robotics environments and device access"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["PyYAML>=6"]
@@ -15,7 +15,6 @@ server = ["jsonschema>=4.18"]
 setup = ["packaging>=24", "build>=1"]
 replay = ["numpy>=1.23"]
 dev = ["pytest>=8", "ruff>=0.5", "build>=1"]
-harbor = ["harbor==0.22.0; python_version >= '3.12'"]
 
 [project.scripts]
 roboenv = "roboenv.cli.main:main"
@@ -24,7 +23,7 @@ roboenv = "roboenv.cli.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-roboenv = ["assets/*.json", "assets/*.py", "assets/*.sh", "assets/*.Dockerfile", "specs/*.json"]
+roboenv = ["assets/*.json", "assets/*.py", "specs/*.json"]
 "roboenv.devices.bindings" = ["defaults/*/*.yaml"]
 
 [tool.ruff]

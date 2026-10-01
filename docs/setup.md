@@ -113,7 +113,7 @@ that setting for a local launch. Realtime disables configured and native episode
 step caps and reports `budget.max: null`; stepped retains the caps. Non-timeout
 termination conditions still apply. No simulator
 installation or asset download occurs during launch. Local launch is intended
-for development; Harbor provides the container boundary for agent evaluation.
+for development; external orchestrators provide container boundaries for evaluation.
 
 ## Connect and use devices
 
@@ -150,28 +150,78 @@ Run definitions, device exports, and logs remain in the project's ignored cache.
 Exported local drivers carry a connection file. Copy complete device directories
 into the agent workspace; their dependencies are described in
 [local Kinex use](kinex-local.md). These episode-specific connection files are
-not portable Harbor task inputs.
+not reusable across episodes without refreshing their identity.
 
-## Export to Harbor
-
-After preparing a native image deployment:
+## Discover tasks and connect an agent
 
 ```sh
-roboenv export libero/mug-into-microwave --out generated/example
+roboenv tasks discover --backends libero --out generated/libero-source
+roboenv tasks list --source generated/libero-source/tasks
+roboenv launch libero/mug-into-microwave --port 8123
 ```
 
-The default deployment is `.cache/images/libero/deployment.json`; use
-`--deployment FILE` to select another. The command builds a fresh SDK wheel
-unless `--wheel FILE` is supplied, and validates the task with the real Harbor
-loader. Local launch and export use the same task resolver and device binding
-configuration. Image and asset preparation are described in
-[Harbor tasks](harbor-tasks.md).
-
-RoboTwin and RoboDojo tasks expose typed devices and do not ship primitive
-reference solutions.
+Task discovery reads pinned definitions without importing simulator engines.
+Generated catalogs retain source revisions, hashes, patches and exclusions, and
+stay outside Git. Agents connect through the SDK or CLI; use the
+[public device reference](device-documentation.md) to supply their documentation.
 See [simulator validation](gpu-validation.md) for native checks and
-[Kinex Harbor integration](../integrations/kinex/README.md) for controller
-development and frozen trials.
+[local Kinex use](kinex-local.md) for optional Kinex device setup.
+
+## Standalone simulator images
+
+Build SDK/runtime wheels with `bash tools/check.sh`, prepare the selected simulator,
+then use `tools/build_simulator_image.py --help`. The builder requires a backend,
+`--dependencies`, `--runtime-wheel`, `--out`, and `--tag`. It uses the registered
+interpreter unless `--interpreter ENV/bin/python` is supplied.
+
+`--interpreter-mode image` embeds a relocated interpreter; `depot` creates a
+separate read-only, content-verified copy. `--asset-mode` selects reference or copy
+staging for assets. Never mount the original project or interpreter. Staging and
+Docker storage both need room; `--stage-only` does not produce a runnable image.
+
+The output `deployment.json` uses `roboenv/deployment/1`. External orchestrators
+can validate it with `roboenv.provisioning.deployment.load_deployment(path, backend)`.
+It requires an immutable image digest, independent read-only depots, and protected
+episode settings. Local paths stay private. Runtime options describe shared memory
+and readiness grace periods; the external container launcher applies those options.
+
+Use the generated image with its default entrypoint, mounting each declared depot
+read-only at its declared target. The entrypoint verifies executable depots using
+image-owned `/usr/bin/python3 -I` before executing any simulator interpreter.
+Do not bypass it. Mount the matching SDK wheel and owner task/catalog files
+read-only, outside the agent container. A launch command inside the image is:
+
+```sh
+/opt/sim-env/bin/python -m roboenv.cli.main launch /opt/task/task.yaml \
+  --catalog /opt/task/catalog --runtime-root /opt/roboenv/runtime \
+  --interpreter /opt/sim-env/bin/python --run-dir /run/roboenv/run \
+  --host 0.0.0.0 --port 8123 \
+  --python-path /opt/roboenv-runtime --python-path /opt/roboenv-contract-deps \
+  --python-path /opt/sdk/roboenv.whl
+```
+
+For depot images, set `PYTHONPATH` to include `/opt/sdk/roboenv.whl` alongside
+`/opt/roboenv-runtime` and `/opt/roboenv-contract-deps` before invoking that command.
+For embedded-interpreter images, omit `/opt/roboenv-runtime` from both `PYTHONPATH`
+and `--python-path` (the runtime wheel is installed in the interpreter), and include
+the SDK wheel and contract dependencies in both.
+Use the actual mounted SDK wheel filename. The owner chooses GPU allocation,
+network/port mapping, readiness deadlines and cleanup; no agent runner is bundled.
+Agent containers receive only the public endpoint and intended sensor/configuration
+resources. A read-only mount does not hide private contents.
+
+## Removed orchestration
+
+Harbor support, `integrations/kinex`, and Kinex agent packaging/reporting were
+removed without compatibility stubs. `roboenv export` and `roboenv tasks generate`,
+`validate`, and `run`, the `harbor` dependency extra, and the unified Harbor GPU
+workflow are no longer available. Use task discovery, local or container launch,
+and an external coding-agent harness instead. Existing generated Harbor bundles
+and historical receipts are preserved artifacts, not supported execution inputs.
+Kinex device catalogs, local workspace setup and compatibility checks remain.
+The low-level socket client fallback session is now `roboenv`; use an explicit
+session or `ROBOENV_SESSION` for an existing owner. HTTP identity discovery and
+launch-generated episode identities are unchanged.
 
 ## Advanced installation and assets
 
@@ -213,7 +263,7 @@ Use actual upstream provenance and a new receipt outside the depot. Verification
 reads all contents and checks relative paths, sizes, hashes and internal symlinks;
 keep the depot quiescent. Content verification does not establish redistribution
 rights or native execution. Image interpreter/depot options are described in
-[Harbor tasks](harbor-tasks.md).
+[standalone simulator images](#standalone-simulator-images).
 
 ## Local storage
 
