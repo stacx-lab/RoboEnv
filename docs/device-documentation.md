@@ -51,8 +51,5 @@ Camera `sample_time_s` uses the simulator clock, matching joint feedback;
 reads in realtime mode can still describe different simulation instants. Matching
 clock units alone does not make an image and a later joint read an atomic snapshot.
 
-Camera reads include their live `calibration` facts. Exported camera drivers
-compare those facts with the copied profile, including focal length, mounts and
-depth scale, before returning the image. Re-export devices when upgrading a
-runtime or changing calibration; a new driver requires a runtime that supplies
-these facts.
+Re-export devices when upgrading a runtime or changing camera calibration so
+the copied profiles reflect the current intrinsics and extrinsics.

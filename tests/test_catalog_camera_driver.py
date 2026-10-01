@@ -57,7 +57,6 @@ def camera(tmp_path, monkeypatch):
             key: request[key] for key in ("protocol", "session", "generation", "request_id")
         }
         data = {
-            "calibration": {key: profile[key] for key in ("intrinsics", "extrinsics")},
             "file": "/server/color.png",
             "depth_file": "/server/depth.pgm",
             "width": 2,
@@ -91,7 +90,7 @@ def test_catalog_camera_uses_profile_target_and_returns_calibrated_files(camera)
 
 
 @pytest.mark.parametrize("change", [
-    "depth_dimensions", "dimensions", "registration", "focal", "mount", "depth_scale",
+    "depth_dimensions", "dimensions", "registration",
 ])
 def test_catalog_camera_rejects_profile_mismatch(camera, change):
     module, _ = camera
@@ -102,33 +101,20 @@ def test_catalog_camera_rejects_profile_mismatch(camera, change):
         profile["intrinsics"]["color"]["width"] = 4
     elif change == "registration":
         profile["intrinsics"]["depth"]["registration"] = "native"
-    elif change == "focal":
+    Path(module.__file__).with_name("profile.yaml").write_text(yaml.safe_dump(profile))
+    assert module.handle("read", {})["ok"] is False
+
+
+@pytest.mark.parametrize("change", ["focal", "mount", "depth_scale"])
+def test_catalog_camera_does_not_compare_calibration(camera, change):
+    module, _ = camera
+    profile = module.settings()
+    if change == "focal":
         profile["intrinsics"]["color"]["projection"]["fx"] *= 1.2
     elif change == "mount":
         profile["extrinsics"]["mount"]["translation_m"][0] += 0.1
     else:
         profile["intrinsics"]["depth"]["scale_m_per_unit"] *= 2
-    Path(module.__file__).with_name("profile.yaml").write_text(yaml.safe_dump(profile))
-    assert module.handle("read", {})["ok"] is False
-
-
-def test_catalog_camera_requires_remote_calibration(camera, monkeypatch):
-    module, _ = camera
-    remote = module.remote
-
-    def read(action, args):
-        result = remote(action, args)
-        result.pop("calibration")
-        return result
-
-    monkeypatch.setattr(module, "remote", read)
-    assert not module.handle("read", {})["ok"]
-
-
-def test_catalog_camera_allows_source_roundoff(camera):
-    module, _ = camera
-    profile = module.settings()
-    profile["extrinsics"]["mount"]["translation_m"][0] += 1e-12
     Path(module.__file__).with_name("profile.yaml").write_text(yaml.safe_dump(profile))
     assert module.handle("read", {})["ok"]
 
