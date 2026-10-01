@@ -14,8 +14,7 @@ from roboenv.client import Client, UncertainResult
 from roboenv.devices.bindings.spec import BindingSpec
 from roboenv.devices.model import Action, BoundDevice, DeviceDefinition, DeviceError
 from roboenv.devices.service import DeviceService
-from roboenv.harbor.deployment import load_deployment, native_service
-from roboenv.harbor.taskset import deployment_environment, export_taskset, run_taskset
+from roboenv.provisioning.deployment import load_deployment
 from roboenv.tasks.artifacts import Bundle
 from roboenv.tasks.model import Task
 from roboenv.validation import action_validator, json_loads, json_value, yaml_load
@@ -144,12 +143,12 @@ def test_run_time_depot_mapping_enforces_readonly_and_redacts_paths(tmp_path):
     spec["mounts"][0]["read_only"] = False
     path.write_text(json.dumps(spec))
     with pytest.raises(ValueError, match="read-only"):
-        deployment_environment({"libero": path})
+        load_deployment(path, "libero")
     spec["mounts"][0]["read_only"] = True
     spec["mounts"][0]["source"] = "missing-assets"
     path.write_text(json.dumps(spec))
     with pytest.raises(ValueError, match="independent existing") as error:
-        deployment_environment({"libero": path})
+        load_deployment(path, "libero")
     assert str(tmp_path) not in str(error.value)
 
 
@@ -161,69 +160,20 @@ def test_deployment_rejects_overlapping_depots(tmp_path):
         load_deployment(path, "libero")
 
 
-def test_healthcheck_does_not_execute_an_unverified_interpreter_depot(tmp_path):
-    path, _ = deployment(tmp_path)
-    task = Task.load(ROOT / "catalog/tasks/libero/bowl-into-bottom-drawer/task.yaml")
-    service = native_service(path, task, portable=True)
-    assert service["healthcheck"]["test"] == [
-        "CMD",
-        "/usr/bin/python3",
-        "-I",
-        "/opt/serve/healthcheck.py",
-    ]
-
-
-def test_deployment_runtime_options_reach_compose_and_identity(tmp_path):
-    from roboenv.harbor.deployment import deployment_contract
+def test_deployment_runtime_options_preserve_identity(tmp_path):
+    from roboenv.provisioning.deployment import deployment_contract
 
     path, spec = deployment(tmp_path)
     baseline = deployment_contract(load_deployment(path, "libero"))
     spec["runtime_options"] = {"start_period": "1200s", "shm_size": "8gb"}
     path.write_text(json.dumps(spec))
-    task = Task.load(ROOT / "catalog/tasks/libero/bowl-into-bottom-drawer/task.yaml")
-    service = native_service(path, task, portable=True)
-    assert service["healthcheck"]["start_period"] == "1200s"
-    assert service["shm_size"] == "8gb"
+    assert load_deployment(path, "libero")["runtime_options"] == spec["runtime_options"]
     assert deployment_contract(load_deployment(path, "libero")) != baseline
     for options in ({"extra": True}, {"start_period": "0s"}, {"shm_size": 8}, []):
         spec["runtime_options"] = options
         path.write_text(json.dumps(spec))
         with pytest.raises(ValueError, match="runtime option"):
             load_deployment(path, "libero")
-
-
-@pytest.mark.parametrize("backend,start_period", [
-    ("libero", "120s"), ("robotwin", "120s"), ("robocasa", "120s"),
-    ("behavior", "900s"), ("isaaclab", "900s"), ("robodojo", "900s"),
-    ("simple", "120s"),
-])
-def test_container_defaults_do_not_require_deployment_presets(tmp_path, backend, start_period):
-    from dataclasses import replace
-
-    path, spec = deployment(tmp_path)
-    spec["backend"] = backend
-    spec["runtime_options"] = {}
-    path.write_text(json.dumps(spec))
-    task = replace(Task.load(ROOT / "catalog/tasks/libero/bowl-onto-plate/task.yaml"),
-                   backend=backend)
-    service = native_service(path, task)
-    assert service["shm_size"] == "4gb"
-    assert service["healthcheck"]["start_period"] == start_period
-
-
-def test_task_runner_rejects_changed_deployment_identity_before_launch(tmp_path, monkeypatch):
-    path, spec = deployment(tmp_path)
-    mapping = tmp_path / "deployments.json"
-    mapping.write_text(json.dumps({"libero": path.name}))
-    wheel = tmp_path / "roboenv-test.whl"
-    wheel.write_bytes(b"test-only input")
-    destination = tmp_path / "generated"
-    export_taskset(ROOT, ROOT / "catalog/tasks", mapping, destination, wheel, backends=["libero"])
-    monkeypatch.setattr("roboenv.harbor.taskset.shutil.which", lambda name: name)
-    spec["image"] = "sha256:" + "b" * 64
-    path.write_text(json.dumps(spec))
-    with pytest.raises(ValueError, match="regenerate the taskset"):
-        run_taskset(destination, mapping, agent="test-agent")
 
 
 def device(schema):
@@ -370,27 +320,37 @@ def test_runtime_wire_rejects_ambiguous_and_nonfinite_json_before_dispatch(raw):
 
 @pytest.mark.parametrize("raw", [b'{"reward":0,"reward":1}', b'{"value":1e9999}'])
 def test_verifier_rejects_ambiguous_or_overflow_json(raw):
-    verifier = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
+    verifier = runpy.run_path(str(ROOT / "src/roboenv/verification.py"))
     with pytest.raises(ValueError):
         verifier["strict_json"](raw)
-
-
-def test_verifier_missing_task_overwrites_stale_success(tmp_path, monkeypatch):
-    verifier = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))
-    out = tmp_path / "verifier"
-    out.mkdir()
-    (out / "reward.json").write_text('{"reward": 1.0}')
-    (out / "reward.txt").write_text("1.0")
-    monkeypatch.setenv("ROBOENV_VERIFIER_OUT", str(out))
-    monkeypatch.setenv("ROBOENV_RUN_DIR", str(tmp_path / "absent-run"))
-    # The package asset has no adjacent task.json: only generated tasks supply it.
-    assert verifier["main"]() == 1
-    assert json.loads((out / "reward.json").read_text()) == {"reward": 0.0}
-    assert (out / "reward.txt").read_text().strip() == "0.0"
-    assert json.loads((out / "submit.json").read_text())["valid"] is False
 
 
 @pytest.mark.parametrize("operation", ["submit", "reset", "restore", "shutdown", "exec"])
 def test_public_client_refuses_trial_control_operations(operation):
     with pytest.raises(ValueError, match="not an agent operation"):
         Client("/unused").request(operation)
+
+
+@pytest.mark.parametrize("updates, message", [
+    ({"image": "simulator:latest"}, "immutable digest"),
+    ({"legacy_tree_required": True}, "original working tree"),
+    ({"backend": "other"}, "schema/backend"),
+    ({"environment": {"ROBOENV_SESSION": "replacement"}}, "cannot override"),
+    ({"environment": {"ROBOENV_ROOT": "/untrusted"}}, "cannot override"),
+])
+def test_standalone_deployment_rejects_mutable_or_overridden_identity(tmp_path, updates, message):
+    path, _ = deployment(tmp_path, **updates)
+    with pytest.raises(ValueError, match=message):
+        load_deployment(path, "libero")
+
+
+def test_standalone_deployment_contract_omits_local_paths(tmp_path):
+    from roboenv.provisioning.deployment import deployment_contract
+
+    path, spec = deployment(tmp_path)
+    normalized = load_deployment(path, "libero")
+    assert Path(normalized["mounts"][0]["source"]).is_absolute()
+    contract = deployment_contract(normalized)
+    assert str(tmp_path) not in json.dumps(contract)
+    assert contract["image"] == spec["image"]
+    assert contract["mounts"] == [{"target": spec["mounts"][0]["target"], "read_only": True}]

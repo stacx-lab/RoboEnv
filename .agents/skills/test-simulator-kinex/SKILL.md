@@ -1,9 +1,9 @@
 ---
 name: test-simulator-kinex
-description: Run real Kinex jobs on a RoboEnv simulator, including no-model probes, controller development, frozen task validation, and full integration acceptance. Use for simulator integration tests, regression jobs, or reviewing recorded acceptance; new backend implementation belongs to integrate-simulator-kinex.
+description: Validate RoboEnv simulators with native checks and optional local Kinex device probes, recording and replay. Use for simulator integration tests, regression jobs, or reviewing recorded acceptance; new backend implementation belongs to integrate-simulator-kinex.
 ---
 
-# Test a simulator through real Kinex jobs
+# Test a simulator and its Kinex devices
 
 Execute the requested job using the current RoboEnv owner lifecycle and Kinex
 tool runner. Deliver source-matched evidence for that scope. A boot, schema check,
@@ -24,7 +24,6 @@ failed attempts and development/held-out case history across phases.
 | Run a frozen controller | Fresh no-model validation with immutable artifact and specified cases; report every trial |
 | Complete or certify an integration | All gates A–D below, covering selected rigs, clocks and tasks |
 | Measure task-solving performance | Integration evidence plus immutable trials and an explicit task success threshold |
-| Run a Harbor job | Explicit deployment scope and real loader/agent/verifier boundary, plus applicable checks |
 
 Use the user's mode, matrix and limits. For an unspecified test job on an existing
 integration, begin with a no-model probe; do not silently add paid development or
@@ -50,10 +49,9 @@ Check these entrypoints instead of assuming archived commands still work:
 - RoboEnv: `roboenv doctor BACKEND`, task discovery and `roboenv launch`,
   `tools/prepare_kinex_workspace.py`, `tools/finalize_episode.py`, and the selected
   backend's native conformance/replay tools.
-- RoboEnv Harbor bridge: `tools/package_kinex_agent.py`, `roboenv tasks run
-  --agent kinex`, `src/roboenv/harbor/kinex.py`, and `integrations/kinex/`.
-  Kinex supplies its core runtime APIs and `kinex run`; no campaign files belong
-  in its checkout. Read `integrations/kinex/README.md` for current commands.
+- Optional Kinex device execution: use the selected checkout's current core runtime
+  APIs or `kinex run`, following `docs/kinex-local.md`. Agent sessions, scheduling,
+  campaign runners and model configuration belong to the external harness.
 - LIBERO/RoboCasa may use separate native/protocol runners. Select their actual
   supported route. The generic `replay_native_devices.py` currently accepts
   RoboTwin, RoboDojo and BEHAVIOR, not every backend's record format.
@@ -66,8 +64,9 @@ BEHAVIOR seed changes alone do not select another presampled activity instance.
 Create an owner-side run specification before launch: interpreters, task/cases,
 exact model/effort when used, recording devices/rates, stage deadlines, GPU,
 fresh output paths and prior artifact/evidence references. Pass only fields the
-selected parser consumes. Use Harbor JobConfig for scheduling and timeouts,
-standard tasks for native seed/clock settings, and agent kwargs for tool/model inputs.
+selected parser consumes. Use normalized task definitions for native seed/clock
+settings. The external harness supplies scheduling, timeouts and any explicitly
+authorized model inputs.
 
 Inspect GPU/disk capacity and accepted licenses/credentials. Existing session
 authorization persists; ask only about missing access or material scope. Never
@@ -129,19 +128,18 @@ is sufficient unless further task development was requested. No overall limit
 still requires finite child-stage deadlines. Controllers use permitted devices and
 perception, never native object truth, verdicts or reference solutions.
 
-Harbor agent receipts record execution, integrity and media; the verifier records
-native outcome and the supervisor journal. Audit these with independent native
-replay, installation and transport evidence. `tools/report_kinex_harbor.py` reports
-bridge execution separately from task success. Keep missing evidence gates
-explicit; do not infer replay or task acceptance from bridge completion.
+Audit external harness execution/media records alongside owner verdicts and journals,
+independent native replay, installation and transport evidence. No in-repository
+agent runner or report aggregator is supplied. Missing required evidence remains
+explicit; do not infer task acceptance from harness completion.
 
 **Optional task performance — Frozen validation.** When requested, establish
 trial counts and success criteria separately from integration readiness.
 
 Freeze selected reusable tool/skills/libraries and Python lock before final cases.
-Check the discovered tool ID against its manifest and directory. The current
-RoboEnv freezer expects `.kinex/tool/<tool>/tool.yaml`; align its directory with
-the manifest name during development, before freezing and verifying lineage.
+Check the discovered tool ID against its manifest and directory. The external
+harness owns artifact freezing and lineage; validate its actual manifest and lock
+before selecting final cases.
 Every final case starts a new native world and Kinex process/workspace, restoring
 the exact artifact without model calls, repairs or prior conversation/state.
 Runtime observations stay outside frozen code. Default task-performance acceptance is 3/3
@@ -155,11 +153,6 @@ native task success, unchanged artifacts/devices, valid media and independent
 command replay. A matching replay of failure cannot substitute. Preserve final
 failures; further authorized development must mark exposed cases as tuning data
 and reserve a new held-out case.
-
-**Harbor, when requested.** Read `docs/harbor-tasks.md`, validate exports with the
-actual loader, and run the requested job with image, mounts, agent/verifier and
-cleanup provenance. Local checks do not establish deployment isolation. Local
-job authorization does not imply publication or deployment authority.
 
 ## Diagnose, deliver and resume
 

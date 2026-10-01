@@ -2,7 +2,7 @@
 
 Roboenv owns environment state, simulator adapters, device bindings, budgets and
 verification. Agent loops, model credentials, skills, training and agent-specific
-Harbor installation belong in their respective projects.
+installation belong in their respective projects.
 
 ## Before proposing a change
 
@@ -40,12 +40,12 @@ Update a public source pin and its managed patch hashes together. Do not edit
 vendored checkouts and leave the change unrecorded. Never initialize submodules
 recursively; select only the backends required by the change.
 
-Check in the task generator and small fixtures, not thousands of generated tasks.
+Check in task discovery and small fixtures, not thousands of generated tasks.
 Each discovered task must point to actual upstream metadata; exclusions must be
-reported. Solutions are opt-in references with explicit provenance, not automatic
-claims of an official expert solution or a successful replay.
+reported. External evaluation references need explicit provenance; they do not establish
+an official expert solution or a successful replay.
 
-A physical acceptance report must distinguish source discovery, Harbor loading,
+A physical acceptance report must distinguish source discovery, schema validation,
 simulator boot, device calls, verifier result and fresh-process replay. Record the
 task/seed, controller condition, source commits, image and wheel digests, candidate
 program hash and simulator verdict. Report failures as well as successes. A CPU

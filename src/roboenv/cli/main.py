@@ -66,27 +66,6 @@ def main(argv=None):
     discovery.add_argument("--project", type=Path)
     discovery.add_argument("--out", required=True, type=Path)
     discovery.add_argument("--backends", nargs="+")
-    generation = tasks_commands.add_parser("generate")
-    generation.add_argument("--project", type=Path)
-    generation.add_argument(
-        "--source", type=Path, help="Optional normalized catalog; otherwise discover pinned sources"
-    )
-    generation.add_argument("--deployments", required=True, type=Path)
-    generation.add_argument("--wheel", required=True, type=Path)
-    generation.add_argument("--out", required=True, type=Path)
-    generation.add_argument("--backends", nargs="+")
-    generation.add_argument("--ids", nargs="+")
-    generation.add_argument("--seeds", nargs="+", type=int)
-    generation.add_argument("--include-references", action="store_true")
-    generation.add_argument("--check-images", action="store_true")
-    validation = tasks_commands.add_parser("validate")
-    validation.add_argument("task", type=Path)
-    run = tasks_commands.add_parser("run")
-    run.add_argument("bundle", type=Path)
-    run.add_argument("--deployments", required=True, type=Path)
-    run.add_argument("--agent", required=True)
-    run.add_argument("--model")
-    run.add_argument("--agent-config", type=Path, help="JSON file of Harbor agent kwargs")
     for name in (
         "describe",
         "devices",
@@ -127,7 +106,6 @@ def main(argv=None):
             print(json.dumps(result))
             return 0 if result["passed"] else 1
         elif args.command == "tasks":
-            from roboenv.harbor.taskset import export_taskset, run_taskset, validate_harbor_task
             from roboenv.tasks.catalog import BACKENDS, discover, summary
 
             if args.tasks_command == "list":
@@ -147,26 +125,6 @@ def main(argv=None):
                     result = summary(args.project, args.source)
             elif args.tasks_command == "discover":
                 result = discover(args.project, args.out, args.backends or BACKENDS)
-            elif args.tasks_command == "generate":
-                result = export_taskset(
-                    args.project,
-                    args.source,
-                    args.deployments,
-                    args.out,
-                    args.wheel,
-                    backends=args.backends or BACKENDS,
-                    identifiers=args.ids,
-                    seeds=args.seeds,
-                    include_references=args.include_references,
-                    check_images=args.check_images,
-                )
-            elif args.tasks_command == "validate":
-                result = validate_harbor_task(args.task)
-            else:
-                return run_taskset(
-                    args.bundle, args.deployments, agent=args.agent, model=args.model,
-                    agent_config=args.agent_config,
-                )
         elif args.command == "describe":
             result = client.describe()
         elif args.command == "devices":

@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 
 
-def verify(wheels, *, harbor=True, offline=False, out=None):
+def verify(wheels, *, offline=False, out=None):
     wheels = Path(wheels).resolve()
     if not shutil.which("uv"):
         raise ValueError("uv is required for clean-install verification")
@@ -82,17 +82,19 @@ def verify(wheels, *, harbor=True, offline=False, out=None):
                     "--find-links",
                     str(wheels),
                     *map(str, selected),
-                    *(["harbor==0.22.0"] if harbor else []),
                 ],
             )
             run("dependency-consistency", ["uv", "pip", "check", "--python", python])
             code = (
-                "import importlib.metadata as m, pathlib, sys; "
+                "import importlib.metadata as m, importlib.util, pathlib, sys; "
                 "import roboenv, roboenv_runtime.runtime.worker as worker; "
                 "root = pathlib.Path(sys.prefix).resolve(); "
                 "assert pathlib.Path(roboenv.__file__).resolve().is_relative_to(root); "
                 "assert pathlib.Path(worker.__file__).resolve().is_relative_to(root); "
                 "assert not {'torch', 'mujoco', 'roborl', 'kinex'} & sys.modules.keys(); "
+                "assert importlib.util.find_spec('harbor') is None; "
+                "assert importlib.util.find_spec('kinex') is None; "
+                "assert importlib.util.find_spec('roboenv.harbor') is None; "
                 "assert any(item.replace(' ', '').startswith('roboenv[server]==') "
                 "for item in m.requires('roboenv-runtime')); "
                 "assert m.version('roboenv') == m.version('roboenv-runtime')"
@@ -101,18 +103,6 @@ def verify(wheels, *, harbor=True, offline=False, out=None):
             run("sdk-cli", [str(venv / "bin/roboenv"), "--help"])
             run("worker-cli", [str(venv / "bin/roboenv-worker"), "--help"])
             run("supervisor-cli", [str(venv / "bin/roboenv-supervise"), "--help"])
-            if harbor:
-                run("harbor-cli", [str(venv / "bin/harbor"), "--help"])
-                run(
-                    "harbor-task-schema",
-                    [
-                        python,
-                        "-I",
-                        "-c",
-                        "from harbor.models.task.config import TaskConfig; "
-                        "assert TaskConfig().schema_version == '1.4'",
-                    ],
-                )
     result["passed"] = True
     if out is not None:
         out = Path(out)
@@ -124,13 +114,12 @@ def verify(wheels, *, harbor=True, offline=False, out=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--wheels", type=Path, default=Path("build/wheels"))
-    parser.add_argument("--without-harbor", action="store_true")
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     try:
         report = verify(
-            args.wheels, harbor=not args.without_harbor, offline=args.offline, out=args.out
+            args.wheels, offline=args.offline, out=args.out
         )
     except (ValueError, RuntimeError) as error:
         parser.exit(1, f"{error}\n")

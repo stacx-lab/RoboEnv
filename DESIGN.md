@@ -13,8 +13,7 @@ See [RoboCasa devices](docs/robocasa.md) for implemented semantics and validatio
 | Component | Responsibility |
 |---|---|
 | RoboEnv | World initialization, native device control, time, budgets, authoritative verdicts, evidence |
-| Kinex or another harness | Agent execution, permissions, perception, planning, controller programs, model calls |
-| Harbor | Trial creation, resource/port allocation, harness startup, verifier execution, cleanup |
+| Coding-agent harness or external orchestrator | Agent execution, permissions, planning, model calls, trial scheduling, resource allocation, and cleanup |
 
 An arm exposes read/write/stop and kinematics, not `pick_object` or `open_door`.
 A camera returns images, not detected objects or simulator object poses. Higher-level
@@ -56,7 +55,7 @@ catalog/
 The copyable robot directory contains only `workspace.yaml` and `devices/`.
 Simulator binding defaults are internal package resources under
 `src/roboenv/devices/bindings/defaults/<backend>/<robot>.yaml`, selected by backend
-and robot directory name. They are packaged with the SDK so launch and export can
+and robot directory name. They are packaged with the SDK so launch and device preparation can
 resolve them without importing simulator engines. Explicit task bindings override
 owner-bundle plans, which override built-in defaults. Source receipts and integration
 notes belong in `docs/`; generators belong in `tools/`; test-only profiles belong in
@@ -122,7 +121,7 @@ All devices in a trial share one endpoint. Parallel worlds use distinct ports in
 same network namespace; `--port 0` assigns an available port. An occupied explicit
 port fails without disturbing an existing service. A bind address such as `0.0.0.0`
 is not the client address: a container client might connect to `http://sim:8123`.
-Isolated Harbor trial networks can reuse that internal port. GPU allocation remains
+Isolated container networks can reuse that internal port. GPU allocation remains
 a scheduling concern; different ports do not create additional GPU capacity.
 
 SDK clients discover and retain episode identity. Port reuse cannot redirect an
@@ -160,7 +159,7 @@ only sensor artifacts through the public artifact path.
 A local harness running as the simulator's Unix user can still read that user's
 files. Enforced observation isolation requires a separate agent identity/container
 without simulator assets, private task definitions, owner sockets, or evidence access.
-Harbor's RoboCasa deployment separates the agent and verifier users. A read-only
+An external orchestrator must enforce that separation. A read-only
 mount alone does not make privileged data safe to expose.
 
 ## Device interfaces and frames
@@ -228,7 +227,7 @@ Replacement does not call stop. Explicit stop clears its declared scope.
 `budget: {elapsed_s, max_s}` in seconds. Both values use the native control interval;
 `max_s` is null when uncapped, including realtime mode. Consumption includes any
 counted initialization frames, so `elapsed_s` can differ from `time_s`. This is
-native episode accounting, not wall-clock time or a Harbor deadline. Other budget
+native episode accounting, not wall-clock time or an orchestrator deadline. Other budget
 units (`sim_steps`, `api_calls`, and unknown units) omit the field because their
 duration is not established. `world.status()` remains `{loaded: true}`.
 
@@ -249,29 +248,24 @@ the named request's wait or owned motion; late cleanup cannot stop a replacement
 Reset, freeze and shutdown settle pending waits and motion before releasing resources.
 A new episode invalidates old identities. Drivers never terminate borrowed worlds.
 
-## Kinex and Harbor integration
+## Coding-agent integration
 
-Copy `catalog/robots/<robot-id>/` to `.kinex/robots/<robot-id>/`, select the robot
-in Kinex's project configuration, and set `ROBOENV_ENDPOINT` before starting the
-harness. Copied drivers use standard-library transport; local IK/FK requires
-Kinex's Python library and PyYAML. They do not import RoboEnv or simulator packages.
+Any coding agent can use the Python SDK or CLI against the same device service.
+`roboenv.devices.documentation` exports public operation schemas, geometry and
+connection details without executable drivers or privileged task state. The agent
+harness owns reasoning, programs, sessions and task scheduling.
 
-Static drivers forward basic operations and adapt result/error shapes. They do not
-start the simulator, contain policies, or generate profiles. Kinex discovers the
-files, supplies tools and permissions, and records sensor outputs. RoboEnv supports
-other harnesses through the same SDK without depending on Kinex at runtime.
+Kinex is an optional consumer. Use `tools/prepare_kinex_workspace.py` to copy a
+resolved catalog into a fresh workspace and set `ROBOENV_ENDPOINT`. Static drivers
+use standard-library transport; local IK/FK requires Kinex's Python library and
+PyYAML. They never start the simulator or import simulator engines. The core SDK
+and runtime do not require Kinex.
 
-Harbor exports the private task/runtime definition and verifier separately from
-agent-visible configuration. It starts a service, waits for device readiness,
-provides the endpoint to the harness, runs the verifier, and cleans up the world.
-The current RoboCasa Harbor exporter also stages live device descriptors and thin
-drivers under `/run/roboenv/robot`; this is trial-local output, never a catalog write.
-Kinex workspace setup remains the harness integration's responsibility.
-
-RoboEnv's verifier uses original success rules, execution-mode budgets, and owner evidence.
-Agent claims and recording outcome labels do not establish benchmark success.
-Task generation must pass the real installed Harbor loader; loading a task does
-not establish that the simulator boots or the agent can solve it.
+RoboEnv owns native success rules, budgets and episode evidence. Owner tooling can
+use `roboenv.verification` to validate score/budget consistency and supervisor
+journals. These are single-episode checks, not fresh-process replay certificates.
+External orchestrators arrange container isolation and keep owner sockets,
+private task definitions and journals inaccessible to agents.
 
 ## Adding a simulator and claiming support
 
@@ -289,7 +283,7 @@ or passing CPU tests.
 
 See [RoboCasa and its catalog](docs/robocasa.md),
 [local Kinex recording](docs/kinex-local.md), and
-[Harbor task generation](docs/harbor-tasks.md) for concrete workflows.
+[agent-neutral device documentation](docs/device-documentation.md) for concrete workflows.
 
 
 ## Concurrent device control

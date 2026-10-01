@@ -7,7 +7,7 @@ from roboenv.validation import json_loads
 
 
 def load_deployment(path, backend):
-    """Validate the same owner manifest for task export and local task execution."""
+    """Validate an owner manifest for a standalone simulator image."""
     path = Path(path).resolve()
     spec = json_loads(path.read_text())
     if (
@@ -113,67 +113,3 @@ def deployment_contract(spec):
         "environment": spec["environment"],
         "runtime_options": spec.get("runtime_options", {}),
     }
-
-
-def native_service(path, task, *, portable=False):
-    spec = load_deployment(path, task.backend)
-    volumes = ["roboenv-run:/run/roboenv", "./sim:/opt/serve:ro"]
-    for index, mount in enumerate(spec["mounts"]):
-        variable = f"ROBOENV_DEPOT_{task.backend.upper()}_{index}"
-        origin = (
-            "${" + variable + ":?set the asset depot location}" if portable else mount["source"]
-        )
-        # Compose short syntax uses colons as delimiters. Local paths are never
-        # expanded here in portable exports, but direct callers must be unambiguous.
-        if not portable and any(character in origin for character in (":", "\n")):
-            raise ValueError("data depot location cannot be represented safely in Compose")
-        volumes.append(f"{origin}:{mount['target']}:ro")
-    service = {
-        "image": spec["image"],
-        "pull_policy": "never",
-        "command": ["/opt/serve/serve-native.sh"],
-        "volumes": volumes,
-        "environment": {
-            "ROBOENV_SOCKET": "/run/roboenv/sim.sock",
-            "ROBOENV_SESSION": "harbor",
-            "ROBOENV_GENERATION": "0",
-            "ROBOENV_RUN_DIR": "/run/roboenv/run",
-            "ROBOENV_TASK": task.id,
-            "ROBOENV_SEED": str(task.seed),
-            "ROBOENV_BUDGET_MODE": task.budget_mode,
-            "NVIDIA_DRIVER_CAPABILITIES": "all",
-            **spec.get("environment", {}),
-        },
-        "healthcheck": {
-            "test": ["CMD", "/usr/bin/python3", "-I", "/opt/serve/healthcheck.py"],
-            "interval": "5s",
-            "timeout": "10s",
-            "retries": 120,
-            "start_period": "900s"
-            if task.backend in {"behavior", "robodojo", "isaaclab"}
-            else "120s",
-        },
-        "shm_size": "4gb",
-        "deploy": {
-            "resources": {
-                "reservations": {
-                    "devices": [
-                        {
-                            "driver": "nvidia",
-                            "capabilities": ["gpu"],
-                            "device_ids": ["${ROBOENV_GPU:-0}"],
-                        }
-                    ]
-                }
-            }
-        },
-    }
-
-    if task.backend == "fakeshell":
-        service.pop("deploy", None)
-    options = spec["runtime_options"]
-    service["shm_size"] = options.get("shm_size", service["shm_size"])
-    service["healthcheck"]["start_period"] = options.get(
-        "start_period", service["healthcheck"]["start_period"],
-    )
-    return service

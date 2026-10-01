@@ -73,7 +73,7 @@ def test_external_yaml_without_checkout_and_success_at_limit(tmp_path):
             if phase == "before":
                 verdict = owner.request("submit", request_id="verifier-submit")
         raw = (run.path.parent / "evidence/journal/actions.jsonl").read_bytes()
-        validate = runpy.run_path(str(ROOT / "src/roboenv/assets/verify.py"))["validate_journal"]
+        validate = runpy.run_path(str(ROOT / "src/roboenv/verification.py"))["validate_journal"]
         assert validate(raw, session=run.record["session"], submit_id="verifier-submit",
                         verdict=verdict)
         assert verdict == terminal["verdict"]

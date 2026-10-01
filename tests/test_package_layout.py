@@ -17,7 +17,7 @@ def imports(path):
 
 
 def test_domain_packages_do_not_depend_on_cli_or_simulator_runtime():
-    for package in ("devices", "tasks", "provisioning", "harbor", "control"):
+    for package in ("devices", "tasks", "provisioning", "control"):
         for path in (SDK / package).rglob("*.py"):
             for module in imports(path):
                 assert module != "roboenv.cli", path

@@ -24,9 +24,10 @@ must not be accepted as the benchmark's verdict. Public device operations,
 owner lifecycle controls, simulator state, assets and verifier authority are
 separate concerns even when processes share a machine.
 
-Current Harbor deployments use a separate simulator container and read-only
-asset mounts. The verifier script runs in Harbor's shared agent/verifier
-container; this is not a fully isolated, adversarially secure verifier boundary.
+External orchestrators must isolate agent processes from simulator containers,
+owner sockets and private evidence. Read-only asset mounts still expose their
+contents; do not expose simulator assets to sensor-only agents. Local same-user
+execution does not provide an adversarial filesystem boundary.
 Container isolation also does not make device bindings safe for a physical robot.
 Do not expose an unauthenticated device socket to a network or unrelated tenant.
 Do not mount a Docker socket, model credentials, the source checkout or writable

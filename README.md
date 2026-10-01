@@ -1,7 +1,7 @@
 # RoboEnv
 
 Robotics environments with discoverable devices, shared simulation state, and
-benchmark verification. Use them from Python, the CLI, Kinex, or Harbor.
+benchmark verification. Use them from Python, the CLI, or any coding agent.
 RoboEnv owns the environment and verdict; the agent harness owns reasoning and
 controller programs. See [DESIGN.md](DESIGN.md) for the architecture.
 
@@ -37,7 +37,7 @@ termination, faults, explicit stop and request deadlines remain active in both.
 At a stepped horizon, physics freezes and unfinished buffers or waits end with
 `episode_finished`. Final reads and stop/submit remain available; budget exhaustion
 does not fail the world. The worker automatically seals the native verdict and records
-`step_limit` when unsuccessful. Harbor's existing reward budget rules still apply.
+`step_limit` when unsuccessful. Owner verification retains its strict budget eligibility checks.
 
 RoboCasa, LIBERO, RoboTwin, BEHAVIOR, RoboDojo, SIMPLE and the test backend accept
 `backend_kwargs: {stop_on_success: true}` to end at the first successful control
@@ -95,7 +95,7 @@ Run `roboenv prepare libero` and `roboenv launch libero/bowl-onto-plate`.
 Its absolute joint control is explicitly a practice protocol, not the published OSC
 benchmark action space. `tools/accept_libero.py --out OUTPUT` runs native device,
 transport, Kinex recording and fresh-process replay gates without model calls;
-task scheduling uses RoboEnv's [Kinex Harbor integration](integrations/kinex/README.md).
+task scheduling belongs to the external agent harness.
 
 The checked-in LIBERO tasks are `bowl-onto-plate` (grasp/place),
 `close-top-drawer` (close drawer), `bowl-into-bottom-drawer` (place the bowl,
@@ -125,7 +125,7 @@ simulation time. In stepped mode, pending world waits drive shared native ticks.
 Reads and writes never request ticks. Joint buffers retain their final reference;
 velocity buffers zero travel on expiry while preserving posture.
 Exported drivers retain local IK/FK, persistent transport and scoped lifecycle.
-Transport failures never resubmit motion. Task-solving controllers belong in Kinex.
+Transport failures never resubmit motion. Task-solving controllers belong in the agent harness.
 
 All scalar grippers in RoboCasa, LIBERO, RoboTwin, RoboDojo and BEHAVIOR expose
 TCP descriptions, approach/closing axes, moving contact frames and physical
@@ -153,18 +153,19 @@ order. Refresh existing workspace drivers from the updated catalog/export, then
 reload Kinex devices. Restart simulator services you own to pick up runtime changes;
 borrowed services remain under their owner's lifecycle control.
 
-## Export a Harbor task
+## Connect a coding agent
 
-With a [prepared native deployment](docs/harbor-tasks.md):
+Launch a task with `roboenv launch`, then give the agent its endpoint and public
+instruction. Agents can use `roboenv.connect()` or the device CLI. Export a public
+[device reference](docs/device-documentation.md) for agents that need operation
+schemas, units, frames, and camera conventions. Kinex-compatible catalogs and
+local workspace preparation remain available as an optional device integration.
 
-```sh
-roboenv export robocasa/pick-place-microwave --out generated/example
-```
-
-Export resolves the same task configuration as local startup, builds the SDK
-wheel, and validates the Harbor format. The environment starts automatically
-before the agent. Reference solutions are not included by default. Agent
-installation and model configuration belong to the Harbor integration.
+The external harness owns agent installation, model configuration, scheduling,
+permissions, and controller programs. RoboEnv owns the world, device execution,
+budgets, and native verdicts. See [setup](docs/setup.md#standalone-simulator-images)
+for standalone simulator images and [migration notes](docs/setup.md#removed-orchestration)
+for removed orchestration commands.
 
 ## Develop
 
@@ -197,7 +198,6 @@ src/roboenv/
 ├── devices/                   Device contracts, dispatch, and binding definitions
 ├── tasks/                     Task models, discovery, resolution, and artifacts
 ├── provisioning/              Isolated installation, sources, and assets
-├── harbor/                    Deployment and task export
 ├── cli/                       Command parsing and dispatch
 └── control/                   Optional client-side control helpers
 ```
@@ -219,8 +219,7 @@ environments stay outside Git.
 | [RoboCasa](docs/robocasa.md) / [Isaac Lab](docs/isaaclab.md) | RoboCasa devices and Isaac Lab installation |
 | [Simulator limit audit](docs/simulator-limits.md) | Native enforcement versus removed integration restrictions |
 | [Local Kinex use](docs/kinex-local.md) | Workspace setup, recording and video playback |
-| [Harbor tasks](docs/harbor-tasks.md) | Deployment, task generation and execution |
-| [Kinex Harbor integration](integrations/kinex/README.md) | Agent packaging, controller development and frozen trials |
+| [Agent integration](docs/device-documentation.md) | SDK/CLI documentation for coding agents |
 | [Simulator validation](docs/gpu-validation.md) | Native checks, receipts and replay boundaries |
 | [Release engineering](docs/releasing.md) | Packaging, installation checks and publication gates |
 | [Third-party notices](docs/third-party-notices.md) | Locked source notices and checksums |

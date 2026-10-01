@@ -48,7 +48,7 @@ Read the testing skill's [acceptance contract](../test-simulator-kinex/reference
 before choosing tasks or running solutions. Record its effective run specification
 outside source control. Default
 to local sensor-only, typed-device integration acceptance; official benchmark
-equivalence and Harbor deployment are separate scopes. Explicit user choices win.
+equivalence and container deployment are separate scopes. Explicit user choices win.
 Integration acceptance establishes a working agent/simulator loop, not a minimum
 task success rate. Require real model observation and device control, correctly
 reported native outcomes, recording and replay; inspect failures to distinguish
@@ -63,10 +63,10 @@ Preflight the actual executables, imports and entrypoints, not just their names:
 - Prepare Kinex with its declared Node version (`engines`) and npm lock (`npm ci`,
   `npm run build`). Trace current
   schemas, lifecycle, Python tools, recording, provider and model/effort routing.
-- Locate a working campaign runner and all its imports/bridges/protocol files in
-  the selected Kinex checkout. A README reference or archived experiment is not an
-  installed dependency. If absent, implement the small owner-side harness described
-  in the acceptance reference using current Kinex APIs. Record its source identity.
+- For explicitly requested model sessions, inspect the external harness and its
+  executable entrypoints. A README or archived experiment is not an installed
+  dependency. Missing campaign capabilities belong outside RoboEnv; retain native
+  probes and replay here. Record the external harness identity and unresolved gaps.
 - Verify the requested model/effort reaches the provider request with a no-network
   request-construction test. Check credentials without printing them. Do not assume
   an old `--effort` CLI flag exists or silently use another model/default effort.
@@ -236,9 +236,9 @@ attempts; require unchanged frozen inputs and held-out history for task-performa
 trials when that scope is selected.
 
 Fix integration failures within the authorized scope, rerun affected gates, then
-resume acceptance. Do not edit a frozen candidate during final validation. Harbor
-deployment requires the additional exported-task, loader, agent/verifier and image
-evidence defined by the testing skill; local acceptance cannot establish isolation.
+resume acceptance. Do not edit a frozen candidate during final validation. Container
+deployment is owned by the external orchestrator and requires separate identity,
+mount, image and observation-boundary evidence; local checks cannot establish isolation.
 
 ## Finish or resume from evidence
 

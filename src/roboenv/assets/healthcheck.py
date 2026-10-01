@@ -12,7 +12,7 @@ def main():
     """Return zero only for a live, ready worker behind the supervisor."""
     identity = Path("/run/roboenv/identity.json")
     session = (json.loads(identity.read_text())["session"] if identity.is_file()
-               else os.environ.get("ROBOENV_SESSION", "harbor"))
+               else os.environ.get("ROBOENV_SESSION", "roboenv"))
     request = {
         "protocol": "roboenv/1",
         "session": session,

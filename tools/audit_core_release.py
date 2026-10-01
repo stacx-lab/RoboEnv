@@ -204,7 +204,7 @@ def audit(packages, names, artifacts, tool_python, temporary, out):
         "passed": vulnerability_count == 0,
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "generator": {"name": "pip-audit", "version": TOOLS["pip-audit"], "service": "pypi"},
-        "scope": "candidate SDK/runtime plus server dependencies; no simulator or Harbor packages",
+        "scope": "candidate SDK/runtime and server dependencies; excludes simulators and agents",
         "local_packages_not_queried": sorted(ROOTS),
         "candidate_wheels": artifacts,
         "audited_dependencies": findings,

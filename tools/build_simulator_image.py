@@ -257,7 +257,7 @@ def main():
         for entry in pin["archives"]:
             name = entry["file"] + ".json"
             shutil.copy2(root / ".cache/simple" / name, receipts / name)
-    for name in ("Dockerfile", "relocate.py", "nvidia_icd.json", "10_nvidia.json"):
+    for name in ("Dockerfile", "entrypoint.sh", "relocate.py", "nvidia_icd.json", "10_nvidia.json"):
         shutil.copy2(WORKSPACE / "runtime/packaging" / name, context / name)
     (context / "wheels").mkdir()
     shutil.copy2(args.runtime_wheel, context / "wheels" / args.runtime_wheel.name)

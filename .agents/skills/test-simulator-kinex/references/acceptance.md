@@ -27,8 +27,7 @@ Unknown causes are not model-reasoning diagnoses. A controller exception must st
 visible even when the surrounding harness finalizes and replays correctly.
 
 Record `integration_passed`, `task_success` and `controller_completed` separately in
-the owner review. Preserve the original receipts. Audit live Harbor Kinex
-`mode: develop` evidence alongside installation, native replay and failure review.
+the owner review. Preserve the original receipts. Audit external harness session evidence alongside installation, native replay and failure review.
 A failed task result must remain a failure in the task-performance report.
 The freeze, held-out selection and 3/3 rules below apply when task performance is
 requested. Fresh-process command replay remains required for integration itself.
@@ -46,7 +45,7 @@ Resolve and validate these fields before the operations they govern:
 | Field group | Required meaning |
 | --- | --- |
 | Sources | Selected RoboEnv/Kinex roots and HEADs; dirty input hashes; upstream revisions, patch and dependency-lock hashes; runner/helper identities |
-| Target | Backend/edition, advertised rigs/tasks, representative acceptance tasks with coverage reasons, control/observation/budget mode, local or Harbor scope |
+| Target | Backend/edition, advertised rigs/tasks, representative acceptance tasks with coverage reasons, control/observation/budget mode, local or isolated-container scope |
 | Installation | Development, simulator and agent interpreters; new installation prefix; asset identities; existing access/license authorization and unresolved blockers |
 | Execution | GPU allocation and concurrency; cold boot, activation, development, validation, media decoding, replay and cleanup timeouts; episode horizon and clock; maximum infrastructure retries |
 | Model | Exact provider/model/effort and existing authorization; user-selected development limits or explicit no-overall-limit scope; finite child-stage deadlines; cost/token limit when specified; stop-on-success versus exact-round policy |
@@ -78,24 +77,16 @@ cannot enforce the requested ceiling, resolve that execution scope before paid
 calls while continuing independent work. Do not invent a monetary ceiling when
 the user has authorized finite time/round limits instead.
 
-## Establish or implement the runner
+## Inspect the external harness
 
-Inspect the selected RoboEnv checkout before assuming
-`src/roboenv/harbor/kinex.py` and `integrations/kinex/` exist in RoboEnv.
-Use the standard Harbor task/job path in `integrations/kinex/README.md`;
-Kinex no longer owns external campaign scheduling scripts.
-Inspect the current files and `--help`, including all imports and bridges.
-Historical scripts may inform implementation, but are not a portable runtime
-dependency and may target different APIs. Do not depend on a private experiment directory.
+RoboEnv contains native probes, replay tools and owner lifecycle APIs. Agent
+sessions, campaign scheduling, artifact freezing and model configuration belong
+to an external harness. Inspect that harness's actual commands and receipts before
+claiming it supports the requested scope; do not add an agent runner to RoboEnv.
+Missing external capabilities must remain explicit. Reuse:
 
-Extend the RoboEnv Harbor bridge for missing external orchestration behavior.
-Keep only generic harness corrections in Kinex. Harbor owns trials, deadlines,
-concurrency and container cleanup; do not restore a separate local campaign loop.
-Put backend-native probes/replay in RoboEnv. Reuse:
-
-- RoboEnv's task resolver/exporter and independent verifier for Harbor jobs.
-  Native conformance helpers may use `roboenv.launch` and owner finalization;
-  these helpers are separate from task scheduling.
+- RoboEnv's task resolver, `roboenv.launch`, owner finalization and
+  `roboenv.verification` score/journal checks, separately from task scheduling.
 - Kinex's core runtime (`createKinexRuntime` in `packages/core`: devices, tools,
   recording, Python) and the application (`createApplication`, `kinex run`) at their
   current paths.
@@ -142,16 +133,15 @@ Builtin Kinex tools remain usable through the recorded Kinex revision.
 Declare the public/owner boundary. The runner may create episodes and collect private
 verdicts; the candidate may use only declared device/perception inputs. Deny legacy
 scene/invoke shortcuts and owner-result access through public transport. For local
-runs record the absence of adversarial filesystem isolation; for Harbor validate
+runs record the absence of adversarial filesystem isolation; for container evaluation validate
 the agent identity, mounts, owner socket, verifier and image provenance in deployment.
 
 Configure renderer warmup and all stage timeouts; do not impose LIBERO's historical
 180-second launch limit on an Isaac backend. In receipts distinguish cold boot from
 steady-state stepping. Test concurrent independent native worlds only within the
 authorized resource allocation; insufficient capacity leaves that check pending.
-The Harbor bridge uses a bounded media check (currently 120 seconds) for
-complete recording decoding and checks. A longer bound requires a supported,
-tested option; do not add an ignored timeout key or weaken media validation.
+Use a finite, supported media-check timeout in the external harness for complete
+recording decoding; do not add ignored configuration keys or weaken validation.
 In realtime read-only tests, distinguish ordinary scheduler ticks from additional
 steps requested by a read. Compare serialized observations and step accounting;
 elapsed wall time alone cannot establish a read-induced physics effect.
@@ -176,9 +166,8 @@ Do not carry observations, recordings, live state, owner metadata or conversatio
 into a new validation workspace. Learned reusable controller code may carry over.
 
 Check tool naming through normal discovery before freezing. Kinex resolves the
-manifest's `name`; the current example freezer locates
-`.kinex/tool/<selected-tool>/tool.yaml`. Use the same name for the directory and
-manifest (for example, `solve_task`). Normalize a draft during development and
+manifest's `name`; inspect the external harness's artifact manifest and selected
+tool directory together. Keep their identifiers consistent (for example, `solve_task`). Normalize a draft during development and
 revalidate it there; do not rename frozen content or repair its manifest after
 final validation starts.
 
@@ -263,7 +252,7 @@ budget limit or infrastructure error is not a native task failure; report both
 individually while keeping incomplete acceptance unsuccessful.
 
 Separate infrastructure passes from task solving and local API conformance from
-Harbor isolation. Use historical RoboCasa/LIBERO evidence only for its recorded
+container isolation. Use historical RoboCasa/LIBERO evidence only for its recorded
 scope and source identity; architecture reference status does not imply full gates.
 
 After implementation changes, rerun affected checks against the final source set.

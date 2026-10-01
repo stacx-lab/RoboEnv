@@ -102,7 +102,7 @@ class Transport:
     def identity(self):
         identity = {
             "protocol": "roboenv/1",
-            "session": self.config.get("session") or "harbor",
+            "session": self.config.get("session") or "roboenv",
             "generation": self.config.get("generation", 0),
         }
         if self.endpoint and not self.config.get("session"):

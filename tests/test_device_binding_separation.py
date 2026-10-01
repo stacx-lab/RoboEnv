@@ -1,7 +1,6 @@
 """Separation, assembly, lifecycle and wire-compatibility tests. No model/GPU calls."""
 
 import ast
-import json
 import shutil
 import threading
 import time
@@ -13,7 +12,7 @@ import yaml
 from roboenv.devices.bindings.registry import BindingContext, BindingRegistry
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.model import Action, BoundDevice, DeviceError
-from roboenv.harbor.export import export_task
+from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.fakeshell import FakeShell
 from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError
 
@@ -266,7 +265,7 @@ def test_native_read_context_refuses_effectful_backend_operation(robot):
 
 
 @pytest.mark.parametrize("reference", ["toy-puck", "fakeshell/toy-puck"])
-def test_task_export_freezes_explicit_bindings_and_only_selected_client_devices(
+def test_task_resolution_uses_explicit_bindings_and_only_selected_devices(
     robot,
     tmp_path,
     reference,
@@ -288,30 +287,20 @@ def test_task_export_freezes_explicit_bindings_and_only_selected_client_devices(
     }
     task = tmp_path / "task.yaml"
     task.write_text(yaml.safe_dump(value))
-    wheel = tmp_path / "sdk.whl"
-    wheel.write_bytes(b"test input only")
-    deployment = tmp_path / "deployment.json"
-    deployment.write_text(
-        json.dumps(
-            {
-                "schema": "roboenv/deployment/1",
-                "backend": "fakeshell",
-                "legacy_tree_required": False,
-                "image": "sha256:" + "1" * 64,
-            }
-        )
+    resolved = resolve_task(task, catalog=catalog)
+    assert [spec.name for spec in resolved.bindings.devices] == ["puck"]
+    from roboenv_runtime.bindings import default_registry
+
+    world = FakeShell()
+    service = default_registry().assemble(
+        resolved.bindings, resolved.robot, BindingContext("fakeshell", "general", world)
     )
-    out = tmp_path / "export"
-    export_task(task, catalog, out, wheel, deployment_path=deployment)
-    base = out / "environment"
-    bound = yaml.safe_load((base / "sim/robot/bindings.yaml").read_text())
-    assert set(bound["devices"]) == {"puck"}
-    public = base / "definition/robot"
-    assert not (public / "bindings.yaml").exists()
-    assert not (public / "devices/controller").exists()
-    assert not (public / "devices").exists()
-    manifest = json.loads((base / "definition/environment.json").read_text())
-    assert manifest["devices"] == ["puck"]
+    try:
+        assert service.describe("puck")["extrinsics"]["mount"]["parent"] == "world"
+        with pytest.raises(DeviceError, match="unknown device"):
+            service.describe("controller")
+    finally:
+        service.close()
 
 
 @pytest.mark.parametrize(

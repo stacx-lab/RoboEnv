@@ -24,5 +24,7 @@ ENV ROBOENV_ROOT=/opt/roboenv/runtime \
     VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json \
     VK_DRIVER_FILES=/usr/share/vulkan/icd.d/nvidia_icd.json \
     PATH=/opt/sim-env/bin:$PATH
+COPY entrypoint.sh /opt/roboenv/entrypoint.sh
+ENTRYPOINT ["/bin/sh", "/opt/roboenv/entrypoint.sh"]
 WORKDIR /opt/roboenv/runtime
 CMD ["/opt/sim-env/bin/python", "-m", "roboenv_runtime.runtime.supervisor", "--help"]

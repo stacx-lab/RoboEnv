@@ -48,7 +48,7 @@ def device_service(tmp_path, monkeypatch, request):
         task="device-toy",
         seed=0,
         budget_mode="official",
-        session="harbor",
+        session="roboenv",
         cache_entries=2,
         terminate_grace_s=0.2,
         worker_module="device_test_worker",
