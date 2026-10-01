@@ -456,8 +456,8 @@ def test_isaac_camera_calibration_checks_actual_optical_mount(monkeypatch):
         )
         projection = spec["projection"]
         calibration = [
-            [projection["fx"], 0, projection["cx"]],
-            [0, projection["fy"], projection["cy"]],
+            [projection["fx"], 0, projection["cx"] + 0.5],
+            [0, projection["fy"], projection["cy"] + 0.5],
             [0, 0, 1],
         ]
         cameras[spec["native"]] = SimpleNamespace(

@@ -1,7 +1,6 @@
 """Basic device operations on source-backed native worlds; no primitive dispatch."""
 
 import copy
-import time
 import uuid
 from dataclasses import replace
 from pathlib import Path
@@ -68,7 +67,7 @@ def bind(spec, root, context):
         def read():
             from roboenv_runtime.runtime.worker import write_png
 
-            acquired = time.time()
+            acquired = world.sample_time_s
             rgb, depth = world.device_image(spec.entity)
             directory = Path(context.native.run_dir) / "captures"
             directory.mkdir(parents=True, exist_ok=True)

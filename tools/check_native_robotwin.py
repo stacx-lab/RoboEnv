@@ -83,6 +83,20 @@ def projection(world, models, out, stage):
         try:
             before = world.owner_state()
             rgb, depth = world.device_image(name)
+            position = np.asarray(world._depth_cameras[name].get_picture("Position"))
+            k = fact["intrinsics"]["color"]["projection"]
+            v_grid, u_grid = np.indices(depth.shape)
+            valid = depth > 0
+            rays = np.column_stack((
+                position[..., 0][valid] / depth[valid],
+                -position[..., 1][valid] / depth[valid],
+            ))
+            expected_rays = np.column_stack((
+                (u_grid[valid] - k["cx"]) / k["fx"],
+                (v_grid[valid] - k["cy"]) / k["fy"],
+            ))
+            ray_error = float(np.max(np.abs(rays - expected_rays)))
+            require(ray_error < 1e-5, f"{name}: depth rays differ from catalog: {ray_error}")
             labels = world._camera(name).get_picture("Segmentation")[..., 1]
             mask = labels == marker.actor.per_scene_id
             ys, xs = np.where(mask)
@@ -112,6 +126,7 @@ def projection(world, models, out, stage):
                 "observed_uv": observed.tolist(),
                 "projection_error_px": error,
                 "depth_error_m": depth_error,
+                "depth_ray_error": ray_error,
                 "marker_pixels": len(xs),
             }
             (out / f"{stage}-{name}.json").write_text(json.dumps(report[name], indent=2) + "\n")

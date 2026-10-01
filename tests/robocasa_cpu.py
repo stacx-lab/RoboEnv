@@ -101,6 +101,7 @@ def check(root, temporary):
             ),
         )
     )
+    renderer._pixel_center_rendering = lambda: None
     rgb, depth = renderer.render_rgbd(DEFAULT_CAMERAS[0])
     np.testing.assert_array_equal(rgb, pixels[::-1])
     np.testing.assert_allclose(depth, [[0.1 / (1 - 0.9 * 0.99), 0], [0.1, 0.1 / 0.505]])
@@ -291,9 +292,7 @@ def check(root, temporary):
         assert Path(image["file"]).read_bytes().startswith(b"\x89PNG")
         assert (image["width"], image["height"]) == (12, 8)
         assert image["sample_time_s"] == image["depth_sample_time_s"]
-        import time
-
-        assert abs(time.time() - image["sample_time_s"]) < 5
+        assert image["sample_time_s"] == float(data.time)
         assert Path(image["depth_file"]).read_bytes().startswith(b"P5\n12 8\n65535\n")
         assert service.describe("camera_left")["type"] == "rgbd"
         assert native._step_count == before

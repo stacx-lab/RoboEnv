@@ -10,7 +10,7 @@ const { createKinexRuntime } = await import(pathToFileURL(path.join(core, 'index
 const { parse: parseYaml } = createRequire(path.join(core, '../package.json'))('yaml')
 const { Device, RobotManifest } = await import(pathToFileURL(path.join(core, 'device/profile/schema.js')))
 const { missingActions } = await import(pathToFileURL(path.join(core, 'device/interface.js')))
-const { calibrationPlan } = await import(pathToFileURL(path.join(core, 'calibration/dag.js')))
+const { readinessPlan } = await import(pathToFileURL(path.join(core, 'device/profile/readiness.js')))
 const results = []
 for (const workspace of workspaces) {
   const root = path.resolve(workspace)
@@ -29,7 +29,7 @@ for (const workspace of workspaces) {
       const missing = missingActions(device, device.access?.driver?.actions ?? [])
       if (missing.length) throw new Error(`${device.name}: missing ${missing.join(', ')}`)
     }
-    const plan = await calibrationPlan(root, { ...snapshot, devices })
+    const plan = await readinessPlan(root, { ...snapshot, devices })
     const unresolved = plan.items.filter(item => !item.optional && item.status !== 'done')
     if (unresolved.length) throw new Error(JSON.stringify({ workspace: root, unresolved }))
     results.push({ workspace: root, profiles: devices.length, calibration: plan.counts })

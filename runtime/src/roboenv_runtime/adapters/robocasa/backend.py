@@ -164,6 +164,7 @@ class RoboCasaEnv:
         """An RGB frame from ``camera`` (default: the first configured camera)."""
         if not self._render:
             return None
+        self._pixel_center_rendering()
         name = camera or self._camera_names[0]
         h, w = self._camera_size
         frame = self.sim.render(camera_name=name, height=h, width=w)
@@ -175,6 +176,7 @@ class RoboCasaEnv:
 
         if not self._render or camera not in self._camera_names:
             raise ValueError("Camera must be enabled in the task's simulator configuration")
+        self._pixel_center_rendering()
         h, w = self._camera_size
         rgb, depth_buffer = self.sim.render(camera_name=camera, height=h, width=w, depth=True)
         raw = np.asarray(depth_buffer, dtype=float)
@@ -183,6 +185,18 @@ class RoboCasaEnv:
         metres = get_real_depth_map(self.sim, np.where(valid, raw, 0))
         metres = np.where(valid, metres, 0)
         return np.asarray(rgb)[::-1].copy(), metres[::-1].copy()
+
+    def _pixel_center_rendering(self):
+        # Multisample depth resolves a subpixel sample, unlike the catalog's center ray.
+        # Recreate only the GPU buffers, on the rendering thread, after each reset.
+        model = self.sim.model._model
+        if model.vis.quality.offsamples:
+            model.vis.quality.offsamples = 0
+            context = self.sim._render_context_offscreen
+            if context is not None:
+                context.gl_ctx.make_current()
+                context.con.free()
+                context._set_mujoco_context_and_buffers()
 
     def reset(self, *, seed=None):
         if seed is not None:

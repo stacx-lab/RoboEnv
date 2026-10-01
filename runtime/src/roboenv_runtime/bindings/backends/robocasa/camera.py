@@ -9,7 +9,7 @@ def intrinsics(width, height, vertical_fov, rgbd):
     focal = float(height / (2 * np.tan(np.deg2rad(vertical_fov) / 2)))
 
     def ray(u, v):
-        return np.array([(u - width / 2) / focal, (v - height / 2) / focal, 1.0])
+        return np.array([(u - (width - 1) / 2) / focal, (v - (height - 1) / 2) / focal, 1.0])
 
     def angle(a, b):
         return float(
@@ -32,8 +32,8 @@ def intrinsics(width, height, vertical_fov, rgbd):
                 "model": "pinhole",
                 "fx": focal,
                 "fy": focal,
-                "cx": width / 2,
-                "cy": height / 2,
+                "cx": (width - 1) / 2,
+                "cy": (height - 1) / 2,
                 "skew": 0,
             },
             "distortion": {"model": "none"},
@@ -65,7 +65,6 @@ def intrinsics(width, height, vertical_fov, rgbd):
 
 
 def bind(spec, root, context):
-    import time
     import uuid
     from pathlib import Path
 
@@ -93,8 +92,8 @@ def bind(spec, root, context):
         directory.mkdir(parents=True, exist_ok=True)
         file = directory / f"{uuid.uuid4().hex}.png"
         extra = {}
-        # On-demand paired acquisition uses the Kinex camera Unix clock.
-        acquired = time.time()
+        # Use the same clock as joint feedback; receipt time is added by transport.
+        acquired = float(sim.data.time)
         if definition.type == "rgbd":
             rgb, depth = world.render_rgbd(camera)
             if np.asarray(depth).shape != np.asarray(rgb).shape[:2]:

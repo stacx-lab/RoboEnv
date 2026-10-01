@@ -14,14 +14,14 @@ intrinsics:
       model: pinhole
       fx: 358.6421955291472
       fy: 358.6421955291472
-      cx: 160.0
-      cy: 120.0
+      cx: 159.5
+      cy: 119.5
       skew: 0
     distortion:
       model: none
     fov:
-      horizontal_deg: 48.08577917723934
-      vertical_deg: 36.999906218335575
+      horizontal_deg: 48.085889726521295
+      vertical_deg: 36.99999999999999
   depth:
     registration: color
     width: 320
