@@ -45,13 +45,11 @@ def test_robocasa_rebuilds_multisample_buffers_once_per_model():
     assert len(calls) == 6
 
 
-def test_camera_read_attaches_live_calibration_without_sharing_mutable_facts():
+def test_camera_read_returns_handler_payload_without_calibration_metadata():
     device = BoundDevice(
         DeviceDefinition("camera", "rgb", {"test": [1]}, {"mount": [2]}),
         {"read": Action(lambda args, execution: {"sample_time_s": 3.0})},
         implementation="fixture",
     )
     result = device.execute("read", {}, ExecutionContext(read_only=True))
-    assert result["calibration"] == {"intrinsics": {"test": [1]}, "extrinsics": {"mount": [2]}}
-    result["calibration"]["intrinsics"]["test"][0] = 99
-    assert device.definition.intrinsics["test"] == [1]
+    assert result == {"sample_time_s": 3.0}
