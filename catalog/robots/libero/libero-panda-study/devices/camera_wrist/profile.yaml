@@ -14,14 +14,14 @@ intrinsics:
       model: pinhole
       fx: 166.812847723674
       fy: 166.812847723674
-      cx: 128.0
-      cy: 128.0
+      cx: 127.5
+      cy: 127.5
       skew: 0
     distortion:
       model: none
     fov:
-      horizontal_deg: 74.999438440354
-      vertical_deg: 74.999438440354
+      horizontal_deg: 75.0
+      vertical_deg: 75.0
 extrinsics:
   source: introspected
   method: introspection

@@ -15,7 +15,27 @@ settings = transport.settings
 remote = transport.remote
 
 
+def same_calibration(actual, expected):
+    """Allow source extraction roundoff, never silently accept a different calibration."""
+    if isinstance(expected, dict):
+        return isinstance(actual, dict) and actual.keys() == expected.keys() and all(
+            same_calibration(actual[key], value) for key, value in expected.items()
+        )
+    if isinstance(expected, list):
+        return isinstance(actual, list) and len(actual) == len(expected) and all(
+            same_calibration(a, b) for a, b in zip(actual, expected, strict=True)
+        )
+    if type(expected) in (int, float):
+        return type(actual) in (int, float) and math.isclose(
+            actual, expected, rel_tol=1e-8, abs_tol=1e-8
+        )
+    return actual == expected
+
+
 def camera_read(data, profile):
+    expected = {key: profile.get(key, {}) for key in ("intrinsics", "extrinsics")}
+    if not same_calibration(data.get("calibration"), expected):
+        raise ValueError("Remote camera calibration differs from the profile; export devices again")
     stamps = ["sample_time_s", "received_time_s"]
     if profile["type"] == "rgbd":
         stamps.append("depth_sample_time_s")

@@ -181,8 +181,8 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
                 }[profile["name"]]
                 assert color["projection"]["fx"] == pytest.approx(focal)
                 assert color["projection"]["fy"] == pytest.approx(focal)
-                assert color["projection"]["cx"] == 128
-                assert color["projection"]["cy"] == 128
+                assert color["projection"]["cx"] == 127.5
+                assert color["projection"]["cy"] == 127.5
         assert "simulator" not in str(
             yaml.safe_load((root / "devices/arm/profile.yaml").read_text())["access"]
         )

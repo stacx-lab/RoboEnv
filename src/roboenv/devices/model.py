@@ -167,7 +167,18 @@ class BoundDevice:
         spec = self.actions.get(action)
         if spec is None or spec.handler is None:
             raise DeviceError("unsupported_action", spec.reason if spec else "Action not declared")
-        return spec.handler(args, context)
+        result = spec.handler(args, context)
+        if action == "read" and self.definition.type in {"rgb", "rgbd"}:
+            # Bind each image to live calibration, including parent-relative mounts.
+            # Drivers compare this with their copied profile before returning an image.
+            calibration = {
+                "intrinsics": self.definition.intrinsics,
+                "extrinsics": self.definition.extrinsics,
+            }
+            return map_result(
+                result, lambda value: {**value, "calibration": copy.deepcopy(calibration)}
+            )
+        return result
 
     def close(self):
         if not self._closed:

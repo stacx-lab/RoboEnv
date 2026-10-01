@@ -53,6 +53,7 @@ class RoboTwinDevices(RoboTwinEnv):
         )
 
     def reset(self, *, seed=None):
+        self._depth_cameras = {}
         super().reset(seed=seed)
         self._native_success = bool(self.task.check_success())
         self._configure_step_limit()
@@ -201,7 +202,7 @@ class RoboTwinDevices(RoboTwinEnv):
             "positions": entity.get_qpos()[indexes].astype(float).tolist(),
             "velocities": entity.get_qvel()[indexes].astype(float).tolist(),
             "faults": [],
-            "sample_time_s": self._sim_step_count / 250,
+            "sample_time_s": self.sample_time_s,
         }
         if not gripper:
             frames = self.rig_frames[side]
@@ -220,6 +221,10 @@ class RoboTwinDevices(RoboTwinEnv):
             raise ValueError("Unknown native camera")
         return getattr(cameras, name)
 
+    @property
+    def sample_time_s(self):
+        return self._sim_step_count / 250
+
     def _verify_cameras(self):
         self.task._update_render()
         for name in ("head_camera", "left_camera", "right_camera"):
@@ -228,7 +233,7 @@ class RoboTwinDevices(RoboTwinEnv):
             projection = facts["intrinsics"]["color"]["projection"]
             k = camera.get_intrinsic_matrix()
             if not np.allclose(
-                [k[0, 0], k[1, 1], k[0, 2], k[1, 2]],
+                [k[0, 0], k[1, 1], k[0, 2] - 0.5, k[1, 2] - 0.5],
                 [projection[key] for key in ("fx", "fy", "cx", "cy")],
                 atol=1e-4,
                 rtol=0,
@@ -251,12 +256,13 @@ class RoboTwinDevices(RoboTwinEnv):
                 raise ValueError("Native camera mount differs from the static rig")
 
     def device_image(self, name):
+        from .cameras import pixel_center_depth
+
         self.task._update_render()
         camera = self._camera(name)
+        depth = pixel_center_depth(self, name, camera)
         camera.take_picture()
         color = camera.get_picture("Color")
-        depth = -np.asarray(camera.get_picture("Position"))[..., 2].copy()
-        depth[np.asarray(color)[..., 3] == 0] = 0
         return (np.clip(color[..., :3], 0, 1) * 255).astype(np.uint8), depth
 
     def owner_state(self):
@@ -296,4 +302,5 @@ class RoboTwinDevices(RoboTwinEnv):
 
     def close(self):
         self._close_task()
+        self._depth_cameras = {}
         self.control = None

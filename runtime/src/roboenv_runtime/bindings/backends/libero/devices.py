@@ -1,6 +1,5 @@
 """Typed Panda devices bound to one official LIBERO world."""
 
-import time
 import uuid
 from dataclasses import replace
 from pathlib import Path
@@ -234,7 +233,7 @@ def bind(spec, root, context):
             directory = Path(context.native.run_dir) / "captures"
             directory.mkdir(parents=True, exist_ok=True)
             file = directory / f"{uuid.uuid4().hex}.png"
-            acquired = time.time()
+            acquired = float(data.time)
             h, w, _ = write_png(file, world.render(camera))
             return {"file": str(file), "height": h, "width": w, "sample_time_s": acquired}
 

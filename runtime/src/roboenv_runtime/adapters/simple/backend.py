@@ -183,7 +183,7 @@ class SimpleEnv:
             if tuple(camera.resolution) != (spec["width"], spec["height"]):
                 raise ValueError(f"SIMPLE camera dimensions differ: {name}")
             if not np.allclose(
-                [camera.fx, camera.fy, camera.cx, camera.cy],
+                [camera.fx, camera.fy, camera.cx - 0.5, camera.cy - 0.5],
                 [spec["projection"][key] for key in ("fx", "fy", "cx", "cy")],
             ):
                 raise ValueError(f"SIMPLE camera calibration differs: {name}")

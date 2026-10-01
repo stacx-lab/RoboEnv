@@ -271,13 +271,17 @@ class RoboDojoDevices(RoboDojoEnv):
         for name in devices:
             self.gripper_holds.pop(name, None)
 
+    @property
+    def sample_time_s(self):
+        return (self.physics_steps - self.episode_start_steps) * self.physics_dt
+
     def device_read(self, name):
         robot, key, indices = self.actuators[name]
         result = {
             "positions": np.asarray(values(key.data.joint_pos[0]))[indices].tolist(),
             "velocities": np.asarray(values(key.data.joint_vel[0]))[indices].tolist(),
             "faults": [],
-            "sample_time_s": (self.physics_steps - self.episode_start_steps) * self.physics_dt,
+            "sample_time_s": self.sample_time_s,
         }
         if name.endswith("_arm"):
             frames = self.rig_frames[name.removesuffix("_arm")]

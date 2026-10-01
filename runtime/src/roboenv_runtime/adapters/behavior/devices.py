@@ -253,8 +253,12 @@ class BehaviorDevices(BehaviorBackend):
         result = self.control.stop(name, self._measured_target(name))
         return {**result, "behavior": "zero_velocity" if name == "base" else "hold"}
 
+    @property
+    def sample_time_s(self):
+        return self.control.frame * self.control_interval
+
     def device_read(self, name):
-        elapsed = self.control.frame * self.control_interval
+        elapsed = self.sample_time_s
         if name == "base":
             transform = pose(self.robot)
             linear = transform[:3, :3].T @ array(self.robot.get_linear_velocity())

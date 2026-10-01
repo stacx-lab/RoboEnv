@@ -42,7 +42,7 @@ def service(tmp_path, *, embodiment="piper"):
             "intrinsics": definition.intrinsics,
             "extrinsics": definition.extrinsics,
         }
-    world = SimpleNamespace(embodiment=embodiment, device_facts=facts, steps=0)
+    world = SimpleNamespace(embodiment=embodiment, device_facts=facts, steps=0, sample_time_s=0.0)
     actuator_names = [name for name, fact in facts.items() if fact["type"] in {"joint", "gripper"}]
     targets = {name: [0.0] * (6 if name.endswith("arm") else 1) for name in actuator_names}
 

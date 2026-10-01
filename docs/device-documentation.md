@@ -37,3 +37,22 @@ Kinex-style file drivers remain a separate projection through
 `roboenv.devices.export.export_devices`; orchestration adapters choose when to
 create those resources. That projection places a single `_roboenv.py` in the
 shared `devices/` root, alongside the individual device directories.
+
+Camera projection uses integer pixel centers: the top-left pixel is `(0, 0)`.
+For a centered image the principal point is `((width - 1) / 2, (height - 1) / 2)`.
+Registered depth is optical-axis Z in the profile's declared units, sampled at
+those same pixel centers. RoboCasa uses single-sample offscreen rendering for
+paired RGB-D; RoboTwin retains native supersampled RGB and captures pixel-center
+depth with a matching raster camera. These corrections change rendered sensor
+data, so older image recordings retain their original calibration.
+
+Camera `sample_time_s` uses the simulator clock, matching joint feedback;
+`received_time_s` added by the portable driver is Unix receipt time. Separate
+reads in realtime mode can still describe different simulation instants. Matching
+clock units alone does not make an image and a later joint read an atomic snapshot.
+
+Camera reads include their live `calibration` facts. Exported camera drivers
+compare those facts with the copied profile, including focal length, mounts and
+depth scale, before returning the image. Re-export devices when upgrading a
+runtime or changing calibration; a new driver requires a runtime that supplies
+these facts.

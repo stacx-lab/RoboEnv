@@ -140,8 +140,8 @@ def cameras(source):
                 "model": "pinhole",
                 "fx": focal,
                 "fy": focal,
-                "cx": 320.0,
-                "cy": 180.0,
+                "cx": 319.5,
+                "cy": 179.5,
                 "skew": 0,
             },
             "mount": {

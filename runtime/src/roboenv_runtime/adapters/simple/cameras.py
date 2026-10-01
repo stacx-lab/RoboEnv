@@ -24,7 +24,10 @@ def validate_isaac(world):
             [0, projection["fy"], projection["cy"]],
             [0, 0, 1],
         ]
-        if not np.allclose(camera.get_intrinsics_matrix(), expected, atol=1e-4, rtol=0):
+        native = np.array(camera.get_intrinsics_matrix(), copy=True)
+        # Native matrices use pixel-edge coordinates; catalog pixels have integer centers.
+        native[:2, 2] -= 0.5
+        if not np.allclose(native, expected, atol=1e-4, rtol=0):
             raise ValueError(f"SIMPLE Isaac camera intrinsics differ: {name}")
         position, quaternion = camera.get_world_pose(camera_axes="ros")
         optical = matrix([*position, *quaternion[[1, 2, 3, 0]]])
