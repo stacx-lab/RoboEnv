@@ -283,20 +283,30 @@ def launch(
     runtime_root=None,
     run_dir=None,
     allow_stop=False,
+    record_episode=False,
+    recording=None,
     advertise_host=None,
     python_path=(),
     execution_mode=None,
+    instruction_override=None,
 ):
     """Start a task in its isolated interpreter; return after device readiness.
 
     arm_gravity_compensation overrides the SIMPLE task setting; None preserves
     the task value, which defaults to True. Other backends reject this override.
     execution_mode overrides the task setting; None preserves the catalog mode.
+    recording={} enables deferred owner recording; buffer_frames and stride
+    configure capture without changing agent camera observations.
     Backend assets must already be prepared. No installation or download occurs.
+    instruction_override replaces the public goal without changing native scoring.
     All run definitions and logs are retained under the selected project's cache.
     """
     if execution_mode is not None and execution_mode not in ("stepped", "realtime"):
         raise ValueError("execution_mode must be stepped or realtime")
+    if instruction_override is not None and (
+        not isinstance(instruction_override, str) or not instruction_override.strip()
+    ):
+        raise ValueError("instruction_override must be nonempty text")
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
         raise ValueError("timeout must be a positive finite number")
     if not math.isfinite(timeout) or timeout <= 0:
@@ -310,6 +320,12 @@ def launch(
         raise ValueError("Packaged startup requires --catalog and --interpreter")
     if type(allow_stop) is not bool:
         raise ValueError("allow_stop must be a boolean")
+    if type(record_episode) is not bool:
+        raise ValueError("record_episode must be a boolean")
+    from roboenv.recording import configuration as recording_configuration
+
+    recording_config = recording_configuration(recording)
+    record_episode = record_episode or recording is not None
     if isinstance(python_path, (str, bytes)):
         raise ValueError("python_path must be a sequence of deployment paths")
     python_path = [str(Path(path).resolve(strict=True)) for path in python_path]
@@ -337,7 +353,9 @@ def launch(
         if run_dir
         else (root / ".cache/roboenv/runs" if runtime_root else _records(root))
     )
-    directory = runs / run_id
+    # Owner storage may use a host-managed compatibility symlink. Resolve that
+    # root before exporting devices; device resources themselves remain link-free.
+    directory = runs.resolve() / run_id
     directory.mkdir(parents=True, mode=0o700)
     sockets = Path(tempfile.mkdtemp(prefix="roboenv-socket-", dir="/tmp"))
     robot = directory / "server/robot"
@@ -355,6 +373,7 @@ def launch(
         manifest,
         {
             "task": asdict(spec),
+            "instruction_override": instruction_override,
             "observation_access": "sensors-only",
         },
     )
@@ -377,6 +396,7 @@ def launch(
             env.pop(key)
     env.update(
         ROBOENV_ROOT=str(root),
+        ROBOENV_PROJECT=str(root),
         ROBOENV_TASKS=str(tasks),
         ROBOENV_SERVER_ROBOT=str(robot),
         ROBOENV_SERVER_MANIFEST=str(manifest),
@@ -389,6 +409,8 @@ def launch(
         PYTHONUNBUFFERED="1",
         MUJOCO_GL="egl",
         ROBOENV_ALLOW_STOP="1" if allow_stop else "0",
+        ROBOENV_RECORD_EPISODE="1" if record_episode else "0",
+        ROBOENV_RECORDING_CONFIG=json.dumps(recording_config),
     )
     if python_path:
         env["PYTHONPATH"] = os.pathsep.join(python_path)

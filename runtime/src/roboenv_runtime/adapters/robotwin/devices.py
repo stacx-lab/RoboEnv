@@ -28,6 +28,7 @@ class RoboTwinDevices(RoboTwinEnv):
         max_steps=None,
         task_config="demo_clean",
         allow_seed_substitution=False,
+        max_settling_checks=1,
     ):
         if embodiment not in EMBODIMENTS:
             raise ValueError("Unsupported typed RoboTwin embodiment")
@@ -49,6 +50,7 @@ class RoboTwinDevices(RoboTwinEnv):
             task_config=task_config,
             embodiment=EMBODIMENTS[embodiment],
             allow_seed_substitution=allow_seed_substitution,
+            max_settling_checks=max_settling_checks,
             collect_wrist_camera=True,
         )
 
@@ -118,6 +120,7 @@ class RoboTwinDevices(RoboTwinEnv):
                 "max_steps": self.frame_limit,
                 "task_config": "demo_clean",
                 "allow_seed_substitution": False,
+                "max_settling_checks": self.max_settling_checks,
             },
             "robotwin",
         )

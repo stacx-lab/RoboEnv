@@ -62,3 +62,7 @@ Select a checkout with `--kinex` (or `KINEX_ROOT`) and a Node executable with
 `--node` (or `NODE`) in the LIBERO and SIMPLE acceptance runners. Rebuild Kinex core
 after updating its source before running these checks. Python driver tests use
 that checkout's `packages/core/assets/python` library.
+
+For offline video, use the [recording workflow](../README.md#recording-and-offline-media)
+with a matching prepared runtime. Command replay does not verify intermediate
+states; CPU checks do not certify a simulator GPU video path.

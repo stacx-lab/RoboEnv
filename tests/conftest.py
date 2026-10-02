@@ -13,7 +13,7 @@ pytest_plugins = ["service_fixtures"]
 
 def pytest_configure(config):
     if config.option.basetemp is None:
-        root = PROJECT / ".cache/pytest"
+        root = Path(os.environ.get("TMPDIR", PROJECT / ".cache/pytest"))
         root.mkdir(parents=True, exist_ok=True)
         # Let pytest number, lock, and prune its own temporary directories.
         os.environ.setdefault("PYTEST_DEBUG_TEMPROOT", str(root))

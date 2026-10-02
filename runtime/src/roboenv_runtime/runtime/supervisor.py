@@ -327,7 +327,8 @@ class Supervisor:
         if self._worker_state != previous_state:
             self._write_state()
 
-    def terminate_worker(self, *, reason: str, timed_out: bool = False) -> None:
+    def terminate_worker(self, *, reason: str, timed_out: bool = False,
+                         graceful: bool = False) -> None:
         """Terminate only the exact process group created by this object."""
 
         worker = self._worker
@@ -347,9 +348,18 @@ class Supervisor:
                 self._write_state()
                 return
             with contextlib.suppress(ProcessLookupError):
-                os.killpg(pgid, signal.SIGTERM)
+                if graceful:
+                    # Keep the writer alive while the frozen owner seals evidence.
+                    os.kill(worker.pid, signal.SIGTERM)
+                else:
+                    os.killpg(pgid, signal.SIGTERM)
+            grace = self.config.terminate_grace_s
+            if graceful:
+                from roboenv.recording import FINALIZE_TIMEOUT_S
+
+                grace += FINALIZE_TIMEOUT_S
             try:
-                worker.wait(timeout=self.config.terminate_grace_s)
+                worker.wait(timeout=grace)
             except subprocess.TimeoutExpired:
                 with contextlib.suppress(ProcessLookupError):
                     os.killpg(pgid, signal.SIGKILL)
@@ -818,7 +828,7 @@ class Supervisor:
                     retryable=False,
                 ).as_dict()
             if request.op == "simulation.stop" and response["ok"]:
-                self.terminate_worker(reason="simulation stopped")
+                self.terminate_worker(reason="simulation stopped", graceful=True)
                 self._stopped_result = {**response["result"], "service_state": "stopped"}
                 response["result"] = self._stopped_result
                 atomic_write_json(self.config.run_dir / "stopped.json", self._stopped_result)
@@ -830,7 +840,7 @@ class Supervisor:
             self._cache_store(request, response)
 
             if request.op == "shutdown":
-                self.terminate_worker(reason="shutdown requested")
+                self.terminate_worker(reason="shutdown requested", graceful=True)
                 self._schedule_server_shutdown()
             return response
         finally:

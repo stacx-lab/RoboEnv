@@ -20,6 +20,17 @@ class RoboDojoAdapter(NativeDeviceAdapter):
         self.embodiment = env_cfg_type
         self._env = RoboDojoDevices(task_name, env_cfg_type, **kwargs)
 
+    @property
+    def native_terminated(self):
+        return bool(self._env._env.end_flag[0])
+
+    def recording_source(self):
+        if self._env._env.scene_manager._fluid_objects[0]:
+            from .recording import RoboDojoSource
+
+            return RoboDojoSource(self._env)
+        return None
+
     def goal(self):
         # The native observation manager already resolved labels and selected a
         # description at reset. Reading it must not rerun description sampling.
@@ -31,10 +42,10 @@ class RoboDojoAdapter(NativeDeviceAdapter):
     def score(self):
         success = self._env.task_completed()
         cached = getattr(self._env._env.reward_manager, "_gated_score_lst", None)
-        reward = float(cached[0]) if cached else float(success)
+        raw_score = float(cached[0]) if cached else 100.0 * float(success)
         return ScoreReport(
-            reward=reward,
-            raw_score=100 * reward,
+            reward=raw_score / 100.0,
+            raw_score=raw_score,
             completed=success,
             detail={
                 "control_protocol": "native_eval_joint_action",

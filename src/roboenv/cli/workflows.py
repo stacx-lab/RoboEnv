@@ -71,6 +71,8 @@ def add_commands(commands):
                 help="Override the task catalog execution mode"
             )
             parser.add_argument("--detach", action="store_true")
+            parser.add_argument("--record", action="store_true",
+                                help="Capture owner evidence; render video after control ends")
             parser.add_argument(
                 "--port",
                 type=int,
@@ -151,6 +153,7 @@ def execute(args):
             allow_stop=args.allow_stop,
             advertise_host=args.advertise_host,
             python_path=args.python_path,
+            recording={} if args.record else None,
         )
         emit(environment.record, machine=args.json)
         if args.detach:

@@ -20,9 +20,32 @@ def values(value):
     return np.asarray(value).tolist()
 
 
+def encode(value):
+    if isinstance(value, dict):
+        return {str(key): encode(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [encode(item) for item in value]
+    if hasattr(value, "shape"):
+        return values(value)
+    return value
+
+
 def pose_matrix(pose):
     pose = values(pose)
     return matrix([*pose[:3], *pose[4:7], pose[3]])
+
+
+def garment_particles(obj):
+    # RoboDojo's CPU garment wrapper reads live USD data and does not initialize
+    # the Isaac cloth tensor view. Use its native world-space point sampler.
+    if obj._device == "cpu":
+        velocities = obj._prim.GetAttribute("velocities").Get()
+        if velocities is None:
+            raise ValueError("Native garment is missing particle velocities")
+        return {"points": np.asarray(obj.sample_mesh_vertices()[0])[None],
+                "velocities": np.asarray(velocities)[None]}
+    return {"points": obj._cloth_prim_view.get_world_positions(),
+            "velocities": obj._cloth_prim_view.get_velocities()}
 
 
 class RoboDojoDevices(RoboDojoEnv):
@@ -95,7 +118,11 @@ class RoboDojoDevices(RoboDojoEnv):
             hook = getattr(self._env, name, None)
             if callable(hook):
                 hook()
+        manager = self._env.seed_manager
+        layout_ids = list(getattr(manager, "seed_list", None) or
+                          sorted(getattr(manager, "seed_info", {}).keys()))
         self.initialization = {
+            "layout_ids": [int(value) for value in layout_ids],
             "requested_seed": self.seed,
             "effective_layout": layout,
             "layout_config": self.layout_config,
@@ -206,8 +233,8 @@ class RoboDojoDevices(RoboDojoEnv):
             self._env.step_lim = float("inf")
         else:
             native_limit = self.native_step_limit
-            self._env.step_lim = native_limit
-            self.frame_limit = min(native_limit, self.requested_frame_limit or native_limit)
+            self.frame_limit = self.requested_frame_limit or native_limit
+            self._env.step_lim = self.frame_limit
 
     def exhausted(self):
         return bool(self._env.end_flag[0]) or (
@@ -406,18 +433,8 @@ class RoboDojoDevices(RoboDojoEnv):
     def task_completed(self):
         return bool(self._env.end_flag[0] and self._env.success[0])
 
-    def owner_state(self):
+    def scene_state(self):
         # Isaac Lab serializes rigid, articulated and deformable scene state.
-        # Native reward/support state is included separately and never exported.
-        def encode(value):
-            if isinstance(value, dict):
-                return {str(key): encode(item) for key, item in value.items()}
-            if isinstance(value, (tuple, list)):
-                return [encode(item) for item in value]
-            if hasattr(value, "shape"):
-                return values(value)
-            return value
-
         state = encode(self._env.sim.scene.get_state())
         # RoboDojo creates task objects outside Isaac Lab's scene registry.
         # Read their live native views, including particles and articulated props.
@@ -452,13 +469,15 @@ class RoboDojoDevices(RoboDojoEnv):
                         joint_velocities=encode(obj.get_joint_velocities()),
                     )
                 if kind == "garment":
-                    entry.update(
-                        points=encode(obj._cloth_prim_view.get_world_positions()),
-                        velocities=encode(obj._cloth_prim_view.get_velocities()),
-                    )
+                    entry.update(encode(garment_particles(obj)))
                 objects[kind][name] = entry
-        reward = self._env.reward_manager
         state["task_objects"] = objects
+        return state
+
+    def owner_state(self):
+        # Native reward/support state is kept in the owner record, not scene playback.
+        state = self.scene_state()
+        reward = self._env.reward_manager
         state["reward_state"] = {
             key: encode(getattr(reward, key))
             for key in (
@@ -491,8 +510,208 @@ class RoboDojoDevices(RoboDojoEnv):
         serialized = json.dumps(state, sort_keys=True, separators=(",", ":"), allow_nan=False)
         return {"state": state, "sha256": hashlib.sha256(serialized.encode()).hexdigest()}
 
+    def prepare_replay_materials(self):
+        """Resolve original scene MDL dependencies locally in the session layer."""
+        from isaacsim.core.utils.stage import get_current_stage
+        from pxr import Sdf, Usd
+        from roboenv.provisioning.robodojo_assets import material_manifest, verify_materials
+
+        pin = material_manifest()
+        stage = get_current_stage()
+        references = []
+        for prim in stage.Traverse():
+            attribute = prim.GetAttribute("info:mdl:sourceAsset")
+            asset = attribute.Get() if attribute else None
+            if asset is not None and asset.path.startswith(pin["base_url"]):
+                relative = asset.path.removeprefix(pin["base_url"])
+                if relative in pin["files"]:
+                    references.append((attribute, relative))
+        if not references:
+            return []
+        assets = self.asset_roots["robodojo"]
+        verify_materials(assets)
+        overrides = []
+        with Usd.EditContext(stage, stage.GetSessionLayer()):
+            for attribute, relative in references:
+                attribute.Set(Sdf.AssetPath(str(assets / ".roboenv-materials" / relative)))
+                overrides.append({"attribute": str(attribute.GetPath()),
+                                  "source_url": pin["base_url"] + relative,
+                                  "sha256": pin["files"][relative]["sha256"]})
+        return overrides
+
+    def restore_replay_initial_state(self, recorded):
+        """Restore archived fluid and rigid initial conditions for offline video.
+
+        Saved-layout settling can change fluid particles between fresh processes.
+        Replay still compares the full restored initial state and simulated final
+        state; no final state, reward or command is restored here.
+        """
+        from roboenv_runtime.adapters.native_record import compare
+
+        compare(recorded, recorded, atol=0, path="archived_initial_state")
+        objects = recorded["state"]["task_objects"]
+        if not objects["fluid"]:
+            return None
+        self._restore_task_objects(objects, ("fluid", "rigid"))
+        self.initial_state = self.owner_state()
+        return {"source": "archived-native-initial-state", "sha256": recorded["sha256"],
+                "restored_fields": ["task_objects.fluid.positions", "task_objects.fluid.velocities",
+                                    "task_objects.rigid.pose", "task_objects.rigid.linear_velocity",
+                                    "task_objects.rigid.angular_velocity"],
+                "final_state_restored": False}
+
+    def _restore_task_objects(self, objects, kinds):
+        scene = self._env.scene_manager
+        attributes = {"fluid": "_fluid_objects", "rigid": "_rigid_and_dynamic_objects",
+                      "articulation": "_articulation_objects", "geometry": "_geometry_objects"}
+        for kind in kinds:
+            attribute = attributes[kind]
+            if set(objects[kind]) != set(getattr(scene, attribute)[0]):
+                raise ValueError(f"Archived initial {kind} objects differ from the native scene")
+        import torch
+        from pxr import Vt
+
+        for name, state in objects["fluid"].items():
+            obj = scene._fluid_objects[0][name]
+            positions = np.asarray(state["positions"][0], dtype=np.float32)
+            velocities = np.asarray(state["velocities"], dtype=np.float32)
+            if (positions.shape != np.asarray(obj.get_particle_positions()[0]).shape
+                    or velocities.shape != positions.shape):
+                raise ValueError("Archived initial fluid particle dimensions differ")
+            obj.set_particle_positions(positions)
+            obj.point_instancer.GetVelocitiesAttr().Set(Vt.Vec3fArray.FromNumpy(velocities))
+        for kind in kinds:
+            if kind == "fluid":
+                continue
+            for name, state in objects[kind].items():
+                obj = getattr(scene, attributes[kind])[0][name]
+
+                def tensor(value, device=obj._device):
+                    return torch.as_tensor(value, dtype=torch.float32, device=device)
+
+                obj.set_world_pose(position=tensor(state["pose"][0]),
+                                   orientation=tensor(state["pose"][1]))
+                if kind in {"rigid", "articulation"}:
+                    obj.set_linear_velocity(tensor(state["linear_velocity"]))
+                    obj.set_angular_velocity(tensor(state["angular_velocity"]))
+                if kind == "articulation":
+                    obj.set_joint_positions(tensor(state["joint_positions"]))
+                    obj.set_joint_velocities(tensor(state["joint_velocities"]))
+
+    def restore_scene_state(self, state):
+        """Restore a recorded scene for rendering without executing native actions."""
+        import torch
+
+        if state["task_objects"]["garment"]:
+            raise ValueError("Fluid scene playback does not support mixed garment objects")
+
+        def tensors(value):
+            if isinstance(value, dict):
+                return {key: tensors(item) for key, item in value.items()}
+            return torch.as_tensor(value, dtype=torch.float32, device=self._env.sim.sim.device)
+
+        registry = {key: value for key, value in state.items() if key != "task_objects"}
+        self._env.sim.scene.reset_to(tensors(registry), is_relative=False)
+        self._restore_task_objects(
+            state["task_objects"], ("fluid", "rigid", "articulation", "geometry"))
+        self._env.sim.sim.forward()
+
+    def _fluid_surface_meshes(self):
+        if hasattr(self, "_replay_fluid_surface_meshes"):
+            return self._replay_fluid_surface_meshes
+        from isaacsim.core.utils.stage import get_current_stage
+        from pxr import UsdGeom
+
+        stage = get_current_stage()
+        meshes = {}
+        for name, obj in sorted(self._env.scene_manager._fluid_objects[0].items()):
+            if obj.physics_cfg.get("particle_system", {}).get("isosurface", True):
+                mesh = UsdGeom.Mesh.Get(stage, str(obj.particle_system_path) + "/Isosurface")
+                if not mesh:
+                    raise ValueError(f"Native fluid surface is unavailable: {name}")
+                meshes[name] = mesh
+        return meshes
+
+    def prepare_fluid_surface_playback(self):
+        """Render recorded surfaces independently of PhysX's GPU mesh buffers."""
+        from isaacsim.core.utils.stage import get_current_stage
+        from pxr import Usd, UsdGeom
+
+        originals = self._fluid_surface_meshes()
+        stage = get_current_stage()
+        meshes = {}
+        with Usd.EditContext(stage, stage.GetSessionLayer()):
+            for name, original in originals.items():
+                # Siblings inherit the original particle-system material,
+                # transform and shadow settings; they have no physics API.
+                path = original.GetPath().GetParentPath().AppendChild("RoboEnvReplaySurface")
+                replay = UsdGeom.Mesh.Define(stage, path)
+                fields = set(UsdGeom.Mesh.GetSchemaAttributeNames())
+                for attribute in original.GetPrim().GetAttributes():
+                    key, value = attribute.GetName(), attribute.Get()
+                    if value is not None and (key in fields or key.startswith("xformOp")):
+                        target = replay.GetPrim().CreateAttribute(key, attribute.GetTypeName())
+                        target.Set(value)
+                        interpolation = attribute.GetMetadata("interpolation")
+                        if interpolation is not None:
+                            target.SetMetadata("interpolation", interpolation)
+                for relationship in original.GetPrim().GetRelationships():
+                    if relationship.GetName().startswith("material:binding"):
+                        replay.GetPrim().CreateRelationship(relationship.GetName()).SetTargets(
+                            relationship.GetTargets())
+                # Two-sided drawing keeps the recorded fluid surface visible
+                # when rendered as an ordinary USD mesh rather than by PhysX.
+                replay.GetDoubleSidedAttr().Set(True)
+                UsdGeom.Imageable(original).MakeInvisible()
+                meshes[name] = replay
+        self._replay_fluid_surface_meshes = meshes
+
+    def fluid_surface_state(self):
+        # PhysX generates these variable-topology meshes during simulation.
+        # Restoring particles without stepping does not regenerate the surface.
+        state = {}
+        for name, mesh in self._fluid_surface_meshes().items():
+            for field in ("points", "faceVertexCounts", "faceVertexIndices", "normals", "extent"):
+                value = mesh.GetPrim().GetAttribute(field).Get()
+                if value is not None:
+                    dtype = np.int32 if field.startswith("faceVertex") else np.float32
+                    shape = (-1,) if field.startswith("faceVertex") else (-1, 3)
+                    state[name + "/" + field] = np.asarray(value, dtype=dtype).reshape(shape).copy()
+            # PhysX's generated surfaces have no USD extent. Ordinary playback
+            # meshes need bounds that follow the changing vertices for culling.
+            if name + "/extent" not in state:
+                points = state[name + "/points"]
+                state[name + "/extent"] = (
+                    np.stack((points.min(axis=0), points.max(axis=0))) if len(points)
+                    else np.zeros((2, 3), dtype=np.float32))
+        return state
+
+    def restore_fluid_surfaces(self, state):
+        """Restore captured native render meshes after the scene forward update."""
+        from isaacsim.core.utils.stage import get_current_stage
+        from pxr import Usd, Vt
+
+        meshes = self._fluid_surface_meshes()
+        if set(state) != set(self.fluid_surface_state()):
+            raise ValueError("Recorded fluid surface fields differ from the native scene")
+        for key, value in state.items():
+            field = key.rsplit("/", 1)[1]
+            vectors = field in {"points", "normals", "extent"}
+            if (not np.isfinite(value).all() or vectors and (value.ndim != 2 or value.shape[1] != 3)
+                    or not vectors and value.ndim != 1):
+                raise ValueError("Invalid recorded fluid surface arrays")
+        stage = get_current_stage()
+        with Usd.EditContext(stage, stage.GetSessionLayer()):
+            for key, value in state.items():
+                name, field = key.rsplit("/", 1)
+                array = (Vt.IntArray.FromNumpy(value) if field.startswith("faceVertex")
+                         else Vt.Vec3fArray.FromNumpy(value))
+                meshes[name].GetPrim().GetAttribute(field).Set(array)
+
     def close(self):
         if self._env is not None:
+            # Relocation updates Kit and must precede native camera destruction.
+            self._env.scene_manager.close()
             self._env.close()
             self._env = None
         if self._app is not None:

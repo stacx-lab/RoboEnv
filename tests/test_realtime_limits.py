@@ -98,6 +98,7 @@ def test_mujoco_ticks_pass_configured_cap_only_in_realtime(adapter_type, env_typ
     env._joint_controller = lambda: controller
     env.configured_max_steps = 2
     env._step_count, env._max_steps, env._success = 0, 2, False
+    env.terminal, env.owner_recording, env.on_step = False, None, None
     env._gripper_command = 0
     env._stream_commands = {}
     adapter = adapter_type.__new__(adapter_type)
@@ -146,6 +147,9 @@ def test_simple_keeps_native_termination_but_removes_realtime_horizon(mode):
 def test_behavior_native_timeout_matches_execution_mode(monkeypatch, mode):
     monkeypatch.setitem(sys.modules, "omnigibson.tasks.behavior_task", SimpleNamespace(
         BehaviorTask=SimpleNamespace(get_cached_activity_scene_filename=lambda *args: "scene"),
+    ))
+    monkeypatch.setitem(sys.modules, "omnigibson.eval.utils.eval_utils", SimpleNamespace(
+        TASK_NAMES_TO_ROOMS={},
     ))
     monkeypatch.setattr(behavior_devices, "robot_config", lambda: {})
     env = BehaviorDevices.__new__(BehaviorDevices)

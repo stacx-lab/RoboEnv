@@ -8,6 +8,7 @@ from pathlib import Path
 
 import yaml
 from roboenv.devices.export import driver_resources, shared_driver_resources
+from roboenv.tasks.libero import COMPLETION_CHECK, CONTROL_GUIDANCE
 from roboenv.tasks.resolve import resolve_task
 
 
@@ -40,12 +41,16 @@ def prepare(task, destination, *, project=None, catalog=None):
                     target = device / support
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(source / support, target)
-        (staging / "instruction.md").write_text(resolved.task.instruction + "\n")
+        instruction = resolved.task.instruction + "\n"
+        if resolved.task.backend == "libero":
+            instruction += "\n" + CONTROL_GUIDANCE + "\n" + COMPLETION_CHECK
+        (staging / "instruction.md").write_text(instruction)
         (staging / "AGENTS.md").write_text(
             "# Robot workspace\n\nRead instruction.md for the current episode's public task.\n\n"
             "Use the declared device interfaces and camera observations. JointDevice writes "
             "accept absolute joint positions; acceptance does not imply arrival. "
-            "Stop holds a device. The environment owner controls the episode lifecycle.\n"
+            "Stop follows the device's declared behavior and scope. "
+            "The environment owner controls the episode lifecycle.\n"
         )
         # Publish only after every selected profile and driver has been copied.
         shutil.copytree(staging, destination)

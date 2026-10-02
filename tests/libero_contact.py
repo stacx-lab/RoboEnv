@@ -56,6 +56,9 @@ def check(out):
             plan, root, BindingContext("libero", "panda", adapter, world=session),
             motion_scheduler=session.schedule, resolve=session.resolve,
         )
+        assert devices.describe("arm")["intrinsics"]["control"]["execution"] == {
+            "mode": "realtime", "command_timeout_s": None,
+        }
 
         def call(device, action, **args):
             return devices.call({"device": device, "action": action, "args": args})["data"]
@@ -73,6 +76,13 @@ def check(out):
         contact_count = contacts()
         assert contact_count >= 2, (closed, contact_count)
         assert abs(closed["positions"][0] - closed["positions"][1]) > 0.02
+        closing_target = world._robot.gripper.current_action.copy()
+        call("gripper", "write", target=[0])
+        call("arm", "stop")
+        for _ in range(10):
+            world.tick()
+        assert np.array_equal(world._robot.gripper.current_action, closing_target)
+        assert contacts() >= 2
         # Stop does not force the measured joints through the obstructing geometry.
         before = world.sim.get_state().flatten().copy()
         call("arm", "stop")
@@ -87,10 +97,13 @@ def check(out):
         session.resolve(session.wait(40 * adapter.control_interval_s))
         opened = call("gripper", "read")
         assert abs(opened["positions"][0] - opened["positions"][1]) > 0.06
+        increment = devices.describe("gripper")["intrinsics"]["control"]["increment_per_interval"]
         report = {
             "passed": True,
             "fixture": "owner-only fixed sphere between native fingers",
             "contacts_while_closing": contact_count,
+            "increment_per_interval": increment,
+            "zero_direction_preserves_target": True,
             "closed": closed,
             "stopped": stopped,
             "opened": opened,

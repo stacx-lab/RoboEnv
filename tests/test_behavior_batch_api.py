@@ -18,6 +18,9 @@ def test_boot_selects_the_only_scene_and_robot(monkeypatch, count):
     monkeypatch.setitem(sys.modules, "omnigibson", SimpleNamespace(
         Environment=lambda configs: (configs_seen(configs) or env)
     ))
+    monkeypatch.setitem(sys.modules, "omnigibson.eval.utils.eval_utils", SimpleNamespace(
+        TASK_NAMES_TO_ROOMS={},
+    ))
 
     def configs_seen(config):
         configs.append(config)

@@ -30,6 +30,15 @@ Use the declared frame, for example `gripper:left_pad` or
 `left_gripper:pad_1`, instead of assuming the flange is the grasp center.
 Mounting, joint command signs and feedback channel signs are independent facts.
 
+Contact patches describe inner grasping surfaces, not collision clearance or
+proof that an object remains held.
+
+LIBERO retains the last gripper direction across intervals, including arm writes:
+`+1` closes, `-1` opens, and `0` retains the accumulated actuator target.
+`arm.stop()` holds measured arm positions without changing the gripper;
+`gripper.stop()` replaces its target with measured finger positions and can relax
+contact preload. Neither stop advances physics; realtime continues independently.
+
 ## Model-specific frames
 
 Panda keeps its native `grip_site` TCP. `left_pad` and `right_pad` locate the

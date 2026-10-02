@@ -34,6 +34,7 @@ def bind_test_device(spec, root, context):
             "read": Action(read),
             "state": Action(read),
             "write": Action(write),
+            "push": Action(write),
             "stop": Action(reason="Test device has no stop controller"),
         },
         implementation="test-binding",

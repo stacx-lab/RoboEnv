@@ -12,6 +12,32 @@ class NativeDeviceAdapter(AdapterBase):
         self._env.unbounded = mode == "realtime"
 
     @property
+    def native_terminated(self):
+        return bool(getattr(self._env, "_native_done", False))
+
+    @property
+    def simulation_time_s(self):
+        return self._env.control.frame * self._env.control_interval
+
+    def episode_initialization(self):
+        # Reuse the state already captured at reset. Native scene/deformable
+        # snapshots can exceed the RPC response limit; the owner writes a file.
+        return {
+            "schema": "roboenv/native-device-episode/1",
+            "backend": self.name,
+            "environment": self._env.replay_config,
+            "initialization": self._env.initialization,
+            "initial_state": self._env.initial_state,
+            "budget": self.budget().as_dict(),
+        }
+
+    def set_step_callback(self, callback):
+        self._env.control.on_step = callback
+
+    def freeze_episode(self):
+        self._env.control.frozen = True
+
+    @property
     def control_interval_s(self):
         return self._env.control_interval
 

@@ -4,7 +4,7 @@ project=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$project"
 python_bin="${ROBOENV_PYTHON:-$project/.venv/bin/python}"
 export PYTHONNOUSERSITE=1
-export TMPDIR="$project/.cache/tmp"
+export TMPDIR="${TMPDIR:-$project/.cache/tmp}"
 mkdir -p "$TMPDIR" build/wheels
 "$python_bin" -m ruff check src tests tools
 "$python_bin" -m ruff check --select E9,F63,F7,F82 runtime/src runtime/packaging

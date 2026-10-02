@@ -118,10 +118,14 @@ class RoboTwinEnv:
         collect_wrist_camera: bool = True,
         save_freq: int = 25,
         allow_seed_substitution: bool = True,
+        max_settling_checks: int = 1,
     ) -> None:
+        if type(max_settling_checks) is not int or max_settling_checks < 1:
+            raise ValueError("max_settling_checks must be a positive integer")
         self.seed = seed
         self.task_name = task_name
         self.allow_seed_substitution = allow_seed_substitution
+        self.max_settling_checks = max_settling_checks
 
         _ensure_robotwin_imported()  # chdirs this process into the RoboTwin root
 
@@ -165,14 +169,14 @@ class RoboTwinEnv:
         last_exc: Exception | None = None
         attempts = []
         self._initialization_steps_total = 0
+        self._stability_checks = []
         started = time.monotonic()
         for bump in range(20 if self.allow_seed_substitution else 1):
             try_seed = seed + bump
             done = False
-            # transient asset/scene construction failures happen under heavy
-            # concurrent startup (observed: create_actor returning None) —
-            # retry the same seed once before treating it as fatal
-            for attempt in range(2):
+            # Legacy practice runs may retry construction. Strict-seed benchmark
+            # runs make one initialization attempt without a hidden retry.
+            for attempt in range(2 if self.allow_seed_substitution else 1):
                 self.task = self._new_task()
                 args = deepcopy(self._base_args)
                 try:
@@ -194,7 +198,7 @@ class RoboTwinEnv:
                     )
                     last_exc = exc
                     self._close_task()
-                    if attempt == 0:
+                    if attempt == 0 and self.allow_seed_substitution:
                         print(
                             f"[robotwin] scene construction failed ({type(exc).__name__}: {exc}) — retrying once",
                             flush=True,
@@ -232,6 +236,8 @@ class RoboTwinEnv:
             "expert_plan_success": expert_plan_success,
             "physics_steps": self._initialization_steps_total,
             "expert_physics_steps": expert_steps,
+            "max_settling_checks": self.max_settling_checks,
+            "stability_checks": self._stability_checks,
             "wall_time_s": time.monotonic() - started,
         }
         # Upstream motion loops call _take_picture() every save_freq steps to record data;
@@ -255,6 +261,23 @@ class RoboTwinEnv:
             task.scene.step = counted_step
 
         task.setup_scene = setup_counted_scene
+        check_stable = task.check_stable
+
+        def check_settled_scene():
+            checks = []
+            self._stability_checks.append(checks)
+            for _ in range(self.max_settling_checks):
+                before = self._initialization_steps_total
+                stable, unstable = check_stable()
+                checks.append({"stable": bool(stable), "unstable_objects": list(unstable),
+                               "physics_steps": self._initialization_steps_total - before})
+                if stable:
+                    break
+            # Continue settling the same world with the unchanged native check.
+            # Exhaustion still raises the upstream initialization error.
+            return stable, unstable
+
+        task.check_stable = check_settled_scene
         return task
 
     def _close_task(self) -> None:

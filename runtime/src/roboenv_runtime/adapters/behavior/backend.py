@@ -82,6 +82,7 @@ class BehaviorBackend:
     def build_config(self) -> dict[str, Any]:
         """The roboenv-owned R1Pro native scene config, specialised to this activity."""
         import yaml
+        from omnigibson.eval.utils.eval_utils import TASK_NAMES_TO_ROOMS
 
         cfg = yaml.safe_load((Path(__file__).parent / "r1pro.yaml").read_text())
         cfg["env"]["num_envs"] = 1
@@ -89,8 +90,9 @@ class BehaviorBackend:
         cfg["task"]["activity_instance_id"] = self.activity_instance_id
         cfg["task"]["termination_config"]["max_steps"] = self.max_steps
         cfg["scene"]["scene_model"] = self.scene_model
-        # loading only the task's rooms keeps boot time sane; whole scene when unknown
-        cfg["scene"]["load_room_types"] = self.challenge.get("rooms") or None
+        # Native evaluation includes transit rooms; display categories omit their floors.
+        cfg["scene"]["load_room_types"] = None
+        cfg["scene"]["load_room_instances"] = TASK_NAMES_TO_ROOMS.get(self.activity_name)
         return cfg
 
     def boot(self) -> None:

@@ -56,6 +56,28 @@ def main(argv=None):
     sources.add_argument("--backends", nargs="+")
     privacy = commands.add_parser("audit-privacy")
     privacy.add_argument("--project", type=Path)
+    recording = commands.add_parser("recording", help="Inspect, export or render owner evidence")
+    recording_commands = recording.add_subparsers(dest="recording_command", required=True)
+    for name in ("check", "export", "render"):
+        operation = recording_commands.add_parser(name)
+        operation.add_argument("source", type=Path)
+        if name != "check":
+            operation.add_argument("--out", required=True, type=Path)
+        if name == "render":
+            runtime = operation.add_mutually_exclusive_group()
+            runtime.add_argument("--image")
+            runtime.add_argument("--interpreter", type=Path)
+            operation.add_argument("--gpu", default="0")
+            operation.add_argument("--height", type=int, default=1080)
+            operation.add_argument("--stride", type=int, default=1)
+            operation.add_argument("--cameras", nargs="+")
+            operation.add_argument("--allow-command-replay", action="store_true")
+    edit = recording_commands.add_parser("edit")
+    edit.add_argument("source", type=Path)
+    edit.add_argument("--out", required=True, type=Path)
+    edit.add_argument("--title", required=True)
+    edit.add_argument("--speed", type=float, default=1)
+    edit.add_argument("--fps", type=int, help="Output frame rate; default preserves source cadence")
     tasks = commands.add_parser("tasks")
     tasks_commands = tasks.add_subparsers(dest="tasks_command", required=True)
     listing = tasks_commands.add_parser("list")
@@ -82,6 +104,24 @@ def main(argv=None):
     try:
         if args.command in COMMANDS:
             return execute(args)
+        if args.command == "recording":
+            from roboenv.media import edit
+            from roboenv.recording import export_recording, inspect_recording, render_recording
+
+            if args.recording_command == "check":
+                result = inspect_recording(args.source)
+            elif args.recording_command == "export":
+                result = export_recording(args.source, args.out)
+            elif args.recording_command == "edit":
+                result = edit(args.source, args.out, args.title, speed=args.speed, fps=args.fps)
+            else:
+                result = render_recording(
+                    args.source, args.out, image=args.image, interpreter=args.interpreter,
+                    gpu=args.gpu, height=args.height, stride=args.stride,
+                    cameras=args.cameras, allow_command_replay=args.allow_command_replay,
+                )
+            print(json.dumps(result))
+            return 0 if result.get("complete", result.get("passed", True)) else 1
         client = Client()
         if hasattr(args, "run"):
             from roboenv.environment import _connect as connect

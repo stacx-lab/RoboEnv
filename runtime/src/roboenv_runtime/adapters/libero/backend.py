@@ -23,6 +23,7 @@ class LiberoEnv:
         *,
         init_state_index=0,
         max_steps=None,
+        stop_on_success=False,
         enable_render=True,
         camera_names=DEFAULT_CAMERAS,
         camera_size=CAMERA_SIZE,
@@ -35,6 +36,8 @@ class LiberoEnv:
             raise ValueError("init_state_index must be a nonnegative integer")
         if type(enable_render) is not bool:
             raise ValueError("enable_render must be a boolean")
+        if type(stop_on_success) is not bool:
+            raise ValueError("stop_on_success must be a boolean")
         if max_steps is not None and (type(max_steps) is not int or max_steps <= 5):
             raise ValueError("max_steps must exceed five initialization frames, or be null")
         if not camera_names or set(camera_names) - set(DEFAULT_CAMERAS):
@@ -69,6 +72,10 @@ class LiberoEnv:
         self.configured_max_steps = max_steps
         self._max_steps, self._step_count = max_steps, 0
         self._success = False
+        self.stop_on_success = stop_on_success
+        self.terminal = False
+        self.on_step = None
+        self.owner_recording = None
         self.initialization = {}
         self._gripper_command = 0.0
         self.command_log = []
@@ -103,6 +110,10 @@ class LiberoEnv:
         return self.env.sim
 
     def reset(self, *, seed):
+        if self.owner_recording is not None:
+            self.owner_recording = None
+        self.terminal = False
+        self.seed = seed
         self._joint_controller()
         random.seed(seed)
         np.random.seed(seed)
@@ -156,6 +167,11 @@ class LiberoEnv:
         if self._max_steps is not None and self._step_count >= self._max_steps:
             raise DeviceError("episode_finished", "LIBERO action frame budget exhausted",
                               details={"effects": "none"})
+        if self.terminal:
+            raise DeviceError("episode_finished", "no further motion is permitted",
+                              details={"effects": "none"})
+        if self.owner_recording is not None:
+            self.owner_recording.command("write", {k: np.asarray(v).tolist() for k, v in commands.items()})
         controller = self._joint_controller()
         for part, value in commands.items():
             if part == "arm":
@@ -178,6 +194,8 @@ class LiberoEnv:
     def stop_part(self, part):
         if part not in {"arm", "gripper"}:
             raise ValueError("Unknown native actuator")
+        if self.owner_recording is not None:
+            self.owner_recording.command("stop", part)
         controller = self._joint_controller()
         self.command_log.append({"frame": self._step_count, "op": "stop", "part": part})
         if part == "arm":
@@ -192,6 +210,8 @@ class LiberoEnv:
         robot.gripper.current_action = np.clip(2 * (positions - low) / (high - low) - 1, -1, 1)
 
     def tick(self):
+        if self.terminal:
+            return
         if self._max_steps is not None and self._step_count >= self._max_steps:
             raise DeviceError("episode_finished", "LIBERO action frame budget exhausted",
                               details={"effects": "none"})
@@ -215,10 +235,15 @@ class LiberoEnv:
         if self._max_steps is not None and self._step_count >= self._max_steps:
             raise DeviceError("episode_finished", "LIBERO action frame budget exhausted",
                               details={"effects": "none"})
+        if self.terminal:
+            raise DeviceError("episode_finished", "no further motion is permitted",
+                              details={"effects": "none"})
         self.env.step(action)
         self.sim.forward()
         self._step_count += 1
         self._success = bool(self.wrapper.check_success()) or self._success
+        if self.on_step is not None:
+            self.on_step()
 
     def render(self, camera=None):
         if not self._render:

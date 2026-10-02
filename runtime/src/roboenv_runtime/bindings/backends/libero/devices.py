@@ -105,6 +105,7 @@ def bind(spec, root, context):
                 robot.robot_model.init_qpos,
                 definition.name,
             )
+            intrinsics["control"]["execution"] = context.execution_mode
             extrinsics = mount(
                 data.xpos[base],
                 data.xmat[base].reshape(3, 3),
@@ -124,7 +125,9 @@ def bind(spec, root, context):
                     "mode": "direction",
                     "open_target": -1,
                     "close_target": 1,
-                    "increment_per_interval": float(robot.gripper.speed),
+                    # Native format_action runs once per physics substep.
+                    "increment_per_interval": float(robot.gripper.speed)
+                    * int(world.env.control_timestep / world.env.model_timestep),
                 },
                 "feedback": {
                     "positions": [
@@ -187,12 +190,25 @@ def bind(spec, root, context):
             world.stop_part(entity)
             return {"stopped": True, **intrinsics["stop"]}
 
-        register("read", read, required=("positions", "velocities", "faults", "sample_time_s"))
+        register(
+            "read", read,
+            {**EMPTY, "description": "Read measured feedback without requesting a control step."},
+            required=("positions", "velocities", "faults", "sample_time_s"),
+        )
         register(
             "write",
             write,
             {
                 "type": "object",
+                "description": (
+                    "Set persistent absolute joint goals. In synchronous mode, this write "
+                    "advances one control interval while retaining the active gripper direction."
+                    if entity == "arm" else
+                    "Set a persistent opening or closing direction. It remains active during "
+                    "later control intervals, including arm writes. Zero retains the accumulated "
+                    "gripper target; it does not reset the target to measured finger positions. "
+                    "In synchronous mode, this write advances one control interval."
+                ),
                 "additionalProperties": False,
                 "required": ["target"],
                 "properties": {
@@ -207,7 +223,19 @@ def bind(spec, root, context):
             mutation=True,
             required=("accepted", "elapsed_s", "reached", "state"),
         )
-        register("stop", stop, mutation=True, required=("stopped", "behavior", "affected_devices"))
+        register(
+            "stop", stop,
+            {**EMPTY, "description": (
+                "Hold measured arm joint positions without changing the gripper direction or "
+                "accumulated gripper target. Does not request a control step."
+                if entity == "arm" else
+                "Set gripper direction to zero and reset its accumulated actuator target to "
+                "measured finger positions. This can relax contact preload in a held grasp; "
+                "it is different from writing zero. The arm goal is unchanged. "
+                "Does not request a control step."
+            )},
+            mutation=True, required=("stopped", "behavior", "affected_devices"),
+        )
     elif entity == "camera":
         camera = spec.config.get("camera", "agentview")
         if not world._render or camera not in world._camera_names:
@@ -250,8 +278,15 @@ def bind(spec, root, context):
         ("intrinsics", definition.intrinsics, intrinsics),
         ("mounts", definition.extrinsics, extrinsics),
     ):
-        if expected.get("source") == "introspected" and (not same_facts(expected, actual)):
-            raise ValueError(f"Catalog {label} do not match the native LIBERO rig")
+        if expected.get("source") == "introspected":
+            if label == "intrinsics" and entity == "arm":
+                # Execution mode belongs to this episode, not the static robot rig.
+                expected = {
+                    **expected,
+                    "control": {**expected["control"], "execution": actual["control"]["execution"]},
+                }
+            if not same_facts(expected, actual):
+                raise ValueError(f"Catalog {label} do not match the native LIBERO rig")
     return BoundDevice(
         replace(definition, intrinsics=intrinsics, extrinsics=extrinsics),
         actions,

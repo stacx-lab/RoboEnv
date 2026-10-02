@@ -16,12 +16,19 @@ docs/device-documentation.md for coding-agent integration.
 - docs/, .github/: integration guides, release rules, and CI.
 - .cache/, build/, generated/: local artifacts; do not commit them.
 
+Keep concise docs and reusable contract tests in Git; keep campaign artifacts and
+one-off tools/tests under ignored `.local/`. Tracked tests must not depend on
+ignored helpers. Preserve local evidence.
+
 RoboEnv owns environment state and verdicts. Agents own reasoning and programs;
 agent-specific integration and training belong outside this repository.
 One world owns lifecycle and budgets; device bindings connect to that world.
 Do not reintroduce a second driver stack or an agent loop. Policy inference and
 rollout are agent-side work: there is no VLA subsystem, no policy client or
 server, and no `vla` operation. Devices are the only control surface.
+
+Kinex integrations target current `stacx-lab/kinex` core APIs and Pi standalone;
+do not add `kinex-legacy` fallbacks.
 
 ## Development environment
 

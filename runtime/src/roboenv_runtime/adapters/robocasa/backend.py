@@ -71,6 +71,9 @@ class RoboCasaEnv:
         self.configured_max_steps = max_steps
         self._max_steps = max_steps
         self._step_count = 0
+        self.owner_recording = None
+        self.terminal = False
+        self.on_step = None
         controller_config = joint_controller_config(robot)
         env_kwargs: dict[str, Any] = {
             "robots": robot,
@@ -217,6 +220,8 @@ class RoboCasaEnv:
         """Stage validated native references without advancing physics."""
         if self._max_steps is not None and self._step_count >= self._max_steps:
             raise RuntimeError("episode_finished: no further motion is permitted")
+        if self.owner_recording is not None:
+            self.owner_recording.command("write", {k: np.asarray(v).tolist() for k, v in commands.items()})
         for part, command in commands.items():
             controller = self._robot.part_controllers[part]
             value = np.array(command, dtype=float, copy=True)
@@ -228,6 +233,8 @@ class RoboCasaEnv:
         return 0.0
 
     def stop_part(self, part):
+        if self.owner_recording is not None:
+            self.owner_recording.command("stop", part)
         controller = self._robot.part_controllers[part]
         if part == "base":
             self._stream_commands[part] = np.zeros(controller.control_dim)
@@ -274,6 +281,8 @@ class RoboCasaEnv:
             self._obs, _, _, _ = self.env.step(np.zeros(self._robot.action_dim))
             self.sim.forward()  # Publish transforms consistent with the integrated joints.
             self._step_count += 1
+            if self.on_step is not None:
+                self.on_step()
         finally:
             if previous is None:
                 del composite.set_goal

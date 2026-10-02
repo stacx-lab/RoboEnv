@@ -70,7 +70,7 @@ def safe_relative(name):
     return Path(*relative.parts)
 
 
-def download_file(root, entry, pacer=None):
+def download_file(root, entry, pacer=None, *, url=None):
     """Verify or acquire one pinned file inside the selected Assets directory."""
     path = root / safe_relative(entry["rfilename"]).relative_to("Assets")
     if not path.parent.resolve().is_relative_to(root.resolve()):
@@ -82,7 +82,7 @@ def download_file(root, entry, pacer=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.parent.resolve().is_relative_to(root.resolve()):
         raise ValueError("Asset destination follows a symlink outside its depot")
-    url = f"https://huggingface.co/datasets/{REPOSITORY}/resolve/{REVISION}/{quote(entry['rfilename'])}"
+    url = url or f"https://huggingface.co/datasets/{REPOSITORY}/resolve/{REVISION}/{quote(entry['rfilename'])}"
     pacer = pacer or ResolverPacer()
     failures = 0
     deadline = time.monotonic() + 1800
@@ -122,6 +122,32 @@ def download_file(root, entry, pacer=None):
                 raise
             time.sleep(2**failures)
     raise TimeoutError("RoboDojo asset could not be acquired within its download deadline")
+
+
+def material_manifest():
+    return json.loads((Path(__file__).parents[1] / "assets/robodojo-materials.json").read_text())
+
+
+def prepare_materials(assets):
+    """Acquire original external scene shaders and textures for offline rendering."""
+    pin = material_manifest()
+    pacer = ResolverPacer()
+    for relative, item in pin["files"].items():
+        entry = {"rfilename": "Assets/.roboenv-materials/" + relative,
+                 "size": item["size"], "lfs": {"sha256": item["sha256"]}}
+        download_file(assets, entry, pacer, url=pin["base_url"] + relative)
+    return {"files": len(pin["files"]), "bytes": sum(v["size"] for v in pin["files"].values())}
+
+
+def verify_materials(assets):
+    pin = material_manifest()
+    for relative, item in pin["files"].items():
+        path = Path(assets) / ".roboenv-materials" / relative
+        if not verified(path, {"size": item["size"], "lfs": {"sha256": item["sha256"]}}):
+            raise ValueError(
+                "RoboDojo render material missing or changed; run roboenv prepare robodojo"
+            )
+    return pin
 
 
 def prepare_assets(project, *, progress=None, cache=None, workers=4):
@@ -183,6 +209,8 @@ def prepare_assets(project, *, progress=None, cache=None, workers=4):
             )
     else:
         link.symlink_to(assets, target_is_directory=True)
+    with stage(progress, "Verifying RoboDojo external render materials"):
+        materials = prepare_materials(assets)
     return {
         "environment_assets_verified": True,
         "public_assets_verified": True,
@@ -190,6 +218,7 @@ def prepare_assets(project, *, progress=None, cache=None, workers=4):
         "files": len(entries),
         "asset_depot": str(assets),
         "asset_bytes": sum(entry["size"] for entry in entries),
+        "render_materials": materials,
         "gpu_replay_verified": False,
     }
 

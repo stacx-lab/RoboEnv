@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import copy
+import json
 import logging
 import os
 import queue
@@ -25,6 +26,7 @@ from roboenv.devices.execution import map_result
 from roboenv.devices.status import status_feedback
 
 from roboenv_runtime.core.adapter import EnvAdapter, make_adapter
+from roboenv_runtime.runtime.atomic import atomic_write_json
 from roboenv_runtime.runtime.protocol import (
     ALLOWED_OPS,
     MAX_NDJSON_BYTES,
@@ -169,6 +171,7 @@ class SimWorker:
         self._final_observation: dict[str, Any] | None = None
         self._finalizing = False
         self._termination_reason = None
+        self.recording = None
         if reset_adapter:
             self.world.reset(self.seed)
         self.scorer = SimpleScorer(self.adapter)
@@ -178,6 +181,34 @@ class SimWorker:
             self._bind_devices()
             self.state = "ready"
             self.world.after_advance = self._check_terminal
+            if hasattr(self.adapter, "episode_initialization"):
+                atomic_write_json(self.run_dir / "native-initialization.json", {
+                    **self.adapter.episode_initialization(), "task": self.task_id, "seed": self.seed,
+                })
+            if hasattr(self.adapter, "set_step_callback"):
+                self.adapter.set_step_callback(self._after_control)
+            if os.environ.get("ROBOENV_RECORD_EPISODE") == "1" and self.adapter.name in {
+                "libero", "robocasa", "robotwin", "robodojo", "behavior",
+            }:
+                from roboenv.recording import configuration
+                from roboenv_runtime.recording import MujocoSource, Recording
+
+                config = configuration(json.loads(os.environ.get("ROBOENV_RECORDING_CONFIG", "{}")))
+                source = (MujocoSource(self.adapter._env)
+                          if self.adapter.name in {"libero", "robocasa"} else None)
+                if self.adapter.name == "robodojo":
+                    source = self.adapter.recording_source()
+                self.recording = Recording(self.run_dir / "recording", {
+                    "backend": self.adapter.name, "task": self.task_id, "seed": self.seed,
+                    "session": self.session, "generation": self.generation,
+                    "execution_mode": self.world.mode, "embodiment": self.adapter.embodiment,
+                }, source=source, **config)
+                if source is not None:
+                    self.adapter._env.owner_recording = self.recording
+                self._capture_recording(force=True)
+            # Preparation precedes execution; realtime starts at readiness,
+            # without catching up model saving or recorder startup time.
+            self.world.next_tick = time.monotonic()
         except BaseException:
             self.close()
             raise
@@ -240,6 +271,16 @@ class SimWorker:
             self.world.mode == "stepped" and self.adapter.budget().max is not None
         )
 
+    def _capture_recording(self, *, force=False):
+        if self.recording is not None:
+            self.recording.capture(
+                self.adapter.budget().used, self.adapter.simulation_time_s, force=force,
+            )
+
+    def _after_control(self):
+        self._capture_recording()
+        self._check_terminal()
+
     def _check_terminal(self):
         """Called in the world's lane after each native control interval."""
         # Native and buffer-completion callbacks run inside advance. Seal only
@@ -249,7 +290,9 @@ class SimWorker:
         if self._final_result is not None or self.state == "failed" or self.world.failure is not None:
             return
         success = getattr(self.adapter, "stop_on_success", False) and self.adapter.score().completed
-        if success or (self.world.mode == "stepped" and self.adapter.budget().exhausted):
+        exhausted = self.world.mode == "stepped" and self.adapter.budget().exhausted
+        native_done = getattr(self.adapter, "native_terminated", False)
+        if success or exhausted or native_done:
             self.submit(interrupt=False)
 
     def simulation_status(self, *, include_verdict=False):
@@ -303,6 +346,8 @@ class SimWorker:
                     self.world.finish_episode(settle=False)
                 if self.world.failure is not None:
                     raise WorkerRPCError("world_failed", "terminal buffer cleanup failed")
+                if hasattr(self.adapter, "freeze_episode"):
+                    self.adapter.freeze_episode()
                 observation = self.observe()
                 verdict = copy.deepcopy(self.scorer.submit())
                 budget = self.adapter.budget().as_dict()
@@ -324,19 +369,19 @@ class SimWorker:
                 self._termination_reason = self._termination_reason or (
                     "success" if verdict["completed"] else
                     "step_limit" if self.world.mode == "stepped"
-                    and self.adapter.budget().exhausted else "stopped"
+                    and self.adapter.budget().exhausted else
+                    "native_done" if getattr(self.adapter, "native_terminated", False) else "stopped"
                 )
-                from roboenv_runtime.runtime.atomic import atomic_write_json
-
-                atomic_write_json(
-                    self.run_dir / "terminal.json",
-                    {
-                        "status": self.simulation_status(include_verdict=True),
-                        "verdict": verdict,
-                        "task": self.task_id,
-                        "seed": self.seed,
-                    },
-                )
+                if observation.get("schema") == "roboenv/native-device-episode/1":
+                    atomic_write_json(self.run_dir / "native-episode.json", observation)
+                atomic_write_json(self.run_dir / "terminal.json", {
+                    "status": self.simulation_status(include_verdict=True), "verdict": verdict,
+                    "task": self.task_id, "seed": self.seed,
+                })
+                if self.recording is not None:
+                    self.recording.seal(
+                        budget["used"], self.adapter.simulation_time_s, verdict["completed"],
+                    )
             except Exception:
                 # An incomplete final evaluation is not a retryable opportunity
                 # to take more actions or evaluate a different terminal state.
@@ -377,6 +422,8 @@ class SimWorker:
         if unknown:
             raise WorkerRPCError("invalid_args", f"reset does not accept: {sorted(unknown)}")
         seed = int(args.get("seed", self.seed))
+        if self.recording is not None:
+            self.recording.invalidate()
         self._interrupt_devices()
         self.scorer.close()
         self.state = "resetting"
@@ -426,6 +473,8 @@ class SimWorker:
         token = args["token"]
         if token not in self._checkpoints:
             raise WorkerRPCError("checkpoint_identity", "unknown checkpoint in this worker")
+        if self.recording is not None:
+            self.recording.invalidate()
         self._interrupt_devices()
         self.state = "restoring"
         try:
@@ -510,7 +559,8 @@ class SimWorker:
                     return {
                         "task": {
                             "id": task.get("id", self.task_id),
-                            "instruction": self.adapter.goal() or task.get("instruction", ""),
+                            "instruction": (description.get("instruction_override")
+                                            or self.adapter.goal() or task.get("instruction", "")),
                             "context": {},
                         },
                         "devices": description["devices"],
@@ -589,6 +639,11 @@ class SimWorker:
         self.world.freeze()
         self.world.poll_motions()
         self.state = "closed"
+        if self.recording is not None:
+            try:
+                self.recording.finish()
+            except Exception:
+                log.exception("Owner recording finalization failed")
         try:
             if self.devices is not None:
                 with contextlib.suppress(Exception):

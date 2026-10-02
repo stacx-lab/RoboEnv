@@ -28,6 +28,8 @@ class DeviceControl:
         self.exhausted = exhausted
         self.frame = 0
         self.commands = []
+        self.on_step = None
+        self.frozen = False
 
     def _target(self, device, target):
         if device not in self.limits:
@@ -43,7 +45,7 @@ class DeviceControl:
     def write(self, device, target):
         """Stage validated native references without advancing physics."""
         value = self._target(device, target)
-        if self.exhausted():
+        if self.frozen or self.exhausted():
             raise DeviceError("episode_finished", "Native episode budget exhausted",
                               details={"effects": "none"})
         commands = {device: value}
@@ -54,6 +56,8 @@ class DeviceControl:
         return {"accepted": True, "elapsed_s": 0.0}
 
     def stop(self, device, measured_target):
+        if self.frozen:
+            raise RuntimeError("Native episode is frozen")
         # Stop may hold measured soft-limit overshoot. Never project reported state.
         bounds = self.limits.get(device)
         if bounds is None or len(measured_target) != len(bounds):
@@ -67,9 +71,11 @@ class DeviceControl:
         return {"stopped": True, "behavior": "hold", "affected_devices": [device]}
 
     def tick(self):
-        if self.exhausted():
+        if self.frozen or self.exhausted():
             raise DeviceError("episode_finished", "Native episode budget exhausted",
                               details={"effects": "none"})
         self.apply(copy.deepcopy(self.targets))
         self.advance()
         self.frame += 1
+        if self.on_step is not None:
+            self.on_step()

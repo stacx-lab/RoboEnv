@@ -29,6 +29,15 @@ def check(out, kinex, node):
         "KINEX_DATA_DIR": str(out / "kinex-data"),
         "KINEX_CONFIG_DIR": str(out / "kinex-config"),
     }
+    with (out / "python.log").open("w") as log:
+        subprocess.run([
+            node, "--input-type=module", "-e",
+            "import { pathToFileURL } from 'node:url'; "
+            "const { createKinexRuntime } = await import(pathToFileURL(process.argv[1])); "
+            "const runtime = createKinexRuntime({ directory: process.argv[2] }); "
+            "try { await runtime.python.prepare(); } finally { await runtime.dispose(); }",
+            str(kinex / "packages/core/dist/index.js"), str(workspace),
+        ], cwd=workspace, env=env, check=True, stdout=log, stderr=log, timeout=180)
     with roboenv.launch("libero/bowl-onto-plate", project=ROOT, interpreter=sys.executable) as run:
         identity = {k: run.record[k] for k in ("session", "generation")}
         for driver in (workspace / ".kinex/devices").glob("*/driver.py"):

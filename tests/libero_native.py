@@ -51,6 +51,7 @@ def probe(suite, task, init, directory, render=False):
             motion_scheduler=session.schedule,
             resolve=session.resolve,
         )
+        assert service.describe("arm")["intrinsics"]["control"]["execution"] == "stepped"
 
         def call(name, action, **args):
             return service.call({"device": name, "action": action, "args": args})["data"]

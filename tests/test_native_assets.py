@@ -56,6 +56,35 @@ def test_robodojo_download_verifies_git_and_lfs_blobs_and_preserves_existing(tmp
     assert path.read_bytes() == b"changed"
 
 
+def test_robodojo_external_materials_verify_original_bytes_and_preserve_changes(
+    tmp_path, monkeypatch,
+):
+    data = {"Metals/native.mdl": b"native shader", "Metals/native/texture.png": b"native texture"}
+    pin = {"base_url": "https://materials.example/", "files": {
+        name: {"size": len(value), "sha256": hashlib.sha256(value).hexdigest()}
+        for name, value in data.items()}}
+    requests = []
+
+    def download(url, **kwargs):
+        requests.append(url)
+        return io.BytesIO(data[url.removeprefix(pin["base_url"])])
+
+    monkeypatch.setattr(robodojo_assets, "material_manifest", lambda: pin)
+    monkeypatch.setattr(robodojo_assets, "urlopen", download)
+    report = robodojo_assets.prepare_materials(tmp_path)
+    assert report == {"files": 2, "bytes": sum(len(value) for value in data.values())}
+    assert robodojo_assets.verify_materials(tmp_path) == pin
+    robodojo_assets.prepare_materials(tmp_path)
+    assert requests == [pin["base_url"] + name for name in data]
+    texture = tmp_path / ".roboenv-materials/Metals/native/texture.png"
+    texture.write_bytes(b"preserve user edits")
+    with pytest.raises(ValueError, match="missing or changed"):
+        robodojo_assets.verify_materials(tmp_path)
+    with pytest.raises(ValueError, match="Existing asset differs"):
+        robodojo_assets.prepare_materials(tmp_path)
+    assert texture.read_bytes() == b"preserve user edits"
+
+
 @pytest.mark.parametrize("linked", [False, True])
 def test_robodojo_default_preparation_reuses_existing_assets(tmp_path, monkeypatch, linked):
     monkeypatch.delenv("ROBOENV_ASSET_CACHE", raising=False)
@@ -79,6 +108,7 @@ def test_robodojo_default_preparation_reuses_existing_assets(tmp_path, monkeypat
         "sha": robodojo_assets.REVISION, "siblings": [entry], "gated": False, "private": False,
     }))
     monkeypatch.setattr(robodojo_assets, "urlopen", lambda *a, **k: pytest.fail("no download"))
+    monkeypatch.setattr(robodojo_assets, "material_manifest", lambda: {"files": {}})
     report = robodojo_assets.prepare_assets(tmp_path)
     assert Path(report["asset_depot"]) == assets.resolve()
     assert report["public_assets_verified"] and report["environment_assets_verified"]

@@ -11,6 +11,7 @@ from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.model import DeviceError
 from roboenv_runtime.adapters.device_control import DeviceControl
+from roboenv_runtime.adapters.robodojo.adapter import RoboDojoAdapter
 from roboenv_runtime.bindings import default_registry
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +30,26 @@ def test_robodojo_public_instruction_uses_cached_native_description():
     adapter._env = SimpleNamespace(_env=Native())
     assert adapter.goal() == "Pick up the blue cup by 10 cm."
     assert adapter.goal() == "Pick up the blue cup by 10 cm."
+
+
+@pytest.mark.parametrize("override", [None, "Seat all four eggs and fully close the lid."])
+def test_public_instruction_override_preserves_native_goal(override):
+    from roboenv_runtime.runtime.worker import SimWorker
+
+    native_goal = "Place the eggs into the holder, then close the lid."
+    adapter = SimpleNamespace(goal=lambda: native_goal)
+    worker = SimWorker.__new__(SimWorker)
+    worker.state, worker.request_count = "ready", 0
+    worker.adapter, worker.task_id = adapter, "fill_egg_holder"
+    worker.session, worker.generation = "test", 0
+    worker.devices = SimpleNamespace(environment=lambda: {
+        "task": {"id": "robodojo/fill_egg_holder", "instruction": "Catalog goal"},
+        "instruction_override": override, "devices": [],
+    })
+    description = worker._dispatch("environment.describe", {})
+    assert description["task"]["instruction"] == (override or native_goal)
+    assert adapter.goal() == native_goal
+    assert description["task"]["id"] == "robodojo/fill_egg_holder"
 
 
 def service(tmp_path, *, embodiment="piper"):
@@ -233,3 +254,178 @@ def test_behavior_velocity_binding_accepts_named_commands_without_joint_feedback
         assert len(writes) == 1
     finally:
         wire.close()
+
+
+@pytest.mark.parametrize("limit,outcomes,expected", [
+    (1, [False, True], False),
+    (4, [False, False, False, True], True),
+    (4, [True], True),
+    (4, [False] * 4, False),
+])
+def test_robotwin_settling_preserves_native_check_and_bounds(
+    monkeypatch, tmp_path, limit, outcomes, expected
+):
+    import importlib.util
+    import sys
+
+    monkeypatch.setenv("ROBOTWIN_ROOT", str(tmp_path))
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setitem(sys.modules, "sapien", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "transforms3d", SimpleNamespace())
+    source = ROOT / "runtime/src/roboenv_runtime/adapters/robotwin/backend.py"
+    spec = importlib.util.spec_from_file_location("robotwin_settling_fixture", source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    worlds, remaining = [], iter(outcomes)
+
+    class Task:
+        def setup_scene(self):
+            self.scene = SimpleNamespace(step=lambda: None)
+            worlds.append(self.scene)
+
+        def check_stable(self):
+            for _ in range(5):
+                self.scene.step()
+            stable = next(remaining)
+            return stable, [] if stable else ["garbage"]
+
+    world = module.RoboTwinEnv.__new__(module.RoboTwinEnv)
+    world._task_cls = Task
+    world.max_settling_checks = limit
+    world._initialization_steps_total = 0
+    world._stability_checks = []
+    task = world._new_task()
+    task.setup_scene()
+    assert task.check_stable() == (expected, [] if expected else ["garbage"])
+    calls = outcomes.index(True) + 1 if expected else limit
+    assert len(worlds) == 1
+    assert world._initialization_steps_total == 5 * calls
+    assert world._stability_checks == [[
+        {"stable": stable, "unstable_objects": [] if stable else ["garbage"],
+         "physics_steps": 5} for stable in outcomes[:calls]
+    ]]
+    for invalid in (0, -1, True, 1.5):
+        with pytest.raises(ValueError, match="max_settling_checks"):
+            module.RoboTwinEnv(max_settling_checks=invalid)
+
+
+@pytest.mark.parametrize("activity,rooms", [
+    ("fixture_task", ["corridor_0", "living_room_0"]), ("unlisted_task", None),
+])
+def test_behavior_scene_uses_native_transit_rooms_instead_of_display_categories(
+    monkeypatch, activity, rooms
+):
+    import sys
+
+    from roboenv_runtime.adapters.behavior.backend import BehaviorBackend
+
+    monkeypatch.setitem(sys.modules, "omnigibson.eval.utils.eval_utils", SimpleNamespace(
+        TASK_NAMES_TO_ROOMS={"fixture_task": ["corridor_0", "living_room_0"]},
+    ))
+    world = BehaviorBackend(activity, "house_double_floor_lower", max_steps=50000)
+    world.challenge = {"rooms": ["living_room"]}
+    config = world.build_config()
+    assert config["scene"]["load_room_types"] is None
+    assert config["scene"]["load_room_instances"] == rooms
+    assert config["scene"]["scene_model"] == world.scene_model
+    assert config["task"]["activity_name"] == activity
+    assert config["task"]["termination_config"]["max_steps"] == 50000
+
+
+@pytest.mark.parametrize("cached,completed,raw", [
+    ([0.0], False, 0.0), ([25.0], False, 25.0), ([100.0], True, 100.0),
+    ([100.0], False, 100.0), (None, False, 0.0), (None, True, 100.0),
+])
+def test_robodojo_score_normalizes_points_without_changing_completion(cached, completed, raw):
+    adapter = RoboDojoAdapter.__new__(RoboDojoAdapter)
+    adapter._env = SimpleNamespace(
+        task_completed=lambda: completed,
+        _env=SimpleNamespace(reward_manager=SimpleNamespace(_gated_score_lst=cached)),
+    )
+    score = adapter.score()
+    assert score.reward == raw / 100.0
+    assert score.raw_score == raw
+    assert score.completed is completed
+
+
+@pytest.mark.parametrize("ending", ["success", "step_limit", "native_done", "stopped"])
+@pytest.mark.parametrize("recording_failed", [False, True])
+def test_native_device_terminal_callback_freezes_and_retains_evidence(
+    tmp_path, monkeypatch, ending, recording_failed
+):
+    import json
+
+    from roboenv.recording import inspect_recording
+    from roboenv_runtime.adapters.native import NativeDeviceAdapter
+    from roboenv_runtime.core.types import ScoreReport
+    from roboenv_runtime.runtime.worker import SimWorker
+
+    monkeypatch.setenv("ROBOENV_RECORD_EPISODE", "1")
+
+    class NativeFixture(NativeDeviceAdapter):
+        name = "robotwin"
+
+        def __init__(self):
+            self._set_stop_on_success(True)
+            self._env = SimpleNamespace(
+                realtime=False, frame_limit=1 if ending == "step_limit" else 3,
+                                        control_interval=0.04, _native_done=False, completed=False)
+            self._env.control = DeviceControl(
+                {"arm": [(-1, 1)]}, {"arm": [0]}, lambda _: None, self.advance,
+                interval_s=0.04, exhausted=lambda: self.budget().exhausted,
+            )
+
+        def episode_initialization(self):
+            return {"schema": "roboenv/native-device-episode/1", "fixture": "initial"}
+
+        def advance(self):
+            self._env.completed = ending == "success"
+            self._env._native_done = ending == "native_done"
+
+        def score(self):
+            return ScoreReport(reward=1.0 if self._env.completed else 0.5,
+                               completed=self._env.completed)
+
+        def observe(self):
+            return {"schema": "roboenv/native-device-episode/1", "backend": self.name,
+                    "native_success": self._env.completed,
+                    "commands": list(self._env.control.commands)}
+
+        def close(self):
+            pass
+
+    adapter = NativeFixture()
+    worker = SimWorker(adapter, task_id="native-fixture", seed=0, session="s",
+                       run_dir=tmp_path, reset_adapter=False, execution_mode="stepped")
+    try:
+        if recording_failed:
+            worker.recording.writer.kill()
+            worker.recording.writer.join()
+        if ending == "stopped":
+            worker.dispatch("simulation.stop", {})
+        else:
+            adapter._env.control.write("arm", [0.2])
+            worker.world.resolve(worker.world.wait(adapter.control_interval_s))
+        initial = json.loads((tmp_path / "native-initialization.json").read_text())
+        assert initial["task"] == "native-fixture" and initial["seed"] == 0
+        terminal = json.loads((tmp_path / "terminal.json").read_text())
+        observation = json.loads((tmp_path / "native-episode.json").read_text())
+        assert terminal["status"]["reason"] == ending
+        assert observation["budget"] == terminal["status"]["budget"]
+        assert observation["native_success"] == (ending == "success")
+        assert observation["submitted"] is True
+        # The sealed writer completes without waiting for native adapter close.
+        worker.recording.writer.join(10)
+        assert not worker.recording.writer.is_alive()
+        recording = inspect_recording(tmp_path / "recording")
+        assert recording["complete"] is (not recording_failed)
+        assert worker._closed is False
+        before = adapter.budget()
+        with pytest.raises(RuntimeError):
+            adapter._env.control.write("arm", [0.1])
+        with pytest.raises(RuntimeError):
+            adapter._env.control.stop("arm", [0.1])
+        assert adapter.budget() == before
+        assert worker.dispatch("simulation.stop", {})["budget"] == before.as_dict()
+    finally:
+        worker.close()

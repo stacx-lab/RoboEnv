@@ -112,6 +112,8 @@ def binding_plan():
 
 def descriptors(problem):
     robot, sim = native_model(problem)
+    from robosuite import macros
+
     try:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -130,6 +132,11 @@ def descriptors(problem):
             native = SimpleNamespace(
                 _robot=robot,
                 sim=sim,
+                realtime=True,
+                env=SimpleNamespace(
+                    control_timestep=1.0 / robot.control_freq,
+                    model_timestep=macros.SIMULATION_TIMESTEP,
+                ),
                 _render=True,
                 _camera_names=("agentview", "robot0_eye_in_hand"),
                 _camera_size=CAMERA_SIZE,

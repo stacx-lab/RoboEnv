@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import runpy
 import shutil
 import signal
 import subprocess
@@ -12,8 +13,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from helpers import kinex_sources
-from roboenv.devices.export import write_driver
+from roboenv.devices.export import export_devices, write_driver
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -81,30 +81,90 @@ def test_portable_dialog_uses_real_worker_and_stdout_only_contains_replies(
     device_service,
     tmp_path,
 ):
-    _, supervisor, _ = device_service
+    client, supervisor, _ = device_service
     directory = tmp_path / "controller"
     write_driver(directory, "other")
-    (directory / "profile.yaml").write_text(
-        yaml.safe_dump(
-            {
-                "access": {"driver": {"actions": ["read"]}},
-            }
-        )
-    )
-    requests = [{"id": str(i), "action": "read", "args": {}} for i in range(20)]
-    proc = subprocess.run(
-        [sys.executable, str(directory / "driver.py"), "--serve"],
-        input="".join(json.dumps(r) + "\n" for r in requests),
-        env={**os.environ, "ROBOENV_ENDPOINT": supervisor.http_endpoint},
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
+    (directory / "profile.yaml").write_text(yaml.safe_dump({
+        "access": {"driver": {"actions": ["read"]}},
+    }))
+    requests = ([{"action": action, "args": {"unexpected": True}}
+                 for action in ("load", "status", "unload")]
+                + [{"action": action, "args": {}}
+                   for action in ("load", "status", *["read"] * 20, "unload")])
+    requests = [{"id": str(i), **request} for i, request in enumerate(requests)]
+    proc = subprocess.run([sys.executable, str(directory / "driver.py"), "--serve"],
+                          input="".join(json.dumps(r) + "\n" for r in requests),
+                          env={**os.environ, "ROBOENV_ENDPOINT": supervisor.http_endpoint},
+                          capture_output=True, text=True, timeout=15)
     assert proc.returncode == 0, proc.stderr
-    replies = [json.loads(line) for line in proc.stdout.splitlines()]
-    assert len(replies) == len(requests) and all(r["ok"] for r in replies)
-    assert all(r["budget"]["used"] == 0 for r in replies)
+    replies = sorted((json.loads(line) for line in proc.stdout.splitlines()),
+                     key=lambda reply: int(reply["id"]))
+    assert len(replies) == len(requests)
+    assert all(not r["ok"] for r in replies[:3])
+    assert all(r["ok"] for r in replies[3:])
+    assert all(r["loaded"] for r in replies[3:5])
+    assert all(r["budget"]["used"] == 0 for r in replies[5:-1])
+    assert replies[-1]["unloaded"]
+    assert client.request("observe")["budget"]["used"] == 0
     assert not proc.stderr
+
+
+@pytest.mark.parametrize("device_service", ["http"], indirect=True)
+@pytest.mark.parametrize("action,args,code,budget", [
+    ("stop", {}, "unsupported_action", 0),
+    ("read", {"bad_read": True}, "permission_denied", 0),
+    ("write", {"target": [.3], "fail_after": True},
+     "device_failed", 50),
+])
+def test_portable_error_preserves_code_and_request_id_for_lookup(
+    device_service, tmp_path, action, args, code, budget,
+):
+    client, supervisor, _ = device_service
+    directory = tmp_path / "controller"
+    write_driver(directory, "other")
+    result = subprocess.run(
+        [sys.executable, str(directory / "driver.py"), action, json.dumps(args)],
+        env={**os.environ, "ROBOENV_ENDPOINT": supervisor.http_endpoint},
+        capture_output=True, text=True, timeout=15,
+    )
+    reply = json.loads(result.stdout)
+    assert reply["ok"] is False and reply["code"] == code
+    request_id = reply["request_id"]
+    assert request_id.startswith("driver-")
+    operation = client.operation(request_id)
+    assert operation["state"] in {"failed", "indeterminate"}
+    assert operation["response"]["error"]["code"] == code
+    # A failed invocation may already have moved: the driver must not retry it.
+    assert client.request("observe")["budget"]["used"] == budget
+
+
+@pytest.mark.parametrize("device_service", ["http"], indirect=True)
+def test_portable_lost_response_preserves_operation_id_without_retry(
+    device_service, tmp_path, monkeypatch,
+):
+    client, supervisor, _ = device_service
+    directory = tmp_path / "controller"
+    write_driver(directory, "other")
+    monkeypatch.setenv("ROBOENV_ENDPOINT", supervisor.http_endpoint)
+    driver = runpy.run_path(str(directory / "driver.py"))
+    transport = driver["transport"]
+    exchange = transport.exchange
+    sent = []
+
+    def lose_response(endpoint, method, path="/", body=None):
+        result = exchange(endpoint, method, path, body)
+        if method == "POST":
+            sent.append(json.loads(body))
+            raise OSError("Response lost after the server accepted the motion")
+        return result
+
+    monkeypatch.setattr(transport, "exchange", lose_response)
+    reply = driver["handle"]("write", {"target": [.3]})
+    assert reply["ok"] is False and reply["code"] == "outcome_unknown"
+    assert len(sent) == 1 and reply["request_id"] == sent[0]["request_id"]
+    assert client.operation(reply["request_id"])["state"] == "succeeded"
+    assert client.request("observe")["budget"]["used"] == 50
+    assert transport.connection is None
 
 
 DIALOG = """import json, os, sys, time
@@ -203,8 +263,7 @@ def test_dialog_reuses_process_and_cleans_up_once(tmp_path, ending):
 
 
 def test_local_kinematics_is_cached_and_never_connects_for_cleanup(tmp_path, monkeypatch):
-    kinex, _ = kinex_sources()
-    library = kinex / "packages/core/assets/python"
+    library = ROOT.parent / "kinex/packages/core/assets/python"
     if not library.is_dir():
         pytest.skip("Requires Kinex Python library")
     monkeypatch.syspath_prepend(str(library))
@@ -273,7 +332,7 @@ def test_live_identity_change_is_not_followed(device_service, tmp_path, monkeypa
         generation = wire.identity["generation"]
         monkeypatch.setattr(supervisor.config, "generation", generation + 1)
         with pytest.raises(module.WireError):
-            wire.remote("invoke", {"tool_name": "push", "kwargs": {"dx": 0.1}})
+            wire.remote("write", {"target": [0.1]})
         assert wire.identity["generation"] == generation
     finally:
         wire.close()
@@ -283,54 +342,36 @@ def test_live_identity_change_is_not_followed(device_service, tmp_path, monkeypa
 def test_current_kinex_reuses_driver_across_tools_and_reloads(
     device_service,
     tmp_path,
+    monkeypatch,
 ):
-    kinex, _ = kinex_sources()
-    node = shutil.which("node")
-    if not node or not (kinex / "packages/core/dist/index.js").is_file():
-        pytest.skip("Requires built Kinex and Node >=22.19")
-    _, supervisor, _ = device_service
+    kinex = ROOT.parent / "kinex"
+    node = shutil.which(os.environ.get("NODE", "node"))
+    if not node or not (kinex / "packages/core/dist/index.js").exists():
+        pytest.skip("Requires Node and built adjacent Kinex core")
+    client, supervisor, _ = device_service
     directory = tmp_path / ".kinex/devices/controller"
-    write_driver(directory, "other")
-    (directory / "profile.yaml").write_text(
-        yaml.safe_dump(
-            {
-                "name": "controller",
-                "type": "other",
-                "loaded": True,
-                "meta": {
-                    "created_at": "2026-09-09T00:00:00Z",
-                    "updated_at": "2026-09-09T00:00:00Z",
-                },
-                "access": {
-                    "connection": {
-                        "kind": "url",
-                        "url": supervisor.http_endpoint,
-                        "device": "controller",
-                    },
-                    "driver": {
-                        "interpreter": sys.executable,
-                        "actions": ["load", "unload", "status", "read"],
-                    },
-                },
-            }
-        )
-    )
-    (directory / "connection.json").write_text(json.dumps({"endpoint": supervisor.http_endpoint}))
+    export_devices(client.devices()["devices"], directory.parent,
+                   {"endpoint": supervisor.http_endpoint})
+    profile_file = directory / "profile.yaml"
+    profile = yaml.safe_load(profile_file.read_text())
+    profile["access"]["driver"]["interpreter"] = sys.executable
+    profile_file.write_text(yaml.safe_dump(profile))
     driver = directory / "driver.py"
     driver.write_text(
         "import os\nfrom pathlib import Path\n"
         "with Path(__file__).with_name('boots').open('a') as log: "
-        "log.write(str(os.getpid()) + '\\n')\n"
-        + driver.read_text().replace(
-            "        data = remote(action, args)",
-            '        data = ({"ready": True} if action in {"load", "unload", "status"} '
-            "else remote(action, args))",
-        )
+        "log.write(str(os.getpid()) + '\\n')\n" + driver.read_text()
     )
-    result = subprocess.run(
-        [node, str(ROOT / "tests/persistent_kinex.mjs"), str(kinex), str(tmp_path), sys.executable],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    accepted = []
+    original = supervisor._http_server.get_request
+
+    def accept():
+        value = original()
+        accepted.append(value[0])
+        return value
+
+    monkeypatch.setattr(supervisor._http_server, "get_request", accept)
+    result = subprocess.run([node, str(ROOT / "tests/persistent_kinex.mjs"), str(kinex),
+                             str(tmp_path), sys.executable], capture_output=True, text=True,
+                            timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr

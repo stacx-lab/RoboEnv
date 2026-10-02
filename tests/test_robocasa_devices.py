@@ -104,8 +104,7 @@ def test_type_specific_handles_and_profile_only_world(tmp_path):
 
 
 def test_native_panda_devices_in_isolated_cpu_interpreter(tmp_path):
-    kinex, _ = kinex_sources()
-    if not (kinex / "packages/core/assets/python/kinex/kinematics.py").is_file():
+    if not (ROOT.parent / "kinex/packages/core/assets/python/kinex/kinematics.py").is_file():
         pytest.skip("Driver-local IK/FK integration requires the sibling Kinex utility")
     interpreter = native_interpreter()
     environment = {
@@ -131,30 +130,19 @@ def check_kinex_profiles(tmp_path, paths):
     # is present. RoboEnv itself retains no runtime dependency on Kinex.
     import shutil
 
-    kinex_root, kinex_src = kinex_sources()
-    if kinex_src and not (kinex_root / "node_modules/zod").exists():
-        isolated = ROOT / ".cache/kinex-schema"
-        if (isolated / "node_modules/zod").exists():
-            # Reuse dependencies only; always test the sibling's CURRENT sources,
-            # including its uncommitted contract updates.
-            relative = Path(kinex_src.removeprefix("./"))
-            current = tmp_path / "kinex-current"
-            (current / relative.parent).mkdir(parents=True, exist_ok=True)
-            shutil.copytree(kinex_root / relative, current / relative)
-            shutil.copyfile(kinex_root / "package.json", current / "package.json")
-            (current / "node_modules").symlink_to(
-                isolated / "node_modules", target_is_directory=True
-            )
-            kinex_root = current
-    if not shutil.which("bun") or not kinex_src or not (kinex_root / "node_modules/zod").exists():
-        pytest.skip("Requires Bun and Kinex schema dependencies")
+    kinex_root = ROOT.parent / "kinex"
+    node = shutil.which(os.environ.get("NODE", "node"))
+    if not node or not (kinex_root / "packages/core/dist/index.js").is_file():
+        pytest.skip("Requires Node and built Kinex core")
     payload = tmp_path / "profiles.json"
     payload.write_text(json.dumps([yaml.safe_load(path.read_text()) for path in paths]))
     code = (
-        f"const {{Device, RobotManifest}} = await import('{kinex_src}/device/profile/schema.ts'); "
-        "RobotManifest.parse(JSON.parse(await Bun.file(process.argv[2]).text())); "
-        f"const {{missingActions}} = await import('{kinex_src}/device/interface.ts'); "
-        "for (const value of JSON.parse(await Bun.file(process.argv[1]).text())) { "
+        "import { readFile } from 'node:fs/promises'; "
+        "const {Device, RobotManifest} = "
+        "await import('./packages/core/dist/device/profile/schema.js'); "
+        "RobotManifest.parse(JSON.parse(await readFile(process.argv[2], 'utf8'))); "
+        "const {missingActions} = await import('./packages/core/dist/device/interface.js'); "
+        "for (const value of JSON.parse(await readFile(process.argv[1], 'utf8'))) { "
         "const device = Device.parse(value); "
         "if (device.type === 'joint' && "
         "(!device.intrinsics.home || "
@@ -163,8 +151,8 @@ def check_kinex_profiles(tmp_path, paths):
         "throw new Error('Missing home joints: ' + device.name); "
         "if (missingActions(device, device.access?.driver?.actions ?? []).length) "
         "throw new Error('Missing interface actions: ' + device.name); } "
-        f"const {{readinessPlan}} = await import('{kinex_src}/device/profile/readiness.ts'); "
-        "const plan = await readinessPlan(process.argv[3]); "
+        "const {calibrationPlan} = await import('./packages/core/dist/calibration/dag.js'); "
+        "const plan = await calibrationPlan(process.argv[3]); "
         "for (const item of plan.items) { "
         "if (item.device && item.status !== 'done') "
         "throw new Error(item.id + ': ' + item.detail); } "
@@ -189,7 +177,7 @@ def check_kinex_profiles(tmp_path, paths):
         workspace / ".kinex",
     )
     checked = subprocess.run(
-        ["bun", "-e", code, str(payload), str(manifest), str(workspace)],
+        [node, "--input-type=module", "-e", code, str(payload), str(manifest), str(workspace)],
         cwd=kinex_root,
         env={**os.environ, "KINEX_CONFIG_DIR": str(tmp_path / "kinex-config")},
         capture_output=True,

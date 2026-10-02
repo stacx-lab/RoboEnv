@@ -86,6 +86,36 @@ Launch streams simulator stdout/stderr to the terminal's stderr and retains the
 run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready.
 Python callers can enable streaming with `log_stream=sys.stderr`.
 
+## Recording and offline media
+
+Launch with `--record`, or Python `roboenv.launch(..., recording={})`. RoboCasa,
+LIBERO, RoboTwin, RoboDojo and BEHAVIOR save owner evidence in `evidence/recording/`.
+Python options are `buffer_frames` (default 256) and `stride` (default 1).
+Capture runs without rendering or extra physics steps; dropped events or writer
+failures mark the recording incomplete without changing the native verdict.
+Reset or state restoration invalidates the recording; use a new owner per episode.
+
+After the owner closes, render with a matching prepared image or `--interpreter PATH`:
+
+```sh
+roboenv recording check RUN/evidence/recording
+roboenv recording export RUN/evidence/recording --out exported-recording
+roboenv recording render exported-recording --out hd --image PREPARED_IMAGE
+roboenv recording edit hd/replay --out edited.mp4 --title 'Episode review'
+```
+
+LIBERO, RoboCasa and supported RoboDojo fluid scenes restore and verify recorded
+states without advancing physics. Mixed fluid/garment playback is unsupported.
+RoboTwin, BEHAVIOR and RoboDojo scenes without fluids require
+`--allow-command-replay`; only initial/final states are checked in that mode.
+Incomplete recordings cannot be rendered. Media validation and native success
+are separate results.
+
+Offline `--height` and `--cameras` do not change agent observations. Editing
+preserves source cadence and frame/time mappings; `--speed` and `--fps` override
+cadence explicitly. Render after the agent releases shared resources and rebuild
+prepared images after runtime changes.
+
 Official LIBERO uses the same typed device path with complete scene-specific Panda
 catalogs in `catalog/robots/libero/libero-panda-{tabletop,floor,kitchen,living-room,study}/`.
 Each task selects its robot by a relative catalog path, such as
