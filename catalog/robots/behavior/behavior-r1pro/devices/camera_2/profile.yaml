@@ -20,8 +20,8 @@ intrinsics:
     distortion:
       model: none
     fov:
-      horizontal_deg: 63.39060488152917
-      vertical_deg: 49.700016677986994
+      horizontal_deg: 63.39066324992686
+      vertical_deg: 49.7000705126005
   depth:
     registration: color
     width: 640
