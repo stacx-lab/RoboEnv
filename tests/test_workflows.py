@@ -121,12 +121,11 @@ def test_multiple_runs_require_selection(monkeypatch):
         assert second.client.request("health")["device_service"]["ready"]
 
 
-@pytest.mark.parametrize("selector", ["--port", "--endpoint"])
-def test_cli_lifecycle_selects_only_requested_service(monkeypatch, tmp_path, selector):
+def test_cli_lifecycle_selects_only_requested_service(monkeypatch, tmp_path):
     monkeypatch.delenv("ROBOENV_ENDPOINT", raising=False)
     monkeypatch.delenv("ROBOENV_SOCKET", raising=False)
 
-    def target(run):
+    def target(run, selector="--port"):
         return (
             selector,
             str(urlsplit(run.endpoint).port) if selector == "--port" else run.endpoint,
@@ -152,20 +151,12 @@ def test_cli_lifecycle_selects_only_requested_service(monkeypatch, tmp_path, sel
         assert "--endpoint" in cli("stop", code=1)
         monkeypatch.setenv("ROBOENV_ENDPOINT", second.endpoint)
         assert cli("status")["session"] == second.record["session"]
-        for run in (first, second):
-            result = cli("status", *target(run))
+        for run, selector in ((first, "--port"), (second, "--endpoint")):
+            result = cli("status", *target(run, selector))
             assert result["endpoint"] == run.endpoint
             assert result["simulation"]["session"] == run.record["session"]
             assert "success" not in result["simulation"]
         assert cli("status", first.endpoint)["session"] == first.record["session"]
-        for command in ("status", "stop"):
-            cli(command, first.endpoint, "--endpoint", second.endpoint, code=2)
-            cli(command, first.endpoint, "--port", "8123", code=2)
-            cli(command, "--port", "8123", "--endpoint", second.endpoint, code=2)
-            cli(command, "--endpoint", "", code=1)
-            cli(command, "--endpoint", "not-a-url", code=1)
-            for port in ("0", "-1", "65536"):
-                cli(command, "--port", port, code=1)
         assert second.client.request("health")["worker"]["alive"]
         # Explicit HTTP selection must work even without a local project or run manifest.
         stopped = cli("stop", *target(first), "--project", str(tmp_path))
@@ -177,7 +168,29 @@ def test_cli_lifecycle_selects_only_requested_service(monkeypatch, tmp_path, sel
         assert cli("status")["worker"]["alive"]
         assert second.device("controller").read()["budget"]["used"] == 0
         assert connect(second.endpoint).device("controller").write([0.3])["position"][0] > 0
-        assert cli("stop")["session"] == second.record["session"]
+        assert cli("stop", *target(second, "--endpoint"))["session"] == second.record["session"]
+
+
+def test_cli_rejects_invalid_selectors_before_network(monkeypatch, capsys):
+    from roboenv.cli.main import main
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("invalid selector reached the network")
+
+    monkeypatch.setattr(socket, "create_connection", unexpected)
+    for command in ("status", "stop"):
+        for args in (
+            ["run", "--endpoint", "http://localhost:8123"],
+            ["run", "--port", "8123"],
+            ["--port", "8123", "--endpoint", "http://localhost:8123"],
+        ):
+            with pytest.raises(SystemExit) as error:
+                main([command, *args, "--json"])
+            assert error.value.code == 2
+        for args in (["--endpoint", ""], ["--endpoint", "not-a-url"],
+                     *(["--port", port] for port in ("0", "-1", "65536"))):
+            assert main([command, *args, "--json"]) == 1
+    capsys.readouterr()
 
 
 @pytest.mark.parametrize("operation", [status, stop])

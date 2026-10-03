@@ -246,6 +246,11 @@ The native executor consumes references at its fixed cadence; input frequency is
 `len(actions) / duration_s`. References may be resampled; the final reference is
 retained. Velocity commands expire to zero velocity while preserving posture.
 Replacement does not call stop. Explicit stop clears its declared scope.
+For every scalar gripper, stop retains the last applied grip target and actuator
+preload, never the measured aperture or an unconsumed buffered goal. Direction
+mode freezes its accumulated target; position mode retains its applied reference.
+Release requires an explicit open command. Reset seeds a new hold from measured
+posture; stopping before the first command must not initiate closure.
 
 `world.read()` returns `time_s` and, for native `action_frames` budgets, an optional
 `budget: {used_s, max_s}` in seconds. Both values use the native control interval;

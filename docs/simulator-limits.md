@@ -31,8 +31,8 @@ saturation. The review replaced it with the upstream setter at 250 Hz. Its defau
 `gripper_eps=0.1` limits increasing normalized targets by 0.1 per call; decreasing
 targets are not symmetrically rate-limited. Native drive velocity is
 `clip(new_target - old_target, -1, 1) * 0.05`. This is a drive target, not a measured
-velocity guarantee. Explicit stop holds preserve measured finger positions,
-including soft-limit overshoot, without ramping peer grippers.
+velocity guarantee. Explicit gripper stop retains the applied target and its closing preload; it
+does not sample a weaker hold from measured finger positions or change peer goals.
 
 RoboDojo clipping occurs above the robot manager, in EvalEnv's `take_action_batch`
 and `process_control_info`. Inspecting only the manager misses it. MetaControl

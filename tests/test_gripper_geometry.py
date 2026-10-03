@@ -155,9 +155,13 @@ def test_native_read_paths_publish_aperture_without_finger_poses(tmp_path, backe
     assert "positions" not in reading and "velocities" not in reading
     assert not {"force_n", "pressure_pa", "object_detected"}.intersection(reading)
     geometry.read = lambda positions: pytest.fail("stop must not compute aperture feedback")
-    world.gripper_holds = {}
-    world.control = SimpleNamespace(frame=30, stop=lambda name, target: {"stopped": True})
-    world._gripper_target = lambda side: [0.5]
-    world._measured_target = lambda name: [0.5]
+    goals = {"left_gripper": [0.1], "right_gripper": [0.8]}
+    stopped = []
+    world.control = SimpleNamespace(
+        frame=30, targets=goals,
+        stop=lambda name, target: stopped.append((name, list(target))) or {"stopped": True},
+    )
+    world._measured_target = lambda name: pytest.fail("gripper stop must not read aperture")
     assert world.device_stop("left_gripper")["stopped"]
-    assert world.gripper_holds["left_gripper"] == [0.01, 0.02]
+    assert stopped == [("left_gripper", [0.1])]
+    assert goals["right_gripper"] == [0.8]

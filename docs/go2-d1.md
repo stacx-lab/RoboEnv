@@ -126,8 +126,8 @@ leave existing motion intact. Arm and gripper retain their final reference;
 base velocity expires after its requested `duration_s` in world time, maintaining
 posture. The shared world scheduler is the only clock and command-expiry authority;
 there is no backend realtime mode or wall-clock watchdog. Base stop requests zero
-velocity, not instantaneous physical braking; arm/gripper stop hold measured
-positions. Each stop affects
+velocity, not instantaneous physical braking; arm stop holds measured positions and gripper stop retains the applied grip
+target and preload. Explicit open releases the grip. Each stop affects
 only that device, and late cancellation cannot stop a newer replacement.
 
 All Go2–D1 tasks have no step limit in realtime mode (`budget.max: null`).

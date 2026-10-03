@@ -9,12 +9,11 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_exported_actuators_delegate_limits_and_keep_only_known_ratings():
+def test_exported_actuators_delegate_limits_and_keep_only_known_ratings(catalog_profiles):
     count = 0
-    for path in (ROOT / "catalog/robots").rglob("profile.yaml"):
+    for path, profile in catalog_profiles:
         if "fakeshell" in path.parts:
             continue
-        profile = yaml.safe_load(path.read_text())
         control = profile["intrinsics"].get("control")
         if control is None:
             continue
@@ -150,7 +149,6 @@ def test_robotwin_uses_native_gripper_limits_each_physics_substep(fraction, expe
     goals = {"left_arm": [100], "right_arm": [-100],
              "left_gripper": [fraction], "right_gripper": [fraction]}
     env.control = SimpleNamespace(targets=goals, frame=0)
-    env.gripper_holds = {}
     env._sim_step_count, env._native_success = 0, False
     env._apply_targets(goals)
     left, right = robot.left_gripper[0][0], robot.right_gripper[0][0]
@@ -168,11 +166,10 @@ def test_robotwin_uses_native_gripper_limits_each_physics_substep(fraction, expe
     goals["left_gripper"] = [0]
     env._advance()
     assert left.history[10] == pytest.approx((.01, -expected * .04 * .05))
-    # A hold preserves measured overshoot, bypassing command bounds without affecting its peer.
-    env.gripper_holds["left_gripper"] = [.05001]
+    # Reapplying retained goals does not ramp either gripper before a physics tick.
     peer_history = list(right.history)
     env._apply_targets(goals)
-    assert left.drive_target == .05001 and left.velocity == 0
+    assert left.drive_target == .01
     assert right.history == peer_history
     env._advance()
-    assert left.drive_target == .05001
+    assert left.drive_target == .01

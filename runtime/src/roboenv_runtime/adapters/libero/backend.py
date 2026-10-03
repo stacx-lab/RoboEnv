@@ -113,6 +113,12 @@ class LiberoEnv:
         self._robot.controller.update(force=True)
         self._step_count, self._success = 0, False
         self.stop_part("arm")
+        robot = self._robot
+        low, high = self.sim.model.actuator_ctrlrange[
+            robot._ref_joint_gripper_actuator_indexes
+        ].T
+        positions = self.sim.data.qpos[robot._ref_gripper_joint_pos_indexes]
+        robot.gripper.current_action = np.clip(2 * (positions - low) / (high - low) - 1, -1, 1)
         self.stop_part("gripper")
         initial_state_hash = hashlib.sha256(self.sim.get_state().flatten().tobytes()).hexdigest()
         for _ in range(INITIALIZATION_FRAMES):
@@ -185,11 +191,7 @@ class LiberoEnv:
             controller.reset_goal()
             return
         self._gripper_command = 0.0
-        robot = self._robot
-        actuators = robot._ref_joint_gripper_actuator_indexes
-        low, high = self.sim.model.actuator_ctrlrange[actuators].T
-        positions = self.sim.data.qpos[robot._ref_gripper_joint_pos_indexes]
-        robot.gripper.current_action = np.clip(2 * (positions - low) / (high - low) - 1, -1, 1)
+        # Zero direction retains current_action and its closing preload.
 
     def tick(self):
         if self._max_steps is not None and self._step_count >= self._max_steps:

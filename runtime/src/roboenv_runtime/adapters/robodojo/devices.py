@@ -66,19 +66,6 @@ class RoboDojoDevices(RoboDojoEnv):
             return result
 
         self._env.sim_step = counted_step
-        native_interpolate = self._env.process_control_info
-
-        def interpolate_with_holds(control_info, env_idx):
-            sequence = native_interpolate(control_info, env_idx)
-            for name, positions in self.gripper_holds.items():
-                robot = self.actuators[name][0]
-                key = self._env.robot_manager.process_name(robot.gripper_name)
-                for frame in sequence:
-                    frame[key] = {"position": list(positions), "velocity": 0}
-            return sequence
-
-        self._env.process_control_info = interpolate_with_holds
-        self.gripper_holds = {}
 
     def reset(self, *, seed=None, options=None):
         if seed is not None:
@@ -107,7 +94,6 @@ class RoboDojoDevices(RoboDojoEnv):
         self.episode_start_steps = self.physics_steps
         self._configure_step_limit()
         self.actuators = {}
-        self.gripper_holds = {}
         limits, targets = {}, {}
         manager = self._env.robot_manager
         for side in ("left", "right"):
@@ -159,7 +145,6 @@ class RoboDojoDevices(RoboDojoEnv):
             self._apply,
             self._advance,
             exhausted=self.exhausted,
-            on_write=self._release_holds,
             interval_s=self.control_interval,
         )
         self._verify_cameras()
@@ -243,7 +228,6 @@ class RoboDojoDevices(RoboDojoEnv):
                     primary,
                     primary * robot.gripper_move["mimic"][1] + robot.gripper_move["mimic"][2],
                 ]
-                positions = self.gripper_holds.get(name, positions)
             tensor = torch.tensor([positions], device=key.device, dtype=key.data.joint_pos.dtype)
             key.set_joint_position_target(tensor, joint_ids=indices)
             key.set_joint_velocity_target(torch.zeros_like(tensor), joint_ids=indices)
@@ -263,14 +247,9 @@ class RoboDojoDevices(RoboDojoEnv):
         return self.control.write(name, target)
 
     def device_stop(self, name):
-        if name.endswith("_gripper"):
-            _, key, indices = self.actuators[name]
-            self.gripper_holds[name] = np.asarray(values(key.data.joint_pos[0]))[indices].tolist()
-        return self.control.stop(name, self._measured_target(name))
-
-    def _release_holds(self, devices):
-        for name in devices:
-            self.gripper_holds.pop(name, None)
+        target = (self.control.targets[name] if name.endswith("_gripper")
+                  else self._measured_target(name))
+        return self.control.stop(name, target)
 
     @property
     def timestamp(self):

@@ -61,7 +61,6 @@ class RoboTwinDevices(RoboTwinEnv):
         if not np.isclose(dt, 1 / 250, rtol=0, atol=1e-8):
             raise ValueError("RoboTwin practice control requires native 250 Hz physics")
         self.control_interval = 10 * dt
-        self.gripper_holds = {}
         limits, targets = {}, {}
         for side in ("left", "right"):
             entity = getattr(self.task.robot, side + "_entity")
@@ -93,7 +92,6 @@ class RoboTwinDevices(RoboTwinEnv):
             self._apply_targets,
             self._advance,
             exhausted=self._exhausted,
-            on_write=self._release_holds,
             interval_s=self.control_interval,
         )
         self.initialization.update(
@@ -142,23 +140,13 @@ class RoboTwinDevices(RoboTwinEnv):
         for side in ("left", "right"):
             target = goals[side + "_arm"]
             robot.set_arm_joints(target, np.zeros(len(target)), side)
-            # Stops hold measured finger positions without advancing other grippers.
-            hold = self.gripper_holds.get(side + "_gripper")
-            if hold is not None:
-                for (joint, _, _), value in zip(
-                    getattr(robot, side + "_gripper"), hold, strict=True
-                ):
-                    joint.set_drive_target(value)
-                    joint.set_drive_velocity_target(0.0)
 
     def _advance(self):
         for _ in range(10):
             for side in ("left", "right"):
                 name = side + "_gripper"
-                if name not in self.gripper_holds:
-                    # Preserve native saturation, incremental targets and velocity
-                    # feedforward at the same cadence as upstream take_action.
-                    self.task.robot.set_gripper(self.control.targets[name][0], side)
+                # Keep native saturation and cadence, including the retained grip goal.
+                self.task.robot.set_gripper(self.control.targets[name][0], side)
             self.task.scene.step()
             self._sim_step_count += 1
             self._native_success = bool(self.task.check_success()) or self._native_success
@@ -167,20 +155,9 @@ class RoboTwinDevices(RoboTwinEnv):
     def device_write(self, name, target):
         return self.control.write(name, target)
 
-    def _release_holds(self, devices):
-        for name in devices:
-            self.gripper_holds.pop(name, None)
-
     def device_stop(self, name):
-        side = name.split("_", 1)[0]
-        if name.endswith("gripper"):
-            entity, indexes = self._device_joints(name)
-            self.gripper_holds[name] = entity.get_qpos()[indexes].astype(float).tolist()
-        target = (
-            self._gripper_target(side)
-            if name.endswith("gripper")
-            else self.device_read(name)["positions"]
-        )
+        target = (self.control.targets[name] if name.endswith("gripper")
+                  else self.device_read(name)["positions"])
         return self.control.stop(name, target)
 
     def _device_joints(self, name):

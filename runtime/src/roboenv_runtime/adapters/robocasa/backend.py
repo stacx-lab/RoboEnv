@@ -205,6 +205,13 @@ class RoboCasaEnv:
         self._obs = self.env.reset()
         self._step_count = 0
         self._stream_commands = {}
+        # Reset seeds a fresh hold; ordinary stop must preserve the grasp target.
+        controller = self._robot.part_controllers["right_gripper"]
+        low, high = controller.actuator_min, controller.actuator_max
+        positions = self.sim.data.qpos[controller.qpos_index]
+        self._robot.gripper["right"].current_action = np.clip(
+            2 * (positions - low) / (high - low) - 1, -1, 1
+        )
         for part in self._robot.part_controllers:
             self.stop_part(part)
         return self._obs
@@ -234,12 +241,8 @@ class RoboCasaEnv:
             controller.set_goal(np.zeros(controller.control_dim))
         elif part == "right_gripper":
             self._stream_commands[part] = np.zeros(1)
-            # Hold the current finger positions as native normalized targets.
-            low, high = controller.actuator_min, controller.actuator_max
-            positions = self.sim.data.qpos[controller.qpos_index]
-            target = np.clip(2 * (positions - low) / (high - low) - 1, -1, 1)
-            self._robot.gripper["right"].current_action = target.copy()
-            controller.set_goal(target.copy())
+            # Stop direction integration, retaining the actuator preload against objects.
+            controller.set_goal(self._robot.gripper["right"].current_action.copy())
         else:
             # reset_goal() uses the controller's cached pre-substep state. Hold
             # the measured terminal configuration, not that stale sample.
