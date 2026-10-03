@@ -110,7 +110,7 @@ def test_joint_anchor_and_reference_are_applied_before_flange_offset():
             solver.fk(joints)
     with pytest.raises(ValueError, match="unit quaternion"):
         solver.ik([0] * 7, seed=[0.2])
-    with pytest.raises(ValueError, match="No IK solution"):
+    with pytest.raises(ValueError, match="IK search exhausted"):
         solver.ik([100, 100, 100, 0, 0, 0, 1], seed=[0.2])
 
 
