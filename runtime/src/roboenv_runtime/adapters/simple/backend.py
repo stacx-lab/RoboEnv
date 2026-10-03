@@ -164,6 +164,14 @@ class SimpleEnv:
                 "control_protocol": "simple-g1-metric-wbc/4",
             }
         except BaseException:
+            # In mujoco_isaac mode close() reaches Isaac's SimulationApp.close(), which
+            # terminates the process with code 0 before ``raise`` runs. Report the
+            # failure first so the worker log keeps the cause.
+            import sys
+            import traceback
+
+            traceback.print_exc()
+            sys.stderr.flush()
             self.close()
             raise
 

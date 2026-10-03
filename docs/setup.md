@@ -265,6 +265,15 @@ keep the depot quiescent. Content verification does not establish redistribution
 rights or native execution. Image interpreter/depot options are described in
 [standalone simulator images](#standalone-simulator-images).
 
+## Environment notes
+
+`roboenv.launch` removes every `ROBOENV_*` variable from the simulator
+environment before starting the supervisor and sets its own. Backend knobs that
+must reach a worker need another prefix (for example `SIMPLE_ISAAC_MOUNT_ATOL`).
+Isaac Lab workers and replays log under `$TMPDIR/isaaclab`; on shared hosts where
+`/tmp/isaaclab` belongs to another user, point `TMPDIR` inside the project. Replay
+tools refuse to overwrite an existing receipt; pass a fresh `--out`.
+
 ## Local storage
 
 Keep `.cache/roboenv/runs/` logs and recordings, installation/asset receipts,

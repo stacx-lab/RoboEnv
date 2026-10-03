@@ -36,6 +36,40 @@ the simulator. The checked-in assets and examples cover these three tasks;
 other discovered tasks may need additional assets. Domain randomization defaults
 to native level 0, with levels 1 and 2 selectable in task configuration.
 
+## Isaac rendering notes
+
+Observed on an 8x L40S host (driver 565.57, IOMMU enabled) with the pinned
+Isaac Sim 4.5 wheels:
+
+- Pin each Isaac worker to one GPU (`CUDA_VISIBLE_DEVICES=N` in the launch
+  environment). Kit otherwise activates every GPU, spends about five minutes on
+  the peer-to-peer validation matrix plus a cold shader compile per run, and
+  device reads then take minutes; pinned, the worker is ready in about two
+  minutes. Raise the launch startup deadline (`roboenv.launch(..., timeout=...)`,
+  default 900 s) on hosts where the cold boot is slower.
+- `prepare simple` exposes the verified depot where the Isaac engine resolves
+  data: `third_party/SIMPLE/data/{robots,scenes,assets,vMaterials_2}` are
+  relative links into `.cache/simple/data` (ignored by SIMPLE's `.gitignore`).
+  `SIMPLE_DATA_DIR` only steers the MuJoCo paths. `vMaterials_2.zip` now
+  extracts at the data root like SIMPLE's own `data/_download.sh`; depots
+  prepared with the earlier nested layout are refreshed on the next `prepare`.
+- The camera-mount check reads the torso parent pose from MuJoCo (the state
+  SIMPLE mirrors into Isaac); the torso prim's USD xform is never updated by the
+  joint-driven robot. With that parent the pinned scene places both head cameras
+  0.010 m from the profile mount, above the 1e-4 m contract tolerance. Each
+  deviation is printed to the worker log; `SIMPLE_ISAAC_MOUNT_ATOL` relaxes the
+  tolerance for diagnosis only. Whether the profile mount or the scene is
+  authoritative is still open.
+- Isaac's `SimulationApp.close()` terminates the process with exit code 0. Failures
+  during reset are now printed before the adapter closes, and the replay tool
+  writes its receipt before closing; a worker that "exits cleanly" right after
+  `Simulation App Startup Complete` still indicates an initialization failure.
+- Device profiles ship `loaded: false`, so `kinex run --record` is refused at
+  startup; activate devices first or let the agent load them.
+- Owner records grow with every control interval; a 20-minute realtime session
+  produced a 27 MB `observe` reply, above the 8 MB NDJSON message limit, so
+  finalization failed. Keep Isaac sessions bounded until the record is chunked.
+
 ## Arm gravity compensation
 
 Arm gravity compensation is enabled by default. To select it explicitly at startup:

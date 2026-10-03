@@ -8,7 +8,7 @@ import numpy as np
 from roboenv_runtime.adapters.simple.backend import SimpleEnv
 
 
-def replay(record):
+def replay(record, out=None):
     if record.get("schema") != "roboenv/simple-record/3":
         raise ValueError("Expected a SIMPLE owner record")
     mode = record.get("execution_mode")
@@ -80,8 +80,12 @@ def replay(record):
             errors[key] = float(np.max(np.abs(a - b), initial=0))
         from roboenv_runtime.adapters.native_record import compare
 
-        errors["controller"] = compare(record["controller_state"], actual["controller_state"],
-                                       atol=1e-8, path="controller_state")
+        errors["controller"] = compare(
+            record["controller_state"],
+            actual["controller_state"],
+            atol=1e-8,
+            path="controller_state",
+        )
         passed = (
             all(value <= 1e-8 for value in errors.values())
             and actual["budget"] == record["budget"]
@@ -89,7 +93,7 @@ def replay(record):
             and actual["done"] == record["done"]
             and actual["reward"] == record["reward"]
         )
-        return {
+        result = {
             "passed": passed,
             "verdict_matches": {
                 key: actual[key] == record[key]
@@ -99,6 +103,12 @@ def replay(record):
             "native_success": actual["native_success"],
             "budget": actual["budget"],
         }
+        if out is not None:
+            # In mujoco_isaac mode world.close() reaches Isaac's SimulationApp.close(),
+            # which exits the process before main() could write the receipt.
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(json.dumps(result, indent=2) + "\n")
+        return result
     finally:
         world.close()
 
@@ -110,9 +120,10 @@ def main():
     args = parser.parse_args()
     if args.out.exists():
         raise ValueError("Replay output must be new")
-    result = replay(json.loads(args.record.read_text()))
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(result, indent=2) + "\n")
+    result = replay(json.loads(args.record.read_text()), out=args.out)
+    if not args.out.exists():
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(result, indent=2) + "\n")
     if not result["passed"]:
         raise SystemExit(1)
 

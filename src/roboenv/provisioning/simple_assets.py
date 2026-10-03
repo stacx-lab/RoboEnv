@@ -4,6 +4,7 @@ import argparse
 import concurrent.futures
 import hashlib
 import json
+import os
 import shutil
 import stat
 import tempfile
@@ -37,6 +38,31 @@ def extract(archive, destination):
             ):
                 raise ValueError("Unsafe SIMPLE archive member")
         source.extractall(destination)
+
+
+def _link(link, target):
+    if link.is_symlink() or link.exists():
+        return
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(target)
+
+
+def expose_native_layout(root, data):
+    """Make the verified depot visible where SIMPLE's Isaac engine resolves data.
+
+    ``SIMPLE_DATA_DIR`` only steers SIMPLE's MuJoCo paths. The Isaac engine resolves
+    robots, scenes and MDL materials relative to the package checkout
+    (``third_party/SIMPLE/data``, ignored by its .gitignore). Each top-level depot
+    directory is exposed there with a relative symlink; verified files are never
+    moved, copied or overwritten, and existing entries are kept.
+    """
+    data = Path(data)
+    package = Path(root) / "third_party/SIMPLE"
+    if package.is_dir():
+        package_data = package / "data"
+        for child in sorted(data.iterdir()):
+            if child.is_dir():
+                _link(package_data / child.name, Path(os.path.relpath(child, package_data)))
 
 
 def prepare_assets(root, *, progress=None, archives=None):
@@ -77,14 +103,17 @@ def prepare_assets(root, *, progress=None, archives=None):
     data = depot / "data"
     for entry, archive in downloads:
         receipt = depot / (entry["file"] + ".json")
-        if receipt.exists():
-            if digest(receipt) != entry["inventory_sha256"]:
-                raise ValueError("SIMPLE inventory differs from pinned extraction")
+        if receipt.exists() and digest(receipt) == entry["inventory_sha256"]:
             for item in json.loads(receipt.read_text()):
                 path = data / item["path"]
                 if not path.is_file() or path.is_symlink() or digest(path) != item["sha256"]:
                     raise ValueError(f"SIMPLE extracted asset changed: {item['path']}")
             continue
+        if receipt.exists() and progress:
+            # The pinned layout changed (for example vMaterials_2 moving to the data
+            # root). The archive is checksum-verified, so extract it again: files
+            # already present and matching are kept, the receipt is rewritten.
+            progress(f"Refreshing SIMPLE assets for the current pin: {entry['file']}")
         with tempfile.TemporaryDirectory(dir=depot) as temporary:
             staged = Path(temporary) / "data"
             extract(archive, staged / entry["destination"])
@@ -103,6 +132,8 @@ def prepare_assets(root, *, progress=None, archives=None):
                     shutil.copyfile(staged / item["path"], path)
             receipt.write_text(serialized)
     complete = all((depot / (entry["file"] + ".json")).is_file() for entry in pin["archives"])
+    if complete:
+        expose_native_layout(root, data)
     return {
         "environment_assets_verified": complete,
         "asset_depot": str(data),
@@ -119,11 +150,14 @@ def verify_assets(root):
         if not receipt.is_file():
             raise ValueError("SIMPLE assets missing; run roboenv prepare simple")
         if digest(receipt) != entry["inventory_sha256"]:
-            raise ValueError("SIMPLE inventory differs from pinned extraction")
+            raise ValueError(
+                "SIMPLE inventory differs from the current pin; run roboenv prepare simple"
+            )
         for item in json.loads(receipt.read_text()):
             path = depot / "data" / item["path"]
             if not path.is_file() or path.is_symlink() or digest(path) != item["sha256"]:
                 raise ValueError(f"SIMPLE asset verification failed: {item['path']}")
+    expose_native_layout(root, depot / "data")
     return depot / "data"
 
 
