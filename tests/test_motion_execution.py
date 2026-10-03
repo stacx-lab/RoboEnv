@@ -18,14 +18,14 @@ def test_world_read_reports_native_budget_seconds(maximum):
     clock = clock_actions(BindingContext("fixture", "fixture", native, world=world))
     cap = None if maximum is None else 50.0
     assert clock["read"].handler({}, None) == {
-        "time_s": 0.0, "budget": {"elapsed_s": 0.25, "max_s": cap},
+        "time_s": 0.0, "budget": {"used_s": 0.25, "max_s": cap},
     }
     assert native.frame == 5
     waited = world.resolve(clock["wait"].handler({"duration_s": 0.2}, None))
-    assert waited == {"time_s": pytest.approx(0.2), "elapsed_s": pytest.approx(0.2)}
+    assert waited == {"time_s": pytest.approx(0.2), "waited_s": pytest.approx(0.2)}
     assert clock["read"].handler({}, None) == {
         "time_s": pytest.approx(0.2),
-        "budget": {"elapsed_s": pytest.approx(0.45), "max_s": cap},
+        "budget": {"used_s": pytest.approx(0.45), "max_s": cap},
     }
     assert clock["status"].handler({}, None) == {"loaded": True}
     assert native.frame == 9
@@ -195,7 +195,7 @@ def test_write_returns_immediately_and_wait_keeps_background_ownership():
     native, world, service = fixture()
     result = submit(service, "left", actions=[[1]], duration_s=0.1)
     assert result.done() and native.frame == 0
-    assert result.result()["data"]["elapsed_s"] == 0
+    assert "elapsed_s" not in result.result()["data"]
     world.resolve(world.wait(0.03))
     assert service._active
     assert not any(event[2] == "stop" for event in native.events)
@@ -240,7 +240,7 @@ def test_exact_horizon_buffer_and_wait_complete_without_extra_reference():
     native, world, service = fixture()
     native.maximum = 3
     submit(service, "left", actions=[[0.1], [0.2], [0.3]], duration_s=0.03)
-    assert world.resolve(world.wait(0.03))["elapsed_s"] == pytest.approx(0.03)
+    assert world.resolve(world.wait(0.03))["waited_s"] == pytest.approx(0.03)
     assert native.frame == 3 and world.failure is None and not world.pending
     assert native.targets["left"] == 0.3
     assert not service._faults

@@ -49,8 +49,11 @@ try {
   const handGeometry = await call('hand_geometry_probe', {})
   assert.ok(handGeometry.passed)
   assert.ok(before.base.frame_poses?.torso)
-  const goals = Object.fromEntries(['left_arm', 'right_arm'].map(n =>
-    [n, { frame: 'base', pose: compose(before.base.frame_poses.torso, before[n].frame_poses.flange) }]))
+  const goals = Object.fromEntries(await Promise.all(['left_arm', 'right_arm'].map(async n => {
+    assert.equal(before[n].frame_poses, undefined)
+    const fk = await runtime.devices.dispatch(n, 'fk', { joints: before[n].positions })
+    return [n, { frame: 'base', pose: compose(before.base.frame_poses.torso, fk.data.pose) }]
+  })))
   const started = await runtime.recording.start({ sessionID: invocation.sessionID,
     instruction: 'SIMPLE integration probe; no task success claim',
     specs: { camera_head_left: { rate: 3 }, camera_head_right: { rate: 3 }, base: { rate: 5 } } })
@@ -60,7 +63,7 @@ try {
   } })
   assert.equal(motion.steps, 30)
   const after = await readings()
-  const elapsed = after.base.sample_time_s - before.base.sample_time_s
+  const elapsed = after.base.timestamp - before.base.timestamp
   assert.ok(clockMode === 'stepped' ? Math.abs(elapsed - 3) < 1e-8 : elapsed > 0)
   await runtime.recording.snap({ sessionID: invocation.sessionID, devices: ['camera_head_left', 'camera_head_right'] })
   const recording = await runtime.recording.stop({ summary: 'No-model SIMPLE probe' })

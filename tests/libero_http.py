@@ -74,7 +74,7 @@ def check(out):
             identity = (public.session, public.generation)
             a.close()
             a = roboenv.connect(first.endpoint)
-            assert a.device("arm").read()["sample_time_s"] >= 0.3
+            assert a.device("arm").read()["timestamp"] >= 0.3
             assert (public.session, public.generation) == identity
             verdict = owner.request("submit")
             record = owner.request("observe")

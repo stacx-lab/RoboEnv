@@ -79,7 +79,7 @@ def main():
             )
             if any(not result["ok"] for result in results):
                 raise ValueError("A component write failed")
-            elapsed += device("world", "wait", duration_s=segment_s)["data"]["elapsed_s"]
+            elapsed += device("world", "wait", duration_s=segment_s)["data"]["waited_s"]
             # Errors describe the observations from this iteration, not write receipts.
             for arm, goal in goals.items():
                 actual = frames.pose(f"{arm}:flange", goal["frame"], readings=before)

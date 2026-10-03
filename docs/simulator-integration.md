@@ -131,13 +131,13 @@ The executor samples buffers on native ticks. Planning and arrival checks belong
 to the harness. Reuse the [binding executor](../runtime/src/roboenv_runtime/bindings/motion.py)
 for validation, replacement and cancellation. Scalar and velocity writes use the
 same duration contract. World `read` returns `time_s` and an optional
-`budget: {elapsed_s, max_s}` in seconds for native `action_frames` budgets. The shared
+`budget: {used_s, max_s}` in seconds for native `action_frames` budgets. The shared
 binding multiplies native consumption and cap by the control interval; an uncapped
 budget has `max_s: null`. Counted initialization frames remain included, so budget
 elapsed time can differ from the world clock. This does not represent wall-clock
 time or orchestrator deadlines. Other units, including `sim_steps` and `api_calls`, omit
 the field because their duration is not established. `status` stays `{loaded: true}`;
-`wait(duration_s)` returns only `time_s` and the wait's `elapsed_s`.
+`wait(duration_s)` returns only `time_s` and the wait's `waited_s`.
 Realtime advances continuously; stepped advances during waits.
 
 Configure native controllers to implement the advertised action space. RoboCasa
@@ -195,16 +195,15 @@ schemas and required actions live in `packages/core/src/device/profile/` and
 against these actual definitions in development, without adding Kinex to the
 simulator worker’s dependencies.
 
-- Manipulators own `kinematics.model` (including joint order/limits), `kinematics.ik`,
+- Manipulators own `model` (including joint order/limits), `kinematics.ik`,
   named `home`, position `control`, `feedback`, and `stop` behavior/affected devices.
-- Mobile `base` profiles declare command axes, frame, units, bounds, execution mode,
-  and measured feedback frames/clock. Fixed bases are driverless static mounts.
-- End effectors declare tool/control type, independent measured channels, stop scope,
-  and any known aperture conversion. Signed gripper commands remain native commands.
-  Grippers also describe their TCP, approach/closing axes and contact frames in
-  `intrinsics.geometry`; moving frames belong in every read's `frame_poses`.
-  Derive contacts from the model, keep unknown patch dimensions explicit, and
-  validate aperture against measured joint positions. See [gripper geometry](grippers.md).
+- Mobile `base` profiles declare command axes, frame, units, bounds, supported modes,
+  and measured feedback frames and timestamps. Fixed bases are driverless static mounts.
+- Grippers declare control, aperture bounds and feedback support, and stop scope.
+  `extrinsics.mount` locates the gripper base; `intrinsics.frames.tcp` locates its TCP.
+  `intrinsics.geometry` holds approach/closing axes and an optional finger description.
+  Native finger measurements and aperture conversion stay private; reads return
+  aperture, faults and timestamp. See [gripper geometry](grippers.md).
 - Cameras use `intrinsics.color` for projection/distortion/FOV and `intrinsics.depth`
   for encoding, dimensions, registration, scale, invalid values, and depth quantity.
 - World exposes read/wait through its driver, with optional bounds/surfaces and no extrinsics.
@@ -236,8 +235,9 @@ Mount poses use metres and quaternion xyzw. Cameras use OpenCV optical axes
 (+X right, +Y down, +Z forward); convert native conventions explicitly. A joint device
 provides a live base-to-flange edge. Mount moving sensors on that flange instead of
 baking the current joint position into a rigid transform. Mobile bases have no static
-world mount. `feedback.pose_frame` declares the reference for their live pose edge;
-an undeclared edge is not identity.
+world mount or global pose feedback. Local body measurements can supply moving
+attachment frames; world-relative transforms require explicit estimates. An
+undeclared edge is not identity.
 
 Provide working drivers in the catalog, with JSON arguments and one JSON result on
 stdout. Diagnostics go to stderr. Success returns `ok: true` plus data; failure
@@ -418,7 +418,7 @@ Run `bash tools/check.sh` after adding positive and negative tests for:
 
 - Static and live schema conformance, required actions/calibration readiness, complete
   deterministic regeneration, copied drivers with support files, and unchanged catalogs.
-- Native units, rejected inputs before effects, persistent goals, stop, and clock behavior.
+- Native units, rejected inputs before effects, persistent goals, stop, behavior.
 - Local FK/IK without simulator imports or state mutation, including joint-limit overshoot.
 - Sensor routing, acquisition timestamps, read without stepping, aligned depth and its
   declared encoding/scale, and files surviving driver exit.

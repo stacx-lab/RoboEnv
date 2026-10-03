@@ -141,7 +141,7 @@ def test_reach_goal_is_outside_even_a_conservative_fixed_base_workspace():
     [
         ("object_dropped", []),
         ("object_left_destination", []),
-        ("robot_fallen", ["fallen"]),
+        ("robot_fallen", [{"code": "fallen"}]),
         (None, []),
     ],
 )
@@ -258,7 +258,7 @@ def test_resolved_configuration_is_portable_and_uses_selected_robot(tmp_path, mo
     shutil.copyfile(original.path, target)
     profile = catalog / "robots" / original.task.robot / "devices/gripper/profile.yaml"
     data = yaml.safe_load(profile.read_text())
-    data["extrinsics"]["mount"]["translation_m"] = [0, 0, 0.2]
+    data["intrinsics"]["frames"]["tcp"]["translation_m"] = [0, 0, 0.2]
     profile.write_text(yaml.safe_dump(data))
     resolved = resolve_task("isaaclab/" + REACH, catalog=catalog)
 

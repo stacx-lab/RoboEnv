@@ -2,9 +2,9 @@
 
 import json
 import os
+import secrets
 import socket
 import sys
-import uuid
 from pathlib import Path
 
 
@@ -17,7 +17,7 @@ def main():
         "protocol": "roboenv/1",
         "session": session,
         "generation": 0,
-        "request_id": "healthcheck-" + uuid.uuid4().hex,
+        "request_id": "healthcheck-" + secrets.token_hex(8),
         "deadline_s": 5,
         "op": "health",
         "args": {},
@@ -40,7 +40,7 @@ def main():
             registry = response.get("result", {}).get("device_service", {})
             if registry.get("ready") is True and registry.get("contract") == "roboenv/devices/1":
                 return 0  # Registry is immutable; do not queue behind ongoing motion.
-            request.update(op="devices.list", request_id="devices-ready-" + uuid.uuid4().hex)
+            request.update(op="devices.list", request_id="devices-ready-" + secrets.token_hex(8))
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
                 sock.settimeout(8)
                 sock.connect(os.environ.get("ROBOENV_SOCKET", "/run/roboenv/sim.sock"))

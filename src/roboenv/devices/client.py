@@ -1,5 +1,6 @@
 """Small, typed device surface over the private wire client."""
 
+import base64
 import http.client
 import shutil
 import tempfile
@@ -52,9 +53,9 @@ class Environment:
             raise KeyError(f"Unknown device: {name}")
         return Device(self, self._profiles[name])
 
-    def _download(self, file):
+    def _download(self, file, *, content=False):
         if not self._transport.endpoint:
-            return file
+            return Path(file).read_bytes() if content else file
         endpoint = urlsplit(self._transport.endpoint)
         connection = (
             http.client.HTTPSConnection
@@ -69,6 +70,11 @@ class Environment:
             response = connection.getresponse()
             if response.status != 200:
                 raise RuntimeError(f"Image download failed: HTTP {response.status}")
+            if content:
+                raw = response.read(8 * 1024 * 1024 + 1)
+                if len(raw) > 8 * 1024 * 1024:
+                    raise ValueError("Camera content is too large; use output='file'")
+                return raw
             if self._artifacts is None:
                 self._artifacts = Path(tempfile.mkdtemp(prefix="roboenv-images-"))
             path = self._artifacts / name
@@ -122,18 +128,33 @@ class Device:
             env = self._environment
             if env._closed:
                 raise RuntimeError("Environment client is closed")
+            camera = self._profile["type"] in {"rgb", "rgbd"} and action == "read"
+            output = "file"
+            if camera:
+                from roboenv.assets._camera import output_mode
+
+                output = output_mode(args.pop("output", "file"))
             reply = env._transport.device(self._profile["name"]).call(action, args)
             data = reply["data"]
             if "simulation" in reply and isinstance(data, dict):
                 data = {**data, "simulation": reply["simulation"]}
-            if (
-                self._profile["type"] in {"rgb", "rgbd"}
-                and isinstance(data, dict)
-                and data.get("file")
-            ):
-                data = {**data, "file": env._download(data["file"])}
-                if self._profile["type"] == "rgbd" and data.get("depth_file"):
-                    data["depth_file"] = env._download(data["depth_file"])
+            if camera and isinstance(data, dict) and data.get("file"):
+                from roboenv.assets._camera import arrays, camera_read
+
+                data = dict(data)
+                for key, target in (("file", "color"), ("depth_file", "depth")):
+                    if not data.get(key):
+                        continue
+                    value = env._download(data[key], content=output != "file")
+                    if output == "file":
+                        data[key] = value
+                    else:
+                        del data[key]
+                        data[target] = base64.b64encode(value).decode("ascii")
+                if output != "file":
+                    camera_read(data, self._profile)
+                if output == "array":
+                    data = arrays(data, self._profile)
             return data
 
         return invoke

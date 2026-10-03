@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import re
 import struct
 import zlib
 from pathlib import Path
@@ -53,16 +54,14 @@ def camera(tmp_path, monkeypatch):
             return None
         request = json.loads(body)
         assert request["args"]["device"] == "remote-camera"
+        assert re.fullmatch("driver-[0-9a-f]{16}", request["request_id"])
         response = {
             key: request[key] for key in ("protocol", "session", "generation", "request_id")
         }
         data = {
             "file": "/server/color.png",
             "depth_file": "/server/depth.pgm",
-            "width": 2,
-            "height": 1,
-            "depth_width": 2, "depth_height": 1,
-            "sample_time_s": 1.25, "depth_sample_time_s": 1.25,
+            "timestamp": 1.25,
         }
         return (json.dumps({**response, "ok": True, "result": {"data": data}}) + "\n").encode()
 
@@ -74,14 +73,9 @@ def test_catalog_camera_uses_profile_target_and_returns_calibrated_files(camera)
     module, calls = camera
     reading = module.handle("read", {})
     assert reading["ok"], reading
-    assert (
-        reading["width"],
-        reading["height"],
-        reading["depth_width"],
-        reading["depth_height"],
-    ) == (2, 1, 2, 1)
-    assert reading["sample_time_s"] == reading["depth_sample_time_s"] == 1.25
-    assert reading["received_time_s"] > 0
+    assert set(reading) == {"ok", "file", "depth_file", "timestamp"}
+    assert reading["timestamp"] == 1.25
+    assert {key for key in reading if "time" in key} == {"timestamp"}
     assert "depth_scale" not in reading
     assert Path(reading["file"]).is_file()
     assert Path(reading["file"]).parent != module.transport.directory
@@ -140,7 +134,7 @@ def test_catalog_camera_rejects_invalid_acquisition_time(camera, monkeypatch, ti
     remote = module.remote
 
     def read(action, args):
-        return {**remote(action, args), "sample_time_s": timestamp}
+        return {**remote(action, args), "timestamp": timestamp}
 
     monkeypatch.setattr(module, "remote", read)
     assert not module.handle("read", {})["ok"]

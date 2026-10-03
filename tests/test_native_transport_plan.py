@@ -70,7 +70,7 @@ def test_transport_target_moves_away_from_a_joint_limit():
             "kinematics": {
                 "frame": "flange",
                 "fk": "numerical",
-                "feedback": "driver",
+
                 "frame_to_reported": [0, 0, 0, 0, 0, 0, 1],
                 "ik": None,
             },

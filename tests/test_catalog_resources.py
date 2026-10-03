@@ -1,6 +1,5 @@
 """Public catalogs resolve private assembly defaults from installed resources."""
 
-import runpy
 import shutil
 from pathlib import Path
 
@@ -15,16 +14,25 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog"
 
 
-def test_go2_arm_driver_converts_native_frame_poses():
+def test_go2_arm_driver_uses_shared_joint_contract():
     driver = CATALOG / "robots/isaaclab/isaaclab-go2-d1/devices/arm/driver.py"
-    normalize = runpy.run_path(str(driver))["kinex_reading"]
-    state = {"positions": [0.0], "frame_poses": {"flange": {
-        "translation_m": [1.0, 2.0, 3.0], "rotation_xyzw": [0.0, 0.0, 0.0, 1.0],
-    }}}
-    assert normalize(state)["frame_poses"]["flange"] == [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
-    assert state["frame_poses"]["flange"]["translation_m"] == [1.0, 2.0, 3.0]
-    with pytest.raises(KeyError, match="rotation_xyzw"):
-        normalize({"frame_poses": {"flange": {"translation_m": [1.0, 2.0, 3.0]}}})
+    assert driver.read_bytes() == (ROOT / "src/roboenv/assets/joint-client.py").read_bytes()
+
+
+def test_joint_catalogs_use_model_frames_and_shared_driver():
+    driver = (ROOT / "src/roboenv/assets/joint-client.py").read_bytes()
+    for path in (CATALOG / "robots").rglob("profile.yaml"):
+        profile = yaml.safe_load(path.read_text())
+        if profile["type"] not in {"joint", "dexterous_hand"}:
+            continue
+        facts = profile["intrinsics"]
+        kinematics, geometry = facts.get("kinematics"), facts.get("geometry")
+        computed = [kinematics["frame"]] if kinematics else []
+        if geometry:
+            computed += [finger["tip_frame"] for finger in geometry["fingers"].values()]
+            computed.append(geometry["center"]["frame"])
+        assert not set(computed).intersection(facts.get("frames", {})), path
+        assert path.with_name("driver.py").read_bytes() == driver, path
 
 
 def test_public_catalog_contains_only_robot_and_task_definitions():
@@ -100,23 +108,31 @@ def test_copied_go2_catalog_keeps_bindings_private_and_drivers_portable(tmp_path
     shutil.copytree(source, rig)
     shutil.copytree(CATALOG / "tasks/isaaclab", catalog / "tasks/isaaclab")
     tasks = load_catalog(catalog / "tasks")
-    assert set(tasks) == {"isaaclab/go2-d1-control", "isaaclab/go2-d1-reach",
-                          "isaaclab/go2-d1-pick-place"}
+    assert set(tasks) == {
+        "isaaclab/go2-d1-control",
+        "isaaclab/go2-d1-reach",
+        "isaaclab/go2-d1-pick-place",
+    }
     for task, _ in tasks.values():
         assert task.execution_mode == "realtime"
         assert "realtime" not in task.backend_kwargs
     assert list(rig.rglob("_roboenv.py")) == [rig / "devices/_roboenv.py"]
-    base_control = yaml.safe_load((rig / "devices/base/profile.yaml").read_text())[
-        "intrinsics"
-    ]["control"]
-    arm_control = yaml.safe_load((rig / "devices/arm/profile.yaml").read_text())[
-        "intrinsics"
-    ]["control"]
+    base_control = yaml.safe_load((rig / "devices/base/profile.yaml").read_text())["intrinsics"][
+        "control"
+    ]
+    arm_control = yaml.safe_load((rig / "devices/arm/profile.yaml").read_text())["intrinsics"][
+        "control"
+    ]
     assert "execution" not in base_control
     assert arm_control == {"mode": "position", "limit_handling": "native"}
     plan = BindingPlan.load(rig, backend="isaaclab")
     assert {d.name for d in plan.devices} == {
-        "base", "arm", "gripper", "camera_head", "camera_wrist", "world"
+        "base",
+        "arm",
+        "gripper",
+        "camera_head",
+        "camera_wrist",
+        "world",
     }
     assert binding_resource(rig, backend="isaaclab").is_file()
     assert not (catalog / "bindings").exists()

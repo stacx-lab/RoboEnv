@@ -69,7 +69,7 @@ def check(out):
             reads = [pool.submit(read, name, index) for index in range(4) for name in CAMERAS]
             errors.extend(future.result(timeout=10) for future in reads)
             assert not waiter.done(), "Camera reads waited for world.wait"
-            assert waiter.result(timeout=10)["data"]["elapsed_s"] >= 2
+            assert waiter.result(timeout=10)["data"]["waited_s"] >= 2
         report = {
             "passed": True,
             "camera_reads": len(errors),

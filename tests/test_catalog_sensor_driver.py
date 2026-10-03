@@ -25,11 +25,11 @@ def test_sensor_driver_is_read_only_and_returns_raw_measurements(name, monkeypat
 
     def remote(action, args):
         calls.append(action)
-        return {**raw, "sample_time_s": 0.04}
+        return {**raw, "timestamp": 0.04}
 
     monkeypatch.setattr(module.transport, "remote", remote)
     for action, args in [("write", {}), ("stop", {}), ("read", {"reset": True}), ("read", [])]:
         assert not module.handle(action, args)["ok"]
     assert calls == []
-    assert module.handle("read", {}) == {"ok": True, **raw, "sample_time_s": 0.04}
+    assert module.handle("read", {}) == {"ok": True, **raw, "timestamp": 0.04}
     assert calls == ["read"]

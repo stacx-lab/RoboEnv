@@ -10,7 +10,7 @@ import numpy as np
 import yaml
 
 from roboenv_runtime.adapters.device_control import DeviceControl
-from roboenv_runtime.adapters.urdf_geometry import matrix, matrix_pose
+from roboenv_runtime.adapters.urdf_geometry import matrix
 
 from .backend import BehaviorBackend, fix_cache_env
 from .instances import restore_instance
@@ -249,45 +249,41 @@ class BehaviorDevices(BehaviorBackend):
 
     def device_stop(self, name):
         if name.endswith("_gripper"):
-            self.gripper_holds[name] = self.device_read(name)["positions"]
+            self.gripper_holds[name] = array(self.robot.get_joint_positions())[
+                self.groups[name]["indices"]
+            ].tolist()
         result = self.control.stop(name, self._measured_target(name))
         return {**result, "behavior": "zero_velocity" if name == "base" else "hold"}
 
     @property
-    def sample_time_s(self):
+    def timestamp(self):
         return self.control.frame * self.control_interval
 
     def device_read(self, name):
-        elapsed = self.sample_time_s
+        elapsed = self.timestamp
         if name == "base":
             transform = pose(self.robot)
             linear = transform[:3, :3].T @ array(self.robot.get_linear_velocity())
             angular = transform[:3, :3].T @ array(self.robot.get_angular_velocity())
-            value = matrix_pose(transform)
             return {
-                "pose": {"translation_m": value[:3], "rotation_xyzw": value[3:]},
                 "velocities": [float(linear[0]), float(linear[1]), float(angular[2])],
                 "faults": [],
-                "sample_time_s": elapsed,
+                "timestamp": elapsed,
             }
         group = self.groups[name]
+        positions = array(self.robot.get_joint_positions())[group["indices"]].tolist()
         result = {
-            "positions": array(self.robot.get_joint_positions())[group["indices"]].tolist(),
-            "velocities": array(self.robot.get_joint_velocities())[group["indices"]].tolist(),
             "faults": [],
-            "sample_time_s": elapsed,
+            "timestamp": elapsed,
         }
-        if name in self.rig_frames:
-            frame = self.rig_frames[name]
-            result["frame_poses"] = {
-                "flange": matrix_pose(
-                    np.linalg.inv(pose(self.robot.links[frame["base"]]))
-                    @ pose(self.robot.links[frame["flange"]])
-                )
-            }
         if name.endswith("_gripper"):
-            result.update(group["gripper"].read(result["positions"]))
-        return result
+            return {**result, **group["gripper"].read(positions)}
+        return {
+            **result,
+            "positions": positions,
+            "velocities": array(self.robot.get_joint_velocities())[group["indices"]].tolist(),
+            "efforts": [],
+        }
 
     def device_image(self, name):
         import omnigibson as og

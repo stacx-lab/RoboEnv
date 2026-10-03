@@ -11,9 +11,9 @@ import json
 import math
 import os
 import re
+import secrets
 import socket
 import time
-import uuid
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -131,7 +131,7 @@ class Client:
             "protocol": PROTOCOL,
             "session": self.session,
             "generation": self.generation,
-            "request_id": request_id or f"roboenv-{uuid.uuid4().hex}",
+            "request_id": request_id or f"roboenv-{secrets.token_hex(8)}",
             "deadline_s": float(timeout),
             "op": op,
             "args": args or {},

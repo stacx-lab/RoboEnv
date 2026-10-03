@@ -4,6 +4,7 @@ import struct
 from pathlib import Path
 
 import numpy as np
+from roboenv.devices.model import local_frame
 from roboenv.provisioning.simple_assets import digest
 from roboenv_runtime.adapters.urdf_geometry import matrix
 
@@ -85,16 +86,11 @@ def extract_hand(tree, path, side, names):
     center = sum(weights[name] * value for name, value in home_tips.items())
     return {
         "geometry": {
-            "description": "Nominal mesh-distal fingertip references; grasp_center is the "
-            "midpoint between thumb and opposing-finger midpoint, with hand-aligned axes. "
-            "grasp_reference fixes that center at home. "
-            "These are geometric references, not contacts.",
             "palm_frame": "palm", "reference_frame": "grasp_reference", "fingers": fingers,
             "center": {"frame": "grasp_center", "weights": weights, "rotation_xyzw": [0, 0, 0, 1]},
         },
-        "frames": {"palm": transform(palm),
-                   "grasp_reference": [*np.round(center, 12).tolist(), 0, 0, 0, 1],
-                   **dict.fromkeys(frame_bodies), "grasp_center": None},
+        "frames": {"palm": local_frame(transform(palm)),
+                   "grasp_reference": local_frame([*np.round(center, 12).tolist(), 0, 0, 0, 1])},
         "frame_bodies": frame_bodies,
         "geometry_sources": sources,
     }

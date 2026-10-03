@@ -67,7 +67,13 @@ def probe(suite, task, init, directory, render=False):
             q[[0, 2, 4]] += shift
             world.sim.data.qpos[world._robot._ref_joint_pos_indexes] = q
             world.sim.forward()
-            actual = call("arm", "read")["frame_poses"]["flange"]
+            from roboenv_runtime.adapters.robocasa.geometry import pose
+            native_model, native_data = world.sim.model._model, world.sim.data._data
+            arm_joints = world._robot.controller.joint_index
+            base = int(native_model.body_parentid[native_model.jnt_bodyid[arm_joints[0]]])
+            tip = world.sim.model.body_name2id(world._robot.robot_model.eef_name)
+            assert "frame_poses" not in call("arm", "read")
+            actual = pose(native_model, native_data, tip, base)
             expected = model.fk(q.tolist())["pose"]
             fk_errors.append(float(np.max(np.abs(np.array(actual[:3]) - expected[:3]))))
             assert fk_errors[-1] < 1e-09
@@ -100,12 +106,12 @@ def probe(suite, task, init, directory, render=False):
         assert error < 0.01, (suite, task, error)
         call("gripper", "write", actions=[1], duration_s=1)
         call("world", "wait", duration_s=1)
-        closed = call("gripper", "read")["positions"]
+        closed = call("gripper", "read")["aperture_m"]
         assert np.array_equal(world._robot.controller.goal_qpos, goal)
         call("gripper", "write", actions=[-1], duration_s=1)
         call("world", "wait", duration_s=1)
-        opened = call("gripper", "read")["positions"]
-        assert abs(opened[0] - opened[1]) > abs(closed[0] - closed[1]) + 0.01
+        opened = call("gripper", "read")["aperture_m"]
+        assert opened > closed + 0.01
         call("gripper", "stop")
         call("arm", "write", actions=[q], duration_s=len([q]) / 20)
         call("world", "wait", duration_s=0.15)
@@ -127,7 +133,7 @@ def probe(suite, task, init, directory, render=False):
             for camera in ("camera", "camera_wrist"):
                 budget = adapter.budget().used
                 result = call(camera, "read")
-                assert (result["width"], result["height"]) == (256, 256)
+                assert not {"width", "height", "depth_width", "depth_height"} & result.keys()
                 assert Path(result["file"]).read_bytes().startswith(b"\x89PNG")
                 assert adapter.budget().used == budget
                 frames[camera] = result["file"]

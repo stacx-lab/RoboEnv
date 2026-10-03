@@ -64,7 +64,7 @@ def test_sibling_drivers_share_one_transport_and_remove_legacy_copies(tmp_path):
     write_driver(gripper, "gripper")
     assert shared.stat().st_mtime_ns == first
     assert list(tmp_path.rglob("_roboenv.py")) == [shared]
-    assert [str(p) for p in shared_driver_resources(tmp_path)] == ["_roboenv.py"]
+    assert [str(p) for p in shared_driver_resources(tmp_path)] == ["_roboenv.py", "_camera.py"]
     assert [str(p) for p in driver_resources(arm)] == ["driver.py"]
     assert [str(p) for p in driver_resources(gripper)] == ["driver.py"]
 

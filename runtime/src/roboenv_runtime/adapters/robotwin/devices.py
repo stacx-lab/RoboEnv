@@ -174,7 +174,8 @@ class RoboTwinDevices(RoboTwinEnv):
     def device_stop(self, name):
         side = name.split("_", 1)[0]
         if name.endswith("gripper"):
-            self.gripper_holds[name] = self.device_read(name)["positions"]
+            entity, indexes = self._device_joints(name)
+            self.gripper_holds[name] = entity.get_qpos()[indexes].astype(float).tolist()
         target = (
             self._gripper_target(side)
             if name.endswith("gripper")
@@ -182,7 +183,7 @@ class RoboTwinDevices(RoboTwinEnv):
         )
         return self.control.stop(name, target)
 
-    def device_read(self, name):
+    def _device_joints(self, name):
         if name not in self.device_facts or self.device_facts[name]["type"] not in {
             "joint",
             "gripper",
@@ -197,21 +198,24 @@ class RoboTwinDevices(RoboTwinEnv):
             else getattr(self.task.robot, side + "_arm_joints")
         )
         active = entity.get_active_joints()
-        indexes = [active.index(joint) for joint in joints]
+        return entity, [active.index(joint) for joint in joints]
+
+    def device_read(self, name):
+        entity, indexes = self._device_joints(name)
+        positions = entity.get_qpos()[indexes].astype(float).tolist()
         result = {
-            "positions": entity.get_qpos()[indexes].astype(float).tolist(),
-            "velocities": entity.get_qvel()[indexes].astype(float).tolist(),
             "faults": [],
-            "sample_time_s": self.sample_time_s,
+            "timestamp": self.timestamp,
         }
-        if not gripper:
-            frames = self.rig_frames[side]
-            base = entity.find_link_by_name(frames["base"]).get_pose()
-            flange = entity.find_link_by_name(frames["flange"]).get_pose()
-            result.update(efforts=[], frame_poses={"flange": pose(base.inv() * flange)})
-        if gripper:
-            result.update(self.rig_frames[side]["gripper"].read(result["positions"]))
-        return result
+        if name.endswith("gripper"):
+            gripper = self.rig_frames[name.split("_", 1)[0]]["gripper"]
+            return {**result, **gripper.read(positions)}
+        return {
+            **result,
+            "positions": positions,
+            "velocities": entity.get_qvel()[indexes].astype(float).tolist(),
+            "efforts": [],
+        }
 
     def _camera(self, name):
         cameras = self.task.cameras
@@ -222,7 +226,7 @@ class RoboTwinDevices(RoboTwinEnv):
         return getattr(cameras, name)
 
     @property
-    def sample_time_s(self):
+    def timestamp(self):
         return self._sim_step_count / 250
 
     def _verify_cameras(self):

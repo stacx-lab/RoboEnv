@@ -16,19 +16,28 @@ intrinsics:
     close_target: 0
     speed: null
   feedback:
-    positions:
-    - name: d1_Joint7_1
-      units: m
-    - name: d1_Joint7_2
-      units: m
-    velocities: true
-    sensors: []
-    clock: simulation
+    aperture_m: false
   stop:
     behavior: hold
     affected_devices:
     - gripper
-  frames: {}
+  frames:
+    tcp:
+      parent_frame: null
+      translation_m:
+      - 0
+      - 0
+      - 0.105
+      rotation_xyzw:
+      - 0
+      - 0
+      - 0
+      - 1
+  geometry:
+    description: Two opposing sliding fingers. Finger surface dimensions and physical
+      aperture calibration are unspecified.
+    approach_axis: ???
+    closing_axis: ???
 extrinsics:
   source: introspected
   method: introspection
@@ -39,7 +48,7 @@ extrinsics:
     translation_m:
     - 0
     - 0
-    - 0.105
+    - 0
     rotation_xyzw:
     - 0
     - 0

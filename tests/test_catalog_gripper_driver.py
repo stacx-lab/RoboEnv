@@ -23,33 +23,33 @@ def gripper(monkeypatch):
     spec.loader.exec_module(module)
     calls = []
 
-    def remote(action, args):
+    def remote(action, args, *, request_id=None):
         calls.append((action, args))
+        sample = {"aperture_m": 0.039, "faults": [], "timestamp": 1.25}
         if action == "read":
-            return {
-                "positions": [0.02, -0.02],
-                "velocities": [0, 0],
-                "faults": [],
-                "sample_time_s": 1.25,
-            }
+            return sample
+        if action == "write":
+            return {"execution_id": request_id, "state": sample}
         if action == "stop":
             return {"stopped": True, "behavior": "hold", "affected_devices": ["gripper"]}
         return {"accepted": True}
 
     monkeypatch.setattr(module, "remote", remote)
+    monkeypatch.setattr(module.transport, "remote", remote)
     return module, calls
 
 
-def test_gripper_has_one_signed_command_and_two_measured_channels(gripper):
+def test_gripper_has_one_signed_command_and_measured_aperture(gripper):
     module, calls = gripper
-    assert module.handle("write", {"actions": [0.3, 0, -0.5], "duration_s": 0.3}) == {
-        "ok": True, "accepted": True
-    }
+    result = module.handle("write", {"actions": [0.3, 0, -0.5], "duration_s": 0.3})
+    assert result["ok"] and result["execution_id"].startswith("driver-")
+    assert result["state"]["aperture_m"] == pytest.approx(0.039)
+    assert set(result["state"]) == {"aperture_m", "faults", "timestamp"}
     assert calls == [("write", {"actions": [1.0, 0, -1.0], "duration_s": 0.3})]
     result = module.handle("read", {})
     assert result["ok"], result
-    assert result["positions"] == [0.02, -0.02]
-    assert result["sample_time_s"] == 1.25 and result["aperture_m"] == pytest.approx(0.039)
+    assert set(result) == {"ok", "aperture_m", "faults", "timestamp"}
+    assert result["timestamp"] == 1.25 and result["aperture_m"] == pytest.approx(0.039)
     assert module.handle("stop", {}) == {
         "ok": True,
         "stopped": True,
@@ -84,7 +84,7 @@ def test_feedback_and_stop_mismatch_are_rejected(gripper, monkeypatch):
             "positions": [0],
             "velocities": [0],
             "faults": [],
-            "sample_time_s": 1,
+            "timestamp": 1,
         },
     )
     assert module.handle("read", {})["ok"] is False
@@ -94,9 +94,10 @@ def test_feedback_and_stop_mismatch_are_rejected(gripper, monkeypatch):
 
 def test_catalog_gripper_preserves_tcp_and_omits_ratings():
     profile = yaml.safe_load((GRIPPER / "profile.yaml").read_text())
-    assert profile["extrinsics"]["mount"]["translation_m"] == [0, 0, 0.097]
+    assert profile["extrinsics"]["mount"]["translation_m"] == [0, 0, 0]
+    assert profile["intrinsics"]["frames"]["tcp"]["translation_m"] == [0, 0, 0.097]
     assert profile["extrinsics"]["mount"]["parent_frame"] == "flange"
     assert "grip_force_n" not in profile["intrinsics"]
     assert "mass_kg" not in profile["intrinsics"]
-    assert profile["intrinsics"]["feedback"]["sensors"] == []
-    assert profile["intrinsics"]["control"]["increment_per_interval"] == 0.2
+    assert profile["intrinsics"]["feedback"] == {"aperture_m": True}
+    assert "increment_per_interval" not in profile["intrinsics"]["control"]

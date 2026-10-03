@@ -174,12 +174,6 @@ def _dimensions(device):
             "closes. It is a controller command, not an aperture in metres.",
             f"Physical aperture range in metres: {_value(facts.get('aperture_m'))}.",
         ]
-        if "increment_per_interval" in control:
-            lines.append(
-                "The direction command changes the internal gripper target by "
-                f"{control['increment_per_interval']} per control interval; "
-                "zero retains that target. Inspect finger feedback to measure opening."
-            )
     meanings = {
         "vx": "linear X component",
         "vy": "linear Y component",
@@ -219,8 +213,21 @@ def _dimensions(device):
         lines.append(
             f"Feedback `positions[{index}]` is `{position['name']}` in {position['units']}."
         )
+    if device["type"] == "gripper":
+        lines.append(
+            "Reads report aperture, faults and timestamp; finger poses are unavailable."
+        )
+        description = facts.get("geometry", {}).get("description")
+        if description:
+            lines.append(description)
     feedback = facts.get("feedback", {})
-    if feedback.get("pose_frame"):
+    if device["type"] == "velocity":
+        lines.append(
+            "Reads and write states omit global pose. The base is an unlocalized root; "
+            "world-relative transforms require explicit estimates. Body measurements and "
+            "nonempty parent-relative frame_poses may be present."
+        )
+    elif feedback.get("pose_frame"):
         lines.append(f"Feedback pose uses the `{feedback['pose_frame']}` frame.")
     if feedback.get("velocity_components"):
         lines.append(
@@ -229,6 +236,13 @@ def _dimensions(device):
             + f"; frame: `{feedback.get('velocity_frame')}`. "
             "Linear feedback is metres/second; angular feedback is radians/second."
         )
+    if device["type"] == "world":
+        lines += [
+            "`read()` returns `time_s` and optional `budget: {used_s, max_s}`; "
+            "`max_s: null` means no cap. `wait(duration_s=...)` returns the completion "
+            "clock `time_s` and actual `waited_s`. In realtime mode the clock also "
+            "advances between calls. Budget consumption can include initialization."
+        ]
     if device["type"] in {"rgb", "rgbd"}:
         color, depth = facts.get("color", {}), facts.get("depth", {})
         lines += [
@@ -254,7 +268,12 @@ def _dimensions(device):
             "`read()` downloads image artifacts and returns local "
             "`file` / `depth_file` paths. "
             "Copy any images you need before closing the SDK connection; its temporary "
-            "downloads are removed on close."
+            "downloads are removed on close. "
+            "SDK and exported-driver reads accept output='file' (default), 'array', or 'base64'. "
+            "Array mode returns NumPy color (uint8 RGB) and optional depth (uint16); "
+            "base64 mode returns PNG/PGM16 strings under color/depth. Both include timestamp. "
+            "Install roboenv[camera] for SDK array decoding. The server wire action is unchanged; "
+            "output conversion happens in the client/driver."
         ]
     mount = device.get("extrinsics", {}).get("mount")
     if mount:
@@ -263,8 +282,6 @@ def _dimensions(device):
             f"translation {_value(mount.get('translation_m'))} metres; "
             f"rotation {_value(mount.get('rotation_xyzw'))} in quaternion [x, y, z, w]."
         ]
-    if facts.get("geometry", {}).get("description"):
-        lines.append(facts["geometry"]["description"])
     if facts.get("stop"):
         lines.append(
             f"Device stop behavior: {_value(facts['stop'].get('behavior'))}; "
@@ -312,11 +329,16 @@ def render_documentation(robot, devices, connection):
         "Poses use [x, y, z, qx, qy, qz, qw]: metres and a unit quaternion. "
         "Structured poses use `translation_m` and `rotation_xyzw`. Frames are right-handed; "
         "`arm:flange` names a local frame. Mounts map child coordinates to the parent. "
-        "Null local frames come from measured `frame_poses`; `???` means unknown.",
+        "Local frames declare `parent_frame`, `translation_m`, and `rotation_xyzw`: null parent "
+        "means device base; null transform components mean unknown. Joint `kinematics.frame` "
+        "and hand geometry declare computed frames directly; omit duplicate `frames` entries. "
+        "Joint reads omit "
+        "`frame_poses`; obtain joint poses through local FK at measured positions. FK/IK accept "
+        "`frame` and `reference_frame` (null means base), and return both names.",
         "",
         "Sequence completion is not arrival. Reads never request physics steps. "
         "After an uncertain write, inspect `roboenv operation ID` before sending another. "
-        "Compare timestamps only within their declared clock. Local kinematic geometry "
+        "Use world for time and waits. Local kinematic geometry "
         "does not imply server-side IK/FK support.",
         "",
         "## Robot specification",

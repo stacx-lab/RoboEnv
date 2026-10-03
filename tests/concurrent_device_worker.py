@@ -47,7 +47,7 @@ def bind(spec, root, context):
             "velocities": [0],
             "efforts": [],
             "faults": [],
-            "sample_time_s": adapter.control.frame * 0.02,
+            "timestamp": adapter.control.frame * 0.02,
             "commands": [
                 entry for entry in adapter.control.commands if name in entry.get("commands", {})
             ],

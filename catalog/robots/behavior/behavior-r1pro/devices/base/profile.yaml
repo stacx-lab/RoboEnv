@@ -28,13 +28,11 @@ intrinsics:
     affected_devices:
     - base
   feedback:
-    pose_frame: world
     velocity_frame: body
     velocity_components:
     - vx
     - vy
     - wz
-    clock: simulation
 extrinsics:
   source: introspected
 access:

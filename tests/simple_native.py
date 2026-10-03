@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 from roboenv_runtime.adapters.simple.backend import SimpleEnv
-from roboenv_runtime.adapters.urdf_geometry import matrix
+from roboenv_runtime.adapters.urdf_geometry import matrix, matrix_pose
 from simple_hand_probe import compare as check_hands
 
 
@@ -25,7 +25,12 @@ def check_geometry(world):
                 anchor = np.asarray(link["anchor"])
                 rotation[:3, 3] = anchor - rotation[:3, :3] @ anchor
                 transform = transform @ rotation
-        errors[name] = float(np.max(np.abs(transform - matrix(state["frame_poses"]["flange"]))))
+        part = world.model["parts"][name]
+        measured = (
+            np.linalg.inv(matrix(world._pose(part["base"]))) @ matrix(world._pose(part["tip"]))
+        )
+        assert "frame_poses" not in state
+        errors[name] = float(np.max(np.abs(transform - measured)))
     assert max(errors.values()) < 1e-6, errors
     return errors
 
@@ -41,6 +46,7 @@ def check(args):
         world.reset(args.seed)
         before = {"states": {n: world.read_device(n) for n in world.control.targets}}
         initial = world.state().copy()
+        initial_pelvis = np.asarray(world._pose("pelvis")[:3]).copy()
         geometry_before = check_geometry(world)
         hands_before = check_hands(world, args.kinex)
         cameras = {name: world.read_camera(name, args.out) for name in world.model["cameras"]}
@@ -72,11 +78,11 @@ def check(args):
                 world.control.write(command["device"], command["args"])
             world.control.tick()
         after = {"states": {n: world.read_device(n) for n in world.control.targets}}
-        assert abs(world.sample_time_s - 1.2) < 1e-9
+        assert "pose" not in after["states"]["base"]
+        assert abs(world.timestamp - 1.2) < 1e-9
         assert world.control.targets["right_arm"] == targets["right_arm"]
         displacement = np.linalg.norm(
-            np.asarray(after["states"]["base"]["pose"]["translation_m"])
-            - before["states"]["base"]["pose"]["translation_m"]
+            np.asarray(world._pose("pelvis")[:3]) - initial_pelvis
         )
         arm_motion = np.linalg.norm(
             np.asarray(after["states"]["left_arm"]["positions"])
@@ -101,7 +107,7 @@ def check(args):
             final_image = np.asarray(Image.open(final_cameras[name]["file"]))
             assert initial_image.max() > 0 and final_image.max() > 0, name
             assert not np.array_equal(initial_image, final_image), name
-            assert final_cameras[name]["sample_time_s"] == world.sample_time_s
+            assert final_cameras[name]["timestamp"] == world.timestamp
         assert not np.array_equal(
             np.asarray(Image.open(final_cameras["camera_head_left"]["file"])),
             np.asarray(Image.open(final_cameras["camera_head_right"]["file"])),
@@ -114,7 +120,8 @@ def check(args):
         assert "waist" not in world.control.targets
         np.testing.assert_allclose(
             after["states"]["base"]["frame_poses"]["torso"],
-            world.read_device("waist")["frame_poses"]["flange"],
+            matrix_pose(np.linalg.inv(matrix(world._pose(world.model["parts"]["waist"]["base"])))
+                        @ matrix(world._pose(world.model["parts"]["waist"]["tip"]))),
         )
         # Upper joint targets survive native lower-body inference unchanged.
         for group in ("arms", "hands"):
@@ -132,10 +139,10 @@ def check(args):
                 for n in names
             ]
             np.testing.assert_array_equal(actual, expected)
-        stamp = world.sample_time_s
+        stamp = world.timestamp
         for name in world.control.targets:
             world.control.stop(name)
-        assert world.sample_time_s == stamp
+        assert world.timestamp == stamp
         assert world.control.targets["base"][:3] == [0, 0, 0]
         assert world.mjdata.ncon > 0, "No native contacts during standing/walking"
         (args.out / "record.json").write_text(json.dumps(world.record()) + "\n")

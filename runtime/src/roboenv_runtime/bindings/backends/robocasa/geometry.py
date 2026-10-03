@@ -43,7 +43,8 @@ def mounts(spec, definition, context):
     elif entity == "gripper":
         flange = sim.model.body_name2id(robot.robot_model.eef_name["right"])
         site = sim.model.site_name2id(robot.gripper["right"].important_sites["grip_site"])
-        transform = relative_mount(data.site_xpos[site], data.site_xmat[site].reshape(3, 3), flange)
+        body = int(model.body_parentid[model.site_bodyid[site]])
+        transform = relative_mount(data.xpos[body], data.xmat[body].reshape(3, 3), flange)
         extrinsics = {
             "source": "introspected",
             "method": "introspection",

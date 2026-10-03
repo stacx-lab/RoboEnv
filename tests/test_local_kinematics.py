@@ -27,15 +27,19 @@ import yaml
 path = Path(sys.argv[1])
 sys.path.insert(0, str(path.parent))
 profile = yaml.safe_load(path.with_name('profile.yaml').read_text())
+assert profile['intrinsics']['kinematics']['frame'] not in profile['intrinsics'].get('frames', {})
 handle = runpy.run_path(str(path))['handle']
 def no_network(*args, **kwargs):
     raise AssertionError('Kinematics contacted the simulator')
 handle.__globals__['remote'] = no_network
 joints = profile['intrinsics']['model']['joints']
 home = [profile['intrinsics']['home'][j['name']] for j in joints]
-result = handle('fk', {'joints': home})
+frame = profile['intrinsics']['kinematics']['frame']
+result = handle('fk', {'joints': home, 'frame': frame, 'reference_frame': None})
 assert result['ok'], result
-solved = handle('ik', {'pose': result['pose'], 'seed': home})
+assert result['frame'] == frame and result['reference_frame'] is None
+solved = handle('ik', {'pose': result['pose'], 'seed': home,
+                       'frame': frame, 'reference_frame': None})
 assert solved['ok'], solved
 assert all(abs(a-b) < 1e-10 for a,b in zip(solved['joints'], home))
 assert not {'numpy', 'mujoco', 'robosuite', 'roboenv', 'roboenv_runtime'} & sys.modules.keys()

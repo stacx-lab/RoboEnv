@@ -5,8 +5,6 @@ intrinsics:
   source: introspected
   method: introspection
   calibrated_at: null
-  frames:
-    flange: null
   model:
     format: serial_chain
     joints:
@@ -252,7 +250,6 @@ intrinsics:
       rotation_tolerance_rad: 0.01
       max_iterations: 200
       damping: 0.01
-    feedback: driver
     frame_to_reported:
     - 0
     - 0
@@ -275,7 +272,6 @@ intrinsics:
   feedback:
     velocities: true
     efforts: false
-    clock: simulation
   stop:
     behavior: hold
     affected_devices:

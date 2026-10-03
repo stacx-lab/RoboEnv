@@ -21,19 +21,6 @@ def model():
     return JointDevice(settings(), transport.directory)
 
 
-def kinex_reading(state):
-    frames = state.get("frame_poses", {})
-    return {
-        **state,
-        "frame_poses": {
-            name: [*value["translation_m"], *value["rotation_xyzw"]]
-            if isinstance(value, dict)
-            else value
-            for name, value in frames.items()
-        },
-    }
-
-
 def handle(action, args):
     try:
         profile = settings()
@@ -53,33 +40,37 @@ def handle(action, args):
             return {"ok": True, **result}
         joint = model()
         if action == "fk":
-            if set(args) != {"joints"}:
-                raise ValueError("fk requires only joints")
-            return {"ok": True, **joint.fk(args["joints"])}
+            if set(args) - {"joints", "frame", "reference_frame"} or "joints" not in args:
+                raise ValueError("fk requires joints and optional frame/reference_frame")
+            return {"ok": True, **joint.fk(**args)}
         if action == "ik":
-            if set(args) - {"pose", "seed"} or "pose" not in args:
-                raise ValueError("ik requires pose and optional seed")
+            if set(args) - {"pose", "seed", "frame", "reference_frame"} or "pose" not in args:
+                raise ValueError("ik requires pose and optional seed/frame/reference_frame")
             seed = args.get("seed")
             if seed is None:
                 seed = joint.project(remote("read", {})["positions"])
-            return {"ok": True, **joint.ik(args["pose"], seed)}
+            return {
+                "ok": True,
+                **joint.ik(args["pose"], seed, args.get("frame"), args.get("reference_frame")),
+            }
         if action == "write":
             joint.command(args)
-            data = remote(action, args)
-            if not isinstance(data.get("state"), dict) or "elapsed_s" not in data:
-                raise ValueError("motion must return elapsed_s and measured state")
-            data["state"] = joint.reading(kinex_reading(data["state"]))
-            return {"ok": True, **data}
+            return {"ok": True, **transport.write(args, joint.reading)}
         if action == "read":
             data = remote(action, args)
             return {
                 "ok": True,
-                **joint.reading(kinex_reading(data)),
+                **joint.reading(data),
             }
         raise ValueError(f"Unsupported joint action: {action}")
     except WireError as exc:
-        return {"ok": False, "error": str(exc), "code": exc.code,
-                "request_id": exc.request_id, "details": exc.details}
+        return {
+            "ok": False,
+            "error": str(exc),
+            "code": exc.code,
+            "request_id": exc.request_id,
+            "details": exc.details,
+        }
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 

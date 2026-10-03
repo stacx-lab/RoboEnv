@@ -52,9 +52,9 @@ with live descriptors, independently of the Kinex file-driver projection.
 
 | Device | Input | Measured output |
 | --- | --- | --- |
-| `base` | Body-frame `vx`, `vy`, `wz`; ground-relative `height`, `roll`, `pitch` | World pose, height, six body-frame velocities, faults, simulation timestamp |
-| `arm` | Six absolute D1 joint angles in URDF order `Joint1` through `Joint6` | Positions, velocities, flange pose relative to arm mount |
-| `gripper` | Normalized opening: 0 closed, 1 open | Two finger joint positions and velocities |
+| `base` | Body-frame `vx`, `vy`, `wz`; ground-relative `height`, `roll`, `pitch` | Root height above the scene Z=0 plane, six body-frame velocities, faults, simulation timestamp |
+| `arm` | Six absolute D1 joint angles in URDF order `Joint1` through `Joint6` | Positions and velocities; compute flange pose relative to the arm mount with explicit FK |
+| `gripper` | Normalized opening: 0 closed, 1 open | Aperture unavailable (`aperture_m: null`), faults and timestamp |
 | `camera_head` | Read | D435-mounted RGB and registered optical-axis depth |
 | `camera_wrist` | Read | D405-mounted RGB and registered optical-axis depth |
 | `world` | `read`, `wait(duration_s)` | Shared simulation time; static world reference |
@@ -99,8 +99,7 @@ print(base.read()["data"])
 print(env.device("camera_wrist").read()["data"])
 ```
 
-Writes submit validated buffers and return immediately with `execution_id`,
-submission `elapsed_s` and measured `state`. Arm writes use
+Writes submit validated buffers and return immediately with `execution_id` and measured `state`. Arm writes use
 `env.device("arm").write(actions=[[q1, q2, q3, q4, q5, q6]], duration_s=1.0)`;
 gripper writes use `env.device("gripper").write(actions=[0.8], duration_s=0.2)`.
 Use `world.wait(...)` to wait in simulation time; submitting a write does not

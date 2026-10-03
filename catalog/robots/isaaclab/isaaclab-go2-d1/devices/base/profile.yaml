@@ -39,7 +39,6 @@ intrinsics:
             bounds: null
             default: 0.0
   feedback:
-    pose_frame: world
     velocity_frame: base
     velocity_components:
     - vx
@@ -48,7 +47,6 @@ intrinsics:
     - wx
     - wy
     - wz
-    clock: simulation
   stop:
     behavior: stand
     affected_devices:

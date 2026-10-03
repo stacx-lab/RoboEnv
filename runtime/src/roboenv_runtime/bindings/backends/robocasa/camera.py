@@ -65,7 +65,7 @@ def intrinsics(width, height, vertical_fov, rgbd):
 
 
 def bind(spec, root, context):
-    import uuid
+    import secrets
     from pathlib import Path
 
     from roboenv_runtime.adapters.robocasa.depth import write_depth
@@ -90,9 +90,8 @@ def bind(spec, root, context):
 
         directory = Path(context.native.run_dir) / "captures"
         directory.mkdir(parents=True, exist_ok=True)
-        file = directory / f"{uuid.uuid4().hex}.png"
+        file = directory / f"{secrets.token_hex(8)}.png"
         extra = {}
-        # Use the same clock as joint feedback; receipt time is added by transport.
         acquired = float(sim.data.time)
         if definition.type == "rgbd":
             rgb, depth = world.render_rgbd(camera)
@@ -100,15 +99,12 @@ def bind(spec, root, context):
                 raise ValueError("Depth and RGB image dimensions must match")
             depth_file = file.with_suffix(".pgm")
             write_depth(depth_file, depth)
-            extra = {
-                "depth_file": str(depth_file),
-                "depth_width": width,
-                "depth_height": height,
-                "depth_sample_time_s": acquired,
-            }
+            extra = {"depth_file": str(depth_file)}
         else:
             rgb = world.render(camera)
         h, w, _ = write_png(file, rgb)
-        return {"file": str(file), "height": h, "width": w, "sample_time_s": acquired, **extra}
+        if (h, w) != (height, width):
+            raise ValueError("Camera dimensions differ from the profile")
+        return {"file": str(file), "timestamp": acquired, **extra}
 
     return finish(spec, definition, context, facts, {"read": action("read", read)})

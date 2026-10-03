@@ -5,7 +5,10 @@ intrinsics:
   method: introspection
   calibrated_at: null
   frames:
-    torso: null
+    torso:
+      parent_frame: null
+      translation_m: null
+      rotation_xyzw: null
   control:
     mode: motion
     limit_handling: native
@@ -44,7 +47,6 @@ intrinsics:
             default: 0.0
             bounds: null
   feedback:
-    pose_frame: world
     velocity_frame: base
     velocity_components:
     - vx
@@ -53,7 +55,6 @@ intrinsics:
     - wx
     - wy
     - wz
-    clock: simulation
   stop:
     behavior: stand
     affected_devices:

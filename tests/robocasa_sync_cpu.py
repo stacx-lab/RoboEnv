@@ -40,7 +40,7 @@ def check(root, temporary):
         goal = list(profile["intrinsics"]["home"].values())
         goal[0] += 0.1
         result = call("arm", "write", actions=[goal] * 4, duration_s=len([goal] * 4) / 10)
-        assert result["execution_id"] and result["elapsed_s"] == 0
+        assert result["execution_id"] and "elapsed_s" not in result
         assert native._step_count == 0
         call("world", "wait", duration_s=0.4)
         assert native._step_count == 8

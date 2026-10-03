@@ -175,19 +175,41 @@ mount alone does not make privileged data safe to expose.
 Use Kinex's schema and required-action definitions. Joint-only devices need no solver. Advertised FK/IK must actually work.
 Unsupported actions fail explicitly. Do not pad devices with unrelated methods.
 
+Joint `kinematics.frame` and hand geometry declare their computed frames relative
+to the device base. `intrinsics.frames` contains only additional references, which
+may attach to computed frames. Exported drivers resolve these through Kinex FK;
+reads remain measurement-only.
+
 - `read` samples a sensor or actuator without advancing physics. Actuator state
-  includes positions, velocities, and faults. Declared `frame_poses` are expressed
-  in the canonical device frame, in metres and quaternion xyzw.
+  includes positions, velocities, efforts, faults and timestamp for joint devices;
+  joint, hand and gripper reads omit `frame_poses`. Velocity reads and write states
+  omit global `pose`; their profiles omit `feedback.pose_frame` and fixed mounts.
+  Body measurements such as height and nonempty local `frame_poses` remain available.
+  Bases are unlocalized roots; world-relative queries require explicit estimates.
+  Other devices may supply named live
+  poses relative to each frame's declared parent, in metres and quaternion xyzw.
 - Joint `write` submits absolute vectors; gripper and suction submit flat numeric
   sequences. Velocity devices submit velocity/posture channels. All require a duration.
 - `stop` clears the affected buffers and applies the declared hold/halt behavior
   without advancing physics.
-- `fk(joints)` and `ik(pose, seed=...)` convert joint and flange-pose representations
+- `fk(joints, frame=..., reference_frame=...)` and `ik(pose, seed=..., frame=...,
+  reference_frame=...)` convert joint and selected-frame pose representations
   locally in the joint driver using static profile geometry and Kinex
-  utilities. RoboCasa does not expose simulator IK/FK RPCs. An omitted seed requires
+  utilities. Defaults are the modeled endpoint and null (device base); results
+  include both frame names. Fixed endpoint descendants and fixed base references
+  are supported. FK accepts measured joint-limit overshoot without clamping.
+  RoboCasa does not expose simulator IK/FK RPCs. An omitted seed requires
   only a joint-state read; solving never alters live state. Exported drivers use
   standalone transport and do not require the RoboEnv SDK in the agent environment.
 - Lifecycle operations affect the device binding, not episode ownership.
+
+Device observations use one finite numeric `timestamp` in seconds, including
+measured state in write results. Use acquisition time, or receipt time when it is
+unavailable, in the device's clock. Combined observations use the latest component
+time; cached observations retain it. RoboEnv timestamps use simulation time.
+Camera reads return file paths and timestamp; fixed dimensions stay in profiles
+and are validated against image contents.
+Generated UUIDs are replaced by 16 random hexadecimal characters; IDs remain opaque.
 
 A camera read must work before the first motion and return a client-accessible image
 file plus metadata. The file must survive a one-shot driver process so Kinex can
@@ -195,7 +217,9 @@ record it. Explicit SDK client cleanup may remove its downloaded artifacts. RGBD
 requires registered metric depth and calibration, not an unrelated second image.
 
 Device boundaries must support correct frame composition. Static profiles contain
-rigid transforms; moving transforms come from declared robot-state measurements.
+parent-relative frame definitions `{parent_frame, translation_m, rotation_xyzw}`.
+Null parent means the device base; null transform components mean unknown.
+Moving joint transforms use FK at measured positions.
 Device names identify canonical frames; named moving and fixed frames are explicit.
 RoboCasa's lift is a joint endpoint with frame `top`, and its arm declares `flange`.
 Mounted descendants refer to these names without type-specific frame traversal.
@@ -217,22 +241,22 @@ The standard RoboCasa devices are:
 `write({actions, duration_s})` validates and replaces a device buffer.
 Gripper and suction accept flat numeric sequences; joint and dexterous-hand
 devices accept joint-vector sequences. End-effectors have no separate target write.
-It returns immediately with `execution_id`, submission `elapsed_s` and measured `state`.
+It returns immediately with `execution_id` and measured `state`.
 The native executor consumes references at its fixed cadence; input frequency is
 `len(actions) / duration_s`. References may be resampled; the final reference is
 retained. Velocity commands expire to zero velocity while preserving posture.
 Replacement does not call stop. Explicit stop clears its declared scope.
 
 `world.read()` returns `time_s` and, for native `action_frames` budgets, an optional
-`budget: {elapsed_s, max_s}` in seconds. Both values use the native control interval;
+`budget: {used_s, max_s}` in seconds. Both values use the native control interval;
 `max_s` is null when uncapped, including realtime mode. Consumption includes any
-counted initialization frames, so `elapsed_s` can differ from `time_s`. This is
+counted initialization frames, so `used_s` can differ from `time_s`. This is
 native episode accounting, not wall-clock time or an orchestrator deadline. Other budget
 units (`sim_steps`, `api_calls`, and unknown units) omit the field because their
 duration is not established. `world.status()` remains `{loaded: true}`.
 
 `world.wait(duration_s)` waits in world time and
-returns `time_s` and actual `elapsed_s`. Concurrent waits overlap; they do not
+returns `time_s` and actual `waited_s`. Concurrent waits overlap; they do not
 multiply physics steps. Tick rounding may extend elapsed time by less than one
 control interval. Reads never advance physics.
 
@@ -245,6 +269,11 @@ and arrival checks belong to the harness.
 Background motion retains resource ownership after submission. Faults stop the
 affected motion and remain visible through reads. `devices.cancel` cancels only
 the named request's wait or owned motion; late cleanup cannot stop a replacement.
+Portable actuator drivers cancel their own request when accepted feedback is
+malformed, including when the returned execution identity is missing. Uncertain
+transport outcomes are cancelled by the outgoing request identity without retrying
+the write. Cleanup failures report `stop_failed` and block further driver writes
+until recovery.
 Reset, freeze and shutdown settle pending waits and motion before releasing resources.
 A new episode invalidates old identities. Drivers never terminate borrowed worlds.
 

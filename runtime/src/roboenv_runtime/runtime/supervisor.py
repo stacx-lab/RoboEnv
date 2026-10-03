@@ -19,7 +19,7 @@ import subprocess
 import sys
 import threading
 import time
-import uuid
+import secrets
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -843,7 +843,7 @@ class Supervisor:
         raw = raw if isinstance(raw, dict) else {}
         request_id = raw.get("request_id")
         if not isinstance(request_id, str) or not request_id:
-            request_id = "invalid-" + uuid.uuid4().hex
+            request_id = "invalid-" + secrets.token_hex(8)
         session = raw.get("session")
         if not isinstance(session, str) or not session:
             session = self.config.session

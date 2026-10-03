@@ -1,13 +1,14 @@
 """Typed Panda devices bound to one official LIBERO world."""
 
-import uuid
+
+import secrets
 from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 from roboenv.devices.model import Action, BoundDevice
 
-from roboenv_runtime.adapters.robocasa.geometry import chain, pose, vector
+from roboenv_runtime.adapters.robocasa.geometry import chain, vector
 from roboenv_runtime.bindings.backends.robocasa.camera import intrinsics as camera_intrinsics
 from roboenv_runtime.bindings.backends.robocasa.gripper_geometry import geometry as gripper_geometry
 from roboenv_runtime.bindings.backends.robocasa.joint import intrinsics as arm_intrinsics
@@ -113,7 +114,6 @@ def bind(spec, root, context):
                 names.get("world", "world"),
                 names.get("world", "world"),
             )
-            intrinsics["frames"] = {"flange": None}
         else:
             intrinsics = {
                 "source": "introspected",
@@ -124,26 +124,17 @@ def bind(spec, root, context):
                     "mode": "direction",
                     "open_target": -1,
                     "close_target": 1,
-                    "increment_per_interval": float(robot.gripper.speed),
                 },
-                "feedback": {
-                    "positions": [
-                        {"name": sim.model.joint_id2name(int(j)), "units": "m"} for j in joints
-                    ],
-                    "velocities": True,
-                    "sensors": [],
-                    "clock": "simulation",
-                    "aperture_model": None,
-                },
+                "feedback": {"aperture_m": True},
                 "stop": {"behavior": "hold", "affected_devices": [definition.name]},
             }
             site = sim.model.site_name2id(robot.gripper.important_sites["grip_site"])
-            shape, aperture, contact_frames = gripper_geometry(robot.gripper, sim, joints)
+            shape, aperture = gripper_geometry(robot.gripper, sim, joints)
             intrinsics.update(shape)
-            intrinsics["feedback"]["aperture_model"] = aperture
+            body = int(model.body_parentid[model.site_bodyid[site]])
             extrinsics = mount(
-                data.site_xpos[site],
-                data.site_xmat[site].reshape(3, 3),
+                data.xpos[body],
+                data.xmat[body].reshape(3, 3),
                 data,
                 flange,
                 names.get("arm", "arm"),
@@ -152,29 +143,24 @@ def bind(spec, root, context):
         definition = replace(definition)
 
         def read():
+            positions = data.qpos[model.jnt_qposadr[joints]]
             result = {
-                "positions": data.qpos[model.jnt_qposadr[joints]].tolist(),
-                "velocities": data.qvel[model.jnt_dofadr[joints]].tolist(),
                 "faults": [],
-                "sample_time_s": float(data.time),
+                "timestamp": float(data.time),
             }
             if entity == "arm":
-                result.update(efforts=[], frame_poses={"flange": pose(model, data, flange, base)})
-            else:
-                result.update(
-                    aperture_m=max(
-                        0.0,
-                        float(
-                            np.dot(aperture["coefficients"], result["positions"])
-                            + aperture["offset_m"]
-                        ),
-                    ),
-                    frame_poses=contact_frames(),
-                    force_n=None,
-                    object_detected=None,
-                    pressure_pa=None,
-                )
-            return result
+                return {
+                    **result,
+                    "positions": positions.tolist(),
+                    "velocities": data.qvel[model.jnt_dofadr[joints]].tolist(),
+                    "efforts": [],
+                }
+            return {
+                **result,
+                "aperture_m": max(
+                    0.0, float(np.dot(aperture["coefficients"], positions) + aperture["offset_m"])
+                ),
+            }
 
         def write(target):
             """Stage the native reference."""
@@ -187,7 +173,8 @@ def bind(spec, root, context):
             world.stop_part(entity)
             return {"stopped": True, **intrinsics["stop"]}
 
-        register("read", read, required=("positions", "velocities", "faults", "sample_time_s"))
+        feedback = ("positions", "velocities", "efforts") if entity == "arm" else ("aperture_m",)
+        register("read", read, required=(*feedback, "faults", "timestamp"))
         register(
             "write",
             write,
@@ -205,7 +192,6 @@ def bind(spec, root, context):
                 },
             },
             mutation=True,
-            required=("accepted", "elapsed_s", "reached", "state"),
         )
         register("stop", stop, mutation=True, required=("stopped", "behavior", "affected_devices"))
     elif entity == "camera":
@@ -232,12 +218,14 @@ def bind(spec, root, context):
 
             directory = Path(context.native.run_dir) / "captures"
             directory.mkdir(parents=True, exist_ok=True)
-            file = directory / f"{uuid.uuid4().hex}.png"
+            file = directory / f"{secrets.token_hex(8)}.png"
             acquired = float(data.time)
             h, w, _ = write_png(file, world.render(camera))
-            return {"file": str(file), "height": h, "width": w, "sample_time_s": acquired}
+            if (h, w) != (height, width):
+                raise ValueError("Camera dimensions differ from the profile")
+            return {"file": str(file), "timestamp": acquired}
 
-        register("read", read, required=("file", "height", "width", "sample_time_s"))
+        register("read", read, required=("file", "timestamp"))
     else:
         intrinsics = {
             "source": "default",

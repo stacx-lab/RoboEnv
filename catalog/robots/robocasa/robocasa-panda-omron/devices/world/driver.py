@@ -1,4 +1,6 @@
-"""Portable world clock driver."""
+"""World read returns time_s and optional budget {used_s, max_s}.
+Wait returns time_s and waited_s; transport preserves clock precision.
+"""
 
 import sys
 from pathlib import Path

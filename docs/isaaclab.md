@@ -21,3 +21,8 @@ therefore report a newer upstream revision; this pin is intentionally retained.
 
 Existing environments, cached assets and user workspaces are preserved.
 See [setup](setup.md) for installation requirements.
+
+Go2 base reads retain `height_m`, measured as root Z above the scene's Z=0
+reference plane, and body-frame linear/angular velocities. Height is not terrain
+clearance. Reads and write states omit global pose and empty frame maps;
+world-relative transforms require explicit estimates.

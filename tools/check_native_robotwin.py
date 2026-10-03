@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 from roboenv_runtime.adapters.native_record import digest
-from roboenv_runtime.adapters.robotwin.devices import RoboTwinDevices
+from roboenv_runtime.adapters.robotwin.devices import RoboTwinDevices, pose
 from roboenv_runtime.adapters.urdf_geometry import matrix, matrix_pose
 from roboenv_runtime.runtime.worker import write_png
 
@@ -243,9 +243,14 @@ def check(world, out):
     for name, model in models.items():
         reading = world.device_read(name)
         q = model.project(reading["positions"])
-        fk_error = pose_error(
-            model.fk(reading["positions"])["pose"], reading["frame_poses"]["flange"]
-        )
+        side = name.split("_", 1)[0]
+        entity = getattr(world.task.robot, side + "_entity")
+        rig_frame = world.rig_frames[side]
+        base = entity.find_link_by_name(rig_frame["base"]).get_pose()
+        tip = entity.find_link_by_name(rig_frame["flange"]).get_pose()
+        measured = pose(base.inv() * tip)
+        assert "frame_poses" not in reading
+        fk_error = pose_error(model.fk(reading["positions"])["pose"], measured)
         target_q = q.copy()
         target_q[0] += 0.03
         target_q = model.project(target_q)
