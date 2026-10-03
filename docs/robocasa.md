@@ -94,7 +94,8 @@ base/gripper inputs are refreshed, then restores the hook even on failure.
 
 Writes return `execution_id` and a measured `state` snapshot.
 Wait for execution with `world.wait(duration_s)`.
-Stop holds arm/torso/gripper or zeroes base velocity without stepping. Reads
+Stop holds measured arm/torso posture, retains the accumulated gripper target and
+preload, or zeroes base velocity without stepping. Explicit open releases the grasp. Reads
 include faults and acquisition timestamps. Realtime continues while idle;
 stepped advances during world waits.
 

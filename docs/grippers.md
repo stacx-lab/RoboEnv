@@ -14,8 +14,16 @@ retains the canonical range for consistent behavior.
 Native motion limits remain in effect: RoboTwin's setter clips normalized goals
 and computes incremental finger targets and drive velocities each physics step;
 RoboDojo clips normalized goals and interpolated finger targets; BEHAVIOR clips
-finger controller output to native joint ranges. Internal stop holds can retain
-measured soft-limit overshoot without treating it as a new user command.
+finger controller output to native joint ranges. Stop holds retain the applied gripper target and actuator preload across all
+backends, including Go2–D1. They never replace that target with measured aperture.
+Direction stop freezes the accumulated finger target; position stop preserves the
+applied position reference. Pending actions are discarded, and explicit open is
+required to release. Reset initializes from measured posture independently of stop.
+This behavior also applies to cancellation and controller cleanup.
+
+Restart owned simulator services after upgrading; refresh copied Kinex gripper
+drivers/runtime helpers before reloading. Existing borrowed services remain under
+their owner's lifecycle control.
 
 - `extrinsics.mount` places the gripper base in its arm's `flange` frame.
   `intrinsics.frames.tcp` places the TCP relative to the gripper base.

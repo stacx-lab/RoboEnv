@@ -53,14 +53,14 @@ class DeviceControl:
         self.commands.append({"frame": self.frame, "op": "write", "commands": commands})
         return {"accepted": True}
 
-    def stop(self, device, measured_target):
-        # Stop may hold measured soft-limit overshoot. Never project reported state.
+    def stop(self, device, target):
+        # Backends choose measured arm posture or the retained gripper goal.
         bounds = self.limits.get(device)
-        if bounds is None or len(measured_target) != len(bounds):
-            raise ValueError("Unknown stop actuator or wrong measured dimensions")
-        if any(type(v) not in (int, float) or not math.isfinite(v) for v in measured_target):
-            raise ValueError("Stop requires finite measured positions")
-        self.targets[device] = list(measured_target)
+        if bounds is None or len(target) != len(bounds):
+            raise ValueError("Unknown stop actuator or wrong target dimensions")
+        if any(type(v) not in (int, float) or not math.isfinite(v) for v in target):
+            raise ValueError("Stop requires finite hold targets")
+        self.targets[device] = list(target)
         # Apply the hold immediately, without advancing physics or changing peers.
         self.apply(copy.deepcopy(self.targets))
         self.commands.append({"frame": self.frame, "op": "stop", "device": device})

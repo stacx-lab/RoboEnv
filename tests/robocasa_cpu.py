@@ -68,6 +68,9 @@ def make_adapter():
 
 
 def check(root, temporary):
+    from panda_grip_cpu import check as check_grip
+
+    check_grip(root)
     import os
     import sys
 
@@ -575,6 +578,17 @@ def check(root, temporary):
         np.testing.assert_allclose(
             native._robot.gripper["right"].current_action, np.clip(fingers + increment, -1, 1)
         )
+        held = native._robot.gripper["right"].current_action.copy()
+        call("gripper", "stop")
+        call("gripper", "stop")
+        # The actual native integrator retains its target while the arm moves.
+        call("arm", "write", {"actions": [replacement.tolist()], "duration_s": .1})
+        call("world", "wait", {"duration_s": .2})
+        np.testing.assert_array_equal(native._robot.gripper["right"].current_action, held)
+        call("gripper", "write", {"actions": [-1], "duration_s": .05})
+        call("world", "wait", {"duration_s": .05})
+        np.testing.assert_allclose(native._robot.gripper["right"].current_action,
+                                   np.clip(held - increment, -1, 1))
         for action in ("pick", "move", "invoke", "policy_run"):
             try:
                 call("arm", action)

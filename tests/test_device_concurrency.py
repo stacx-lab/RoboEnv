@@ -153,6 +153,7 @@ def test_duplicate_submission_executes_once(concurrent_service):
     assert len(client.device("left").read()["data"]["commands"]) == 1
 
 
+@pytest.mark.parametrize("concurrent_service", [True], indirect=True, ids=["owner-thread"])
 def test_kinex_recording_through_portable_drivers(concurrent_service, tmp_path):
     client, supervisor, _ = concurrent_service
     kinex, _ = kinex_sources()
@@ -216,6 +217,7 @@ def test_invalid_lifecycle_does_not_interrupt_motion(concurrent_service):
     assert client.device("left").read()["data"]["positions"] == [0.2]
 
 
+@pytest.mark.parametrize("concurrent_service", [True], indirect=True, ids=["owner-thread"])
 def test_kinex_buffers_and_upper_layer_planning(concurrent_service, tmp_path):
     client, supervisor, _ = concurrent_service
     kinex, _ = kinex_sources()

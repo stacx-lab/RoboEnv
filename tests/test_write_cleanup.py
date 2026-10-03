@@ -166,7 +166,10 @@ def test_failed_feedback_uses_service_ownership_even_after_position_hold(wire, r
 ])
 @pytest.mark.parametrize("stop_fails", [False, True])
 def test_exported_actuator_validators_cancel_bad_feedback(robot, name, stop_fails, monkeypatch):
-    monkeypatch.syspath_prepend(str(kinex_python()))
+    library = kinex_python()
+    if not (library / "kinex").is_dir():
+        pytest.skip("Requires Kinex's Python library for exported drivers")
+    monkeypatch.syspath_prepend(str(library))
     directory = ROOT / "catalog/robots" / robot / "devices" / name
     profile = yaml.safe_load((directory / "profile.yaml").read_text())
     module = runpy.run_path(str(directory / "driver.py"))

@@ -9,6 +9,8 @@
 - [x] Cover drift, idempotence, malformed versions, installed metadata and wheel selection.
 - [x] Run fresh Python 3.12 CPU/source/packaging checks: 1,104 passed, 40 skipped.
 - [x] Pass development preflight and clean installation of both wheels outside the checkout.
+- [x] Verify write-cleanup tests with Kinex present and an isolated checkout without Kinex;
+  only exported-driver integration cases require that optional sibling library.
 
 Bootstrap installs the complete pinned development environment. Future version
 bumps edit VERSION, run `python tools/version.py --sync`, then bootstrap again to

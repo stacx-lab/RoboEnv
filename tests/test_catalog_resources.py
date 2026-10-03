@@ -14,15 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog"
 
 
-def test_go2_arm_driver_uses_shared_joint_contract():
-    driver = CATALOG / "robots/isaaclab/isaaclab-go2-d1/devices/arm/driver.py"
-    assert driver.read_bytes() == (ROOT / "src/roboenv/assets/joint-client.py").read_bytes()
-
-
-def test_joint_catalogs_use_model_frames_and_shared_driver():
+def test_joint_catalogs_use_model_frames_and_shared_driver(catalog_profiles):
     driver = (ROOT / "src/roboenv/assets/joint-client.py").read_bytes()
-    for path in (CATALOG / "robots").rglob("profile.yaml"):
-        profile = yaml.safe_load(path.read_text())
+    for path, profile in catalog_profiles:
         if profile["type"] not in {"joint", "dexterous_hand"}:
             continue
         facts = profile["intrinsics"]

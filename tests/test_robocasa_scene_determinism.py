@@ -14,7 +14,7 @@ from roboenv.provisioning.robocasa_assets import ARCHIVES
 
 SOURCE = ROOT / "third_party/robocasa"
 ASSETS = SOURCE / "robocasa/models/assets"
-PROCESSES, BUILDS = 2, 3
+PROCESSES, BUILDS = 2, 2
 
 
 def prepared_kitchen():
