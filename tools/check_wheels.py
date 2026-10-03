@@ -51,10 +51,14 @@ for wheel in wheels:
             raise SystemExit("retired device package found in runtime wheel")
         if any("/tests/" in name or "solution.py" in name for name in names):
             raise SystemExit("test/reference data leaked into distribution")
+version = Path("VERSION").read_text().strip()
 code = (
-    "import importlib, sys;"
+    "import importlib.metadata, sys;"
     f"sys.path[:0] = {[str(w.resolve()) for w in wheels]!r};"
     "import roboenv, roboenv_runtime.runtime.worker;"
+    f"assert roboenv.__version__ == roboenv_runtime.__version__ == {version!r};"
+    "assert importlib.metadata.version('roboenv') == roboenv.__version__;"
+    "assert importlib.metadata.version('roboenv-runtime') == roboenv_runtime.__version__;"
     "from roboenv.devices.bindings.spec import binding_resource;"
     "from roboenv.validation import yaml_load;"
     "resource = binding_resource('libero-panda-kitchen', backend='libero');"

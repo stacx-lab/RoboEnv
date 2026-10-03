@@ -1,5 +1,23 @@
 # Current work
 
+## Version 0.10.0 preparation
+
+- [x] Pin Pillow in the development lock so fresh CI environments collect camera tests.
+- [x] Update the local Kinex integration assertion for bounded IK search exhaustion.
+- [x] Add canonical VERSION, explicit metadata synchronization and read-only validation.
+- [x] Synchronize SDK/runtime versions and their exact dependency; remove the depot wheel filename pin.
+- [x] Cover drift, idempotence, malformed versions, installed metadata and wheel selection.
+- [x] Run fresh Python 3.12 CPU/source/packaging checks: 1,104 passed, 40 skipped.
+- [x] Pass development preflight and clean installation of both wheels outside the checkout.
+
+Bootstrap installs the complete pinned development environment. Future version
+bumps edit VERSION, run `python tools/version.py --sync`, then bootstrap again to
+refresh editable metadata. Normal checks and development preflight verify the
+canonical version; packages retain their synchronized module literals.
+Hosted validation is tracked by the PR checks on each pushed commit. Original
+snapshot commits and managed upstream patches remain intact. No tags, packages
+or simulator images are published by this preparation.
+
 ## Velocity feedback and native limits
 
 - [x] Remove global base pose from public velocity feedback across all four backends.

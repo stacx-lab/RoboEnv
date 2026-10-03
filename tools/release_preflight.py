@@ -87,6 +87,9 @@ def scan_source(root):
 
 
 def read_projects(root, report):
+    canonical = (root / "VERSION").read_text().strip()
+    if not re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", canonical):
+        raise ValueError("VERSION must contain MAJOR.MINOR.PATCH")
     projects = {}
     for expected_name, folder in PACKAGES.items():
         directory = root / folder
@@ -95,6 +98,8 @@ def read_projects(root, report):
         if project["name"] != expected_name:
             report("metadata.name", expected_name)
         Version(project["version"])
+        if project["version"] != canonical:
+            report("metadata.canonical_version", expected_name)
         readme = project.get("readme")
         if not isinstance(readme, str) or not local_path(directory, readme).is_file():
             report("metadata.readme", expected_name)
