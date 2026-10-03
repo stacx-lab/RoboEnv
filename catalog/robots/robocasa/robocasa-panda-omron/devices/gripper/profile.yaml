@@ -11,52 +11,36 @@ intrinsics:
     mode: direction
     open_target: -1
     close_target: 1
-    increment_per_interval: 0.2
   feedback:
-    positions:
-    - name: gripper0_right_finger_joint1
-      units: m
-    - name: gripper0_right_finger_joint2
-      units: m
-    velocities: true
-    sensors: []
-    clock: simulation
-    aperture_model:
-      model: affine
-      coefficients:
-      - 1.0
-      - -1.0
-      offset_m: -0.001
+    aperture_m: true
   stop:
     behavior: hold
     affected_devices:
     - gripper
   frames:
-    left_pad: null
-    right_pad: null
+    tcp:
+      parent_frame: null
+      translation_m:
+      - 0.0
+      - 0.0
+      - 0.097
+      rotation_xyzw:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
   geometry:
-    description: TCP is grip_site, 97 mm from the flange. Parallel jaws; contact frames
-      locate the inner pad surfaces. Contact +Z points toward the object; local XY
-      bounds describe each pad, not collision clearance.
+    description: Two opposing fingers slide along a fixed closing axis. Each inner
+      pad has a 16 by 16 mm rectangular surface. Aperture is the inner-pad gap; it
+      does not describe whole-finger clearance.
     approach_axis:
-    - 0
-    - 0
-    - 1
+    - 0.0
+    - 0.0
+    - 1.0
     closing_axis:
     - 1.0
     - 0.0
     - 0.0
-    contacts:
-      left_pad:
-        frame: left_pad
-        size_m:
-        - 0.016
-        - 0.016
-      right_pad:
-        frame: right_pad
-        size_m:
-        - 0.016
-        - 0.016
 extrinsics:
   source: introspected
   method: introspection
@@ -67,7 +51,7 @@ extrinsics:
     translation_m:
     - 0.0
     - 0.0
-    - 0.097
+    - 0.0
     rotation_xyzw:
     - 0.0
     - 0.0

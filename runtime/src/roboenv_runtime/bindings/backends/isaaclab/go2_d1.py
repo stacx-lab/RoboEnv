@@ -12,7 +12,7 @@ EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
 def read_robot_state(world, name):
     """Expose physical robot faults, keeping task failure verdicts owner-only."""
     state = world.read_device(name)
-    state["faults"] = ["fallen"] if "robot_fallen" in state["faults"] else []
+    state["faults"] = [{"code": "fallen"}] if "robot_fallen" in state["faults"] else []
     return state
 
 

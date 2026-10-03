@@ -236,7 +236,7 @@ def test_artifacts_reuse_connection_and_truncation_discards_partial_file(
     monkeypatch.setenv("ROBOENV_ENDPOINT", supervisor.http_endpoint)
     directory = supervisor.config.run_dir / "captures"
     directory.mkdir(exist_ok=True)
-    name = "a" * 32 + ".png"
+    name = "a" * 16 + ".png"
     (directory / name).write_bytes(b"test image")
     route = f"/artifacts/{supervisor.config.session}/{supervisor.config.generation}/{name}"
     try:

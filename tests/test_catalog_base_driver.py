@@ -23,20 +23,21 @@ def base(monkeypatch):
     spec.loader.exec_module(module)
     calls = []
 
-    def remote(action, args):
+    def remote(action, args, *, request_id=None):
         calls.append((action, args))
         if action == "read":
             return {
-                "pose": {"translation_m": [1, 2, 3], "rotation_xyzw": [0, 0, 0, 1]},
                 "velocities": [0.1, 0.2, 0.3],
                 "faults": [],
-                "sample_time_s": 1.25,
+                "timestamp": 1.25,
             }
         if action == "stop":
             return {"stopped": True}
-        return {"accepted": True}
+        return {"execution_id": request_id,
+                "state": {"velocities": [0, 0, 0], "faults": [], "timestamp": 1.25}}
 
     monkeypatch.setattr(module, "remote", remote)
+    monkeypatch.setattr(module.transport, "remote", remote)
     return module, calls
 
 
@@ -44,12 +45,12 @@ def test_base_keeps_normalized_commands_and_measured_physical_readings(base):
     module, calls = base
     command = {"mode": "drive", "velocity": {"vx": 0.3, "vy": 0, "wz": -0.1},
                "duration_s": 0.5}
-    assert module.handle("write", command)["accepted"]
+    assert module.handle("write", command)["execution_id"]
     assert calls == [("write", command)]
     measured = module.handle("read", {})
     assert measured["ok"] and measured["velocities"] == [0.1, 0.2, 0.3]
-    assert measured["pose"]["translation_m"] == [1, 2, 3]
-    assert measured["sample_time_s"] == 1.25
+    assert "pose" not in measured and "frame_poses" not in measured
+    assert measured["timestamp"] == 1.25
     assert module.handle("stop", {}) == {"ok": True, "stopped": True}
     calls.clear()
     assert module.handle("unload", {})["ok"]
@@ -141,3 +142,26 @@ def test_duration_is_required_and_native_limits_remain_native(base):
     assert not calls
     assert module.handle("write", {**args, "duration_s": 0.1})["ok"]
     assert calls == [("write", {**args, "duration_s": 0.1})]
+
+
+def test_base_rejects_global_pose_in_reads_and_write_states(base, monkeypatch):
+    module, _ = base
+    state = {"pose": None, "velocities": [0, 0, 0], "faults": [], "timestamp": 1}
+    def remote(action, args, *, request_id=None):
+        if action == "cancel_motion":
+            return {"stopped": True}
+        return state if action == "read" else {"execution_id": request_id, "state": state}
+
+    monkeypatch.setattr(module, "remote", remote)
+    monkeypatch.setattr(module.transport, "remote", remote)
+    assert "global pose" in module.handle("read", {})["error"]
+    args = {"mode": "drive", "velocity": {"vx": 0, "vy": 0, "wz": 0}, "duration_s": .1}
+    assert "global pose" in module.handle("write", args)["error"]
+
+
+def test_array_command_explains_named_axes_and_does_not_send(base):
+    module, calls = base
+    result = module.handle("write", {"mode": "drive", "velocity": [.05, 0, 0], "duration_s": .5})
+    assert not result["ok"] and "named axes" in result["error"]
+    assert all(axis in result["error"] for axis in ("vx", "vy", "wz"))
+    assert calls == []

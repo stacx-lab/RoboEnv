@@ -17,6 +17,14 @@ from roboenv.devices.execution import map_result
 from roboenv.validation import json_value
 
 
+def local_frame(pose=None, *, parent_frame=None):
+    return {
+        "parent_frame": parent_frame,
+        "translation_m": pose[:3] if pose is not None else None,
+        "rotation_xyzw": pose[3:] if pose is not None else None,
+    }
+
+
 class DeviceError(RuntimeError):
     def __init__(self, code, message, *, details=None):
         super().__init__(message)

@@ -1,5 +1,6 @@
 """Complete source-derived Piper and ALOHA rigs, without scene or GPU creation."""
 
+
 import hashlib
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -114,7 +115,4 @@ def describe(root, embodiment, *, assets=None):
         "urdf_sha256": hashlib.sha256(urdf.read_bytes()).hexdigest(),
         "config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
     }
-    for value in facts.values():
-        if value["type"] == "joint":
-            value["intrinsics"]["frames"] = {value["intrinsics"]["kinematics"]["frame"]: None}
     return (facts, frames, provenance)

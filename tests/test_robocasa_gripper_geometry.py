@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import yaml
+from jsonschema import validate
 
 mujoco = pytest.importorskip("mujoco")
 
@@ -26,7 +27,7 @@ def panda_asset(backend):
 
 
 @pytest.mark.parametrize("backend", ["robocasa", "libero"])
-def test_pad_frames_and_aperture_follow_compiled_model(backend):
+def test_tcp_and_aperture_follow_compiled_model(backend):
     asset = panda_asset(backend)
     if not asset.is_file():
         pytest.skip("Requires the pinned robosuite assets")
@@ -58,37 +59,25 @@ def test_pad_frames_and_aperture_follow_compiled_model(backend):
         for opening in ([0, 0], [0.02, -0.02], [0.04, -0.01], [0.04, -0.04]):
             data.qpos[:] = opening
             mujoco.mj_forward(model, data)
-            facts, aperture, frames = geometry(robot.gripper["right"], sim, np.array([0, 1]))
+            facts, aperture = geometry(robot.gripper["right"], sim, np.array([0, 1]))
             assert facts == {k: catalog[k] for k in facts}
-            assert aperture == catalog["feedback"]["aperture_model"]
+            base = int(model.body_parentid[model.site_bodyid[site]])
+            np.testing.assert_allclose(
+                data.xpos[base] + data.xmat[base].reshape(3, 3)
+                @ facts["frames"]["tcp"]["translation_m"], data.site_xpos[site], atol=1e-10,
+            )
+            assert "aperture_model" not in catalog["feedback"]
             for profile in catalogs:
                 expected = yaml.safe_load(profile.read_text())["intrinsics"]
                 assert facts == {key: expected[key] for key in facts}
-                assert aperture == expected["feedback"]["aperture_model"]
+                assert expected["feedback"]["aperture_m"] is True
             gap = max(0, aperture["offset_m"] + np.dot(aperture["coefficients"], data.qpos))
             assert gap == pytest.approx(max(0, opening[0] - opening[1] - 0.001))
-            actual = frames()
-            for name, geom_name in (
-                ("left_pad", "finger1_pad_collision"),
-                ("right_pad", "finger2_pad_collision"),
-            ):
-                frame = actual[name]
-                quat = np.array([frame[6], *frame[3:6]])
-                local = np.empty(9)
-                mujoco.mju_quat2Mat(local, quat)
-                normal = data.site_xmat[site].reshape(3, 3) @ local.reshape(3, 3)[:, 2]
-                point = data.site_xpos[site] + data.site_xmat[site].reshape(3, 3) @ frame[:3]
-                geom = ids.geom_name2id(geom_name)
-                in_box = data.geom_xmat[geom].reshape(3, 3).T @ (point - data.geom_xpos[geom])
-                assert np.abs(in_box) == pytest.approx([0, 0.004, 0], abs=1e-10)
-                assert np.linalg.norm(normal) == pytest.approx(1)
-                assert frame[2] == pytest.approx(-0.0036)
-            assert actual["right_pad"][0] - actual["left_pad"][0] == pytest.approx(
-                opening[0] - opening[1] - 0.001
-            )
+            assert set(facts["frames"]) == {"tcp"}
+            assert "contacts" not in facts["geometry"]
 
 
-def test_libero_binding_returns_contact_frames_without_advancing_physics():
+def test_libero_binding_returns_aperture_without_advancing_physics():
     from roboenv.devices.bindings.registry import BindingContext
     from roboenv.devices.bindings.spec import BindingPlan
     from roboenv.devices.model import ExecutionContext
@@ -150,7 +139,8 @@ def test_libero_binding_returns_contact_frames_without_advancing_physics():
         data.qpos[7:] = opening
         mujoco.mj_forward(model, data)
         reading = bound.execute("read", {}, ExecutionContext(read_only=True))
-        assert reading["positions"] == opening
+        validate(reading, bound.actions["read"].output_schema)
+        assert "positions" not in reading and "velocities" not in reading
         assert reading["aperture_m"] == pytest.approx(opening[0] - opening[1] - 0.001)
-        assert set(reading["frame_poses"]) == {"left_pad", "right_pad"}
+        assert "frame_poses" not in reading
         assert data.time == 0

@@ -3,7 +3,7 @@
 from roboenv_runtime.bindings.motion import control_binding
 
 
-def intrinsics(robot, sim, joints):
+def intrinsics():
     return {
         "source": "introspected",
         "method": "introspection",
@@ -13,15 +13,8 @@ def intrinsics(robot, sim, joints):
             "mode": "direction",
             "open_target": -1,
             "close_target": 1,
-            "increment_per_interval": float(robot.gripper["right"].speed),
         },
-        "feedback": {
-            "positions": [{"name": sim.model.joint_id2name(int(j)), "units": "m"} for j in joints],
-            "velocities": True,
-            "sensors": [],
-            "clock": "simulation",
-            "aperture_model": None,
-        },
+        "feedback": {"aperture_m": True},
         "stop": {"behavior": "hold", "affected_devices": []},
     }
 
@@ -43,27 +36,20 @@ def bind(spec, root, context):
     joints = np.asarray(robot.part_controllers["right_gripper"].joint_index, dtype=int)
     from .gripper_geometry import geometry
 
-    facts = intrinsics(robot, sim, joints)
-    shape, aperture, frames = geometry(robot.gripper["right"], sim, joints)
+    facts = intrinsics()
+    shape, aperture = geometry(robot.gripper["right"], sim, joints)
     facts.update(shape)
-    facts["feedback"]["aperture_model"] = aperture
     facts["stop"]["affected_devices"] = [definition.name]
 
     def read():
         return {
-            "positions": data.qpos[model.jnt_qposadr[joints]].tolist(),
-            "velocities": data.qvel[model.jnt_dofadr[joints]].tolist(),
             "faults": [],
-            "sample_time_s": float(data.time),
+            "timestamp": float(data.time),
             "aperture_m": max(
                 0.0,
                 aperture["offset_m"]
                 + float(np.dot(aperture["coefficients"], data.qpos[model.jnt_qposadr[joints]])),
             ),
-            "frame_poses": frames(),
-            "force_n": None,
-            "object_detected": None,
-            "pressure_pa": None,
         }
 
     def write(target):

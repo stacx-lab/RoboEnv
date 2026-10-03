@@ -102,8 +102,10 @@ no added range bounds. Physical joint constraints and native torque clipping
 remain active. The managed metric hook bypasses upstream teleop turn-flag semantics.
 
 WBC alone writes legs and waist. There is no waist device. Base feedback declares
-`intrinsics.frames.torso: null` and supplies `read.frame_poses.torso`, the measured
-torso pose relative to pelvis. Arms and head cameras mount on `base:torso`; hands
+`intrinsics.frames.torso: {parent_frame: null, translation_m: null, rotation_xyzw: null}` and supplies `read.frame_poses.torso`, the measured
+torso pose relative to pelvis. `height_m` measures pelvis Z above the flat scene
+reference plane at world Z=0; it is not terrain clearance. Base reads omit global
+pose, and world-relative transforms require explicit estimates. Arms and head cameras mount on `base:torso`; hands
 mount on their arm's `flange`. Local arm FK/IK uses exported serial geometry and
 Kinex's standard joint driver. Hands provide portable finger geometry and named
 frames as described below; they do not advertise finger IK or grasp confirmation.
@@ -114,7 +116,8 @@ Measured state is never projected into joint limits.
 Both `dexterous_hand` profiles include optional `intrinsics.geometry`; ordinary
 `joint` devices are unchanged. The canonical hand frame remains its arm flange.
 `palm` is the fixed native palm-link reference. `thumb_tip`, `index_tip`, and
-`middle_tip` are dynamic nominal fingertip frames returned by each hand read.
+`middle_tip` are dynamic nominal fingertip frames computed explicitly with local
+hand geometry/FK from measured joint positions.
 Their positions include offsets from the distal joints to the mesh ends (about
 5.2 cm), and their axes follow the distal links. The generator derives each point
 from the center of the distal bounding-box face of the native collision mesh:
@@ -136,10 +139,10 @@ from kinex.joints import JointDevice
 
 hand = profile("left_hand")
 state = device("left_hand")["data"]
-tips_now = state["frame_poses"]
+tips_now = forward(hand, state["positions"])
 candidate = list(state["positions"])
 candidate[0] += 0.05
-JointDevice(hand).command({"target": candidate})  # Validate a proposed command.
+JointDevice(hand).command({"actions": [candidate], "duration_s": 0.1})  # Validate a proposed command.
 tips_if_commanded = forward(hand, candidate)     # Prediction only; no write.
 tip_in_arm = frames.pose("left_hand:index_tip", "left_arm", readings={"left_hand": state})
 ```

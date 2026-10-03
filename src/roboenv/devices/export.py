@@ -70,14 +70,17 @@ def driver_resources(directory):
 def shared_driver_resources(directory):
     """Return collection support separately from each device's local resources."""
     directory = Path(directory)
-    source = directory / "_roboenv.py"
-    if any(path.is_symlink() for path in (source, *source.parents)):
-        raise ValueError("Shared device support must not contain symlinks")
-    if not source.exists():
-        return []
-    if not source.is_file():
-        raise ValueError("Shared device support must be a regular file")
-    return [Path("_roboenv.py")]
+    result = []
+    for name in ("_roboenv.py", "_camera.py"):
+        source = directory / name
+        if any(path.is_symlink() for path in (source, *source.parents)):
+            raise ValueError("Shared device support must not contain symlinks")
+        if not source.exists():
+            continue
+        if not source.is_file():
+            raise ValueError("Shared device support must be a regular file")
+        result.append(Path(name))
+    return result
 
 
 def write_shared_driver(directory):
@@ -85,10 +88,11 @@ def write_shared_driver(directory):
     directory = Path(directory)
     shared_driver_resources(directory)  # Validate the destination before writing.
     directory.mkdir(parents=True, exist_ok=True)
-    target = directory / "_roboenv.py"
-    content = files("roboenv").joinpath("assets/_roboenv.py").read_bytes()
-    if not target.exists() or target.read_bytes() != content:
-        target.write_bytes(content)
+    for name in ("_roboenv.py", "_camera.py"):
+        target = directory / name
+        content = files("roboenv").joinpath("assets", name).read_bytes()
+        if not target.exists() or target.read_bytes() != content:
+            target.write_bytes(content)
 
 
 def driver_access(kind, name, actions, endpoint, *, timeout_s=None):
@@ -160,12 +164,20 @@ def export_devices(profiles, directory, connection):
             profile.pop("extrinsics", None)
         if descriptor["actions"]:
             actions = [key for key, value in descriptor["actions"].items() if value["supported"]]
-            if descriptor["type"] == "joint" and descriptor["intrinsics"].get("kinematics"):
+            if descriptor["type"] in {"joint", "dexterous_hand"} and descriptor["intrinsics"].get(
+                "kinematics"
+            ):
                 actions += [
                     action
                     for action in ("fk", "ik")
                     if descriptor["intrinsics"]["kinematics"].get(action) and action not in actions
                 ]
+            if (
+                descriptor["type"] == "dexterous_hand"
+                and descriptor["intrinsics"].get("geometry")
+                and "fk" not in actions
+            ):
+                actions.append("fk")
             profile["access"] = driver_access(
                 descriptor["type"],
                 name,

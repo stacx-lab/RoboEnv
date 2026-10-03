@@ -30,7 +30,16 @@ def catalog_tcp():
     import yaml
 
     path = repo_root() / "catalog/robots/isaaclab/isaaclab-go2-d1/devices/gripper/profile.yaml"
-    return yaml.safe_load(path.read_text())["extrinsics"]["mount"]["translation_m"]
+    return gripper_tcp(yaml.safe_load(path.read_text()))
+
+
+def gripper_tcp(profile):
+    from roboenv_runtime.adapters.urdf_geometry import matrix
+
+    mount = profile["extrinsics"]["mount"]
+    tcp = profile["intrinsics"]["frames"]["tcp"]
+    return (matrix(mount["translation_m"] + mount["rotation_xyzw"])
+            @ matrix(tcp["translation_m"] + tcp["rotation_xyzw"]))[:3, 3].tolist()
 
 
 REACH_FIELDS = {

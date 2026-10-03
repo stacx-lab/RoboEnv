@@ -1,7 +1,7 @@
 """Device buffers executed on the world's native control cadence."""
 
 import math
-import uuid
+import secrets
 from functools import wraps
 
 from roboenv.devices.execution import motion_scheduler, request_identity
@@ -91,7 +91,7 @@ def control_binding(factory):
             if schedule is None:
                 raise RuntimeError("device motion requires the world scheduler")
             values, duration = targets(args), args["duration_s"]
-            identity = request_identity.get() or uuid.uuid4().hex
+            identity = request_identity.get() or secrets.token_hex(8)
             value = reader.handler({}, execution)
             if value.get("faults"):
                 raise DeviceError("device_fault", "native device reported faults")
@@ -158,7 +158,7 @@ def control_binding(factory):
             future = schedule(motion())
             if future.done():
                 future.result()
-            return {"execution_id": identity, "elapsed_s": 0.0, "state": value}
+            return {"execution_id": identity, "state": value}
 
         positive = {"type": "number", "exclusiveMinimum": 0}
         vector = {
@@ -191,7 +191,7 @@ def control_binding(factory):
         device.actions["write"] = Action(
             execute,
             schema,
-            output_schema={"type": "object", "required": ["execution_id", "elapsed_s", "state"]},
+            output_schema={"type": "object", "required": ["execution_id", "state"]},
             validate=preflight,
         )
         return device

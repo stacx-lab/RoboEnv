@@ -58,7 +58,7 @@ def bind_http(supervisor, port, host="127.0.0.1"):
             pass
 
         def valid_endpoint(self):
-            if self.path != "/" and not (self.command == "GET" and re.fullmatch(r"/artifacts/[A-Za-z0-9_.-]+/[0-9]+/[a-f0-9]{32}\.(?:png|pgm)", self.path)):
+            if self.path != "/" and not (self.command == "GET" and re.fullmatch(r"/artifacts/[A-Za-z0-9_.-]+/[0-9]+/[a-f0-9]{16}\.(?:png|pgm)", self.path)):
                 self.send_error(404, "Unknown endpoint")
                 return False
             if self.headers.get("Origin") is not None:

@@ -5,7 +5,7 @@ import hashlib
 import json
 import os
 import random
-import uuid
+import secrets
 from pathlib import Path
 
 import numpy as np
@@ -70,7 +70,7 @@ class SimpleEnv:
         self.frames, self.images = [], {}
 
     @property
-    def sample_time_s(self):
+    def timestamp(self):
         return self.steps * self.control_interval
 
     def configure_execution_mode(self, mode):
@@ -201,7 +201,7 @@ class SimpleEnv:
     def read_device(self, name):
         import mujoco
 
-        state = {"faults": [], "sample_time_s": self.sample_time_s}
+        state = {"faults": [], "timestamp": self.timestamp}
         if name == "base":
             pose = self._pose("pelvis")
             velocity = np.zeros(6)
@@ -215,7 +215,6 @@ class SimpleEnv:
             )
             return {
                 **state,
-                "pose": {"translation_m": pose[:3], "rotation_xyzw": pose[3:]},
                 "height_m": pose[2],
                 "velocities": velocity[[3, 4, 5, 0, 1, 2]].tolist(),
                 "frame_poses": {
@@ -235,15 +234,7 @@ class SimpleEnv:
             positions=self.mjdata.qpos[self.mjmodel.jnt_qposadr[ids]].tolist(),
             velocities=self.mjdata.qvel[self.mjmodel.jnt_dofadr[ids]].tolist(),
         )
-        if name.endswith("hand"):
-            from .hands import frame_poses
-
-            return {**state, "efforts": [], "frame_poses": frame_poses(self, name)}
-        part = self.model["parts"][name]
-        pose = matrix_pose(
-            np.linalg.inv(matrix(self._pose(part["base"]))) @ matrix(self._pose(part["tip"]))
-        )
-        return {**state, "efforts": [], "frame_poses": {"flange": pose}}
+        return {**state, "efforts": []}
 
     def read_camera(self, name, directory):
         from PIL import Image
@@ -258,13 +249,11 @@ class SimpleEnv:
                 data = np.asarray(frames[spec["native"]])
                 if data.dtype != np.uint8 or data.shape != (spec["height"], spec["width"], 3):
                     raise ValueError("SIMPLE renderer returned invalid RGB")
-                path = directory / f"{uuid.uuid4().hex}.png"
+                path = directory / f"{secrets.token_hex(8)}.png"
                 Image.fromarray(data).save(path)
                 self.images[camera_name] = {
                     "file": str(path),
-                    "width": spec["width"],
-                    "height": spec["height"],
-                    "sample_time_s": self.sample_time_s,
+                    "timestamp": self.timestamp,
                 }
         return dict(self.images[name])
 

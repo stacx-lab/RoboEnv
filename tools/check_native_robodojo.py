@@ -317,9 +317,14 @@ def check(world, out, report):
     for name, model in models.items():
         reading = world.device_read(name)
         q = model.project(reading["positions"])
-        fk_error = pose_error(
-            model.fk(reading["positions"])["pose"], reading["frame_poses"]["flange"]
-        )
+        robot = world.actuators[name][0]
+        rig_frame = world.rig_frames[name.removesuffix("_arm")]
+        manager = world._env.robot_manager
+        base = pose_matrix(manager.get_link_pose(robot, rig_frame["base"], [0])[0])
+        tip = pose_matrix(manager.get_link_pose(robot, rig_frame["flange"], [0])[0])
+        measured = matrix_pose(np.linalg.inv(base) @ tip)
+        assert "frame_poses" not in reading
+        fk_error = pose_error(model.fk(reading["positions"])["pose"], measured)
         target_q = q.copy()
         target_q[0] += 0.03
         target = model.fk(model.project(target_q))["pose"]

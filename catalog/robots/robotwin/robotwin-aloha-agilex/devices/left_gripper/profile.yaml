@@ -18,49 +18,36 @@ intrinsics:
     close_target: 0
     speed: null
   feedback:
-    positions:
-    - name: fl_joint7
-      units: m
-    - name: fl_joint8
-      units: m
-    velocities: true
-    sensors: []
-    clock: simulation
-    aperture_model:
-      model: affine
-      coefficients:
-      - 1.0
-      - 1.0
-      offset_m: 1.6597600000292645e-07
+    aperture_m: true
   stop:
     behavior: hold
     affected_devices:
     - left_gripper
   frames:
-    pad_1: null
-    pad_2: null
+    tcp:
+      parent_frame: null
+      translation_m:
+      - 0.14807
+      - -1.4999999999997654e-06
+      - -0.0013
+      rotation_xyzw:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
   geometry:
-    description: TCP is the midpoint of the source contact centers at zero finger
-      displacement, with axes inherited from the arm flange. Parallel sliding fingers;
-      pad_1 and pad_2 follow feedback position channels 1 and 2. Contact +Z points
-      into the jaws. Aperture is the projected separation of these contact centers,
-      clamped at zero; it is not collision clearance. Mesh patches have no assumed
-      rectangular size.
     approach_axis:
     - 1.0
     - 0.0
     - 0.0
     closing_axis:
-    - -0.0
+    - 0.0
     - -1.0
-    - -0.0
-    contacts:
-      pad_1:
-        frame: pad_1
-        size_m: null
-      pad_2:
-        frame: pad_2
-        size_m: null
+    - 0.0
+    description: Two opposing fingers slide along a fixed closing axis. The finger
+      contact surfaces are mesh-defined, with no calibrated rectangular pad dimensions.
+      Aperture is the separation of calibrated surface reference points along the
+      closing axis, not whole-finger clearance.
 extrinsics:
   source: introspected
   method: introspection
@@ -69,9 +56,9 @@ extrinsics:
     parent: left_arm
     parent_frame: flange
     translation_m:
-    - 0.14807
-    - -1.4999999999997654e-06
-    - -0.0013
+    - 0.0
+    - 0.0
+    - 0.0
     rotation_xyzw:
     - 0.0
     - 0.0

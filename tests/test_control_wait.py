@@ -141,7 +141,7 @@ class Rig:
             "positions": list(self.positions),
             "velocities": [0.0] * len(self.positions),
             "faults": [],
-            "sample_time_s": self.frames * self.adapter.control_interval_s,
+            "timestamp": self.frames * self.adapter.control_interval_s,
         }
 
     def stop(self):
@@ -165,12 +165,12 @@ def rig(request):
 def test_write_returns_before_time_advances(rig):
     period = rig.adapter.control_interval_s
     result = rig.call("write", {"actions": [rig.goal()] * 2, "duration_s": 4 * period})
-    assert result["execution_id"] and result["elapsed_s"] == 0
+    assert result["execution_id"] and "elapsed_s" not in result
     assert rig.frames == 0 and rig.stops == 0
     rig.world.advance()
     assert rig.frames == 0
     waited = rig.world.resolve(rig.world.wait(4 * period))
-    assert waited["elapsed_s"] == pytest.approx(4 * period)
+    assert waited["waited_s"] == pytest.approx(4 * period)
     assert rig.frames == 4 and rig.stops == 0
     assert not rig.world.pending
 

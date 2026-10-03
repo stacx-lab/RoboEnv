@@ -48,8 +48,8 @@ def test_robocasa_rebuilds_multisample_buffers_once_per_model():
 def test_camera_read_returns_handler_payload_without_calibration_metadata():
     device = BoundDevice(
         DeviceDefinition("camera", "rgb", {"test": [1]}, {"mount": [2]}),
-        {"read": Action(lambda args, execution: {"sample_time_s": 3.0})},
+        {"read": Action(lambda args, execution: {"timestamp": 3.0})},
         implementation="fixture",
     )
     result = device.execute("read", {}, ExecutionContext(read_only=True))
-    assert result == {"sample_time_s": 3.0}
+    assert result == {"timestamp": 3.0}

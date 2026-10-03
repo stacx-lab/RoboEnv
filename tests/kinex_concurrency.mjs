@@ -16,7 +16,7 @@ try {
       intrinsics: {
         model: { format: 'joints', joints: [{ name: 'j0', type: 'revolute', limits: { min: -2, max: 2 }, max_velocity: 2, max_effort: null }] },
         home: null, control: { mode: 'position' },
-        feedback: { velocities: true, efforts: false, clock: 'simulation' },
+        feedback: { velocities: true, efforts: false },
         stop: { behavior: 'hold', affected_devices: [name] },
       },
     })
@@ -48,13 +48,13 @@ try {
   cancelled.abort(new Error('cancel one world wait'))
   await rejected
   const waited = (await peer).data
-  assert.ok(waited.elapsed_s >= .2 - 1e-9)
+  assert.ok(waited.waited_s >= .2 - 1e-9)
   assert.equal('budget' in waited, false)
   const clock = (await runtime.devices.dispatch('world', 'read')).data
   assert.ok(Number.isFinite(clock.time_s))
-  assert.deepEqual(Object.keys(clock.budget).sort(), ['elapsed_s', 'max_s'])
+  assert.deepEqual(Object.keys(clock.budget).sort(), ['max_s', 'used_s'])
   // This fixture has no initialization frames or episode cap.
-  assert.ok(Math.abs(clock.budget.elapsed_s - clock.time_s) < 1e-6)
+  assert.ok(Math.abs(clock.budget.used_s - clock.time_s) < 1e-6)
   assert.equal(clock.budget.max_s, null)
   assert.deepEqual((await runtime.devices.dispatch('world', 'status')).data, { loaded: true })
   assert.equal('budget' in (await runtime.devices.dispatch('left', 'read')).data, false)

@@ -15,7 +15,7 @@ try {
       intrinsics: {
         model: { format: 'joints', joints: [{ name: 'j', type: 'revolute', limits: { min: -2, max: 2 }, max_velocity: null, max_effort: null }] },
         home: null, control: { mode: 'position' },
-        feedback: { velocities: true, efforts: false, clock: 'simulation' },
+        feedback: { velocities: true, efforts: false },
         stop: { behavior: 'hold', affected_devices: [name] },
       },
     })
@@ -39,10 +39,10 @@ finish({'results': results})
   for (const outcome of JSON.parse(result.output).results) {
     assert.ok(outcome.ok)
     assert.ok(outcome.data.execution_id)
-    assert.equal(outcome.data.elapsed_s, 0)
+    assert.ok(!('elapsed_s' in outcome.data))
   }
   const rounded = await runtime.devices.dispatch('left', 'write', { actions: [[.1], [.3]], duration_s: 2 / 3 })
-  assert.equal(rounded.data.elapsed_s, 0)
+  assert.ok(!('elapsed_s' in rounded.data))
   await runtime.devices.dispatch("world", "wait", { duration_s: 2 / 3 })
   const fallback = path.join(directory, '.kinex/tool/fallback-probe')
   await mkdir(fallback, { recursive: true })

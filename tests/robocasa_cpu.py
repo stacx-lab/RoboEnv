@@ -177,10 +177,20 @@ def check(root, temporary):
             name: runpy.run_path(str(temporary / "devices" / name / "driver.py"))
             for name in ("arm", "torso", "gripper", "base")
         }
+        from roboenv.devices.execution import request_identity
+
         for name, driver in drivers.items():
-            driver["handle"].__globals__["remote"] = lambda action, args, name=name: call(
-                name, action, args
-            )
+            def remote(action, args, *, request_id=None, name=name):
+                token = request_identity.set(request_id)
+                try:
+                    if action == "cancel_motion":
+                        return service.cancel(args)["data"]
+                    return call(name, action, args)
+                finally:
+                    request_identity.reset(token)
+
+            driver["handle"].__globals__["remote"] = remote
+            driver["transport"].remote = remote
             for action in ("fk", "ik"):
                 assert action not in service.describe(name)["actions"]
                 try:
@@ -196,7 +206,9 @@ def check(root, temporary):
         base_facts = service.describe("base")["intrinsics"]
         assert service.describe("base")["type"] == "velocity"
         assert "execution" not in base_facts["control"]
-        assert base_facts["feedback"]["pose_frame"] == "world"
+        assert "pose_frame" not in base_facts["feedback"]
+        assert all(c["bounds"] == {"min": -1, "max": 1}
+                   for c in base_facts["control"]["modes"]["drive"]["velocity"]["components"])
         # Measured velocity is the chassis-origin twist in body coordinates,
         # including the yaw-joint offset, rather than raw generalized qvel.
         import mujoco
@@ -211,7 +223,7 @@ def check(root, temporary):
             facts = service.describe(device)["intrinsics"]
             home = list(facts["home"].values())
             outside = [joint["limits"]["max"] + 10 for joint in facts["model"]["joints"]]
-            local(device, "write", {"actions": [outside], "duration_s": .05})
+            local(device, "write", {"actions": [outside], "duration_s": 0.05})
             np.testing.assert_array_equal(controller.goal_qpos, outside)
             torque = controller.run_controller()
             native._robot.control(np.zeros(native._robot.action_dim), policy_step=False)
@@ -221,12 +233,14 @@ def check(root, temporary):
                 np.clip(torque, controller.actuator_min, controller.actuator_max),
             )
             assert np.any(np.isclose(data.ctrl[indexes], controller.actuator_max))
-            local(device, "write", {"actions": [home], "duration_s": .05})
+            local(device, "write", {"actions": [home], "duration_s": 0.05})
         # No body-command box is added. The native controller may return controls
         # beyond actuator ranges; native robot control and MuJoCo apply limits.
-        local("base", "write", {"mode": "drive",
-                                "velocity": {"vx": 4, "vy": -4, "wz": 4},
-                                "duration_s": .05})
+        local(
+            "base",
+            "write",
+            {"mode": "drive", "velocity": {"vx": 4, "vy": -4, "wz": 4}, "duration_s": 0.05},
+        )
         from roboenv_runtime.adapters.robocasa.base import native_command
 
         base_controller.set_goal(native_command(base_controller, [4, -4, 4]))
@@ -275,7 +289,8 @@ def check(root, temporary):
         spatial = np.empty(6)
         mujoco.mj_objectVelocity(model, data, mujoco.mjtObj.mjOBJ_XBODY, body_id, spatial, 1)
         np.testing.assert_allclose(measured["velocities"], spatial[[3, 4, 2]])
-        np.testing.assert_allclose(measured["pose"]["translation_m"], data.xpos[body_id])
+        assert "pose" not in measured and "frame_poses" not in measured
+        assert "pose" not in call("base", "read")
         assert "positions" not in measured
         origin = data.xpos[body_id].copy()
         rotation = data.xmat[body_id].reshape(3, 3).copy()
@@ -290,9 +305,8 @@ def check(root, temporary):
         before = native._step_count
         image = call("camera_left", "read")
         assert Path(image["file"]).read_bytes().startswith(b"\x89PNG")
-        assert (image["width"], image["height"]) == (12, 8)
-        assert image["sample_time_s"] == image["depth_sample_time_s"]
-        assert image["sample_time_s"] == float(data.time)
+        assert not {"width", "height", "depth_width", "depth_height"} & image.keys()
+        assert image["timestamp"] == float(data.time)
         assert Path(image["depth_file"]).read_bytes().startswith(b"P5\n12 8\n65535\n")
         assert service.describe("camera_left")["type"] == "rgbd"
         assert native._step_count == before
@@ -338,9 +352,14 @@ def check(root, temporary):
         assert "scene" not in {p["name"] for p in service.inventory()["devices"]}
         for name in ("arm", "base", "torso", "gripper"):
             state = local(name, "read", {}) if name in {"gripper", "base"} else call(name, "read")
-            assert set(state) >= {"velocities", "faults"}
-            if name != "base":
-                assert "positions" in state
+            assert "faults" in state
+            if name == "gripper":
+                assert "aperture_m" in state
+                assert not {"positions", "velocities", "frame_poses"}.intersection(state)
+            else:
+                assert "velocities" in state
+                if name != "base":
+                    assert "positions" in state
             size = (
                 1
                 if name == "gripper"
@@ -425,9 +444,35 @@ def check(root, temporary):
                 live = native.sim.data._data
                 snapshot = (live.qpos.copy(), live.qvel.copy(), live.ctrl.copy(), live.time)
                 current = local(name, "fk", {"joints": state["positions"]})["pose"]
-                np.testing.assert_allclose(
-                    current, state["frame_poses"][facts["kinematics"]["frame"]], atol=1e-8
+                from kinex.motion import pose_error
+                from roboenv_runtime.adapters.robocasa.geometry import pose as measured_pose
+
+                arm_indices = native._robot.part_controllers["right"].joint_index
+                arm_base = int(model.body_parentid[model.jnt_bodyid[arm_indices[0]]])
+                base = (
+                    arm_base
+                    if name == "arm"
+                    else native.sim.model.body_name2id(native._robot.robot_model.base.root_body)
                 )
+                tip = (
+                    native.sim.model.body_name2id(native._robot.robot_model.eef_name["right"])
+                    if name == "arm"
+                    else arm_base
+                )
+                assert "frame_poses" not in state
+                assert "frame_poses" not in local(name, "read", {})
+                error = pose_error(current, measured_pose(model, live, tip, base))
+                assert error["position_m"] < 1e-8 and error["rotation_rad"] < 1e-7
+                rng = np.random.default_rng(42)
+                for _ in range(100):
+                    live.qpos[model.jnt_qposadr[indices]] = rng.uniform(ranges[:, 0], ranges[:, 1])
+                    native.sim.forward()
+                    observed = call(name, "read")
+                    predicted = local(name, "fk", {"joints": observed["positions"]})["pose"]
+                    error = pose_error(predicted, measured_pose(model, live, tip, base))
+                    assert error["position_m"] < 1e-8 and error["rotation_rad"] < 1e-7
+                live.qpos[:] = snapshot[0]
+                native.sim.forward()
                 alternate = list(state["positions"])
                 alternate[0] += 0.015
                 target = local(name, "fk", {"joints": alternate})["pose"]
@@ -450,7 +495,6 @@ def check(root, temporary):
                 invalid = list(state["positions"])
                 invalid[0] = facts["model"]["joints"][0]["limits"]["max"] + 1
                 for action, args in (
-                    ("fk", {"joints": invalid}),
                     ("ik", {"pose": current, "seed": invalid}),
                     ("ik", {"pose": [0, 0, 0, 0, 0, 0, 0]}),
                 ):
@@ -477,7 +521,7 @@ def check(root, temporary):
                         reading = call(name, "read")
                         np.testing.assert_array_equal(reading["positions"], measured)
                         assert np.isfinite(
-                            reading["frame_poses"][facts["kinematics"]["frame"]]
+                            local(name, "fk", {"joints": reading["positions"]})["pose"]
                         ).all()
                         solved = local(name, "ik", {"pose": target})["joints"]
                         np.testing.assert_allclose(solved, bounded, atol=1e-10)
@@ -507,7 +551,7 @@ def check(root, temporary):
         state = call("arm", "read")
         np.testing.assert_allclose(state["positions"], goal, atol=0.01)
         assert max(abs(v) for v in state["velocities"]) < 0.01
-        assert state["sample_time_s"] == native.sim.data.time
+        assert state["timestamp"] == native.sim.data.time
         replacement = goal.copy()
         replacement[0] -= 0.2
         call(
@@ -515,9 +559,7 @@ def check(root, temporary):
             "write",
             {"actions": [replacement.tolist()], "duration_s": 0.05},
         )
-        terminal = call(
-            "arm", "write", {"actions": [goal.tolist()], "duration_s": 0.05}
-        )
+        terminal = call("arm", "write", {"actions": [goal.tolist()], "duration_s": 0.05})
         assert terminal["execution_id"]
         np.testing.assert_array_equal(arm.goal_qpos, goal)
         # A later base command preserves the previous gripper command.
@@ -551,7 +593,7 @@ def check(root, temporary):
         )
         try:
             feedback = renamed.describe("test_base")["intrinsics"]["feedback"]
-            assert feedback["pose_frame"] == "test_world"
+            assert "pose_frame" not in feedback
             for child, parent in (
                 ("torso", "base"),
                 ("arm", "torso"),

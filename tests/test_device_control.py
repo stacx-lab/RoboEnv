@@ -23,7 +23,7 @@ def control(*, horizon=3):
 
 def test_only_ticks_advance_one_interval_and_preserves_peer_targets():
     owner, states, _ = control()
-    assert owner.write("left", [0.5]) == {"accepted": True, "elapsed_s": 0}
+    assert owner.write("left", [0.5]) == {"accepted": True}
     assert not states
     owner.tick()
     assert states == [{"left": [0.5], "right": [0]}]

@@ -224,6 +224,14 @@ def test_stop_holds_measured_overshoot_inside_limits():
     assert np.array_equal(np.delete(env.targets["arm"], 1), np.delete(measured, 1))
 
 
+def test_gripper_read_needs_no_joint_feedback():
+    env = Go2Env.__new__(Go2Env)
+    env.native = SimpleNamespace(steps=5, task=SimpleNamespace(failure=None))
+    assert env.read_device("gripper") == {"aperture_m": None, "faults": [], "timestamp": 0.1}
+    with pytest.raises(ValueError, match="Unknown actuator"):
+        env.read_device("unknown")
+
+
 def test_camera_observation_helper_is_importable():
     from roboenv_runtime.adapters.isaaclab.observations import camera_state
 

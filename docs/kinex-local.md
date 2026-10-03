@@ -9,8 +9,9 @@ never writes to the catalog. See [RoboCasa catalog design](robocasa.md#catalog-a
 Robot-mounted camera calibration, controller scaling, joint limits, and rigid
 mounts are pre-generated. Object positions and fixture geometry must be perceived
 from camera images; no simulator scene ground truth is sent to the agent.
-The mobile `base` has no static world mount. Its declared `feedback.pose_frame: world`
-and measured pose supply the live world-to-base edge.
+The mobile `base` is an unlocalized root with no global pose feedback or static
+world mount. Robot-local transforms work directly; world-relative transforms
+require explicit frame estimates.
 
 ## 1. Launch the service (terminal A, RoboEnv checkout)
 
@@ -30,13 +31,13 @@ Kinex does not exhaust a native action-frame budget. Frames are still counted;
 paused and the task's configured/native step limit enforced. Restart the service
 to pick up runtime changes, then `/reload all` in Kinex to refresh its connections.
 
-World `read` exposes native `action_frames` budgets as `budget: {elapsed_s, max_s}`
+World `read` exposes native `action_frames` budgets as `budget: {used_s, max_s}`
 in seconds; `max_s` is null in realtime. Counted initialization frames are included,
 so budget consumption can differ from `time_s`. This is native episode accounting,
 not wall-clock time or an orchestrator deadline. Budgets with other units (`sim_steps`,
 `api_calls`, or unknown units) are omitted because their duration is not established.
 World `status` remains `{loaded: true}`; `wait` returns `time_s` and the wait's
-`elapsed_s`, without a budget.
+`waited_s`, without a budget.
 
 For another task use another task ID. For parallel trials use different ports
 and separate Kinex processes with different `ROBOENV_ENDPOINT` values. Both
@@ -67,6 +68,12 @@ The agent environment does not need RoboEnv or simulator dependencies. There is
 one transport module per device collection, outside the individual device folders.
 Drivers resolve it relative to their own file, so the working directory is irrelevant.
 When copying selected devices, include the collection's `_roboenv.py` once.
+When upgrading an existing workspace, refresh actuator drivers and the shared
+`_roboenv.py` together, preserve workspace-specific connection/calibration facts,
+then reload the affected devices. Failed write-feedback validation cancels only
+that submission; failed cancellation requires recovery before further writes.
+Joint endpoints and hand geometry frames are declared by their models; remove
+their old null placeholders from `intrinsics.frames` when migrating profiles.
 Drivers use `persistent: true`: Kinex starts `driver.py --serve` once and reuses
 its configuration, kinematics model, and HTTP connection. `/reload <device>`
 restarts the process after driver/profile/connection edits. Session and generation

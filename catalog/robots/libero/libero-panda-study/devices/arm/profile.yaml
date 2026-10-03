@@ -194,7 +194,6 @@ intrinsics:
   kinematics:
     frame: flange
     fk: numerical
-    feedback: driver
     frame_to_reported:
     - 0
     - 0
@@ -224,13 +223,10 @@ intrinsics:
   feedback:
     velocities: true
     efforts: false
-    clock: simulation
   stop:
     behavior: hold
     affected_devices:
     - arm
-  frames:
-    flange: null
 extrinsics:
   source: introspected
   method: introspection

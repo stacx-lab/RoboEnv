@@ -5,7 +5,8 @@ import numpy as np
 from roboenv_runtime.bindings.motion import control_binding
 
 
-def intrinsics(world, pose_frame="world"):
+def intrinsics(world):
+    low, high = world._robot.part_controllers["base"].control_limits
     return {
         "source": "introspected",
         "method": "introspection",
@@ -19,8 +20,9 @@ def intrinsics(world, pose_frame="world"):
                     "velocity": {
                         "frame": "body",
                         "components": [
-                            {"axis": axis, "units": "normalized", "bounds": None}
-                            for axis in ("vx", "vy", "wz")
+                            {"axis": axis, "units": "normalized",
+                             "bounds": {"min": float(minimum), "max": float(maximum)}}
+                            for axis, minimum, maximum in zip(("vx", "vy", "wz"), low, high, strict=True)
                         ],
                     },
                     "posture": None,
@@ -29,10 +31,8 @@ def intrinsics(world, pose_frame="world"):
         },
         "stop": {"behavior": "halt", "affected_devices": ["base"]},
         "feedback": {
-            "pose_frame": pose_frame,
             "velocity_frame": "body",
             "velocity_components": ["vx", "vy", "wz"],
-            "clock": "simulation",
         },
     }
 
@@ -44,15 +44,10 @@ def reading(model, data, body):
     # joint. Raw generalized qvel is neither body-frame velocity nor this point.
     spatial = np.empty(6)
     mujoco.mj_objectVelocity(model, data, mujoco.mjtObj.mjOBJ_XBODY, body, spatial, 1)
-    quat = data.xquat[body]
     return {
-        "pose": {
-            "translation_m": data.xpos[body].tolist(),
-            "rotation_xyzw": [*quat[1:].tolist(), float(quat[0])],
-        },
         "velocities": spatial[[3, 4, 2]].tolist(),
         "faults": [],
-        "sample_time_s": float(data.time),
+        "timestamp": float(data.time),
     }
 
 
@@ -72,7 +67,7 @@ def bind(spec, root, context):
     if getattr(controller, "name", None) != "JOINT_VELOCITY":
         raise ValueError("velocity binding requires a native JOINT_VELOCITY controller")
     body = sim.model.body_name2id(robot.robot_model.base.root_body)
-    facts = intrinsics(world, (context.devices or {}).get("world", "world"))
+    facts = intrinsics(world)
     facts["stop"]["affected_devices"] = [definition.name]
 
     def write(**args):

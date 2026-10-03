@@ -29,9 +29,9 @@ def run(out, execution_mode="realtime", speed=0.05, task="isaaclab/go2-d1-contro
         for velocity, duration in [(0.0, 3.0), (speed, 2.6), (0.0, 0.4)]:
             command["velocity"]["vx"] = velocity
             receipt = public.device("base").write(**command, duration_s=duration)["data"]
-            assert receipt["execution_id"] and receipt["elapsed_s"] == 0
+            assert receipt["execution_id"] and "elapsed_s" not in receipt
             waited = world.wait(duration)["data"]
-            assert duration - 1e-9 <= waited["elapsed_s"] <= duration + 0.02 + 1e-9
+            assert duration - 1e-9 <= waited["waited_s"] <= duration + 0.02 + 1e-9
         assert world.read()["data"]["time_s"] >= started + 6.0 - 1e-9
         if execution_mode == "stepped":
             assert private.request("observe")["final"]["steps"] == 300

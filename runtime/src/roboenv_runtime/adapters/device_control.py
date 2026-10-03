@@ -51,7 +51,7 @@ class DeviceControl:
             self.on_write(tuple(commands))
         self.targets.update(copy.deepcopy(commands))
         self.commands.append({"frame": self.frame, "op": "write", "commands": commands})
-        return {"accepted": True, "elapsed_s": 0.0}
+        return {"accepted": True}
 
     def stop(self, device, measured_target):
         # Stop may hold measured soft-limit overshoot. Never project reported state.

@@ -212,11 +212,11 @@ def native(enabled, out, models, pose_error):
             world.advance(world.control.targets)
             errors.append(
                 {
-                    n: pose_error(goals[n], world.read_device(n)["frame_poses"]["flange"])
+                    n: pose_error(goals[n], models[n].fk(world.read_device(n)["positions"])["pose"])
                     for n in ARMS
                 }
             )
-        before_stop = {n: world.read_device(n)["frame_poses"]["flange"] for n in ARMS}
+        before_stop = {n: models[n].fk(world.read_device(n)["positions"])["pose"] for n in ARMS}
         for n in ARMS:
             world.control.stop(n)
         drift = {n: [] for n in ARMS}
@@ -224,7 +224,9 @@ def native(enabled, out, models, pose_error):
             world.advance(world.control.targets)
             for n in ARMS:
                 drift[n].append(
-                    pose_error(before_stop[n], world.read_device(n)["frame_poses"]["flange"])[
+                    pose_error(
+                        before_stop[n], models[n].fk(world.read_device(n)["positions"])["pose"]
+                    )[
                         "position_m"
                     ]
                 )
@@ -260,7 +262,7 @@ def native(enabled, out, models, pose_error):
                 {
                     n: {
                         "local": pose_error(
-                            goals[n], world.read_device(n)["frame_poses"]["flange"]
+                            goals[n], models[n].fk(world.read_device(n)["positions"])["pose"]
                         ),
                         "frame_drift": pose_error(
                             matrix_pose(initial @ matrix(goals[n])),

@@ -58,7 +58,7 @@ def rig():
     env.native.advance = advance
     env.read_device = lambda name: {
         "faults": [],
-        "sample_time_s": env.steps * env.control_interval,
+        "timestamp": env.steps * env.control_interval,
         "positions": env.targets[name].tolist(),
     }
     owner = IsaacLabAdapter.__new__(IsaacLabAdapter)
@@ -80,14 +80,14 @@ def wait(service, duration):
 def test_base_submission_is_immediate_and_only_world_wait_advances_stepped_time(rig):
     env, session, service, samples = rig
     result = call(service, "base", "write", **COMMAND)
-    assert result["execution_id"] and result["elapsed_s"] == 0
-    assert result["state"]["sample_time_s"] == 0
+    assert result["execution_id"] and "elapsed_s" not in result
+    assert result["state"]["timestamp"] == 0
     assert env.steps == 0
     session.advance()
     assert call(service, "world")["time_s"] == 0
-    assert call(service, "base")["sample_time_s"] == 0
+    assert call(service, "base")["timestamp"] == 0
     result = wait(service, 20)
-    assert result["elapsed_s"] == pytest.approx(20)
+    assert result["waited_s"] == pytest.approx(20)
     assert result["time_s"] == pytest.approx(20)
     assert env.steps == 1000
     assert all(targets[0][1] == -0.25 for targets in samples)
@@ -130,7 +130,7 @@ def test_arm_gripper_and_base_share_ticks_and_concurrent_world_waits(rig):
     waits = [service.submit({"device": "world", "action": "wait", "args": {"duration_s": 0.1}})
              for _ in range(2)]
     for pending in waits:
-        assert session.resolve(pending)["data"]["elapsed_s"] == pytest.approx(0.1)
+        assert session.resolve(pending)["data"]["waited_s"] == pytest.approx(0.1)
     assert env.steps == 5
     assert np.array_equal(env.targets["base"][:3], [0, 0, 0])
     assert np.allclose(env.targets["arm"], goal)
@@ -191,7 +191,7 @@ def test_wait_rounds_to_native_tick(rig):
     env, _, service, _ = rig
     call(service, "base", "write", **{**COMMAND, "duration_s": 0.03})
     assert env.steps == 0
-    assert wait(service, 0.03)["elapsed_s"] == pytest.approx(0.04)
+    assert wait(service, 0.03)["waited_s"] == pytest.approx(0.04)
     assert env.steps == 2 and env.targets["base"][1] == 0
 
 
@@ -323,7 +323,9 @@ def test_realtime_replay_does_not_restore_a_step_cap(native_stub, tmp_path, monk
     spec = definition("go2-d1-pick-place")
     spec.update(destination=[3, 0, 0], object_mass_kg=0.2, tcp_in_flange_m=[0, 0, 0.15])
     native.task = SimpleNamespace(spec=spec)
-    env.profiles["gripper"]["extrinsics"]["mount"]["translation_m"] = spec["tcp_in_flange_m"]
+    env.profiles["gripper"]["intrinsics"]["frames"]["tcp"]["translation_m"] = (
+        spec["tcp_in_flange_m"]
+    )
     native.snapshot = lambda: {
         "steps": native.steps, "root": [0.0], "joints": {"joint": 0.0},
         "task": task, "done": native.done,
@@ -402,13 +404,13 @@ def test_native_termination_freezes_clock_and_settles_peer_waits(
     with pytest.raises(DeviceError) as caught:
         long.result()
     assert caught.value.code == "episode_finished"
-    assert caught.value.details["elapsed_s"] == pytest.approx(expected)
+    assert caught.value.details["waited_s"] == pytest.approx(expected)
     assert caught.value.details["effects"] == ("none" if already_done else "partial")
     if already_done:
         with pytest.raises(DeviceError):
             short.result()
     else:
-        assert short.result()["elapsed_s"] == pytest.approx(0.02)
+        assert short.result()["waited_s"] == pytest.approx(0.02)
     assert session.failure is None and not session.pending
     assert np.array_equal(env.targets["base"][:3], [0, 0, 0])
     assert np.allclose(env.targets["arm"], [0.1] * 6)
@@ -418,7 +420,7 @@ def test_native_termination_freezes_clock_and_settles_peer_waits(
         session.advance()
     assert env.events == snapshot
     assert call(service, "world")["time_s"] == pytest.approx(expected)
-    assert call(service, "arm")["sample_time_s"] == pytest.approx(expected)
+    assert call(service, "arm")["timestamp"] == pytest.approx(expected)
     with pytest.raises(DeviceError) as refused:
         wait(service, 0.1)
     assert refused.value.code == "episode_finished"
@@ -433,7 +435,7 @@ def test_native_termination_freezes_clock_and_settles_peer_waits(
     env.reset = reset
     env.native.advance = advance
     session.reset(1)
-    assert wait(service, 0.02)["elapsed_s"] == pytest.approx(0.02)
+    assert wait(service, 0.02)["waited_s"] == pytest.approx(0.02)
     assert env.steps == 1
 
 

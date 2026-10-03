@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import subprocess
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -170,8 +171,8 @@ def check_kinex_profiles(tmp_path, paths):
         "throw new Error(item.id + ': ' + item.detail); } "
         "if (!plan.items.some(i => i.id === 'intrinsics:arm')) throw new Error('No devices'); "
         "if (!plan.items.find(i => i.id === 'extrinsics:base')"
-        "?.detail.includes('runtime pose in world')) "
-        "throw new Error('Mobile base must use its declared live world pose'); "
+        "?.detail.includes('unlocalized device root')) "
+        "throw new Error('Mobile base must be an unlocalized root'); "
         "if (plan.items.find(i => i.id === 'task-ready')?.status !== 'done') "
         "throw new Error('Explicit null caps must satisfy the safety policy');"
     )
@@ -232,6 +233,7 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
         "camera_wrist",
         "world",
         "_roboenv.py",
+        "_camera.py",
     }
     assert not list(robot.rglob("connection.json"))
     assert {p.name for p in robot.iterdir()} == {"workspace.yaml", "devices"}
@@ -260,7 +262,7 @@ def test_static_robocasa_config_regenerates_without_a_task(tmp_path):
     assert body["type"] == "velocity"
     assert body["extrinsics"] == {"source": "introspected"}
     assert "execution" not in body["intrinsics"]["control"]
-    assert body["intrinsics"]["feedback"]["pose_frame"] == "world"
+    assert "pose_frame" not in body["intrinsics"]["feedback"]
     torso = yaml.safe_load((robot / "devices/torso/profile.yaml").read_text())
     assert torso["extrinsics"]["mount"]["parent"] == "base"
     world = yaml.safe_load((robot / "devices/world/profile.yaml").read_text())
@@ -286,7 +288,7 @@ def test_images_download_to_client_files_and_are_episode_fenced(
     env = Environment(Client(supervisor.http_endpoint))
     captures = supervisor.config.run_dir / "captures"
     captures.mkdir()
-    remote = captures / ("a" * 32 + "." + extension)
+    remote = captures / ("a" * 16 + "." + extension)
     remote.write_bytes(b"test-image")
     local = Path(env._download(str(remote)))
     assert local != remote and local.read_bytes() == b"test-image"
@@ -411,7 +413,7 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
         assert owners[1].request("observe")["budget"]["used"] == 0
         image = first.device("camera_left").read()
         assert Path(image["file"]).read_bytes().startswith(b"\x89PNG")
-        assert image["width"] == 12
+        assert not {"width", "height", "depth_width", "depth_height"} & image.keys()
         budget_before = owners[0].request("observe")["budget"]["used"]
         frames = []
         depths = []
@@ -421,8 +423,9 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
             depth = Path(reading["depth_file"])
             assert depth.parent == Path(reading["file"]).parent
             assert depth.parent != supervisors[0].config.run_dir / "captures"
-            assert reading["sample_time_s"] == reading["depth_sample_time_s"]
-            assert (reading["depth_width"], reading["depth_height"]) == (12, 8)
+            assert depth.stem == Path(reading["file"]).stem
+            assert re.fullmatch("[0-9a-f]{16}", depth.stem)
+            assert reading["timestamp"] == pytest.approx(first.device("world").read()["time_s"])
             depths.append(depth.read_bytes())
         assert all(d.startswith(b"P5\n12 8\n65535\n") for d in depths)
         assert len(set(depths)) == 3
@@ -534,7 +537,13 @@ def test_world_binding_preserves_profile_geometry(tmp_path, device_type, config)
     from roboenv_runtime.bindings.backends.robocasa import register
 
     intrinsics = {
-        "frames": {"fixture": [1, 0, 0, 0, 0, 0, 1]},
+        "frames": {
+            "fixture": {
+                "parent_frame": None,
+                "translation_m": [1, 0, 0],
+                "rotation_xyzw": [0, 0, 0, 1],
+            }
+        },
         "bounds": {"min": [-2, -2, 0], "max": [2, 2, 3]},
         "surfaces": [],
         "source": "calibration",

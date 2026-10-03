@@ -9,13 +9,13 @@ from __future__ import annotations
 import json
 import math
 import os
+import secrets
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
 import time
-import uuid
 from dataclasses import asdict, replace
 from pathlib import Path
 
@@ -331,7 +331,7 @@ def launch(
 
         if not source_status(root, [spec.backend])["ready"]:
             raise ValueError(f"Sources are not ready; run 'roboenv doctor {spec.backend}'")
-    run_id = uuid.uuid4().hex[:16]
+    run_id = secrets.token_hex(8)
     runs = (
         Path(run_dir).resolve()
         if run_dir

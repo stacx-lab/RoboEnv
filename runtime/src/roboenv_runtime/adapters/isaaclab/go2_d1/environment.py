@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from roboenv.devices.model import DeviceError
 
-from .adapter import DEFAULT, pose, validate_command
+from .adapter import DEFAULT, validate_command
 from .tasks import PICK_PLACE, TASKS, catalog_definition, definition
 
 
@@ -62,7 +62,9 @@ class Go2Env:
             load_profiles() if device_profiles is None else device_profiles
         )
         if tcp_in_flange_m is None:
-            tcp_in_flange_m = self.profiles["gripper"]["extrinsics"]["mount"]["translation_m"]
+            from .tasks import gripper_tcp
+
+            tcp_in_flange_m = gripper_tcp(self.profiles["gripper"])
         spec = definition(task_name, task_spec, tcp_in_flange_m)
         if type(cameras) is not bool:
             raise ValueError("cameras must be a boolean")
@@ -75,7 +77,13 @@ class Go2Env:
 
         from .native import Native
 
-        self.profiles["gripper"]["extrinsics"]["mount"]["translation_m"] = spec["tcp_in_flange_m"]
+        from roboenv_runtime.adapters.urdf_geometry import matrix
+
+        mount = self.profiles["gripper"]["extrinsics"]["mount"]
+        transform = matrix(mount["translation_m"] + mount["rotation_xyzw"])
+        self.profiles["gripper"]["intrinsics"]["frames"]["tcp"]["translation_m"] = (
+            transform[:3, :3].T @ (np.asarray(spec["tcp_in_flange_m"]) - transform[:3, 3])
+        ).tolist()
         self.task_name = task_name
         self.native = Native(
             repo_root() / asset_manifest,
@@ -193,36 +201,31 @@ class Go2Env:
     def read_device(self, name):
         state = {
             "faults": [self.native.task.failure] if self.native.task.failure else [],
-            "sample_time_s": self.steps * 0.02,
+            "timestamp": self.steps * 0.02,
         }
         if name == "base":
             p = self.native.root_pose()
             return {
                 **state,
-                "pose": {"translation_m": p[:3].tolist(), "rotation_xyzw": p[3:].tolist()},
                 "height_m": float(p[2]),
-                "frame_poses": {},
                 "velocities": [
                     *self.native.array(self.native.robot.data.root_lin_vel_b).tolist(),
                     *self.native.array(self.native.robot.data.root_ang_vel_b).tolist(),
                 ],
             }
+        if name == "gripper":
+            return {**state, "aperture_m": None}
+        if name != "arm":
+            raise ValueError("Unknown actuator")
         q = self.native.joints()
-        names = self.native.model.arm_names if name == "arm" else ["d1_Joint7_1", "d1_Joint7_2"]
+        names = self.native.model.arm_names
         velocities = self.native.array(self.native.robot.data.joint_vel)
-        result = {
+        return {
             **state,
             "positions": [q[n] for n in names],
             "velocities": [float(velocities[self.native.ids[n]]) for n in names],
             "efforts": [],
         }
-        if name == "arm":
-            result["frame_poses"] = {"flange": pose(self.native.model.arm_fk(result["positions"]))}
-        elif name == "gripper":
-            result["frame_poses"] = {}
-        else:
-            raise ValueError("Unknown actuator")
-        return result
 
     def read_camera(self, name, directory):
         if name not in self.native.cameras:

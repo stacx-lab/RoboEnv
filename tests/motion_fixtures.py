@@ -66,7 +66,7 @@ def bind_devices(native, world, *, kind="joint", control=None):
                 "velocities": [0],
                 "efforts": [],
                 "faults": [{"code": "fault"}] if native.fault == name else [],
-                "sample_time_s": native.frame * period,
+                "timestamp": native.frame * period,
             }
 
         def stop(args, _):

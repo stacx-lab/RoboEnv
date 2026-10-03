@@ -82,8 +82,9 @@ def placement(world, models, name, frame=None):
     if name == "world":
         return np.eye(4)
     if name == "base":
-        value = world.device_read(name)["pose"]
-        return matrix(value["translation_m"] + value["rotation_xyzw"])
+        from roboenv_runtime.adapters.behavior.devices import pose
+
+        return pose(world.robot)
     mount = world.device_facts[name]["extrinsics"]["mount"]
     transform = placement(world, models, mount["parent"], mount.get("parent_frame")) @ matrix(
         mount["translation_m"] + mount["rotation_xyzw"]
@@ -267,9 +268,11 @@ def check(world, out, report):
     goals = {}
     for name, model in models.items():
         reading = world.device_read(name)
-        fk_error = pose_error(
-            model.fk(reading["positions"])["pose"], reading["frame_poses"]["flange"]
-        )
+        rig_frame = world.rig_frames[name]
+        measured = matrix_pose(np.linalg.inv(pose(world.robot.links[rig_frame["base"]]))
+                               @ pose(world.robot.links[rig_frame["flange"]]))
+        assert "frame_poses" not in reading
+        fk_error = pose_error(model.fk(reading["positions"])["pose"], measured)
         q = model.project(reading["positions"])
         target_q = q.copy()
         target_q[0] += 0.08

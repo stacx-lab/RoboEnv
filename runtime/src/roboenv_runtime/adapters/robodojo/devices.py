@@ -264,7 +264,8 @@ class RoboDojoDevices(RoboDojoEnv):
 
     def device_stop(self, name):
         if name.endswith("_gripper"):
-            self.gripper_holds[name] = self.device_read(name)["positions"]
+            _, key, indices = self.actuators[name]
+            self.gripper_holds[name] = np.asarray(values(key.data.joint_pos[0]))[indices].tolist()
         return self.control.stop(name, self._measured_target(name))
 
     def _release_holds(self, devices):
@@ -272,28 +273,25 @@ class RoboDojoDevices(RoboDojoEnv):
             self.gripper_holds.pop(name, None)
 
     @property
-    def sample_time_s(self):
+    def timestamp(self):
         return (self.physics_steps - self.episode_start_steps) * self.physics_dt
 
     def device_read(self, name):
-        robot, key, indices = self.actuators[name]
+        _, key, indices = self.actuators[name]
+        positions = np.asarray(values(key.data.joint_pos[0]))[indices].tolist()
         result = {
-            "positions": np.asarray(values(key.data.joint_pos[0]))[indices].tolist(),
-            "velocities": np.asarray(values(key.data.joint_vel[0]))[indices].tolist(),
             "faults": [],
-            "sample_time_s": self.sample_time_s,
+            "timestamp": self.timestamp,
         }
-        if name.endswith("_arm"):
-            frames = self.rig_frames[name.removesuffix("_arm")]
-            manager = self._env.robot_manager
-            base = pose_matrix(manager.get_link_pose(robot, frames["base"], [0])[0])
-            flange = pose_matrix(manager.get_link_pose(robot, frames["flange"], [0])[0])
-            result["frame_poses"] = {"flange": matrix_pose(np.linalg.inv(base) @ flange)}
         if name.endswith("_gripper"):
-            result.update(
-                self.rig_frames[name.removesuffix("_gripper")]["gripper"].read(result["positions"])
-            )
-        return result
+            gripper = self.rig_frames[name.removesuffix("_gripper")]["gripper"]
+            return {**result, **gripper.read(positions)}
+        return {
+            **result,
+            "positions": positions,
+            "velocities": np.asarray(values(key.data.joint_vel[0]))[indices].tolist(),
+            "efforts": [],
+        }
 
     def _camera(self, name):
         native = {

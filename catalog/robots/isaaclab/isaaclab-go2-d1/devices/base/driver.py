@@ -37,10 +37,11 @@ def handle(action, args):
 
         if action == "write":
             value = command(profile, args)
-            return {"ok": True, **remote(action, value)}
+            return {"ok": True, **transport.write(value, lambda state: reading(profile, state))}
         return {"ok": True, **reading(profile, remote("read", {}))}
     except WireError as exc:
-        return {"ok": False, "error": str(exc), "code": exc.code, "request_id": exc.request_id}
+        return {"ok": False, "error": str(exc), "code": exc.code,
+                "request_id": exc.request_id, "details": exc.details}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 

@@ -74,10 +74,10 @@ these do not reset or close the world.
 
 | Device | Type | Service read / write |
 |---|---|---|
-| `arm` | `joint` | Seven joint positions/velocities and flange pose; seven absolute joint targets in radians |
-| `torso` | `joint` | Lift state and top pose; one absolute target in metres |
-| `base` | `velocity` | World pose and measured chassis-origin twist; normalized body-frame `vx`, `vy`, `wz` commands |
-| `gripper` | `gripper` | Finger joint state; direction in `[-1, 1]`, positive closes |
+| `arm` | `joint` | Seven joint positions/velocities; seven absolute joint targets in radians. Compute flange pose with explicit FK. |
+| `torso` | `joint` | Lift joint state; one absolute target in metres. Compute the top frame with explicit FK. |
+| `base` | `velocity` | Measured chassis-origin twist; normalized body-frame `vx`, `vy`, `wz` commands with advertised bounds [-1, 1] |
+| `gripper` | `gripper` | Measured aperture in metres; direction in `[-1, 1]`, positive closes |
 | `camera_left`, `camera_right`, `camera_wrist` | `rgbd` | Aligned RGB and metric depth files; no write |
 | `world` | `world` | World clock, reference frame and optional workspace bounds |
 
@@ -92,7 +92,7 @@ uses the normal `robosuite` step, preserving physics, observables, and task hook
 It replaces the composite goal update for that call so arm/lift goals persist and
 base/gripper inputs are refreshed, then restores the hook even on failure.
 
-Writes return `execution_id`, `elapsed_s` and a measured `state` snapshot.
+Writes return `execution_id` and a measured `state` snapshot.
 Wait for execution with `world.wait(duration_s)`.
 Stop holds arm/torso/gripper or zeroes base velocity without stepping. Reads
 include faults and acquisition timestamps. Realtime continues while idle;
@@ -217,16 +217,28 @@ AABB sides and calibration readiness do not imply collision-free or reachable sp
 
 ## Frames and cameras
 
-The mobile `base` omits a static `extrinsics.mount` and declares
-`intrinsics.feedback.pose_frame: world`. Its live pose supplies the world-to-base
-edge. Measured base velocities are at the chassis origin in body coordinates, in
-m/s and rad/s; they are not normalized commands or raw generalized joint velocity.
+The mobile `base` is an unlocalized root: its profile omits `extrinsics.mount`
+and `feedback.pose_frame`, and reads/write states omit global `pose` and empty
+`frame_poses`. Robot-local transforms still work; a world-relative query requires
+an explicit estimate. Measured base velocities are at the chassis origin in body
+coordinates, in m/s and rad/s, independently of command units.
+
+Writes use named axes, for example
+`{mode: "drive", velocity: {vx: 0.05, vy: 0, wz: 0}, duration_s: 0.5}`.
+The profile publishes the native controller's normalized input bounds `[-1, 1]`
+for all three axes. `limit_handling: native` preserves native behavior: inputs
+are converted into actuator coordinates and robosuite clips the resulting actuator
+outputs; MuJoCo also enforces actuator limits. Kinex adds no input clipping or
+rejection. These input bounds do not promise measured speed limits. The pinned
+controller computes a scaled input but uses its original input in goal conversion,
+so this is not equivalent to clipping each body-frame input before conversion.
 
 The torso is a one-joint endpoint with a declared `top` frame. The arm and
 left/right cameras mount on `torso:top`; the gripper and wrist camera mount on
-`arm:flange`. Both frames are declared as null in `intrinsics.frames`; `read.frame_poses`
-supplies their measured transforms relative to the
-canonical device frame. Names such as top/flange are declared, never implicit.
+`arm:flange`. Each device's `intrinsics.kinematics.frame` declares its endpoint;
+no duplicate entry in `intrinsics.frames` is needed. Joint reads contain joint measurements; local FK computes
+these poses relative to the device base. FK agrees with MuJoCo body transforms;
+the CPU conformance test checks 101 configurations for each device.
 
 | Camera | Native sensor | Vertical FOV | Rigid parent |
 |---|---|---:|---|
@@ -245,9 +257,9 @@ raw depth by `intrinsics.depth.scale_m_per_unit` (0.001) for optical-axis metres
 background, or unrepresentable depth; values are not clipped into fake surfaces.
 Conversion uses the live model's near/far planes, not fixed sensor-range calibration.
 This is quantized synthetic depth, with no assumed hardware noise model. Color and
-depth reads carry matching acquisition Unix timestamps in `sample_time_s` and
-`depth_sample_time_s`, plus explicit dimensions. They timestamp the paired render
-while the world state is locked; transport receipt time is separate. Scale and encoding live in the profile. Color facts
+depth reads carry one simulation-clock `timestamp`; dimensions remain in the profile.
+It timestamps the paired render while the world state is locked.
+Scale and encoding live in the profile. Color facts
 use `intrinsics.color` with pinhole projection, distortion, and derived FOV; depth
 uses `intrinsics.depth` with color registration and optical-Z quantity. The camera
 table lists nominal native FOV; exported FOV follows Kinex’s pixel-edge convention.
