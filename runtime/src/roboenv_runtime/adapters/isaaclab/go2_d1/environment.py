@@ -171,9 +171,9 @@ class Go2Env:
             raise ValueError("Unknown actuator")
         if name == "base":
             self.targets[name][:3] = 0
-        else:
-            # Measured positions may overshoot a limit slightly; hold inside it.
-            names = self.native.model.arm_names if name == "arm" else ["d1_Joint7_1", "d1_Joint7_2"]
+        elif name == "arm":
+            # Arm stop holds measured posture; gripper stop retains its closing target.
+            names = self.native.model.arm_names
             lo, hi = np.array([self.native.model.joints[n]["limits"] for n in names]).T
             self.targets[name] = np.clip(self.read_device(name)["positions"], lo, hi)
         self.events.append({"frame": self.steps, "op": "stop", "device": name, "reason": reason})

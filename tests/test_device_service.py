@@ -314,20 +314,13 @@ def test_call_results_match_published_schema(device_service):
     validator.validate(invoke(client))
 
 
-@pytest.mark.parametrize(
-    "args",
-    [
-        [],
-        "invalid",
-        {"device": "controller", "action": "read"},
-        {"device": "controller", "action": "read", "args": []},
-    ],
-)
-def test_malformed_device_requests_cannot_move_world(device_service, args):
+def test_malformed_device_requests_cannot_move_world(device_service):
     client, _, _ = device_service
-    with pytest.raises((ValueError, RemoteError)):
-        client.request("devices.call", args)
-    assert client.request("observe")["budget"]["used"] == 0
+    for args in ([], "invalid", {"device": "controller", "action": "read"},
+                 {"device": "controller", "action": "read", "args": []}):
+        with pytest.raises((ValueError, RemoteError)):
+            client.request("devices.call", args)
+        assert client.request("observe")["budget"]["used"] == 0
 
 
 @pytest.mark.parametrize("failure", ["lost", "mismatched", "missing_data"])

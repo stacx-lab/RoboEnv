@@ -486,3 +486,25 @@ def test_resolved_profiles_start_without_source_catalog(native_stub, monkeypatch
     assert env.profiles == expected
     resolved.task.backend_kwargs["device_profiles"]["arm"]["intrinsics"]["home"].clear()
     assert env.profiles == expected
+
+
+def test_gripper_stop_discards_future_open_and_retains_preload(rig):
+    env, session, service, _ = rig
+    original_read = env.read_device
+
+    def measured(name):
+        result = original_read(name)
+        if name == "gripper":
+            result["positions"] = [.01, -.01]  # object prevents full closure
+        return result
+
+    env.read_device = measured
+    call(service, "gripper", "write", actions=[0, 1], duration_s=1)
+    wait(service, .1)
+    call(service, "gripper", "stop")
+    call(service, "gripper", "stop")
+    wait(service, 1)
+    np.testing.assert_array_equal(env.targets["gripper"], [0, 0])
+    call(service, "gripper", "write", actions=[1], duration_s=.1)
+    wait(service, .1)
+    np.testing.assert_allclose(env.targets["gripper"], [.03, -.03])

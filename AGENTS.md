@@ -77,7 +77,9 @@ RoboEnv; Kinex-compatible device catalogs and local checks remain supported.
   Commit only the upstream gitlink, lock revision, patch files/checksums, and
   corresponding notices in RoboEnv. Preserve historical validation receipts;
   a new upstream base requires new validation, not relabeled old evidence.
-- Add positive and negative tests, then run tools/check.sh.
+- Add focused positive and negative tests, then run tools/check.sh. Keep default
+  CPU, privacy and wheel gates; avoid redundant full-process parameter matrices.
+  Gripper stop preserves the applied target/preload; explicit open releases it.
 - CPU checks and task-format checks are not GPU replay certificates.
 - Report boot, device checks, task success, and fresh-process replay separately.
 - Real GPU/model runs require explicit scope; do not invoke paid models implicitly.

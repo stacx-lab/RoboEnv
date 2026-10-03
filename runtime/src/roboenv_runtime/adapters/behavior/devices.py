@@ -158,14 +158,12 @@ class BehaviorDevices(BehaviorBackend):
                 targets[name] = self._measured_target(name)
         self._native_done = False
         self._native_success = bool(self.goal_report()["success"])
-        self.gripper_holds = {}
         self.control = DeviceControl(
             limits,
             targets,
             self._apply,
             self._advance,
             exhausted=self.exhausted,
-            on_write=self._release_holds,
             interval_s=self.control_interval,
         )
         self.initialization = {
@@ -230,7 +228,6 @@ class BehaviorDevices(BehaviorBackend):
             value = np.asarray(target)
             if name.endswith("_gripper"):
                 value = group["lower"] + value[0] * (group["upper"] - group["lower"])
-                value = self.gripper_holds.get(name, value)
             action[group["action_indices"]] = value
         self.action = torch.tensor(action)
         self.robot.apply_action(self.action)
@@ -243,16 +240,10 @@ class BehaviorDevices(BehaviorBackend):
     def device_write(self, name, target):
         return self.control.write(name, target)
 
-    def _release_holds(self, devices):
-        for name in devices:
-            self.gripper_holds.pop(name, None)
-
     def device_stop(self, name):
-        if name.endswith("_gripper"):
-            self.gripper_holds[name] = array(self.robot.get_joint_positions())[
-                self.groups[name]["indices"]
-            ].tolist()
-        result = self.control.stop(name, self._measured_target(name))
+        target = (self.control.targets[name] if name.endswith("_gripper")
+                  else self._measured_target(name))
+        result = self.control.stop(name, target)
         return {**result, "behavior": "zero_velocity" if name == "base" else "hold"}
 
     @property

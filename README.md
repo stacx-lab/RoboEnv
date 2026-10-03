@@ -181,7 +181,11 @@ bash tools/check.sh
 Tests use shared fresh-worker fixtures for device, transport, and lifecycle
 checks. CLI replay and verifier coverage exercise the real worker rather than a
 second fake server. Recipe and installation checks live in `tests/test_setup.py`; test helpers live
-outside test modules so tests do not import one another. The default check still runs the complete CPU suite.
+outside test modules so tests do not import one another. The default check still runs the complete CPU suite and wheel gates. CLI invalid
+selectors run in process; service-selection checks share one pair of workers.
+Both threading modes retain scheduling tests, while full Kinex recording/planning
+integration runs once in owner-thread mode. Kitchen determinism uses two builds
+in each of two fresh processes. Shared catalog scans retain exhaustive coverage.
 
 Bounded-write regressions cover all six simulator backends using CPU state and
 the real control/dispatch code. With LIBERO prepared and a built Kinex checkout,
@@ -246,3 +250,8 @@ Existing velocity profiles must remove `feedback.pose_frame`; drivers must omit
 `pose` from both reads and write-result states.
 Refresh copied RoboEnv profiles and drivers together, restart the simulation service,
 and reload the base after upgrading an existing workspace.
+
+All scalar grippers retain their applied grip target and preload on `stop`;
+pending actions are cleared. Direction commands stop integrating at their current
+target. Explicit open releases the grasp. Restart owned services after upgrading
+and refresh copied Kinex gripper drivers/runtime helpers before reloading.
