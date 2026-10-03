@@ -20,6 +20,7 @@ PREFLIGHT = load_tool("release_preflight")
 @pytest.fixture
 def project(tmp_path):
     paths = [
+        "VERSION",
         "pyproject.toml",
         "README.md",
         "src/roboenv/__init__.py",
@@ -113,6 +114,13 @@ def test_module_version_drift_fails_even_development(project):
     result = PREFLIGHT.inspect(project, mode="development")
     assert not result["passed"]
     assert "metadata.module_version" in codes(result)
+
+
+def test_canonical_version_drift_fails_even_when_packages_agree(project):
+    (project / "VERSION").write_text("99.0.0\n")
+    result = PREFLIGHT.inspect(project, mode="development")
+    assert not result["passed"]
+    assert "metadata.canonical_version" in codes(result)
 
 
 def test_runtime_must_depend_on_exact_sdk_server_extra(project):

@@ -7,6 +7,23 @@ packages or simulator images.
 
 ## Local checks and the license gate
 
+`VERSION` is the only release version to edit. Use stable `MAJOR.MINOR.PATCH`
+without a `v` prefix, then synchronize the checked-in package metadata:
+
+```sh
+python tools/version.py --sync
+python tools/version.py --check
+```
+
+Use the Python 3.12 development interpreter for these commands. Synchronization
+updates both project versions, the runtime's exact SDK dependency and both module
+`__version__` values; commit the resulting files together. It preserves other
+dependencies and creates no commits, tags, builds or publications. Bootstrap,
+normal checks and release preflight reject mismatches without rewriting files.
+After a bump, rerun bootstrap to refresh editable installation metadata, then
+rebuild both wheels. Installed and extracted packages use their synchronized
+module versions and do not need the source checkout's `VERSION` file.
+
     bash tools/bootstrap.sh
     bash tools/check.sh
     .venv/bin/python tools/clean_install.py --wheels build/wheels \

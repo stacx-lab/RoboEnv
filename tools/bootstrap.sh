@@ -22,6 +22,7 @@ if [[ ! -f "$environment_dir/pyvenv.cfg" ]]; then
 fi
 "$environment_dir/bin/python" -I -c \
   'import sys; assert sys.version_info[:2] == (3, 12), "Development tooling requires Python 3.12"'
+"$environment_dir/bin/python" tools/version.py --check
 uv pip install --python "$environment_dir/bin/python" --no-deps -r locks/dev.txt
 uv pip install --python "$environment_dir/bin/python" --no-deps --no-build-isolation -e . -e runtime
 uv pip check --python "$environment_dir/bin/python"
