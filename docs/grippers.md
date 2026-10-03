@@ -17,36 +17,32 @@ RoboDojo clips normalized goals and interpolated finger targets; BEHAVIOR clips
 finger controller output to native joint ranges. Internal stop holds can retain
 measured soft-limit overshoot without treating it as a new user command.
 
-- `extrinsics.mount` places the device TCP in its arm's `flange` frame.
-- `intrinsics.geometry` describes that TCP and gives approach and closing axes
-  in device coordinates.
-- `geometry.contacts` references frames declared in `intrinsics.frames`.
-  A contact frame's +Z points into the jaws; its local XY plane is tangent to the
-  contact surface. `size_m` describes a rectangular patch only when known.
-- Every read supplies `frame_poses` for the moving contacts, alongside measured
-  finger positions and physical `aperture_m`.
+- `extrinsics.mount` places the gripper base in its arm's `flange` frame.
+  `intrinsics.frames.tcp` places the TCP relative to the gripper base.
+- `intrinsics.geometry` gives approach and closing axes in gripper-base coordinates.
+  Its optional `description` describes the fingers, pads and known limitations.
+- Reads and write states report physical `aperture_m`, faults
+  and timestamp. They omit `frame_poses`, finger positions and velocities.
+- Profiles expose TCP and other fixed references, not moving finger/contact frames.
+  Unknown gripper transforms cannot be resolved through a read.
 
-Use the declared frame, for example `gripper:left_pad` or
-`left_gripper:pad_1`, instead of assuming the flange is the grasp center.
-Mounting, joint command signs and feedback channel signs are independent facts.
+Use `gripper:tcp` rather than assuming the flange is the grasp center.
 
-## Model-specific frames
+## Model-specific geometry
 
-Panda keeps its native `grip_site` TCP. `left_pad` and `right_pad` locate the
-centers of its inner box-pad surfaces, measured from live MuJoCo transforms.
-Each patch is 16 × 16 mm. Both LIBERO's pinned robosuite 1.4.0 model and RoboCasa's
-model are checked against their compiled geometry.
+Panda keeps its native `grip_site` TCP and two opposing 16 × 16 mm inner pads.
+The driver calibrates aperture conversion from the compiled geometry at setup;
+reads use measured joint positions without computing finger poses.
 
 Piper, ALOHA AgileX, ARX X5 and R1Pro place the TCP at the midpoint of two
 source contact reference points at zero finger displacement, keeping the arm
-flange's axes. `pad_1` and `pad_2` correspond to feedback channels 1 and 2.
-Their transforms combine the pinned URDF with measured finger positions.
-Unequal finger positions therefore shift the contacts independently.
+flange's axes. Their mesh-defined contact surfaces have no calibrated rectangular
+pad dimensions. Internal measured finger positions determine aperture, including
+asymmetric openings. Aperture is clamped at zero for soft-contact overlap and
+is not whole-finger clearance or a guarantee that an object fits.
 
-These mesh contacts do not define rectangular patches: `size_m` is `null`.
-The aperture model reports contact-reference separation along the closing axis,
-clamped at zero for soft-contact overlap. It does not describe whole-finger
-collision clearance or guarantee that an object fits at every insertion depth.
+D1 has two opposing sliding fingers; pad dimensions and physical aperture
+calibration remain unspecified. Its aperture feedback is null.
 
 ## Source and checks
 
@@ -58,9 +54,8 @@ R1Pro uses the native USD convex collision surfaces; its old URDF collision
 mesh paths are not used to calibrate the contacts.
 
 The numerical fixtures retain source joint transforms and the mesh facets
-containing each contact. Tests verify surface membership, inward normals,
-asymmetric opening, aperture conversion, both-arm catalogs and native read
-integration. MuJoCo tests also exercise the LIBERO binding without stepping
+containing each contact. Tests verify source surface membership, normals, asymmetric aperture,
+fixed TCP transforms, both-arm catalogs and native read/stop integration. MuJoCo tests also exercise the LIBERO binding without stepping
 physics. These checks do not replace full task replay in each simulator.
 
 Existing workspaces contain copied profiles. Refresh their device profiles and

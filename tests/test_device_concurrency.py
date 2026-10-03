@@ -124,13 +124,13 @@ def test_independent_writes_and_concurrent_waits_share_time(concurrent_service):
     client, _, owner = concurrent_service
     left = client.device("left").write(actions=[[0.4]], duration_s=0.8)["data"]
     right = client.device("right").write(actions=[[0.7]], duration_s=0.2)["data"]
-    assert left["elapsed_s"] == right["elapsed_s"] == 0
+    assert "elapsed_s" not in left and "elapsed_s" not in right
     assert client.device("world").read()["data"]["time_s"] == 0
     with ThreadPoolExecutor() as pool:
         wait = pool.submit(client.device("world").wait, 0.8)
         samples = [client.device("left").read()["data"] for _ in range(8)]
         assert all(sample["owner_only"] for sample in samples) if owner else True
-        assert wait.result(timeout=3)["data"]["elapsed_s"] == pytest.approx(0.8)
+        assert wait.result(timeout=3)["data"]["waited_s"] == pytest.approx(0.8)
     assert client.device("left").read()["data"]["positions"] == [0.4]
     assert client.device("right").read()["data"]["positions"] == [0.7]
 
@@ -308,10 +308,10 @@ def test_portable_world_read_reports_episode_budget(concurrent_service, tmp_path
         proc.stdin.close()
         proc.stdout.close()
         proc.stderr.close()
-    assert replies["before"]["budget"] == {"elapsed_s": 0.0, "max_s": None}
-    assert replies["after"]["budget"] == {"elapsed_s": pytest.approx(0.2), "max_s": None}
+    assert replies["before"]["budget"] == {"used_s": 0.0, "max_s": None}
+    assert replies["after"]["budget"] == {"used_s": pytest.approx(0.2), "max_s": None}
     assert "budget" not in replies["wait"]
-    assert replies["wait"]["elapsed_s"] == pytest.approx(0.2)
+    assert replies["wait"]["waited_s"] == pytest.approx(0.2)
     assert replies["status"] == {"id": "status", "ok": True, "loaded": True}
     wire = load_script("src/roboenv/assets/_roboenv.py").Transport(devices / "left/driver.py")
     try:
@@ -323,15 +323,15 @@ def test_portable_world_read_reports_episode_budget(concurrent_service, tmp_path
 @pytest.mark.parametrize("execution_mode", ["realtime"])
 def test_realtime_worker_advances_while_idle(concurrent_service):
     client, _, owner = concurrent_service
-    first = client.device("left").read()["data"]["sample_time_s"]
+    first = client.device("left").read()["data"]["timestamp"]
     time.sleep(0.1)
     later = client.device("left").read()["data"]
-    assert later["sample_time_s"] > first
+    assert later["timestamp"] > first
     clock = client.device("world").read()["data"]
-    assert clock["budget"] == {"elapsed_s": pytest.approx(clock["time_s"]), "max_s": None}
+    assert clock["budget"] == {"used_s": pytest.approx(clock["time_s"]), "max_s": None}
     assert not owner or later["owner_only"]
     result = client.device("left").write(actions=[[0.3]], duration_s=0.1)["data"]
     assert result["execution_id"]
-    assert result["elapsed_s"] == 0
+    assert "elapsed_s" not in result
     time.sleep(0.06)
     assert client.device("left").read()["data"]["positions"] == [0.3]

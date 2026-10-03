@@ -1,5 +1,7 @@
 """SIMPLE control contracts from extracted asset geometry; no simulator imports."""
 
+from roboenv.devices.model import local_frame
+
 import copy
 
 # SIMPLE advances its control loop at a fixed 50 Hz.
@@ -14,13 +16,11 @@ def profiles(model):
         "base": {
             "intrinsics": {
                 **META,
-                "frames": {"torso": None},
+                "frames": {"torso": local_frame()},
                 "control": model["control"],
                 "feedback": {
-                    "pose_frame": "world",
                     "velocity_frame": "base",
                     "velocity_components": ["vx", "vy", "vz", "wx", "wy", "wz"],
-                    "clock": "simulation",
                 },
                 "stop": {"behavior": "stand", "affected_devices": ["base"]},
             },
@@ -34,7 +34,7 @@ def profiles(model):
         parent = name.replace("hand", "arm") if hand else "base"
         intrinsics = {
             **META,
-            "frames": part["frames"] if hand else {"flange": None},
+            **({"frames": part["frames"]} if hand else {}),
             **({"geometry": part["geometry"]} if hand else {}),
             "model": {"format": "joints", "joints": part["joints"]}
             if hand
@@ -56,7 +56,7 @@ def profiles(model):
                     "max_iterations": 200,
                     "damping": 0.01,
                 },
-                "feedback": "driver",
+
                 "frame_to_reported": IDENTITY,
             },
             "home": part["home"],
@@ -64,7 +64,7 @@ def profiles(model):
                 "mode": "position",
                 "limit_handling": "native",
             },
-            "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
+            "feedback": {"velocities": True, "efforts": False},
             "stop": {"behavior": "hold", "affected_devices": [name]},
         }
         mount = part["mount"] if hand else IDENTITY

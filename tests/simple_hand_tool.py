@@ -12,9 +12,8 @@ for side in ("left", "right"):
     hand = profile(name)
     state = device(name)["data"]
     predicted = forward(hand, state["positions"])
+    assert "frame_poses" not in state
     for frame, pose in predicted.items():
-        error = pose_error(pose, state["frame_poses"][frame])
-        assert error["position_m"] < 1e-6 and error["rotation_rad"] < 1e-6, error
         resolved = frames.pose(name + ":" + frame, name, readings={name: state})
         error = pose_error(pose, flat(pose_to_rt(resolved)))
         assert error["position_m"] < 1e-6 and error["rotation_rad"] < 1e-6, error

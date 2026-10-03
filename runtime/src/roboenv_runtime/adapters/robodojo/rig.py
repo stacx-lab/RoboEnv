@@ -1,5 +1,6 @@
 """Task-free robot and optical geometry from the pinned RoboDojo assets."""
 
+
 import ast
 import hashlib
 import re
@@ -163,7 +164,4 @@ def describe(root, embodiment, *, assets=None):
         "config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
         "actuators_sha256": hashlib.sha256(actuator_path.read_bytes()).hexdigest(),
     }
-    for value in facts.values():
-        if value["type"] == "joint":
-            value["intrinsics"]["frames"] = {value["intrinsics"]["kinematics"]["frame"]: None}
     return (facts, frames, provenance)

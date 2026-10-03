@@ -255,6 +255,8 @@ def generate(out, facts_out, *, bindings_out=None):
                 actions += ["write", "stop"]
             if value["type"] == "joint":
                 actions += ["fk", "ik"]
+            elif value["type"] == "dexterous_hand":
+                actions += ["fk"]
             profile["access"] = driver_access(value["type"], name, actions, "http://127.0.0.1:8123")
             write_driver(directory, value["type"])
         (directory / "profile.yaml").write_text(

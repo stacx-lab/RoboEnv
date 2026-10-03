@@ -1,7 +1,7 @@
 """Basic device operations on source-backed native worlds; no primitive dispatch."""
 
 import copy
-import uuid
+import secrets
 from dataclasses import replace
 from pathlib import Path
 
@@ -67,39 +67,35 @@ def bind(spec, root, context):
         def read():
             from roboenv_runtime.runtime.worker import write_png
 
-            acquired = world.sample_time_s
+            acquired = world.timestamp
             rgb, depth = world.device_image(spec.entity)
             directory = Path(context.native.run_dir) / "captures"
             directory.mkdir(parents=True, exist_ok=True)
-            path = directory / f"{uuid.uuid4().hex}.png"
+            path = directory / f"{secrets.token_hex(8)}.png"
+            color = facts["intrinsics"]["color"]
             height, width, _ = write_png(path, rgb)
-            result = {
-                "file": str(path),
-                "height": height,
-                "width": width,
-                "sample_time_s": acquired,
-            }
+            if (height, width) != (color["height"], color["width"]):
+                raise ValueError("Camera dimensions differ from the profile")
+            result = {"file": str(path), "timestamp": acquired}
             if definition.type == "rgbd":
                 depth_path = path.with_suffix(".pgm")
                 if depth.shape != rgb.shape[:2]:
                     raise ValueError("Native RGB and depth dimensions disagree")
                 write_depth(depth_path, depth)
-                result.update(
-                    depth_file=str(depth_path),
-                    depth_height=height,
-                    depth_width=width,
-                    depth_sample_time_s=acquired,
-                )
+                result["depth_file"] = str(depth_path)
             return result
 
-        register("read", read, required=("file", "height", "width", "sample_time_s"))
+        register("read", read, required=("file", "timestamp"))
     else:
+        feedback = {
+            "velocity": ("velocities",),
+            "gripper": ("aperture_m",),
+            "joint": ("positions", "velocities", "efforts"),
+        }[definition.type]
         register(
             "read",
             lambda: world.device_read(spec.entity),
-            required=("velocities",)
-            if definition.type == "velocity"
-            else ("positions", "velocities"),
+            required=(*feedback, "faults", "timestamp"),
         )
         size = len(world.control.limits[spec.entity])
 
@@ -136,13 +132,7 @@ def bind(spec, root, context):
         }
         if definition.type == "velocity":
             schema = command_schema(facts["intrinsics"]["control"])
-        register(
-            "write",
-            write,
-            schema,
-            mutation=True,
-            required=("accepted", "elapsed_s", "reached", "state"),
-        )
+        register("write", write, schema, mutation=True)
         register("stop", stop, mutation=True, required=("stopped", "behavior", "affected_devices"))
     return BoundDevice(
         definition,

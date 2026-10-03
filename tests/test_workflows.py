@@ -373,7 +373,9 @@ def test_grouped_catalog_ids_and_listing(capsys):
         expected = task
         if task.backend == "isaaclab":
             gripper = next(d for d in resolved.bindings.devices if d.name == "gripper")
-            tcp = gripper.resolved_profile(resolved.robot)["extrinsics"]["mount"]["translation_m"]
+            from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import gripper_tcp
+
+            tcp = gripper_tcp(gripper.resolved_profile(resolved.robot))
             expected = replace(task, backend_kwargs={
                 **task.backend_kwargs, "tcp_in_flange_m": tcp,
                 "device_profiles": {

@@ -175,7 +175,7 @@ def joint_intrinsics(model, home, name):
             "mode": "position",
             "limit_handling": "native",
         },
-        "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
+        "feedback": {"velocities": True, "efforts": False},
         "stop": {"behavior": "hold", "affected_devices": [name]},
         "model": model,
         "kinematics": {
@@ -189,7 +189,7 @@ def joint_intrinsics(model, home, name):
                 "max_iterations": 200,
                 "damping": 0.01,
             },
-            "feedback": "driver",
+
             "frame_to_reported": list(IDENTITY),
         },
     }
@@ -209,7 +209,7 @@ def mount(parent, pose, frame=None):
     }
 
 
-def gripper_intrinsics(names, name, *, units="m", bounds=(0, 1), open_target=1, close_target=0):
+def gripper_intrinsics(name, *, bounds=(0, 1), open_target=1, close_target=0):
     return {
         "source": "introspected",
         "method": "introspection",
@@ -224,12 +224,6 @@ def gripper_intrinsics(names, name, *, units="m", bounds=(0, 1), open_target=1, 
             "close_target": close_target,
             "speed": None,
         },
-        "feedback": {
-            "positions": [{"name": item, "units": units} for item in names],
-            "velocities": True,
-            "sensors": [],
-            "clock": "simulation",
-            "aperture_model": None,
-        },
+        "feedback": {"aperture_m": True},
         "stop": {"behavior": "hold", "affected_devices": [name]},
     }

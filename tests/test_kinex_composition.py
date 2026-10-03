@@ -61,8 +61,7 @@ def test_composition(monkeypatch, waist, failure):
                 "ok": not (action == failure and len(calls) > 1),
                 "data": {
                     "positions": [0, 0, 0],
-                    "sample_time_s": 0.0,
-                    "elapsed_s": 0.0,
+                    "timestamp": 0.0,
                     "execution_id": "fixture",
                     "faults": ["fault"] if failure == "fault" else [],
                 },
@@ -74,7 +73,7 @@ def test_composition(monkeypatch, waist, failure):
     kinex.args.return_value = {"steps": 3}
     kinex.profile.side_effect = profile
     kinex.devices.side_effect = dispatch
-    kinex.device.return_value = {"data": {"elapsed_s": 0.1}}
+    kinex.device.return_value = {"data": {"waited_s": 0.1}}
     joints = Mock()
     joints.JointDevice.return_value.project.side_effect = list
     for name, module in {

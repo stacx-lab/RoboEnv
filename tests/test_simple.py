@@ -30,7 +30,7 @@ class World:
     def __init__(self):
         self.model = json.loads(FACTS.read_text())
         self.steps = 0
-        self.sample_time_s = 0.0
+        self.timestamp = 0.0
         self.done = False
         self.received = []
         self.control = Control(self, self.model)
@@ -41,7 +41,7 @@ class World:
     def read_device(self, name):
         values = {
             "positions": list(self.control.targets[name]),
-            "sample_time_s": self.sample_time_s,
+            "timestamp": self.timestamp,
             "faults": [],
         }
         return values
@@ -54,7 +54,7 @@ class World:
         self.require_active()
         self.received.append(copy.deepcopy(targets))
         self.steps += 1
-        self.sample_time_s = self.steps * 0.02
+        self.timestamp = self.steps * 0.02
 
 
 def base(vx=0.2, wz=0.3):
@@ -127,7 +127,6 @@ def test_independent_writes_retain_goals_and_reads_do_not_step():
         "accepted": True,
         # A write with no budget does not wait, so only a stepping world
         # advances its clock inside the call.
-        "elapsed_s": 0.0,
     }
     assert world.steps == 0
     with pytest.raises(ValueError):
@@ -199,7 +198,9 @@ def test_catalog_routes_upper_body_through_measured_base_torso():
     }
     assert "waist" not in profiles
     assert not (ROOT / "catalog/robots/simple/simple-g1/devices/waist").exists()
-    assert profiles["base"]["intrinsics"]["frames"] == {"torso": None}
+    assert profiles["base"]["intrinsics"]["frames"] == {
+        "torso": {"parent_frame": None, "translation_m": None, "rotation_xyzw": None}
+    }
     for name in ("left_arm", "right_arm", "camera_head_left", "camera_head_right"):
         mount = profiles[name]["extrinsics"]["mount"]
         assert (mount["parent"], mount["parent_frame"]) == ("base", "torso")
@@ -259,7 +260,8 @@ def test_hand_geometry_survives_live_export(tmp_path):
         exported = yaml.safe_load((tmp_path / name / "profile.yaml").read_text())
         assert exported["intrinsics"] == world.control.profiles[name]["intrinsics"]
         assert exported["intrinsics"]["geometry"]["reference_frame"] == "grasp_reference"
-        assert exported["intrinsics"]["frames"]["thumb_tip"] is None
+        assert "thumb_tip" not in exported["intrinsics"]["frames"]
+        assert exported["intrinsics"]["geometry"]["fingers"]["thumb"]["tip_frame"] == "thumb_tip"
         assert (tmp_path / name / "driver.py").is_file()
 
 

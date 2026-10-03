@@ -29,12 +29,16 @@ def build(tmp_path, case):
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["model"])
-def test_contacts_stay_on_source_surfaces_at_asymmetric_openings(tmp_path, case):
+def test_aperture_matches_source_surfaces_at_asymmetric_openings(tmp_path, case):
     geometry, urdf = build(tmp_path, case)
     joints = {joint.get("name"): joint for joint in ET.parse(urdf).getroot().findall("joint")}
+    calibration = json.loads(
+        (ROOT / "runtime/src/roboenv_runtime/adapters/gripper_contacts.json").read_text()
+    )[case["model"]]
     sign = 1
     for positions in ([0, 0], [sign * 0.01, sign * 0.03], [sign * 0.035, sign * 0.015]):
         reading = geometry.read(positions)
+        assert set(reading) == {"aperture_m"}
         contacts = []
         for index, (name, triangle) in enumerate(
             zip(case["names"], case["triangles"], strict=True)
@@ -47,22 +51,21 @@ def test_contacts_stay_on_source_surfaces_at_asymmetric_openings(tmp_path, case)
                 np.fromstring(joint.find("axis").get("xyz"), sep=" ") * positions[index]
             )
             transform = transform @ displacement
-            contact = geometry.tcp @ matrix(reading["frame_poses"][f"pad_{index + 1}"])
-            local = np.linalg.inv(transform) @ contact
+            point = np.asarray(calibration["contacts"][index]["point_m"])
             triangle = np.asarray(triangle)
             edges = np.column_stack((triangle[1] - triangle[0], triangle[2] - triangle[0]))
-            uv = np.linalg.lstsq(edges, local[:3, 3] - triangle[0], rcond=None)[0]
-            np.testing.assert_allclose(triangle[0] + edges @ uv, local[:3, 3], atol=1e-9)
+            uv = np.linalg.lstsq(edges, point - triangle[0], rcond=None)[0]
+            np.testing.assert_allclose(triangle[0] + edges @ uv, point, atol=1e-9)
             assert uv.min() >= -1e-6 and uv.sum() <= 1 + 1e-6
             normal = np.cross(edges[:, 0], edges[:, 1])
-            np.testing.assert_allclose(local[:3, 2], normal / np.linalg.norm(normal), atol=1e-7)
-            contacts.append(contact[:3, 3])
-        closing = geometry.intrinsics["geometry"]["closing_axis"]
+            np.testing.assert_allclose(
+                calibration["contacts"][index]["normal"], normal / np.linalg.norm(normal), atol=1e-7
+            )
+            contacts.append((transform @ np.r_[point, 1])[:3])
+        closing = geometry.mount[:3, :3] @ geometry.intrinsics["geometry"]["closing_axis"]
         expected = max(0, np.dot(contacts[1] - contacts[0], closing))
         assert reading["aperture_m"] == pytest.approx(expected, abs=1e-10)
     np.testing.assert_allclose(geometry.coefficients, [sign, sign], atol=1e-9)
-    zero = geometry.read([0, 0])["frame_poses"]
-    np.testing.assert_allclose((np.array(zero["pad_1"][:3]) + zero["pad_2"][:3]) / 2, 0, atol=1e-12)
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["model"])
@@ -77,7 +80,6 @@ def test_catalogs_match_source_geometry_on_both_arms(tmp_path, case):
                 / f"{side}_gripper/profile.yaml"
             ).read_text()
         )
-        actual_names = [entry["name"] for entry in profile["intrinsics"]["feedback"]["positions"]]
         text = case["urdf"]
         names = case["names"]
         flange = case["flange"]
@@ -86,22 +88,27 @@ def test_catalogs_match_source_geometry_on_both_arms(tmp_path, case):
             text = text.replace(before, after)
             names = [name.replace(before, after) for name in names]
             flange = flange.replace(before, after)
-        assert names == actual_names
         geometry, _ = build(tmp_path, {**case, "urdf": text, "names": names, "flange": flange})
         facts = geometry.device(profile["name"], side + "_arm")
+        tcp = facts["intrinsics"]["frames"]["tcp"]
+        mount = facts["extrinsics"]["mount"]
+        np.testing.assert_allclose(
+            matrix(mount["translation_m"] + mount["rotation_xyzw"])
+            @ matrix(tcp["translation_m"] + tcp["rotation_xyzw"]), geometry.tcp, atol=1e-9,
+        )
         for key in ("intrinsics", "extrinsics"):
             assert same_facts(profile[key], facts[key])
 
 
 @pytest.mark.parametrize("positions", [[], [0], [0, 0, 0], [float("nan"), 0], [0, float("inf")]])
-def test_missing_or_invalid_feedback_cannot_produce_contact_frames(tmp_path, positions):
+def test_missing_or_invalid_feedback_cannot_produce_aperture(tmp_path, positions):
     geometry, _ = build(tmp_path, CASES[0])
     with pytest.raises(ValueError, match="two finite"):
         geometry.read(positions)
 
 
 @pytest.mark.parametrize("backend", ["robotwin", "robodojo", "behavior"])
-def test_native_read_paths_publish_measured_contact_frames(tmp_path, backend):
+def test_native_read_paths_publish_aperture_without_finger_poses(tmp_path, backend):
     geometry, _ = build(tmp_path, CASES[0])
     if backend == "robotwin":
         pytest.importorskip("sapien")
@@ -112,7 +119,6 @@ def test_native_read_paths_publish_measured_contact_frames(tmp_path, backend):
         entity = SimpleNamespace(
             get_active_joints=lambda: joints,
             get_qpos=lambda: np.array([0.01, 0.02]),
-            get_qvel=lambda: np.zeros(2),
         )
         world.task = SimpleNamespace(
             robot=SimpleNamespace(
@@ -127,7 +133,7 @@ def test_native_read_paths_publish_measured_contact_frames(tmp_path, backend):
 
         world = RoboDojoDevices.__new__(RoboDojoDevices)
         key = SimpleNamespace(
-            data=SimpleNamespace(joint_pos=np.array([[0.01, 0.02]]), joint_vel=np.zeros((1, 2)))
+            data=SimpleNamespace(joint_pos=np.array([[0.01, 0.02]]))
         )
         world.actuators = {"left_gripper": (None, key, [0, 1])}
         world.rig_frames = {"left": {"gripper": geometry}}
@@ -138,13 +144,20 @@ def test_native_read_paths_publish_measured_contact_frames(tmp_path, backend):
         world = BehaviorDevices.__new__(BehaviorDevices)
         world.robot = SimpleNamespace(
             get_joint_positions=lambda: np.array([0.01, 0.02]),
-            get_joint_velocities=lambda: np.zeros(2),
         )
         world.groups = {"left_gripper": {"indices": [0, 1], "gripper": geometry}}
         world.rig_frames = {}
         world.control, world.control_interval = SimpleNamespace(frame=30), 1 / 30
     reading = world.device_read("left_gripper")
-    assert set(reading["frame_poses"]) == {"pad_1", "pad_2"}
+    assert "frame_poses" not in reading
     assert reading["aperture_m"] == pytest.approx(0.03, abs=1e-8)
-    assert reading["sample_time_s"] == pytest.approx(1)
-    assert reading["positions"] == [0.01, 0.02]
+    assert reading["timestamp"] == pytest.approx(1)
+    assert "positions" not in reading and "velocities" not in reading
+    assert not {"force_n", "pressure_pa", "object_detected"}.intersection(reading)
+    geometry.read = lambda positions: pytest.fail("stop must not compute aperture feedback")
+    world.gripper_holds = {}
+    world.control = SimpleNamespace(frame=30, stop=lambda name, target: {"stopped": True})
+    world._gripper_target = lambda side: [0.5]
+    world._measured_target = lambda name: [0.5]
+    assert world.device_stop("left_gripper")["stopped"]
+    assert world.gripper_holds["left_gripper"] == [0.01, 0.02]

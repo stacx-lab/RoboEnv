@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from jsonschema import validate
 from roboenv.devices.bindings.registry import BindingContext
 from roboenv.devices.bindings.spec import BindingPlan
 from roboenv.devices.model import DeviceError
@@ -42,7 +43,7 @@ def service(tmp_path, *, embodiment="piper"):
             "intrinsics": definition.intrinsics,
             "extrinsics": definition.extrinsics,
         }
-    world = SimpleNamespace(embodiment=embodiment, device_facts=facts, steps=0, sample_time_s=0.0)
+    world = SimpleNamespace(embodiment=embodiment, device_facts=facts, steps=0, timestamp=0.0)
     actuator_names = [name for name, fact in facts.items() if fact["type"] in {"joint", "gripper"}]
     targets = {name: [0.0] * (6 if name.endswith("arm") else 1) for name in actuator_names}
 
@@ -60,8 +61,13 @@ def service(tmp_path, *, embodiment="piper"):
     world.device_write = world.control.write
     world.device_stop = lambda name: world.control.stop(name, targets[name])
     world.device_read = lambda name: {
-        "positions": targets[name],
-        "velocities": [0.0] * len(targets[name]),
+        **({"aperture_m": 0.03} if name.endswith("gripper") else {
+            "positions": targets[name],
+            "velocities": [0.0] * len(targets[name]),
+            "efforts": [],
+        }),
+        "faults": [],
+        "timestamp": world.timestamp,
     }
     world.device_image = lambda name: (np.zeros((240, 320, 3), dtype=np.uint8), np.ones((240, 320)))
     from roboenv_runtime.adapters.robotwin.adapter import RoboTwinAdapter
@@ -88,7 +94,7 @@ def test_public_world_has_no_truth_or_mutation_shortcuts(tmp_path):
     try:
         assert {"read", "wait"} <= wire.describe("world")["actions"].keys()
         assert wire.call({"device": "world", "action": "read", "args": {}})["data"] == {
-            "time_s": 0, "budget": {"elapsed_s": 0.0, "max_s": 3 * 0.04},
+            "time_s": 0, "budget": {"used_s": 0.0, "max_s": 3 * 0.04},
         }
         assert wire.call({"device": "world", "action": "status", "args": {}})["data"] == {
             "loaded": True,
@@ -110,7 +116,7 @@ def test_world_budget_read_remains_available_at_the_stepped_horizon(tmp_path):
         for _ in range(2):
             assert wire.call({"device": "world", "action": "read", "args": {}})["data"] == {
                 "time_s": pytest.approx(0.12),
-                "budget": {"elapsed_s": pytest.approx(0.12), "max_s": pytest.approx(0.12)},
+                "budget": {"used_s": pytest.approx(0.12), "max_s": pytest.approx(0.12)},
             }
         assert world.steps == 3
     finally:
@@ -121,7 +127,12 @@ def test_independent_writes_and_read_stop_invariance(tmp_path):
     wire, world, *_ = service(tmp_path)
 
     def call(device, action, args=None):
-        return wire.call({"device": device, "action": action, "args": args or {}})
+        result = wire.call({"device": device, "action": action, "args": args or {}})
+        actions = wire.describe(device)["actions"]
+        validate(result["data"], actions[action].get("output_schema", {}))
+        if action == "write":
+            validate(result["data"]["state"], actions["read"]["output_schema"])
+        return result
 
     try:
         call("left_arm", "write", {"actions": [[0.1] * 6], "duration_s": len([[0.1] * 6]) / 25})
@@ -135,6 +146,9 @@ def test_independent_writes_and_read_stop_invariance(tmp_path):
         assert world.steps == 0
         call("right_arm", "write", {"actions": [[0.2] * 6], "duration_s": len([[0.2] * 6]) / 25})
         call("left_gripper", "write", {"actions": [0.3, 0.7], "duration_s": 0.04})
+        assert call("left_gripper", "read")["data"] == {
+            "aperture_m": 0.03, "faults": [], "timestamp": 0.0,
+        }
         with pytest.raises(DeviceError):
             call("left_gripper", "write", {"actions": [[0.2]], "duration_s": 0.04})
         call("world", "wait", {"duration_s": 0.04})
@@ -185,7 +199,7 @@ def test_behavior_velocity_binding_accepts_named_commands_without_joint_feedback
             }
         },
         control=SimpleNamespace(limits={"base": [(-0.5, 0.5), (-0.5, 0.5), (-1, 1)]}),
-        device_read=lambda name: {"velocities": [0, 0, 0]},
+        device_read=lambda name: {"velocities": [0, 0, 0], "faults": [], "timestamp": 0.0},
     )
     writes = []
 
@@ -218,7 +232,7 @@ def test_behavior_velocity_binding_accepts_named_commands_without_joint_feedback
     )
     try:
         assert wire.call({"device": "base", "action": "read", "args": {}})["data"] == {
-            "velocities": [0, 0, 0]
+            "velocities": [0, 0, 0], "faults": [], "timestamp": 0.0,
         }
         command = {"duration_s": 0.1, "mode": "drive", "velocity": {"vx": 0.1, "vy": 0, "wz": -0.2}}
         wire.call({"device": "base", "action": "write", "args": command})

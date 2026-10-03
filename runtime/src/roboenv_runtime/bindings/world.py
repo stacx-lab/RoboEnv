@@ -22,7 +22,7 @@ def clock_actions(context):
         if budget.unit == "action_frames":
             interval = session.native.control_interval_s
             data["budget"] = {
-                "elapsed_s": budget.used * interval,
+                "used_s": budget.used * interval,
                 "max_s": None if budget.max is None else budget.max * interval,
             }
         return data

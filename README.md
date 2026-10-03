@@ -128,8 +128,8 @@ Exported drivers retain local IK/FK, persistent transport and scoped lifecycle.
 Transport failures never resubmit motion. Task-solving controllers belong in the agent harness.
 
 All scalar grippers in RoboCasa, LIBERO, RoboTwin, RoboDojo and BEHAVIOR expose
-TCP descriptions, approach/closing axes, moving contact frames and physical
-aperture feedback. Mesh contact patches keep rectangular dimensions unset.
+fixed TCP frames, approach/closing axes, finger geometry descriptions and physical
+aperture feedback. Finger positions, velocities and poses remain private.
 See [gripper geometry](docs/grippers.md) for frame conventions and source validation.
 
 SIMPLE G1 uses a `velocity` base for legs and waist, separate `joint` arms,
@@ -152,6 +152,11 @@ Portable persistent drivers now use correlated JSONL requests and may reply out 
 order. Refresh existing workspace drivers from the updated catalog/export, then
 reload Kinex devices. Restart simulator services you own to pick up runtime changes;
 borrowed services remain under their owner's lifecycle control.
+
+Sensor and actuator readings now use numeric `timestamp` in seconds. Update custom drivers
+and consumers together; no old-field aliases are supported. Refresh exported/copied
+drivers and runtime resources, then reload devices and restart owned RoboEnv services.
+UUID-based IDs now use 16 random hexadecimal characters (with existing prefixes).
 
 ## Connect a coding agent
 
@@ -227,3 +232,17 @@ environments stay outside Git.
 This is pre-release software. CPU and format checks do not certify GPU replay
 or benchmark success. Packages and simulator images are not automatically
 published; see [release rules](docs/releasing.md).
+
+Joint and hand reads omit frame poses. Exported Kinex drivers compute FK from
+measured positions, with explicit `frame` and `reference_frame` arguments. Local
+frame profiles declare parent-relative translation and rotation; null means unknown.
+
+Velocity writes use named axes, for example
+`{mode: "drive", velocity: {vx: 0.05, vy: 0, wz: 0}, duration_s: 0.5}`.
+Consult the profile for units and input bounds. Velocity reads expose measured
+velocities, faults and timestamp, plus available body/local-frame measurements;
+they omit global pose. World-relative transforms require explicit frame estimates.
+Existing velocity profiles must remove `feedback.pose_frame`; drivers must omit
+`pose` from both reads and write-result states.
+Refresh copied RoboEnv profiles and drivers together, restart the simulation service,
+and reload the base after upgrading an existing workspace.

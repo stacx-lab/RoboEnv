@@ -26,7 +26,7 @@ def handle(action, args):
             value = command(profile, args)
             if "native_speed" in value:
                 raise ValueError("This device does not support speedFraction")
-            return {"ok": True, **remote(action, value)}
+            return {"ok": True, **transport.write(value, lambda state: reading(profile, state))}
         if action == "read":
             return {"ok": True, **reading(profile, remote(action, args))}
         if action == "stop":
@@ -41,7 +41,8 @@ def handle(action, args):
                 return result
         return {"ok": True, **remote(action, args)}
     except WireError as exc:
-        return {"ok": False, "error": str(exc), "code": exc.code, "request_id": exc.request_id}
+        return {"ok": False, "error": str(exc), "code": exc.code,
+                "request_id": exc.request_id, "details": exc.details}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 

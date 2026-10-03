@@ -9,11 +9,30 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
-from roboenv_runtime.adapters.simple.hands import frame_poses
 from roboenv_runtime.adapters.simple.profiles import profiles
-from roboenv_runtime.adapters.urdf_geometry import matrix
+from roboenv_runtime.adapters.urdf_geometry import matrix, matrix_pose
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def frame_poses(world, name):
+    part = world.model["parts"][name]
+    geometry = part["geometry"]
+    parent = np.linalg.inv(matrix(world._pose(part["base"])))
+    frames = {
+        finger["tip_frame"]: matrix_pose(
+            parent @ matrix(world._pose(part["frame_bodies"][finger["tip_frame"]]))
+            @ matrix(finger["tip_offset"])
+        )
+        for finger in geometry["fingers"].values()
+    }
+    center = geometry["center"]
+    frames[center["frame"]] = [
+        sum(weight * frames[geometry["fingers"][finger]["tip_frame"]][axis]
+            for finger, weight in center["weights"].items())
+        for axis in range(3)
+    ] + center["rotation_xyzw"]
+    return frames
 
 
 @cache
@@ -67,7 +86,9 @@ def check(out, kinex):
         configurations.append(upper + .002)  # Measured soft-limit overshoot is not clipped.
         reference = profiles(facts)[name]["intrinsics"]["frames"]["grasp_reference"]
         home = forward(profiles(facts)[name], [0] * 7)["grasp_center"]
-        np.testing.assert_allclose(home, reference, atol=1e-11)
+        np.testing.assert_allclose(
+            home, [*reference["translation_m"], *reference["rotation_xyzw"]], atol=1e-11
+        )
         for q in configurations:
             data.qpos[:] = model.qpos0
             data.qpos[addresses] = q

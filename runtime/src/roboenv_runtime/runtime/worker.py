@@ -408,9 +408,9 @@ class SimWorker:
         fn = getattr(self.adapter, "checkpoint", None)
         if not callable(fn):
             raise WorkerRPCError("unsupported_op", "this adapter has no checkpoint capability")
-        import uuid
+        import secrets
 
-        token = uuid.uuid4().hex
+        token = secrets.token_hex(8)
         self._checkpoints[token] = fn()
         return token
 

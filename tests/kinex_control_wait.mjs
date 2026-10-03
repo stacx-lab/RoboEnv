@@ -27,11 +27,11 @@ try {
   const after = await call('device', { deviceID: 'arm', action: 'read', compact: true })
   const wall_s = (performance.now() - started) / 1000
   assert.ok(motion.actions_submitted > 0)
-  assert.ok(waited.elapsed_s >= 2 - 1e-9)
+  assert.ok(waited.waited_s >= 2 - 1e-9)
   assert.ok(Math.abs(after.positions[0] - target[0]) < .01)
   const report = { mode, wall_s, motion, model_calls: 0, task_success_claimed: false }
   await writeFile(output, JSON.stringify(report, null, 2) + '\n')
-  console.log(JSON.stringify({ mode, wall_s, elapsed_s: waited.elapsed_s }))
+  console.log(JSON.stringify({ mode, wall_s, waited_s: waited.waited_s }))
 } finally {
   await runtime.dispose()
 }

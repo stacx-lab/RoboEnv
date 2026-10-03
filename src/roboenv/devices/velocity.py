@@ -22,7 +22,10 @@ def command(control, args):
         target = args.get(channel)
         axes = {c["axis"] for c in capability["components"]}
         if not isinstance(target, dict) or set(target) != axes:
-            raise ValueError(f"{channel} requires its declared axes")
+            example = {c["axis"]: 0 for c in capability["components"]}
+            raise ValueError(
+                f"{channel} requires named axes, for example {example}; arrays are unsupported"
+            )
         result[channel] = {}
         for component in capability["components"]:
             axis, bounds = component["axis"], component["bounds"]

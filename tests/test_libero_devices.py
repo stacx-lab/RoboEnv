@@ -151,6 +151,7 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
             "camera_wrist",
             "world",
             "_roboenv.py",
+        "_camera.py",
         }
         for file in root.rglob("*"):
             if file.is_file():

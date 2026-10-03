@@ -7,29 +7,28 @@ intrinsics:
   calibrated_at: null
   frames:
     palm:
-    - 0.0415
-    - -0.003
-    - 0.0
-    - 0.0
-    - 0.0
-    - 0.0
-    - 1.0
+      parent_frame: null
+      translation_m:
+      - 0.0415
+      - -0.003
+      - 0.0
+      rotation_xyzw:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
     grasp_reference:
-    - 0.140693943998
-    - 0.054693943998
-    - 0.0
-    - 0
-    - 0
-    - 0
-    - 1
-    thumb_tip: null
-    index_tip: null
-    middle_tip: null
-    grasp_center: null
+      parent_frame: null
+      translation_m:
+      - 0.140693943998
+      - 0.054693943998
+      - 0.0
+      rotation_xyzw:
+      - 0
+      - 0
+      - 0
+      - 1
   geometry:
-    description: Nominal mesh-distal fingertip references; grasp_center is the midpoint
-      between thumb and opposing-finger midpoint, with hand-aligned axes. grasp_reference
-      fixes that center at home. These are geometric references, not contacts.
     palm_frame: palm
     reference_frame: grasp_reference
     fingers:
@@ -336,7 +335,6 @@ intrinsics:
   feedback:
     velocities: true
     efforts: false
-    clock: simulation
   stop:
     behavior: hold
     affected_devices:
@@ -378,3 +376,4 @@ access:
     - load
     - unload
     - status
+    - fk

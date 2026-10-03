@@ -4,10 +4,10 @@ import argparse
 import hashlib
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import tempfile
-import uuid
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -183,7 +183,7 @@ def prepare_assets(project, *, progress=None):
     )
     registration = json.loads((project / ".cache/roboenv/installations/behavior.json").read_text())
     output = (
-        project / ".cache/roboenv/installations" / ("behavior-assets-" + uuid.uuid4().hex + ".json")
+        project / ".cache/roboenv/installations" / f"behavior-assets-{secrets.token_hex(8)}.json"
     )
     with stage(progress, "Preparing licensed BEHAVIOR assets through the selected interpreter"):
         subprocess.run(

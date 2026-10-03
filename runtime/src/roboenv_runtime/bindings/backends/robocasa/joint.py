@@ -1,5 +1,6 @@
 """Joint-position devices extracted from the compiled model, in physical units."""
 
+
 from roboenv_runtime.bindings.motion import control_binding
 
 
@@ -32,7 +33,7 @@ def intrinsics(sim, indexes, chain, home, name):
         "kinematics": {
             "frame": "flange",
             "fk": "numerical",
-            "feedback": "driver",
+
             "frame_to_reported": [0, 0, 0, 0, 0, 0, 1],
             "ik": {
                 "backend": "numerical",
@@ -48,7 +49,7 @@ def intrinsics(sim, indexes, chain, home, name):
             "mode": "position",
             "limit_handling": "native",
         },
-        "feedback": {"velocities": True, "efforts": False, "clock": "simulation"},
+        "feedback": {"velocities": True, "efforts": False},
         "stop": {"behavior": "hold", "affected_devices": [name]},
     }
 
@@ -57,7 +58,7 @@ def intrinsics(sim, indexes, chain, home, name):
 def bind(spec, root, context):
     import numpy as np
 
-    from roboenv_runtime.adapters.robocasa.geometry import chain, pose, vector
+    from roboenv_runtime.adapters.robocasa.geometry import chain, vector
 
     from .common import action, finish, target_schema
 
@@ -89,7 +90,6 @@ def bind(spec, root, context):
     )
     frame = "flange" if part == "right" else "top"
     facts["kinematics"]["frame"] = frame
-    facts["frames"] = {frame: None}
 
     def read():
         return {
@@ -97,8 +97,7 @@ def bind(spec, root, context):
             "velocities": data.qvel[model.jnt_dofadr[indexes]].tolist(),
             "efforts": [],
             "faults": [],
-            "sample_time_s": float(data.time),
-            "frame_poses": {frame: pose(model, data, tip, base)},
+            "timestamp": float(data.time),
         }
 
     def write(target):

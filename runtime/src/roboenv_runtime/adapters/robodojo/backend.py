@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
-from uuid import uuid4
+import secrets
 
 # --------------------------------------------------------------------------
 # RoboDojo checkout + Isaac boot (both are process-global and one-shot)
@@ -30,7 +30,7 @@ def _boot_isaac(headless: bool = True, enable_cameras: bool = True):
     sys.path.insert(0, ROBODOJO_ROOT)
     # EvalEnv uses this ID for resume state and temporary video cleanup. Distinct
     # workers must not reuse another world's native output directory.
-    os.environ.setdefault("ROBODOJO_RUN_ID", f"roboenv-{uuid4().hex}")
+    os.environ.setdefault("ROBODOJO_RUN_ID", f"roboenv-{secrets.token_hex(8)}")
 
     import argparse
 

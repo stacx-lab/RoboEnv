@@ -46,10 +46,25 @@ paired RGB-D; RoboTwin retains native supersampled RGB and captures pixel-center
 depth with a matching raster camera. These corrections change rendered sensor
 data, so older image recordings retain their original calibration.
 
-Camera `sample_time_s` uses the simulator clock, matching joint feedback;
-`received_time_s` added by the portable driver is Unix receipt time. Separate
+Camera `timestamp` uses the simulator clock, matching joint feedback.
+RGBD returns one timestamp for the pair; transport preserves it. Separate
 reads in realtime mode can still describe different simulation instants. Matching
 clock units alone does not make an image and a later joint read an atomic snapshot.
 
 Re-export devices when upgrading a runtime or changing camera calibration so
 the copied profiles reflect the current intrinsics and extrinsics.
+
+## Camera read output
+
+SDK camera reads accept `camera.read(output="file")` (the default),
+`output="array"`, or `output="base64"`. File mode returns `file` and optional
+`depth_file`. Array mode returns owned NumPy `color` (uint8 RGB, H×W×3) and
+optional `depth` (uint16, H×W); install `roboenv[camera]` for decoding.
+Base64 mode returns PNG/PGM16 strings under `color`/`depth`. Every mode includes
+one `timestamp`; profile dimensions and depth units are unchanged.
+
+The server protocol and artifact production are unchanged. Clients convert the
+received images; array/base64 HTTP reads avoid local temporary files. File mode
+supports artifacts larger than the existing in-memory response limit. Exported
+Kinex drivers accept the same option; arrays cross their JSON boundary as base64
+and are decoded in the calling Kinex Python runtime.

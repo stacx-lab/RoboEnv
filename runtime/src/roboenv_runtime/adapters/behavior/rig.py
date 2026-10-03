@@ -1,5 +1,6 @@
 """Compile R1Pro device geometry from a task-free native robot and its URDF."""
 
+
 import hashlib
 from pathlib import Path
 
@@ -71,10 +72,8 @@ def describe(robot):
             },
             "stop": {"behavior": "halt", "affected_devices": ["base"]},
             "feedback": {
-                "pose_frame": "world",
                 "velocity_frame": "body",
                 "velocity_components": ["vx", "vy", "wz"],
-                "clock": "simulation",
             },
         },
         "extrinsics": {"source": "introspected"},
@@ -182,9 +181,6 @@ def describe(robot):
         cameras[name] = sensor_name
     if not cameras:
         raise ValueError("R1Pro has no RGB and metric-depth robot cameras")
-    for value in facts.values():
-        if value["type"] == "joint":
-            value["intrinsics"]["frames"] = {value["intrinsics"]["kinematics"]["frame"]: None}
     return (
         facts,
         groups,

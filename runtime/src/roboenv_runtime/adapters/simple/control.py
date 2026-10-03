@@ -47,7 +47,7 @@ class Control:
         self.events.append(
             {"frame": self.native.steps, "op": "write", "device": name, "args": copy.deepcopy(args)}
         )
-        return {"accepted": True, "elapsed_s": 0.0}
+        return {"accepted": True}
 
     def stop(self, name, *, reason="requested"):
         if name not in NAMES:

@@ -1,9 +1,11 @@
 """Portable driver dialog and transport, shared by one exported device collection."""
 
+import base64
 import contextlib
 import http.client
 import json
 import os
+import secrets
 import shutil
 import signal
 import socket
@@ -11,7 +13,6 @@ import sys
 import tempfile
 import threading
 import time
-import uuid
 from concurrent.futures import ThreadPoolExecutor, wait
 from functools import cached_property
 from pathlib import Path
@@ -40,6 +41,7 @@ class Transport:
         self.deadline = None
         self._motions = {}
         self._motion_lock = threading.Lock()
+        self._motion_error = None
 
     @property
     def connection(self):
@@ -186,7 +188,9 @@ class Transport:
             if destination is None:
                 raw = response.read(MAX_BYTES + 1)
                 if len(raw) > MAX_BYTES or len(raw) != expected:
-                    raise ValueError("Oversized or incomplete response")
+                    raise ValueError(
+                        "Oversized or incomplete response; use output='file' for large images"
+                    )
             else:
                 size = 0
                 with destination.open("wb") as stream:
@@ -213,12 +217,48 @@ class Transport:
         for identity in identities:
             self.remote("cancel_motion", {"execution_id": identity})
 
-    def remote(self, action, args):
+    def write(self, args, reading):
+        """Validate accepted motion feedback, cancelling only this request on failure."""
+        if self._motion_error is not None:
+            raise self._motion_error
+        request_id = f"driver-{secrets.token_hex(8)}"
+        accepted = False
+        try:
+            data = self.remote("write", args, request_id=request_id)
+            accepted = True
+            if not isinstance(data, dict) or data.get("execution_id") != request_id:
+                raise ValueError("motion must return its execution_id")
+            if not isinstance(data.get("state"), dict):
+                raise ValueError("motion must return measured state")
+            return {**data, "state": reading(data["state"])}
+        except Exception as error:
+            if not accepted and not (
+                isinstance(error, WireError) and error.code == "outcome_unknown"
+            ):
+                raise
+            try:
+                result = self.remote("cancel_motion", {"execution_id": request_id})
+                if not isinstance(result, dict) or type(result.get("stopped")) is not bool:
+                    raise ValueError("Remote cancellation was not acknowledged")
+            except Exception as cleanup:
+                self._motion_error = WireError(
+                    f"{error}; cancellation failed: {cleanup}", "stop_failed", request_id,
+                    {"effects": "unknown", "validation_error": str(error),
+                     "cleanup_error": str(cleanup)},
+                )
+                raise self._motion_error from cleanup
+            with self._motion_lock:
+                if self._motions.get(self.target) == request_id:
+                    self._motions.pop(self.target)
+            raise
+
+    def remote(self, action, args, *, image_output="file", request_id=None):
         identity = self.identity
-        request_id = uuid.uuid4().hex
-        if action == "wait":
-            request_id = getattr(self._local, "request_id", request_id)
-        request_id = f"driver-{request_id}"
+        if request_id is None:
+            request_id = secrets.token_hex(8)
+            if action == "wait":
+                request_id = getattr(self._local, "request_id", request_id)
+            request_id = f"driver-{request_id}"
         request = {
             **identity,
             "request_id": request_id,
@@ -276,12 +316,31 @@ class Transport:
                 error.get("details"),
             )
         self.unloaded = action == "unload"
+        if action == "load":
+            self._motion_error = None
         data = response["result"]["data"]
         if "simulation" in response["result"] and isinstance(data, dict):
             data = {**data, "simulation": response["result"]["simulation"]}
-        if action == "read" and isinstance(data, dict):
-            data["received_time_s"] = time.time()
-        if self.endpoint and action == "read" and isinstance(data, dict) and data.get("file"):
+        if (
+            action == "read"
+            and isinstance(data, dict)
+            and data.get("file")
+            and image_output != "file"
+        ):
+            data = dict(data)
+            for key, target in (("file", "color"), ("depth_file", "depth")):
+                if data.get(key):
+                    file = data.pop(key)
+                    if self.endpoint:
+                        route = (
+                            f"/artifacts/{identity['session']}/"
+                            f"{identity['generation']}/{quote(Path(file).name)}"
+                        )
+                        raw = self.exchange(self.endpoint, "GET", route)
+                    else:
+                        raw = Path(file).read_bytes()
+                    data[target] = base64.b64encode(raw).decode("ascii")
+        elif self.endpoint and action == "read" and isinstance(data, dict) and data.get("file"):
             directory = Path(tempfile.mkdtemp(prefix="roboenv-images-"))
             try:
                 for key in ("file", "depth_file"):

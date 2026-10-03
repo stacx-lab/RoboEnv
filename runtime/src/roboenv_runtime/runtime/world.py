@@ -67,7 +67,7 @@ class WorldSession:
             if future.done():
                 continue
             if self.failure is None and self.time_s + 1e-9 >= end:
-                future.set_result({"time_s": self.time_s, "elapsed_s": self.time_s - start})
+                future.set_result({"time_s": self.time_s, "waited_s": self.time_s - start})
             elif self._closed or self._frozen or self.failure:
                 error = self.failure or self._episode_error
                 future.set_exception(
@@ -77,7 +77,7 @@ class WorldSession:
                         details={
                             "effects": "unknown" if self.failure else "partial"
                             if self.time_s > start else "none",
-                            "elapsed_s": self.time_s - start,
+                            "waited_s": self.time_s - start,
                             "time_s": self.time_s,
                         },
                     )

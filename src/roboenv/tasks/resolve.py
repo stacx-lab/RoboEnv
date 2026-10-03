@@ -51,7 +51,11 @@ def resolve_task(reference, *, project=None, catalog=None, arm_gravity_compensat
         "go2-d1-"
     ):
         gripper = next(device for device in bindings.devices if device.name == "gripper")
-        mount = gripper.resolved_profile(robot)["extrinsics"]["mount"]
+        profile = gripper.resolved_profile(robot)
+        mount = profile["extrinsics"]["mount"]
+        tcp = profile["intrinsics"]["frames"]["tcp"]
+        if tcp["parent_frame"] is not None or tcp["rotation_xyzw"] != [0, 0, 0, 1]:
+            raise ValueError("Go2 task TCP requires an aligned local TCP")
         if (mount["parent"], mount["parent_frame"], mount["rotation_xyzw"]) != (
             "arm",
             "flange",
@@ -62,7 +66,9 @@ def resolve_task(reference, *, project=None, catalog=None, arm_gravity_compensat
             task,
             backend_kwargs={
                 **task.backend_kwargs,
-                "tcp_in_flange_m": mount["translation_m"],
+                "tcp_in_flange_m": [
+                    a + b for a, b in zip(mount["translation_m"], tcp["translation_m"], strict=True)
+                ],
                 "device_profiles": {
                     device.name: {
                         key: value
