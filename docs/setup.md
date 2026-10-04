@@ -180,6 +180,11 @@ staging for assets. Never mount the original project or interpreter. Staging and
 Docker storage both need room; `--stage-only` does not produce a runnable image.
 
 The output `deployment.json` uses `roboenv/deployment/1`. External orchestrators
+
+BEHAVIOR's runtime keeps Isaac Sim's experience directory (`apps`) writable: when the
+interpreter is read-only, as a depot mounted into a container is, it builds a stand-in of
+symlinks under `<runtime root>/.cache/behavior/isaacsim` and points `EXP_PATH` at it, since
+OmniGibson copies its experience file there at every launch.
 can validate it with `roboenv.provisioning.deployment.load_deployment(path, backend)`.
 It requires an immutable image digest, independent read-only depots, and protected
 episode settings. Local paths stay private. Runtime options describe shared memory
