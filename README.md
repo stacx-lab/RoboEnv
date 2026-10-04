@@ -86,6 +86,10 @@ Launch streams simulator stdout/stderr to the terminal's stderr and retains the
 run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready.
 Python callers can enable streaming with `log_stream=sys.stderr`.
 
+Add `--record` to save experimental spectator MP4s at 10 simulation-time FPS,
+with independent 720-pixel-high overview and wrist views. See
+[spectator recording](docs/spectator.md) for custom views, timing and backend coverage.
+
 Official LIBERO uses the same typed device path with complete scene-specific Panda
 catalogs in `catalog/robots/libero/libero-panda-{tabletop,floor,kitchen,living-room,study}/`.
 Each task selects its robot by a relative catalog path, such as
@@ -230,6 +234,7 @@ environments stay outside Git.
 | [Local Kinex use](docs/kinex-local.md) | Workspace setup, recording and video playback |
 | [Agent integration](docs/device-documentation.md) | SDK/CLI documentation for coding agents |
 | [Simulator validation](docs/gpu-validation.md) | Native checks, receipts and replay boundaries |
+| [Spectator rendering](docs/spectator.md) | Experimental unified cameras and native isolation gate |
 | [Release engineering](docs/releasing.md) | Packaging, installation checks and publication gates |
 | [Third-party notices](docs/third-party-notices.md) | Locked source notices and checksums |
 

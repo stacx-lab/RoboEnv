@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import copy
+import json
 import logging
 import os
 import queue
@@ -145,6 +146,7 @@ class SimWorker:
         reset_adapter: bool = True,
         device_root: str | os.PathLike[str] | None = None,
         execution_mode: str = "realtime",
+        recording: Mapping[str, Any] | None = None,
     ) -> None:
         if budget_mode not in {"official", "practice"}:
             raise ValueError("budget_mode must be 'official' or 'practice'")
@@ -165,6 +167,7 @@ class SimWorker:
         self.reset_count = 0
         self._checkpoints = {}
         self._closed = False
+        self._recorder = None
         self._final_result: dict[str, Any] | None = None
         self._final_observation: dict[str, Any] | None = None
         self._finalizing = False
@@ -176,11 +179,28 @@ class SimWorker:
         self._device_root = device_root or os.environ.get("ROBOENV_SERVER_ROBOT")
         try:
             self._bind_devices()
+            if recording is not None:
+                from roboenv_runtime.spectator.recording import Recorder
+
+                self._recorder = Recorder(adapter, self.run_dir / "recording", recording)
+                self.world.next_tick = time.monotonic()
+            self.world.after_advance = self._after_advance
             self.state = "ready"
-            self.world.after_advance = self._check_terminal
         except BaseException:
             self.close()
             raise
+
+    def _after_advance(self):
+        if self._recorder is not None:
+            self._recorder.tick(self.world.time_s)
+        self._check_terminal()
+
+    def _finish_recording(self, status="complete"):
+        if self._recorder is not None:
+            try:
+                self._recorder.close(self.world.time_s, status=status)
+            except Exception:
+                log.exception("Recording finalization failed")
 
     def _bind_devices(self):
         if not self._device_root:
@@ -345,6 +365,7 @@ class SimWorker:
             finally:
                 self._finalizing = False
                 self.world._settle_waiters()
+            self._finish_recording()
             return copy.deepcopy(self._final_result)
 
     def _budget_snapshot(self) -> dict[str, Any]:
@@ -377,6 +398,7 @@ class SimWorker:
         if unknown:
             raise WorkerRPCError("invalid_args", f"reset does not accept: {sorted(unknown)}")
         seed = int(args.get("seed", self.seed))
+        self._finish_recording("interrupted")
         self._interrupt_devices()
         self.scorer.close()
         self.state = "resetting"
@@ -426,6 +448,7 @@ class SimWorker:
         token = args["token"]
         if token not in self._checkpoints:
             raise WorkerRPCError("checkpoint_identity", "unknown checkpoint in this worker")
+        self._finish_recording("interrupted")
         self._interrupt_devices()
         self.state = "restoring"
         try:
@@ -585,6 +608,7 @@ class SimWorker:
         if self._closed:
             return
         self._closed = True
+        self._finish_recording("incomplete" if self.world.failure else "complete")
         self._interrupt_devices()
         self.world.freeze()
         self.world.poll_motions()
@@ -899,6 +923,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             run_dir=run_dir,
             budget_mode=args.budget_mode or task.budget_mode,
             execution_mode=execution_mode,
+            recording=(json.loads(Path(os.environ["ROBOENV_RECORDING_CONFIG"]).read_text())
+                       if "ROBOENV_RECORDING_CONFIG" in os.environ else None),
             session=args.session,
             generation=args.generation,
         )

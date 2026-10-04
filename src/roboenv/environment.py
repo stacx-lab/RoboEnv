@@ -286,15 +286,22 @@ def launch(
     advertise_host=None,
     python_path=(),
     execution_mode=None,
+    recording=None,
 ):
     """Start a task in its isolated interpreter; return after device readiness.
 
     arm_gravity_compensation overrides the SIMPLE task setting; None preserves
     the task value, which defaults to True. Other backends reject this override.
     execution_mode overrides the task setting; None preserves the catalog mode.
+    recording={} enables experimental owner-only MP4s (10 simulation fps);
+    optional fps and views configure sampling and independent spectator cameras.
+    directory selects a new or empty output folder, relative to the caller's cwd.
     Backend assets must already be prepared. No installation or download occurs.
     All run definitions and logs are retained under the selected project's cache.
     """
+    from roboenv.recording import recording_config
+
+    recording = recording_config(recording)
     if execution_mode is not None and execution_mode not in ("stepped", "realtime"):
         raise ValueError("execution_mode must be stepped or realtime")
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
@@ -320,6 +327,10 @@ def launch(
     if execution_mode is not None:
         resolved = replace(resolved, task=replace(resolved.task, execution_mode=execution_mode))
     spec = resolved.task
+    if recording is not None and spec.backend not in {
+        "libero", "robocasa", "robotwin", "robodojo", "behavior"
+    }:
+        raise ValueError(f"Spectator recording is not supported for {spec.backend}")
     execution_mode = spec.execution_mode
     if interpreter is None and spec.backend == "fakeshell":
         interpreter = sys.executable
@@ -370,6 +381,8 @@ def launch(
         "devices": str(directory / "devices"),
     }
     record_path = directory / "run.json"
+    if recording is not None:
+        record["recording"] = recording.get("directory", str(directory / "evidence/recording"))
     _save(record_path, record)
     env = dict(os.environ)
     for key in list(env):
@@ -392,6 +405,10 @@ def launch(
     )
     if python_path:
         env["PYTHONPATH"] = os.pathsep.join(python_path)
+    if recording is not None:
+        config_path = directory / "server/recording.json"
+        _save(config_path, recording)
+        env["ROBOENV_RECORDING_CONFIG"] = str(config_path)
     command = [
         str(interpreter),
         "-m",

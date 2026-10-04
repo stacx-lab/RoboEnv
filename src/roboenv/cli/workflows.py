@@ -72,6 +72,16 @@ def add_commands(commands):
             )
             parser.add_argument("--detach", action="store_true")
             parser.add_argument(
+                "--record", nargs="?", const=True, type=Path, metavar="DIR",
+                help="Save experimental spectator MP4s (default: inside the run directory)"
+            )
+            parser.add_argument(
+                "--record-fps", type=float, help="Simulation frames per second (default: 10)"
+            )
+            parser.add_argument(
+                "--record-views", type=Path, help="JSON list of spectator view definitions"
+            )
+            parser.add_argument(
                 "--port",
                 type=int,
                 default=0,
@@ -107,6 +117,8 @@ def emit(value, *, machine=False):
             f"Ready: {value['task']}\nEndpoint: {value['endpoint']}\nDevices: {value['devices']}",
             flush=True,
         )
+        if value.get("recording"):
+            print(f"Recording: {value['recording']} (experimental)", flush=True)
     else:
         print(json.dumps(value, indent=2, default=str), flush=True)
 
@@ -135,6 +147,17 @@ def execute(args):
     if args.command == "launch":
         from roboenv.environment import launch
 
+        if args.record is None and (args.record_fps is not None or args.record_views is not None):
+            raise ValueError("--record-fps and --record-views require --record")
+        recording = None
+        if args.record is not None:
+            recording = {}
+            if args.record is not True:
+                recording["directory"] = args.record
+            if args.record_fps is not None:
+                recording["fps"] = args.record_fps
+            if args.record_views is not None:
+                recording["views"] = json.loads(args.record_views.read_text())
         environment = launch(
             args.task,
             execution_mode=args.execution_mode,
@@ -151,6 +174,7 @@ def execute(args):
             allow_stop=args.allow_stop,
             advertise_host=args.advertise_host,
             python_path=args.python_path,
+            recording=recording,
         )
         emit(environment.record, machine=args.json)
         if args.detach:
