@@ -347,7 +347,11 @@ class Supervisor:
                 self._write_state()
                 return
             with contextlib.suppress(ProcessLookupError):
-                os.killpg(pgid, signal.SIGTERM)
+                if timed_out:
+                    os.killpg(pgid, signal.SIGTERM)
+                else:
+                    # Let the owner drain its recording children before exiting.
+                    os.kill(worker.pid, signal.SIGTERM)
             try:
                 worker.wait(timeout=self.config.terminate_grace_s)
             except subprocess.TimeoutExpired:
