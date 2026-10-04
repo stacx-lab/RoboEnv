@@ -2,6 +2,8 @@
 
 import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -327,6 +329,58 @@ def test_installer_accepts_explicit_wheels_and_rejects_ambiguous_mixed_inputs(
         setup.install("robotwin", tmp_path / "other", project=project, sdk=sdk, wheels=wheels)
     with pytest.raises(ValueError, match="not the roboenv distribution"):
         setup.install("robotwin", tmp_path / "wrong", project=project, sdk=runtime)
+
+
+def test_libero_configures_logging_before_import_checks(tmp_path, monkeypatch):
+    installer, project, calls = installer_fixture(tmp_path, monkeypatch)
+    installer.install("libero", tmp_path / "env", project=project)
+    scripts = [command[command.index("-c") + 1] for command, _ in calls if "-c" in command]
+    assert scripts == [setup.LIBERO_LOGGING_CONFIG, setup.PROBE]
+
+
+def test_libero_logging_config_avoids_shared_log_and_preserves_existing_config(tmp_path):
+    package = tmp_path / "robosuite"
+    package.mkdir()
+    # Match 1.4's import order: private macros run before logger creation.
+    (package / "__init__.py").write_text(
+        "from .macros_private import *\n"
+        "from . import macros\n"
+        "assert macros.FILE_LOGGING_LEVEL is None\n"
+        "assert macros.CONSOLE_LOGGING_LEVEL == 'WARN'\n"
+    )
+    (package / "macros.py").write_text(
+        "FILE_LOGGING_LEVEL = 'DEBUG'\nCONSOLE_LOGGING_LEVEL = 'WARN'\n"
+    )
+    script = (
+        "import sys\nsys.prefix = sys.argv[1]\nsys.path.insert(0, sys.prefix)\n"
+        + setup.LIBERO_LOGGING_CONFIG
+        + "\nimport robosuite\n"
+    )
+    command = [sys.executable, "-I", "-c", script, str(tmp_path)]
+    subprocess.run(command, check=True, capture_output=True)
+    config = package / "macros_private.py"
+    original = config.read_bytes()
+    repeated = subprocess.run(command, capture_output=True, text=True)
+    assert repeated.returncode != 0
+    assert "FileExistsError" in repeated.stderr
+    assert config.read_bytes() == original
+
+
+def test_libero_logging_config_rejects_external_package(tmp_path, monkeypatch):
+    import importlib.util
+    from types import SimpleNamespace
+
+    package = tmp_path / "external/robosuite"
+    package.mkdir(parents=True)
+    monkeypatch.setattr(sys, "prefix", str(tmp_path / "environment"))
+    monkeypatch.setattr(
+        importlib.util,
+        "find_spec",
+        lambda name: SimpleNamespace(origin=str(package / "__init__.py")),
+    )
+    with pytest.raises(RuntimeError, match="outside the new environment"):
+        exec(setup.LIBERO_LOGGING_CONFIG, {})
+    assert not (package / "macros_private.py").exists()
 
 
 def test_recipe_paths_cannot_escape_the_selected_checkout(tmp_path):
