@@ -174,6 +174,10 @@ then use `tools/build_simulator_image.py --help`. The builder requires a backend
 `--dependencies`, `--runtime-wheel`, `--out`, and `--tag`. It uses the registered
 interpreter unless `--interpreter ENV/bin/python` is supplied.
 
+The image installs what the simulators load at run time beyond their Python environments:
+Isaac Sim's material plugin needs `libGLU`, and OmniGibson and Isaac Lab compile kernels with
+`torch.compile`, which needs a C++ compiler.
+
 `--interpreter-mode image` embeds a relocated interpreter; `depot` creates a
 separate read-only, content-verified copy. `--asset-mode` selects reference or copy
 staging for assets. Never mount the original project or interpreter. Staging and

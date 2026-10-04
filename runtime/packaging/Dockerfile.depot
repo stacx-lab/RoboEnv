@@ -4,6 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 libgl1 libegl1 libopengl0 libglib2.0-0 libsm6 libxext6 libxrender1 \
     libgomp1 libvulkan1 libx11-6 libxi6 libxrandr2 libxcursor1 libxinerama1 \
     libasound2t64 libnss3 libdbus-1-3 ca-certificates git ffmpeg \
+    libglu1-mesa g++ \
     && rm -rf /var/lib/apt/lists/*
 COPY nvidia_icd.json /usr/share/vulkan/icd.d/nvidia_icd.json
 COPY 10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json
