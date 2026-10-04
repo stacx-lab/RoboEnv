@@ -15,8 +15,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from roboenv.project import PACKAGED_RECEIPT
 from roboenv.provisioning.interpreter import resolve_interpreter
-from roboenv.provisioning.sources import status
+from roboenv.provisioning.sources import status, write_receipt
 from roboenv.tasks.catalog import BACKENDS
 
 WORKSPACE = Path(__file__).resolve().parents[1]
@@ -250,6 +251,15 @@ def main():
             raise FileNotFoundError(f"required dependency missing: {source}")
         target = context / "runtime-data" / relative
         shutil.copytree(source, target, symlinks=True, ignore=ignore, dirs_exist_ok=True)
+    # What the runtime needs of the source project beyond the sources: the upstream lock, the
+    # managed patches it names, the resolved dependency locks, and the receipt of this build's
+    # source verification (the copies carry no git metadata to repeat it from).
+    data = context / "runtime-data"
+    shutil.copy2(WORKSPACE / "upstreams.lock.json", data / "upstreams.lock.json")
+    for relative in ("third_party/patches", "runtime/locks"):
+        if (WORKSPACE / relative).is_dir():
+            shutil.copytree(WORKSPACE / relative, data / relative, dirs_exist_ok=True)
+    write_receipt(WORKSPACE, [args.backend], data / PACKAGED_RECEIPT, report=source_status)
     if args.backend == "simple":
         pin = json.loads((root / "src/roboenv/assets/simple-g1.json").read_text())
         receipts = context / "runtime-data/.cache/simple"

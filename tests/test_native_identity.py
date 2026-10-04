@@ -72,3 +72,40 @@ def test_independent_backend_packages_do_not_import_each_other():
                     assert not any(
                         module == prefix or module.startswith(prefix + ".") for prefix in other
                     ), f"{path}: move cross-backend dependencies into a shared module"
+
+
+def test_inventory_reads_a_package_imported_from_an_archive(tmp_path, monkeypatch):
+    """The SDK may be on sys.path as a wheel (the standalone image's launch): the inventory
+    walks its Traversable, which has no rglob, and matches the same tree on disk."""
+    import sys
+    import zipfile
+    from importlib import resources
+
+    files = {
+        "zipsdk/__init__.py": "",
+        "zipsdk/provisioning/__init__.py": "",
+        "zipsdk/provisioning/robotwin_assets.py": "robotwin = 1\n",
+        "ziprt/__init__.py": "",
+        "ziprt/adapters/__init__.py": "",
+        "ziprt/adapters/device_control.py": "shared = 1\n",
+        "ziprt/adapters/robotwin/__init__.py": "",
+        "ziprt/adapters/robotwin/devices.py": "control = 1\n",
+    }
+    archive = tmp_path / "sdk-0.0.0-py3-none-any.whl"
+    with zipfile.ZipFile(archive, "w") as zipped:
+        for name, content in files.items():
+            zipped.writestr(name, content)
+    for name, content in files.items():
+        (tmp_path / "tree" / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "tree" / name).write_text(content)
+    monkeypatch.syspath_prepend(str(archive))
+    for module in [name for name in sys.modules if name.startswith(("zipsdk", "ziprt"))]:
+        del sys.modules[module]
+    archived = {"roboenv": resources.files("zipsdk"), "roboenv_runtime": resources.files("ziprt")}
+    on_disk = {"roboenv": tmp_path / "tree/zipsdk", "roboenv_runtime": tmp_path / "tree/ziprt"}
+    assert implementation_inventory("robotwin", roots=archived) == implementation_inventory(
+        "robotwin", roots=on_disk
+    )
+    assert "roboenv_runtime/adapters/robotwin/devices.py" in implementation_inventory(
+        "robotwin", roots=archived
+    )

@@ -179,6 +179,11 @@ separate read-only, content-verified copy. `--asset-mode` selects reference or c
 staging for assets. Never mount the original project or interpreter. Staging and
 Docker storage both need room; `--stage-only` does not produce a runnable image.
 
+The image carries, beside the selected sources, the upstream lock, the managed patches it
+names, the resolved dependency locks and a receipt of the build's source verification
+(`.roboenv-sources.json`): the packaged runtime checks its sources against that receipt,
+since the copies carry no git metadata to repeat the check from.
+
 The output `deployment.json` uses `roboenv/deployment/1`. External orchestrators
 can validate it with `roboenv.provisioning.deployment.load_deployment(path, backend)`.
 It requires an immutable image digest, independent read-only depots, and protected

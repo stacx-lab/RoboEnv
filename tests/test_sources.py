@@ -281,3 +281,81 @@ def test_refresh_does_not_overwrite_ignored_asset_collision(disposable_sources):
     with pytest.raises(subprocess.CalledProcessError):
         sync(root, ["test"], reset=True)
     assert asset.read_text() == "preserve acquired asset"
+
+
+def test_packaged_root_reports_sources_from_the_build_receipt(tmp_path, monkeypatch):
+    """A standalone image copies sources without git; the runtime checks them against the receipt
+    the builder wrote from a verified checkout, and refuses a receipt made for another lock."""
+    import roboenv.provisioning.sources as upstreams
+    from roboenv.project import PACKAGED_RECEIPT, project_root
+
+    patch = tmp_path / "third_party/patches/test.patch"
+    patch.parent.mkdir(parents=True)
+    patch.write_text("--- a\n+++ b\n")
+    lock = {
+        "schema": "roboenv/upstreams/1",
+        "backends": ["test"],
+        "sources": {
+            "test": {
+                "path": "third_party/test",
+                "revision": "a" * 40,
+                "url": "https://github.com/example/test",
+                "backends": ["test"],
+                "patches": [
+                    {
+                        "path": "third_party/patches/test.patch",
+                        "sha256": hashlib.sha256(patch.read_bytes()).hexdigest(),
+                    }
+                ],
+            }
+        },
+    }
+    (tmp_path / "upstreams.lock.json").write_text(json.dumps(lock))
+    (tmp_path / "third_party/test").mkdir()
+    verified = {
+        "name": "test",
+        "path": "third_party/test",
+        "present": True,
+        "expected": "a" * 40,
+        "actual": "a" * 40,
+        "pin_matches": True,
+        "origin_matches": True,
+        "patches_ready": True,
+        "managed_tree_matches": True,
+    }
+    # The builder's checkout passes the live check (a git checkout in reality); the receipt
+    # records it for the copy, which has no .git.
+    with monkeypatch.context() as context:
+        context.setattr(upstreams, "status", lambda *args: {"ready": True, "sources": [verified]})
+        receipt = upstreams.write_receipt(tmp_path, ["test"], tmp_path / PACKAGED_RECEIPT)
+    assert receipt["sources"]["test"]["managed_tree_matches"] is True
+    with monkeypatch.context() as context:
+        context.setattr(upstreams, "load_lock", lambda project: (tmp_path, lock))
+        report = status(tmp_path)
+        assert report["ready"] is True
+        assert report["sources"][0]["packaged"] is True
+        # A patch file that changed after the build is not what the receipt vouched for.
+        patch.write_text("--- a\n+++ c\n")
+        assert status(tmp_path)["ready"] is False
+        patch.write_text("--- a\n+++ b\n")
+        # A receipt made for another lock is no receipt.
+        other = {**lock, "backends": ["test", "x"]}
+        (tmp_path / "upstreams.lock.json").write_text(json.dumps(other))
+        with pytest.raises(ValueError, match="does not match"):
+            status(tmp_path)
+    # The packaged root is a project: found through the runtime root a launch hands its processes
+    # when no source project is at hand (a working directory outside any checkout).
+    (tmp_path / "upstreams.lock.json").write_text(json.dumps(lock))
+    monkeypatch.delenv("ROBOENV_PROJECT", raising=False)
+    monkeypatch.setenv("ROBOENV_ROOT", str(tmp_path))
+    monkeypatch.chdir("/")
+    assert project_root() == tmp_path.resolve()
+
+
+def test_receipt_is_refused_for_sources_that_are_not_ready(tmp_path, monkeypatch):
+    import roboenv.provisioning.sources as upstreams
+
+    monkeypatch.setattr(upstreams, "status", lambda *args: {"ready": False, "sources": []})
+    with pytest.raises(ValueError, match="not ready"):
+        upstreams.write_receipt(tmp_path, ["test"], tmp_path / "receipt.json")
+    assert not (tmp_path / "receipt.json").exists()
