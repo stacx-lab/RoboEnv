@@ -236,6 +236,27 @@ def _component(value, project, name):
     }
 
 
+LIBERO_LOGGING_CONFIG = """
+import importlib.util
+from pathlib import Path
+import sys
+
+# Locate the wheel without importing it: robosuite initializes logging on import.
+spec = importlib.util.find_spec("robosuite")
+if spec is None or spec.origin is None:
+    raise RuntimeError("LIBERO requires an installed robosuite package")
+package = Path(spec.origin).resolve().parent
+if not package.is_relative_to(Path(sys.prefix).resolve()):
+    raise RuntimeError("Refusing to configure robosuite outside the new environment")
+with (package / "macros_private.py").open("x") as config:
+    config.write(
+        "# RoboEnv captures console logs; avoid robosuite 1.4's shared /tmp log.\\n"
+        "import robosuite.macros as macros\\n"
+        "macros.FILE_LOGGING_LEVEL = None\\n"
+    )
+"""
+
+
 PROBE = """
 import importlib
 import importlib.metadata as metadata
@@ -415,6 +436,11 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
             ],
         )
         run("Checking dependency consistency", ["uv", "pip", "check", "--python", python])
+        if backend == "libero":
+            run(
+                "Configuring LIBERO console logging",
+                [python, "-I", "-c", LIBERO_LOGGING_CONFIG],
+            )
         probe_settings = {
             "backend": backend,
             "project": str(project),
@@ -464,7 +490,12 @@ def prepare(backend, *, project=None, install_to=None, progress=None):
     else:
         destination = Path(install_to)
     if record is None and (destination.exists() or destination.is_symlink()):
-        raise ValueError("Select a new --prefix; existing environments are preserved")
+        raise ValueError(
+            f"Environment already exists at {destination}, but no reusable interpreter "
+            "was selected; existing environments are preserved. "
+            f"Inspect .cache/setup/{backend}-*/install.private.log for earlier failures, "
+            f"then run 'roboenv prepare {backend} --prefix NEW_DIRECTORY'."
+        )
     from roboenv.provisioning.sources import sync
 
     with stage(progress, "Refreshing sources: discarding source edits and reapplying patches"):
