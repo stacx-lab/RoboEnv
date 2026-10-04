@@ -53,6 +53,12 @@ overwritten. Failed installations
 retain their environment and private logs. Use `--prefix NEW_DIRECTORY`
 for a fresh installation or recovery after failure.
 
+If preparation reports an existing environment without a reusable interpreter,
+inspect `.cache/setup/SIMULATOR-*/install.private.log` for the original failure
+before retrying with a new prefix. New LIBERO installations configure robosuite
+for console logging, captured by RoboEnv's logs, to avoid its shared
+`/tmp/robosuite.log` file colliding with another user's permissions.
+
 For RoboCasa, `roboenv prepare robocasa` downloads the kitchen textures, fixtures,
 and objects listed by the pinned upstream (about 10 GB) automatically. Progress
 is reported on stderr; completed bundles have local content receipts and are
