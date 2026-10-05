@@ -317,29 +317,28 @@ def test_archives_reject_traversal_before_writing(tmp_path, name):
     assert not (tmp_path / "out/good").exists()
 
 
-def test_extracted_inventory_is_pinned(tmp_path):
+def test_extracted_inventory_is_pinned(tmp_path, monkeypatch):
     import hashlib
 
+    from roboenv.provisioning import simple_assets
     from roboenv.provisioning.simple_assets import verify_assets
 
     depot = tmp_path / ".cache/simple"
     depot.mkdir(parents=True)
     receipt = depot / "test.zip.json"
     receipt.write_text("[]\n")
-    pin = tmp_path / "src/roboenv/assets/simple-g1.json"
-    pin.parent.mkdir(parents=True)
-    pin.write_text(
-        json.dumps(
-            {
-                "archives": [
-                    {
-                        "file": "test.zip",
-                        "inventory_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
-                    }
-                ]
-            }
-        )
-    )
+    # The pin is the package's own file; this test's pin names one archive.
+    pin = json.dumps(
+        {
+            "archives": [
+                {
+                    "file": "test.zip",
+                    "inventory_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
+                }
+            ]
+        }
+    ).encode()
+    monkeypatch.setattr(simple_assets, "asset_pin_bytes", lambda: pin)
     assert verify_assets(tmp_path) == depot / "data"
     receipt.write_text("[ ]\n")
     with pytest.raises(ValueError, match="inventory"):
