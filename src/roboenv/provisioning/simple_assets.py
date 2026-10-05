@@ -8,10 +8,17 @@ import shutil
 import stat
 import tempfile
 import zipfile
+from importlib import resources
 from pathlib import Path
 from urllib.request import urlopen
 
 from roboenv.provisioning.assets import inventory
+
+
+def asset_pin_bytes():
+    """The pinned SIMPLE archives as this package ships them: the same bytes from a source checkout,
+    an installed wheel or an archive on the import path (a packaged runtime has no source tree)."""
+    return resources.files("roboenv").joinpath("assets/simple-g1.json").read_bytes()
 
 
 def digest(path):
@@ -41,8 +48,8 @@ def extract(archive, destination):
 
 def prepare_assets(root, *, progress=None, archives=None):
     root = Path(root).resolve()
-    pin_path = root / "src/roboenv/assets/simple-g1.json"
-    pin = json.loads(pin_path.read_text())
+    pin_bytes = asset_pin_bytes()
+    pin = json.loads(pin_bytes)
     depot = root / ".cache/simple"
     depot.mkdir(parents=True, exist_ok=True)
     selected = pin["archives"]
@@ -108,13 +115,13 @@ def prepare_assets(root, *, progress=None, archives=None):
     return {
         "environment_assets_verified": complete,
         "asset_depot": str(data),
-        "asset_manifest_sha256": digest(pin_path),
+        "asset_manifest_sha256": hashlib.sha256(pin_bytes).hexdigest(),
     }
 
 
 def verify_assets(root):
     root = Path(root)
-    pin = json.loads((root / "src/roboenv/assets/simple-g1.json").read_text())
+    pin = json.loads(asset_pin_bytes())
     depot = root / ".cache/simple"
     for entry in pin["archives"]:
         receipt = depot / (entry["file"] + ".json")

@@ -16,7 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.parametrize("stale", [False, True])
-def test_asset_layout_migration_and_readonly_verification(tmp_path, stale):
+def test_asset_layout_migration_and_readonly_verification(tmp_path, stale, monkeypatch):
+    from roboenv.provisioning import simple_assets
+
     depot = tmp_path / ".cache/simple"
     archive = depot / "downloads/materials.zip"
     archive.parent.mkdir(parents=True)
@@ -27,13 +29,12 @@ def test_asset_layout_migration_and_readonly_verification(tmp_path, stale):
         "sha256": hashlib.sha256(b"material").hexdigest(),
     }]
     serialized = json.dumps(entries, indent=2) + "\n"
-    manifest = tmp_path / "src/roboenv/assets/simple-g1.json"
-    manifest.parent.mkdir(parents=True)
-    manifest.write_text(json.dumps({"archives": [{
+    pin = json.dumps({"archives": [{
         "file": archive.name, "size": archive.stat().st_size,
         "sha256": digest(archive), "destination": ".",
         "inventory_sha256": hashlib.sha256(serialized.encode()).hexdigest(),
-    }]}))
+    }]}).encode()
+    monkeypatch.setattr(simple_assets, "asset_pin_bytes", lambda: pin)
     receipt = depot / "materials.zip.json"
     if stale:
         old = depot / "data/vMaterials_2/vMaterials_2/material.mdl"
