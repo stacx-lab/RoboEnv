@@ -44,7 +44,7 @@ for LIBERO can contain:
 For SIMPLE, record both head views or select just the left view:
 
 ```sh
-roboenv launch simple/g1-xmove-pick --gpu 0 --record
+roboenv launch simple/xmove-pick --gpu 0 --record
 ```
 
 ```json
@@ -159,7 +159,7 @@ SIMPLE uses the same probe, with `--sim-mode mujoco_isaac` (the task default) or
 `--sim-mode mujoco`. For example:
 
 ```sh
-.venv/bin/python tools/check_spectator.py simple/g1-xmove-pick \
+.venv/bin/python tools/check_spectator.py simple/xmove-pick \
   --gpu 0 --clock stepped --sim-mode mujoco_isaac --seconds 2 \
   --out .cache/spectator/simple-xmove-isaac-stepped
 ```

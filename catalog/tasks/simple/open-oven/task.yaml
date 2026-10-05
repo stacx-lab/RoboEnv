@@ -1,15 +1,12 @@
 id: simple/open-oven
-backend: simple
-backend_task: simple.G1WholebodyOpenOvenTeleop-v0
 robot: simple/simple-g1
 instruction: move forward to the oven and open it
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
 backend_kwargs:
   env_id: simple/G1WholebodyOpenOvenTeleop-v0
   sim_mode: mujoco_isaac
   dr_level: 0
   arm_gravity_compensation: true
-  stop_on_success: false
-seed: 0
-budget_mode: practice
-device_bindings: null
-execution_mode: realtime

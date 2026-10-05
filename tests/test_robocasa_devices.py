@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -19,11 +20,11 @@ from roboenv.tasks.resolve import resolve_task
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_task_selects_and_renames_its_own_devices(tmp_path):
+def test_task_selects_robot_with_custom_devices(tmp_path):
     task = yaml.safe_load(
         (ROOT / "catalog/tasks/robocasa/arrange-vegetables/task.yaml").read_text()
     )
-    task["device_bindings"] = {
+    devices = {
         "overview": {
             "binding": "robocasa.camera/1",
             "entity": "camera",
@@ -36,15 +37,21 @@ def test_task_selects_and_renames_its_own_devices(tmp_path):
             "profile": "devices/world/profile.yaml",
         },
     }
+    catalog = tmp_path / "catalog"
+    robot = catalog / "robots/robocasa/custom-cameras"
+    shutil.copytree(ROOT / "catalog/robots" / task["robot"], robot)
+    task["robot"] = "robocasa/custom-cameras"
+    binding = {"schema_version": "roboenv/bindings/1", "backend": "robocasa", "devices": devices}
+    (robot / "bindings.yaml").write_text(yaml.safe_dump(binding))
     path = tmp_path / "task.yaml"
     path.write_text(yaml.safe_dump(task))
-    resolved = resolve_task(path, catalog=ROOT / "catalog")
+    resolved = resolve_task(path, catalog=catalog)
     assert [s.name for s in resolved.bindings.devices] == ["overview", "world"]
     assert resolved.bindings.devices[0].config == {"camera": "agentview"}
-    task["device_bindings"]["overview"]["profile"] = "../../missing.yaml"
-    path.write_text(yaml.safe_dump(task))
+    devices["overview"]["profile"] = "../../missing.yaml"
+    (robot / "bindings.yaml").write_text(yaml.safe_dump(binding))
     with pytest.raises((ValueError, FileNotFoundError)):
-        resolve_task(path, catalog=ROOT / "catalog")
+        resolve_task(path, catalog=catalog)
 
 
 @pytest.mark.parametrize("device_service", ["http"], indirect=True)
@@ -331,9 +338,7 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
             (tasks / f"{task_id}.yaml").write_text(
                 yaml.safe_dump(
                     {
-                        "id": task_id,
-                        "backend": "robocasa",
-                        "backend_task": task_id,
+                        "id": "robocasa/" + task_id,
                         "robot": "robocasa/robocasa-panda-omron",
                         "instruction": "Lift the cube.",
                     }
@@ -354,7 +359,7 @@ def test_two_native_task_services_are_independent(tmp_path, monkeypatch):
             monkeypatch.setenv("ROBOENV_SERVER_ROBOT", str(robot))
             config = SupervisorConfig(
                 run_dir=tmp_path / f"run-{index}",
-                task=task_id,
+                task="robocasa/" + task_id,
                 seed=index,
                 budget_mode="official",
                 session=f"cpu-{index}",

@@ -1,15 +1,12 @@
-id: simple/g1-xmove-pick
-backend: simple
-backend_task: simple.G1WholebodyXMovePickTeleop-v0
+id: simple/xmove-pick
 robot: simple/simple-g1
 instruction: move forward to pick up the apple
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
 backend_kwargs:
   env_id: simple/G1WholebodyXMovePickTeleop-v0
   sim_mode: mujoco_isaac
   dr_level: 0
   arm_gravity_compensation: true
-  stop_on_success: false
-seed: 0
-budget_mode: practice
-device_bindings: null
-execution_mode: realtime

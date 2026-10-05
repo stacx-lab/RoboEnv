@@ -16,7 +16,7 @@ import sys
 import tempfile
 import threading
 import time
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 
 import yaml
@@ -295,7 +295,7 @@ def launch(
     arm_gravity_compensation overrides the SIMPLE task setting; None preserves
     the task value, which defaults to True. Other backends reject this override.
     execution_mode overrides the task setting; None preserves the catalog mode.
-    stop_on_success overrides the task's backend policy; None preserves its value.
+    stop_on_success overrides the task's success policy; None preserves its value.
     recording={} enables experimental owner-only MP4s (10 simulation fps);
     optional fps and views configure sampling and independent spectator cameras.
     directory selects a new or empty output folder, relative to the caller's cwd.
@@ -336,13 +336,8 @@ def launch(
     if execution_mode is not None:
         resolved = replace(resolved, task=replace(resolved.task, execution_mode=execution_mode))
     if stop_on_success is not None:
-        if resolved.task.backend not in {
-            "libero", "robocasa", "robotwin", "robodojo", "behavior", "simple", "fakeshell"
-        }:
-            raise ValueError(f"stop_on_success is not supported for {resolved.task.backend}")
         resolved = replace(resolved, task=replace(
-            resolved.task,
-            backend_kwargs={**resolved.task.backend_kwargs, "stop_on_success": stop_on_success},
+            resolved.task, stop_on_success=stop_on_success,
         ))
     spec = resolved.task
     isaac_simple = spec.backend == "simple" and spec.backend_kwargs.get(
@@ -382,14 +377,14 @@ def launch(
     )
     tasks = directory / "server/tasks"
     tasks.mkdir()
-    (tasks / f"{spec.backend_task}.yaml").write_text(
-        yaml.safe_dump(asdict(spec), sort_keys=False)
+    (tasks / "task.yaml").write_text(
+        yaml.safe_dump(spec.as_dict(), sort_keys=False)
     )
     manifest = directory / "environment.json"
     _save(
         manifest,
         {
-            "task": asdict(spec),
+            "task": spec.as_dict(),
             "observation_access": "sensors-only",
         },
     )

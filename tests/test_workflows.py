@@ -6,7 +6,7 @@ import shutil
 import socket
 import subprocess
 import sys
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -27,7 +27,7 @@ def launch_toy(**kwargs):
 
 def test_task_id_resolution_and_missing_task():
     resolved = resolve_task("libero/mug-into-microwave", project=ROOT)
-    assert asdict(resolved.task)["backend"] == "libero"
+    assert resolved.task.backend == "libero"
     assert resolved.task.backend_kwargs == {
         "suite_name": "libero_10",
         "task_id": 9,
@@ -42,7 +42,7 @@ def test_grouped_robot_resolves_owner_bundle_bindings_and_launches(tmp_path):
     reference = "fakeshell/toy-puck"
     robot = catalog / "robots" / reference
     shutil.copytree(FIXTURE / "catalog/robots/toy-puck", robot)
-    task = asdict(Task.load(FIXTURE / "task.yaml"))
+    task = Task.load(FIXTURE / "task.yaml").as_dict()
     task["robot"] = reference
     path = tmp_path / "task.yaml"
     path.write_text(yaml.safe_dump(task))
@@ -67,7 +67,7 @@ def test_grouped_robot_resolves_owner_bundle_bindings_and_launches(tmp_path):
     ],
 )
 def test_robot_references_reject_unsafe_paths(reference):
-    task = asdict(Task.load(FIXTURE / "task.yaml"))
+    task = Task.load(FIXTURE / "task.yaml").as_dict()
     task["robot"] = reference
     with pytest.raises(ValueError, match="invalid task robot"):
         Task.from_dict(task)
@@ -79,9 +79,9 @@ def test_launch_connect_driver_and_budget(monkeypatch):
         client = roboenv.connect(env.record["id"], project=ROOT)
         endpoint_client = roboenv.connect(env.record["endpoint"])
         endpoint_client.devices()
-        assert endpoint_client.task.id == "native-toy-push"
+        assert endpoint_client.task.id == "fakeshell/native-toy-push"
         assert env.record["endpoint"].count("/") == 2
-        assert client.task.id == "native-toy-push"
+        assert client.task.id == "fakeshell/native-toy-push"
         assert env.devices()["devices"][0]["name"] == "controller"
         before = client.device("controller").read()
         assert before["result"]["budget"]["used"] == 0
@@ -111,7 +111,7 @@ def test_multiple_runs_require_selection(monkeypatch):
         with pytest.raises(ValueError, match="select --endpoint"):
             connect(project=ROOT)
         assert first.client.session != second.client.session
-        assert connect(first.endpoint).task.id == "native-toy-push"
+        assert connect(first.endpoint).task.id == "fakeshell/native-toy-push"
         assert first.record["endpoint"] != second.record["endpoint"]
         first.device("controller").call("write", {"target": [0.3]})
         assert second.device("controller").read()["budget"]["used"] == 0
@@ -417,16 +417,18 @@ def test_grouped_catalog_ids_and_listing(capsys):
         resolve_task("robocasa-pick-place-microwave", project=ROOT)
 
 
-@pytest.mark.parametrize("value", ["robocasa/../escape", "robocasa/..", "libero/task", "robocasa/"])
+@pytest.mark.parametrize(
+    "value", ["robocasa/../escape", "robocasa/..", "robocasa/Bad_Name", "robocasa/"]
+)
 def test_task_rejects_invalid_namespaced_ids(value):
-    task = asdict(resolve_task("robocasa/pick-place-microwave", project=ROOT).task)
+    task = resolve_task("robocasa/pick-place-microwave", project=ROOT).task.as_dict()
     task["id"] = value
     with pytest.raises(ValueError, match="task id"):
         Task.from_dict(task)
 
 
 def test_clock_setting_must_be_at_task_level():
-    task = asdict(resolve_task("robocasa/pick-place-microwave", project=ROOT).task)
+    task = resolve_task("robocasa/pick-place-microwave", project=ROOT).task.as_dict()
     task["backend_kwargs"]["realtime"] = True
     with pytest.raises(ValueError, match="realtime is not supported"):
         Task.from_dict(task)
@@ -436,7 +438,7 @@ def test_clock_setting_must_be_at_task_level():
 def test_invalid_task_execution_modes_are_rejected(mode):
     from roboenv.tasks.model import Task
 
-    task = asdict(Task.load(FIXTURE / "task.yaml"))
+    task = Task.load(FIXTURE / "task.yaml").as_dict()
     task["execution_mode"] = mode
     with pytest.raises(ValueError, match="execution_mode"):
         Task.from_dict(task)
@@ -444,7 +446,7 @@ def test_invalid_task_execution_modes_are_rejected(mode):
 
 @pytest.mark.parametrize("override, expected", [(None, "realtime"), ("stepped", "stepped")])
 def test_launch_uses_catalog_mode_unless_overridden(tmp_path, monkeypatch, override, expected):
-    task = asdict(Task.load(FIXTURE / "task.yaml"))
+    task = Task.load(FIXTURE / "task.yaml").as_dict()
     task["execution_mode"] = "realtime"
     path = tmp_path / "task.yaml"
     path.write_text(yaml.safe_dump(task))
@@ -468,7 +470,7 @@ def test_launch_uses_catalog_mode_unless_overridden(tmp_path, monkeypatch, overr
     assert command[index + 1] == "--worker-arg=" + expected
     definition = json.loads(Path(env["ROBOENV_SERVER_MANIFEST"]).read_text())
     assert definition["task"]["execution_mode"] == expected
-    config = yaml.safe_load((Path(env["ROBOENV_TASKS"]) / "fakeshell.native-push.yaml").read_text())
+    config = yaml.safe_load((Path(env["ROBOENV_TASKS"]) / "task.yaml").read_text())
     assert config["execution_mode"] == expected
     shutil.rmtree(env["ROBOENV_SOCKET_ROOT"])
 
@@ -503,7 +505,7 @@ def test_task_commands_do_not_import_agent_frameworks(tmp_path, monkeypatch, cap
     monkeypatch.setattr(catalog, "load_lock", lambda _: (ROOT, {"sources": {}}))
     monkeypatch.setattr(catalog, "status", lambda *a: {"ready": True, "sources": []})
     monkeypatch.setitem(catalog.DISCOVERERS, "libero", lambda *a: [(
-        catalog._task("libero", "libero.example", {"task_name": "Example"}, "Do it"),
+        catalog._task("libero", "example", {"suite_name": "libero_10", "task_id": 1}, "Do it"),
         ROOT / "README.md",
     )])
     destination = tmp_path / "source"

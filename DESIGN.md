@@ -56,8 +56,8 @@ The copyable robot directory contains only `workspace.yaml` and `devices/`.
 Simulator binding defaults are internal package resources under
 `src/roboenv/devices/bindings/defaults/<backend>/<robot>.yaml`, selected by backend
 and robot directory name. They are packaged with the SDK so launch and device preparation can
-resolve them without importing simulator engines. Explicit task bindings override
-owner-bundle plans, which override built-in defaults. Source receipts and integration
+resolve them without importing simulator engines. Owner-bundle `bindings.yaml`
+plans override built-in defaults; tasks select the arrangement through `robot`. Source receipts and integration
 notes belong in `docs/`; generators belong in `tools/`; test-only profiles belong in
 test fixtures.
 Do not add task/session files, deployment paths, or simulator metadata to the robot
@@ -81,10 +81,16 @@ reproducible output from the pinned sources. Unknown facts
 remain unknown; an identity transform is not a substitute for missing calibration.
 
 Different embodiments or sensor arrangements need different configurations. Standard
-RoboCasa tasks share one Panda–Omron configuration. The generic task format also
-supports an explicit device subset or custom binding map; that map replaces the
-whole default list. A copied Kinex workspace must match the selected configuration.
+RoboCasa tasks share one Panda–Omron configuration. A custom device subset or
+binding map belongs to a separate robot arrangement; its owner binding plan
+replaces the whole default list. A copied Kinex workspace must match the selected configuration.
 A new task with the same hardware should simply reuse the existing robot ID.
+
+Task definitions derive the backend from the namespaced public ID. Native task
+selectors occur only in `backend_kwargs`. Shared policy (`seed`, `budget_mode`,
+`execution_mode`, `stop_on_success`) stays at the top level and is emitted explicitly
+by the canonical serializer used for discovery, generators and private launch files.
+`budget_mode` gates practice controls; it does not select the clock or horizon.
 
 ## Launch, attachment, and concurrency
 

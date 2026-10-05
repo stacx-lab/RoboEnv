@@ -32,8 +32,8 @@ def device_service(tmp_path, monkeypatch, request):
     tasks = tmp_path / "tasks"
     tasks.mkdir()
     (tasks / "device-toy.yaml").write_text(
-        "id: device-toy\nbackend: fakeshell\n"
-        "backend_task: device-toy\nrobot: toy-puck\ninstruction: Push the puck.\n"
+        "id: fakeshell/device-toy\n"
+        "robot: toy-puck\ninstruction: Push the puck.\n"
     )
     monkeypatch.setenv("ROBOENV_SERVER_ROBOT", str(robot))
     monkeypatch.delenv("ROBOENV_SERVER_MANIFEST", raising=False)
@@ -45,7 +45,7 @@ def device_service(tmp_path, monkeypatch, request):
     )
     config = SupervisorConfig(
         run_dir=tmp_path / "run",
-        task="device-toy",
+        task="fakeshell/device-toy",
         seed=0,
         budget_mode="official",
         session="roboenv",

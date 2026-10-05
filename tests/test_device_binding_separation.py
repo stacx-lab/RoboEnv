@@ -277,7 +277,7 @@ def test_task_resolution_uses_explicit_bindings_and_only_selected_devices(
     (target / "devices/controller/driver.py").unlink()
     value = yaml.safe_load((ROOT / "tests/fixtures/native-toy/task.yaml").read_text())
     value["robot"] = reference
-    value["device_bindings"] = {
+    devices = {
         "puck": {
             "binding": "fakeshell.puck/1",
             "entity": "puck",
@@ -285,6 +285,9 @@ def test_task_resolution_uses_explicit_bindings_and_only_selected_devices(
             "overrides": {"extrinsics": {"mount": {"parent": "world"}}},
         }
     }
+    (target / "bindings.yaml").write_text(yaml.safe_dump({
+        "schema_version": "roboenv/bindings/1", "backend": "fakeshell", "devices": devices,
+    }))
     task = tmp_path / "task.yaml"
     task.write_text(yaml.safe_dump(value))
     resolved = resolve_task(task, catalog=catalog)

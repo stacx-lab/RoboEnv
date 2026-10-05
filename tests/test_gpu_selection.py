@@ -105,7 +105,7 @@ def test_launch_passes_selection_only_to_owned_process(tmp_path, monkeypatch, re
     monkeypatch.setattr(environment.subprocess, "Popen", capture)
     before = dict(os.environ)
     with pytest.raises(OSError, match="before native startup"):
-        environment.launch("simple/g1-xmove-pick", project=root, interpreter=sys.executable,
+        environment.launch("simple/xmove-pick", project=root, interpreter=sys.executable,
                            gpu=requested, run_dir=tmp_path)
     assert dict(os.environ) == before
     assert all(seen[0][key] == value for key, value in gpu.gpu_environment(selection).items())

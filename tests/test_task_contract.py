@@ -1,6 +1,5 @@
 """One task schema and effective clock policy across every simulator."""
 
-from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -15,13 +14,13 @@ from roboenv_runtime.runtime.world import WorldSession
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "isaaclab"])
+@pytest.mark.parametrize("backend", BACKENDS)
 @pytest.mark.parametrize("mode", [None, "stepped"])
 def test_catalog_resolution_preserves_task_and_clock(tmp_path, backend, mode):
     task = next(
         task for task, _ in load_catalog(ROOT / "catalog/tasks").values() if task.backend == backend
     )
-    value = asdict(task)
+    value = task.as_dict()
     if mode is None:
         value.pop("execution_mode")
     else:
@@ -31,14 +30,14 @@ def test_catalog_resolution_preserves_task_and_clock(tmp_path, backend, mode):
     resolved = resolve_task(source, catalog=ROOT / "catalog")
     assert resolved.task.execution_mode == (mode or "realtime")
     serialized = tmp_path / "resolved.yaml"
-    serialized.write_text(yaml.safe_dump(asdict(resolved.task)))
+    serialized.write_text(yaml.safe_dump(resolved.task.as_dict()))
     assert Task.load(serialized) == resolved.task
     assert resolved.bindings.devices
     assert resolved.task.id == task.id
 
 
 def test_task_rejects_unknown_fields():
-    task = asdict(resolve_task("libero/bowl-onto-plate", project=ROOT).task)
+    task = resolve_task("libero/bowl-onto-plate", project=ROOT).task.as_dict()
     with pytest.raises(ValueError, match="environment task fields"):
         Task.from_dict({**task, "agent_options": {"max_turns": 5}})
 
@@ -47,8 +46,6 @@ def test_world_applies_mode_before_reset_and_preserves_configured_horizon():
     task = Task.from_dict(
         {
             "id": "fakeshell/clock",
-            "backend": "fakeshell",
-            "backend_task": "clock",
             "robot": "toy",
             "instruction": "Test clock policy.",
             "backend_kwargs": {"max_steps": 1},
@@ -105,3 +102,62 @@ def test_sdk_buffered_writes_use_actions_for_every_actuator_type(kind, actions):
     )
     assert device.write(actions, duration_s=0.5) == {"execution_id": "accepted"}
     assert calls == [("write", {"actions": actions, "duration_s": 0.5})]
+
+
+def test_entire_catalog_uses_canonical_format_and_robot_bindings():
+    catalog = load_catalog(ROOT / "catalog/tasks")
+    assert len(catalog) == 27
+    assert {task.backend for task, _ in catalog.values()} == set(BACKENDS)
+    fields = ["id", "robot", "instruction", "seed", "budget_mode", "execution_mode",
+              "stop_on_success", "backend_kwargs"]
+    for task, path in catalog.values():
+        serialized = task.as_dict()
+        assert list(serialized) == fields
+        assert path.parent.relative_to(ROOT / "catalog/tasks").as_posix() == task.id
+        assert path.read_text() == yaml.safe_dump(serialized, sort_keys=False)
+        assert Task.from_dict(serialized) == task
+        assert task.stop_on_success is False
+        assert "stop_on_success" not in task.backend_kwargs
+        resolved = resolve_task(path, project=ROOT)
+        assert resolved.bindings.backend == task.backend
+        assert resolved.bindings.devices
+        assert Task.from_dict(resolved.task.as_dict()) == resolved.task
+
+
+def test_minimal_task_exposes_defaults_and_serialization_is_independent():
+    task = Task.from_dict({"id": "fakeshell/example", "robot": "toy", "instruction": "Test."})
+    assert task.backend == "fakeshell"
+    assert task.as_dict() == {
+        "id": "fakeshell/example", "robot": "toy", "instruction": "Test.",
+        "seed": 0, "budget_mode": "official", "execution_mode": "realtime",
+        "stop_on_success": False, "backend_kwargs": {},
+    }
+    task.backend_kwargs["nested"] = {"value": [1]}
+    task.as_dict()["backend_kwargs"]["nested"]["value"].append(2)
+    assert task.backend_kwargs["nested"]["value"] == [1]
+
+
+@pytest.mark.parametrize("value", [None, 0, 1, "false", [], {}])
+def test_task_success_policy_requires_boolean(value):
+    with pytest.raises(ValueError, match="stop_on_success must be a boolean"):
+        Task.from_dict({"id": "fakeshell/example", "robot": "toy", "instruction": "Test.",
+                        "stop_on_success": value})
+
+
+@pytest.mark.parametrize("backend", BACKENDS)
+@pytest.mark.parametrize("stop", [False, True])
+def test_worker_routes_shared_policy_separately_from_native_settings(monkeypatch, backend, stop):
+    from dataclasses import replace
+
+    from roboenv_runtime.runtime import worker
+
+    original = next(t for t, _ in load_catalog(ROOT / "catalog/tasks").values()
+                    if t.backend == backend)
+    task = replace(original, stop_on_success=stop)
+    received = []
+    monkeypatch.setattr(
+        worker, "make_adapter", lambda name, **kwargs: received.append((name, kwargs))
+    )
+    worker.build_adapter(task)
+    assert received == [(backend, {**original.backend_kwargs, "stop_on_success": stop})]
+    assert "stop_on_success" not in original.backend_kwargs

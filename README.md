@@ -39,8 +39,8 @@ At a stepped horizon, physics freezes and unfinished buffers or waits end with
 does not fail the world. The worker automatically seals the native verdict and records
 `step_limit` when unsuccessful. Owner verification retains its strict budget eligibility checks.
 
-RoboCasa, LIBERO, RoboTwin, BEHAVIOR, RoboDojo, SIMPLE and the test backend accept
-`backend_kwargs: {stop_on_success: true}` to end at the first successful control
+All seven simulators and the test backend accept top-level
+`stop_on_success: true` to end at the first successful control
 interval in either clock mode. The default is `false`: success alone does not end
 execution. Launch flags `--stop-on-success` and `--no-stop-on-success` override the
 task policy; omitting both preserves it. Python callers can use
@@ -96,6 +96,11 @@ SIMPLE records its existing 640×360 left/right head-camera frames. See
 
 Official LIBERO uses the same typed device path with complete scene-specific Panda
 catalogs in `catalog/robots/libero/libero-panda-{tabletop,floor,kitchen,living-room,study}/`.
+Task IDs use `simulator/lowercase-kebab-case`; the prefix selects the backend.
+Task YAML exposes `seed`, `budget_mode`, `execution_mode` and `stop_on_success`;
+native selectors and settings live in `backend_kwargs`. See the
+[task format](docs/simulator-integration.md#task-format) for the shared template.
+
 Each task selects its robot by a relative catalog path, such as
 `robot: libero/libero-panda-kitchen`; each scene directory contains its full device
 profiles and native mounting geometry.
@@ -142,7 +147,7 @@ See [gripper geometry](docs/grippers.md) for frame conventions and source valida
 
 SIMPLE G1 uses a `velocity` base for legs and waist, separate `joint` arms,
 `dexterous_hand` fingers, and stereo RGB cameras. Run `roboenv prepare simple`
-and `roboenv launch simple/g1-xmove-pick --gpu 0`. Isaac rendering uses one selected
+and `roboenv launch simple/xmove-pick --gpu 0`. Isaac rendering uses one selected
 GPU over MuJoCo CPU physics with command-driven stepping. See [SIMPLE setup, contracts and validation](docs/simple.md) for requirements
 and the current validation limits. The metric control interface is a practice
 protocol; native success predicates are preserved.

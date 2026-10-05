@@ -155,7 +155,7 @@ def check(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--task", default="simple/g1-xmove-pick")
+    parser.add_argument("--task", default="simple/xmove-pick")
     parser.add_argument("--gpu", type=int, help="Host GPU index for Isaac rendering")
     parser.add_argument("--execution-mode", choices=("stepped", "realtime"), default="stepped")
     parser.add_argument("--startup-timeout", type=float, default=900)

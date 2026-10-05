@@ -93,7 +93,6 @@ def test_official_registry_and_assets_are_complete():
         assert "realtime" not in resolved.task.backend_kwargs
         kwargs = resolved.task.backend_kwargs
         assert resolved.task.robot == lookup[kwargs["suite_name"], kwargs["task_id"]]
-        assert resolved.task.device_bindings is None
         assert not resolved.path.with_name("solution.py").exists()
 
 
@@ -113,7 +112,6 @@ def test_discovered_scene_robots_reach_prepared_kinex_workspaces(tmp_path):
         kwargs = resolved.task.backend_kwargs
         problem = native[kwargs["suite_name"], kwargs["task_id"]]["problem"]
         assert resolved.task.robot == native[kwargs["suite_name"], kwargs["task_id"]]["robot"]
-        assert resolved.task.device_bindings is None
         assert all(not spec.overrides for spec in resolved.bindings.devices)
         if problem in checked:
             continue

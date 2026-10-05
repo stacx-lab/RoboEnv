@@ -279,12 +279,10 @@ def generate(out, facts_out, *, bindings_out=None):
                 sort_keys=False,
             )
         )
-    from dataclasses import asdict
-
     for task, _ in discover_tasks(ROOT):
         target = out / "tasks" / task.id / "task.yaml"
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(yaml.safe_dump(asdict(task), sort_keys=False))
+        target.write_text(yaml.safe_dump(task.as_dict(), sort_keys=False))
     facts_out.parent.mkdir(parents=True, exist_ok=True)
     facts_out.write_text(json.dumps(model, indent=2) + "\n")
 

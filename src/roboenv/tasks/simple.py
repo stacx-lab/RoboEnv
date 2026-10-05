@@ -4,10 +4,8 @@ import ast
 
 from roboenv.tasks.model import Task
 
-LEGACY_NAMES = {
-    "g1_wholebody_xmove_pick_teleop": "g1-xmove-pick",
-    "g1_wholebody_locomotion_pick_between_tables_teleop": "g1-transfer-between-tables",
-    "g1_wholebody_bend_pick_teleop": "g1-bend-pick",
+TASK_NAMES = {
+    "g1_wholebody_locomotion_pick_between_tables_teleop": "transfer-between-tables",
 }
 
 
@@ -95,7 +93,7 @@ def entries(source):
             "description": description,
             "instruction": instruction,
             "source": path,
-            "name": LEGACY_NAMES.get(
+            "name": TASK_NAMES.get(
                 task, task.removeprefix("g1_wholebody_").removesuffix("_teleop").replace("_", "-")
             ),
         }
@@ -106,8 +104,6 @@ def discover_tasks(root):
         yield (
             Task(
                 id="simple/" + entry["name"],
-                backend="simple",
-                backend_task=entry["env_id"].replace("/", ".", 1),
                 robot="simple/simple-g1",
                 instruction=entry["instruction"],
                 budget_mode="practice",
@@ -117,7 +113,6 @@ def discover_tasks(root):
                     "sim_mode": "mujoco_isaac",
                     "dr_level": 0,
                     "arm_gravity_compensation": True,
-                    "stop_on_success": False,
                 },
             ),
             entry["source"],

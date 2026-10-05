@@ -281,23 +281,33 @@ private worker configuration. There is no second runtime task schema.
 
 ```yaml
 id: libero/bowl-onto-plate
-backend: libero
-backend_task: libero.spatial_0
 robot: libero/libero-panda-tabletop
 instruction: Pick the akita black bowl between the plate and the ramekin and place it on the plate
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
 backend_kwargs:
   suite_name: libero_spatial
   task_id: 0
   init_state_index: 0
-budget_mode: practice
 ```
 
-The five required fields are `id`, `backend`, `backend_task`, `robot`, and
-`instruction`. Optional defaults are `backend_kwargs: {}`, `seed: 0`,
-`budget_mode: official`, `device_bindings: null`, and `execution_mode: realtime`.
+The required fields are `id`, `robot`, and `instruction`. The simulator prefix in
+`id` selects the backend; native task selectors occur only in `backend_kwargs`.
+Optional defaults are `seed: 0`, `budget_mode: official`,
+`execution_mode: realtime`, `stop_on_success: false`, and `backend_kwargs: {}`.
+Exports always expose these defaults in the order shown above. Discovery, catalog
+generators and private launch snapshots use `Task.as_dict()` as their single
+serializer. Launch writes the resolved definition to `server/tasks/task.yaml`.
+
+`budget_mode: practice` permits the practice client's reset, checkpoint and restore
+operations when supported by the simulator. `official` disables those practice
+controls; the label alone does not certify benchmark eligibility. Existing catalog
+protocol choices remain explicit. Neither value selects a horizon or clock.
+
 Backend-specific native inputs belong in `backend_kwargs`; robot profiles and
-binding plans describe actual hardware rather than forcing every robot to have
-the same device names. Unknown fields and obsolete task formats are rejected.
+binding plans describe the selected hardware. Unknown task fields are rejected.
 
 Clock precedence is launch override, explicit task setting, then realtime.
 Realtime disables episode step caps and native horizon timeouts while continuing
@@ -308,10 +318,10 @@ applies the selected mode before reset; configured horizons are retained separat
 from effective limits. Budget mode does not select the clock.
 
 The worker owns episode policy. Adapters expose native `score()` and `budget()`;
-adapters supporting `stop_on_success` consume and validate that boolean before
-constructing the native environment. It defaults to false and must not be passed
-to a native constructor that does not support it. LIBERO, RoboTwin, BEHAVIOR,
-RoboDojo, RoboCasa, SIMPLE and FakeShell support this option in `backend_kwargs`.
+all seven simulator adapters and FakeShell support top-level `stop_on_success`.
+Launch overrides take precedence over the task value, which defaults to false.
+Adapters consume and validate the policy without forwarding it to unsupported
+native constructors.
 The worker checks enabled success stopping and stepped budget exhaustion after
 each world control interval, then seals the terminal verdict automatically.
 Adapters do not declare `bounded_episodes` or install additional tick callbacks
@@ -341,17 +351,27 @@ devices:
     profile: devices/base/profile.yaml
 ```
 
-Use `src/roboenv/devices/bindings/defaults/SIMULATOR/ROBOT.yaml` for defaults. Task `device_bindings` is a complete
-replacement, not a patch. Private owner bundles may include `bindings.yaml`; these
-plans take precedence over packaged defaults, while explicit task bindings take
-precedence over both. Public robot workspaces exclude binding plans.
+Use `src/roboenv/devices/bindings/defaults/SIMULATOR/ROBOT.yaml` for defaults.
+Custom device arrangements use a separate robot reference with an owner-side
+`bindings.yaml`. That plan replaces the complete default selection. Private owner
+bundle plans take precedence over packaged defaults. Public robot workspaces exclude
+binding plans; tasks carry only the selected `robot` reference.
 Publish exactly the selected profiles and drivers.
 Sensor configuration must also enable those sensors in the backend.
 
-Catalog task IDs use `SIMULATOR/TASK`, matching their directory below
+Catalog task IDs use `simulator/lowercase-kebab-case`, matching their directory below
 `catalog/tasks/`. `roboenv tasks list --simulator SIMULATOR` lists that backend's
-IDs; pass the same ID to launch or export. Keep native `backend_task` identifiers
-separate from these public names. Discovery must emit the same directory structure.
+IDs; pass the same ID to launch or export. Native selectors in `backend_kwargs`
+retain their simulator spelling. SIMPLE names omit the redundant `g1-` prefix;
+Isaac Lab retains its meaningful `go2-d1-` task family.
+
+Discovery matches native selectors plus robot to reuse catalog IDs and instructions.
+Other names are normalized from the native name to lowercase kebab-case. LIBERO
+uses suite/index fallback names such as `spatial-0`; RoboTwin's alternate ALOHA
+arrangement adds `-aloha-agilex`. Ambiguous catalog identities and output name
+collisions are errors. Discovery emits the same directory structure and preserves
+source provenance. After task renames, export to a fresh output directory: bundle
+conflict protection preserves edited files and refuses stale managed entries.
 Tasks default to realtime and can explicitly select stepped mode. All backends use the shared stepped/realtime
 executor. Stepped retains native horizons; realtime
 disables step/time caps while preserving native non-timeout termination conditions.

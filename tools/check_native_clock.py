@@ -5,7 +5,7 @@ import json
 import os
 import subprocess
 import time
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 
 import roboenv
@@ -25,7 +25,7 @@ def check(task, interpreter, out, *, timeout=900):
         resolved.task, backend_kwargs={**resolved.task.backend_kwargs, "max_steps": 300}
     )
     path = out / "task.yaml"
-    path.write_text(yaml.safe_dump(asdict(configured), sort_keys=False))
+    path.write_text(yaml.safe_dump(configured.as_dict(), sort_keys=False))
     report = {
         "passed": False,
         "task": configured.id,

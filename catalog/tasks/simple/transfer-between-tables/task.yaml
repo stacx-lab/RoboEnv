@@ -1,16 +1,13 @@
-id: simple/g1-transfer-between-tables
-backend: simple
-backend_task: simple.G1WholebodyLocomotionPickBetweenTablesTeleop-v0
+id: simple/transfer-between-tables
 robot: simple/simple-g1
 instruction: pick up the cracker box from table1,locomotion to table2,and place  on
   table2.
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
 backend_kwargs:
   env_id: simple/G1WholebodyLocomotionPickBetweenTablesTeleop-v0
   sim_mode: mujoco_isaac
   dr_level: 0
   arm_gravity_compensation: true
-  stop_on_success: false
-seed: 0
-budget_mode: practice
-device_bindings: null
-execution_mode: realtime

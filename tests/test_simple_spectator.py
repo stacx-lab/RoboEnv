@@ -105,7 +105,7 @@ def test_launch_accepts_simple_recording_before_native_startup(tmp_path, monkeyp
 
     monkeypatch.setattr(environment.subprocess, "Popen", capture)
     with pytest.raises(OSError, match="before native startup"):
-        environment.launch("simple/g1-xmove-pick", project=Path(__file__).resolve().parents[1],
+        environment.launch("simple/xmove-pick", project=Path(__file__).resolve().parents[1],
                            interpreter=sys.executable, recording={}, run_dir=tmp_path)
     assert len(seen) == 1
     record = json.loads(next(tmp_path.glob("*/run.json")).read_text())

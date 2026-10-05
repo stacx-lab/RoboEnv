@@ -46,7 +46,7 @@ def resolve_task(reference, *, project=None, catalog=None, arm_gravity_compensat
         raise ValueError("robot definition must remain inside the source catalog")
     if not (robot / "workspace.yaml").is_file():
         raise ValueError(f"Robot {task.robot!r} is missing from the selected catalog")
-    bindings = BindingPlan.load(robot, backend=task.backend, devices=task.device_bindings)
+    bindings = BindingPlan.load(robot, backend=task.backend)
     if task.backend == "isaaclab" and task.backend_kwargs.get("task_name", "").startswith(
         "go2-d1-"
     ):

@@ -5,8 +5,9 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import re
 from collections import Counter
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 
 import yaml
@@ -49,17 +50,18 @@ def summary(project=None, tasks_root=None):
     }
 
 
-def _task(backend, identifier, kwargs, instruction, *, robot=None, device_bindings=None):
-    task_name = identifier.removeprefix(backend + ".")
+def task_name(value):
+    """Normalize a native name without changing its simulator selector."""
+    value = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1-\2", value)
+    value = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", value)
+    return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+
+
+def _task(backend, name, kwargs, instruction, *, robot=None):
     return Task(
-        id=f"{backend}/{task_name}",
-        backend=backend,
-        backend_task=identifier,
-        backend_kwargs={
-            **kwargs,
-        },
+        id=f"{backend}/{task_name(name)}",
+        backend_kwargs=dict(kwargs),
         robot=robot or ROBOTS[backend],
-        device_bindings=device_bindings,
         budget_mode="practice"
         if backend in {"libero", "robotwin", "robodojo", "behavior", "simple"}
         else "official",
@@ -75,7 +77,7 @@ def _libero(root, issues):
         yield (
             _task(
                 "libero",
-                f"libero.{short}_{entry['task_id']}",
+                f"{short}-{entry['task_id']}",
                 {
                     "suite_name": entry["suite_name"],
                     "task_id": entry["task_id"],
@@ -113,7 +115,7 @@ def _robocasa(root, issues):
                 or f"Complete the benchmark task {alias.name}; inspect the live environment goal."
             )
             yield (
-                _task("robocasa", "robocasa." + alias.name, {"task_name": alias.name}, instruction),
+                _task("robocasa", alias.name, {"task_name": alias.name}, instruction),
                 path,
             )
 
@@ -138,14 +140,14 @@ def _robotwin(root, issues):
             )
             continue
         instruction = instruction.strip()
-        for group, robot, embodiment in (
-            ("robotwin", ROBOTS["robotwin"], "piper"),
-            ("robotwin-aloha", "robotwin/robotwin-aloha-agilex", "aloha_agilex"),
+        for suffix, robot, embodiment in (
+            ("", ROBOTS["robotwin"], "piper"),
+            ("-aloha-agilex", "robotwin/robotwin-aloha-agilex", "aloha_agilex"),
         ):
             yield (
                 _task(
                     "robotwin",
-                    f"{group}.{name}",
+                    name + suffix,
                     {"task_name": name, "embodiment": embodiment},
                     instruction,
                     robot=robot,
@@ -170,7 +172,7 @@ def _robodojo(root, issues):
         yield (
             _task(
                 "robodojo",
-                "robodojo." + name,
+                name,
                 {"task_name": name, "env_cfg_type": "arx_x5"},
                 description,
             ),
@@ -184,7 +186,7 @@ def _behavior(root, issues):
         if not entry.get("scene_model") or not entry.get("instruction"):
             issues.append(
                 {
-                    "id": "behavior." + entry["id"],
+                    "id": "behavior/" + task_name(entry["id"]),
                     "reason": "challenge task lacks an explicit scene or instruction",
                 }
             )
@@ -192,7 +194,7 @@ def _behavior(root, issues):
         yield (
             _task(
                 "behavior",
-                "behavior." + entry["id"],
+                entry["id"],
                 {"activity_name": entry["id"], "scene_model": entry["scene_model"]},
                 entry["instruction"],
             ),
@@ -222,6 +224,16 @@ DISCOVERERS = {
 }
 
 
+def native_identity(task):
+    """Identify a native task and embodiment independently of its public name."""
+    selectors = {
+        "simple": ("env_id",),
+        "libero": ("suite_name", "task_id"),
+        "behavior": ("activity_name",),
+    }.get(task.backend, ("task_name",))
+    return (task.backend, task.robot, *(task.backend_kwargs[key] for key in selectors))
+
+
 def discover(project, destination, backends=BACKENDS):
     root, lock = load_lock(project)
     if set(backends) - set(DISCOVERERS):
@@ -231,17 +243,24 @@ def discover(project, destination, backends=BACKENDS):
         raise ValueError("upstream pins or patches are not ready; run roboenv sources sync first")
     examples = root / "catalog/tasks"
     existing = load_catalog(examples) if examples.exists() else {}
+    by_native = {}
+    for task, _ in existing.values():
+        identity = native_identity(task)
+        if identity in by_native:
+            raise ValueError(f"ambiguous catalog native task: {task.id}")
+        by_native[identity] = task
     bundle = Bundle(destination)
     records = {}
     issues = []
     for backend in backends:
         for task, source in DISCOVERERS[backend](root, issues):
+            old = by_native.get(native_identity(task))
+            if old is not None:
+                task = replace(task, id=old.id, instruction=old.instruction)
+            task = Task.from_dict(task.as_dict())
             if task.id in records:
                 raise ValueError(f"duplicate discovered task: {task.id}")
-            if task.id in existing:
-                old, _ = existing[task.id]
-                task = replace(task, instruction=old.instruction)
-            bundle.add_yaml(f"tasks/{task.id}/task.yaml", asdict(task))
+            bundle.add_yaml(f"tasks/{task.id}/task.yaml", task.as_dict())
             records[task.id] = {
                 "backend": backend,
                 "source": str(source.relative_to(root)),
