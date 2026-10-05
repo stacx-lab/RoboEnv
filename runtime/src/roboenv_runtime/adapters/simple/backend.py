@@ -10,7 +10,7 @@ import traceback
 from pathlib import Path
 
 import numpy as np
-from roboenv.provisioning.simple_assets import digest, verify_assets
+from roboenv.provisioning.simple_assets import asset_pin_bytes, digest, verify_assets
 from roboenv.provisioning.sources import status
 from roboenv.tasks.simple import entries
 
@@ -160,7 +160,7 @@ class SimpleEnv:
                 "initialization_frames": self.initialization_frames,
                 "source_lock_sha256": digest(self.root / "upstreams.lock.json"),
                 "facts_sha256": digest(Path(__file__).with_name("g1.json")),
-                "asset_pin_sha256": digest(self.root / "src/roboenv/assets/simple-g1.json"),
+                "asset_pin_sha256": hashlib.sha256(asset_pin_bytes()).hexdigest(),
                 "loaded_state_sha256": hashlib.sha256(self.state().tobytes()).hexdigest(),
                 "control_protocol": "simple-g1-metric-wbc/4",
             }
