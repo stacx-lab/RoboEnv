@@ -43,6 +43,21 @@ _ASSET_OWNERS = {
 }
 
 
+def python_files(root):
+    """Every *.py below a package root as (relative POSIX path, bytes), for a package that is a
+    directory or an importable archive (a wheel on sys.path: its Traversable has no rglob)."""
+
+    def walk(node, prefix):
+        for child in sorted(node.iterdir(), key=lambda entry: entry.name):
+            relative = prefix + child.name
+            if child.is_dir():
+                yield from walk(child, relative + "/")
+            elif child.name.endswith(".py"):
+                yield relative, child.read_bytes()
+
+    yield from walk(root, "")
+
+
 def implementation_inventory(backend, *, roots=None):
     """Include shared Python and this backend's independently owned modules.
 
@@ -57,9 +72,8 @@ def implementation_inventory(backend, *, roots=None):
     }
     content = {}
     for package, root in sorted(roots.items()):
-        for path in sorted(root.rglob("*.py")):
-            relative = path.relative_to(root)
-            parts = relative.parts
+        for relative, data in python_files(root):
+            parts = relative.split("/")
             owner = None
             if package == "roboenv_runtime" and len(parts) >= 3 and parts[0] == "adapters":
                 owner = parts[1] if parts[1] in _BACKEND_PACKAGES else None
@@ -67,9 +81,7 @@ def implementation_inventory(backend, *, roots=None):
                 owner = _ASSET_OWNERS.get(parts[1])
             if owner is not None and owner != backend:
                 continue
-            content[package + "/" + relative.as_posix()] = hashlib.sha256(
-                path.read_bytes()
-            ).hexdigest()
+            content[package + "/" + relative] = hashlib.sha256(data).hexdigest()
     return content
 
 
