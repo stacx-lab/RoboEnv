@@ -27,7 +27,7 @@ def check(args):
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     definition = yaml.safe_load(resolve_task(args.task, project=ROOT).path.read_text())
-    definition["execution_mode"] = "stepped"
+    definition["execution_mode"] = args.execution_mode
     definition["backend_kwargs"]["sim_mode"] = args.sim_mode
     definition["backend_kwargs"]["arm_gravity_compensation"] = args.arm_gravity_compensation
     task = out / "task.yaml"
@@ -67,7 +67,10 @@ def check(args):
         env=env,
         timeout=60,
     )
-    with roboenv.launch(task, project=ROOT, interpreter=sys.executable, timeout=300) as run:
+    with roboenv.launch(
+        task, project=ROOT, interpreter=sys.executable, timeout=args.startup_timeout, gpu=args.gpu,
+        run_dir=out / "runs",
+    ) as run:
         for driver in (workspace / ".kinex/devices").glob("*/driver.py"):
             driver.with_name("connection.json").write_text(
                 json.dumps(
@@ -85,7 +88,7 @@ def check(args):
                     str(args.kinex),
                     str(workspace),
                     str(out / "smoke.json"),
-                    "stepped",
+                    args.execution_mode,
                 ],
                 cwd=workspace,
                 env=env,
@@ -127,9 +130,10 @@ def check(args):
             str(out / "owner/owner-record.json"),
             "--out",
             str(out / "replay.json"),
+            *([] if args.gpu is None else ["--gpu", str(args.gpu)]),
         ],
         check=True,
-        timeout=300,
+        timeout=args.startup_timeout,
         env=env,
     )
     assert json.loads((out / "replay.json").read_text())["passed"]
@@ -152,6 +156,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--task", default="simple/g1-xmove-pick")
+    parser.add_argument("--gpu", type=int, help="Host GPU index for Isaac rendering")
+    parser.add_argument("--execution-mode", choices=("stepped", "realtime"), default="stepped")
+    parser.add_argument("--startup-timeout", type=float, default=900)
     parser.add_argument(
         "--kinex", type=Path,
         default=Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")),

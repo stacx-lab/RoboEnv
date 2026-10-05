@@ -14,7 +14,7 @@ import signal
 import subprocess
 import sys
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import numpy as np
@@ -33,16 +33,29 @@ ROOT = Path(__file__).resolve().parents[1]
 def snapshot(worker):
     """Expensive comparisons belong in the probe, never the rendering loop."""
     adapter, native = worker.adapter, worker.adapter._env
-    if adapter.name in {"libero", "robocasa"}:
+    if adapter.name in {"libero", "robocasa", "simple"}:
         import mujoco
 
-        model, data = native.sim.model._model, native.sim.data._data
+        model, data = ((native.mjmodel, native.mjdata) if adapter.name == "simple" else
+                       (native.sim.model._model, native.sim.data._data))
         spec = mujoco.mjtState.mjSTATE_INTEGRATION
         state = np.empty(mujoco.mj_stateSize(model, spec))
         mujoco.mj_getState(model, data, state, spec)
         state = {"integration": state, "camera_position": model.cam_pos,
                  "camera_rotation": model.cam_quat, "camera_fov": model.cam_fovy,
                  "offscreen": [model.vis.global_.offwidth, model.vis.global_.offheight]}
+        if adapter.name == "simple":
+            state["record"] = native.record()
+            state["native_steps"] = native.env.step_count
+            if native.env.isaac is not None:
+                isaac = native.env.isaac
+                state["render_steps"] = isaac.step_id
+                state["agent_cameras"] = {
+                    name: {"resolution": camera.get_resolution(),
+                           "intrinsics": camera.get_intrinsics_matrix(),
+                           "pose": camera.get_world_pose(camera_axes="usd")}
+                    for name, camera in isaac.cameras.items()
+                }
     else:
         state = native.owner_state()
     rng = {"python": random.getstate(), "numpy": np.random.get_state()}
@@ -56,13 +69,25 @@ def snapshot(worker):
             "devices": worker.devices.inventory()}
 
 
-def probe(args):
+def resolve_probe(args):
     resolved = resolve_task(args.task, project=ROOT)
+    if args.sim_mode is not None:
+        if resolved.task.backend != "simple":
+            raise ValueError("--sim-mode is supported only for SIMPLE")
+        resolved = replace(resolved, task=replace(resolved.task, backend_kwargs={
+            **resolved.task.backend_kwargs, "sim_mode": args.sim_mode,
+        }))
+    return resolved
+
+
+def probe(args):
+    resolved = resolve_probe(args)
     task = resolved.task
     robot = args.out / "robot"
     shutil.copytree(resolved.robot, robot)
     (robot / "bindings.yaml").write_text(yaml.safe_dump(resolved.bindings.as_dict()))
     report = {"passed": False, "task": task.id, "clock": args.clock,
+              "sim_mode": task.backend_kwargs.get("sim_mode"),
               "scope": "native spectator isolation; no HTTP, task-success or replay certification"}
     worker = renderer = None
     try:
@@ -78,15 +103,23 @@ def probe(args):
             })["data"]
 
         def images():
-            from PIL import Image
+            import cv2
 
+            if adapter.name == "simple":
+                # Force real sensor acquisition: cached images would hide shared
+                # render-product corruption in the before/after comparison.
+                adapter._env.images.clear()
             result = {}
             for name in cameras:
                 reading = call(name, "read")
                 for field in ("file", "depth_file"):
                     if field in reading:
-                        with Image.open(reading[field]) as image:
-                            result[name + "/" + field] = np.asarray(image).copy()
+                        # Kit can mix its Pillow plugins with the interpreter's
+                        # Pillow. Decode independently of those global plugins.
+                        image = cv2.imread(reading[field], cv2.IMREAD_UNCHANGED)
+                        if image is None:
+                            raise ValueError(f"Could not decode {name}/{field}")
+                        result[name + "/" + field] = image
             return result
 
         # Establish ordinary renderer variability and initialize existing sensors.
@@ -163,6 +196,7 @@ def probe(args):
             raise ValueError("Spectator cleanup changed the world")
         images()  # Agent sensors must remain usable after spectator cleanup.
         report.update(passed=True, captures=captures, max_capture_s=max(latency),
+                      mean_capture_s=sum(latency) / len(latency),
                       native_success=adapter.score().completed)
     except Exception as exc:
         report["error"] = f"{type(exc).__name__}: {exc}"
@@ -178,6 +212,19 @@ def probe(args):
     return 0 if report["passed"] else 1
 
 
+def finish_report(directory, code):
+    """Keep a post-check native shutdown crash distinct from passing isolation."""
+    path = directory / "result.json"
+    report = json.loads(path.read_text())
+    report["isolation_passed"] = report.get("passed", False)
+    report["native_exit_code"] = code
+    report["passed"] = code == 0 and report["isolation_passed"]
+    if code != 0 and report["isolation_passed"]:
+        report["error"] = f"Native process exited with status {code} after isolation checks"
+    atomic_write_json(path, report)
+    return report
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("task")
@@ -188,6 +235,8 @@ def main():
     parser.add_argument("--seconds", type=float, default=2)
     parser.add_argument("--timeout", type=float, default=900)
     parser.add_argument("--views", type=Path, help="JSON list of ViewSpec fields")
+    parser.add_argument("--sim-mode", choices=("mujoco", "mujoco_isaac"),
+                        help="Override SIMPLE rendering mode")
     parser.add_argument("--native", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.gpu < 0 or not 0 < args.seconds <= 300 or not 0 < args.timeout < float("inf"):
@@ -198,13 +247,15 @@ def main():
     if args.native:
         return probe(args)
     args.out.mkdir(parents=True, exist_ok=False)
-    task = resolve_task(args.task, project=ROOT).task
+    task = resolve_probe(args).task
     interpreter = resolve_interpreter(ROOT, task.backend, args.interpreter)
     command = [str(interpreter), str(Path(__file__).resolve()), args.task, "--native",
                "--out", str(args.out), "--gpu", str(args.gpu), "--clock", args.clock,
                "--seconds", str(args.seconds)]
     if args.views:
         command.extend(["--views", str(args.views)])
+    if args.sim_mode:
+        command.extend(["--sim-mode", args.sim_mode])
     package = ROOT / "runtime/src/roboenv_runtime/spectator"
     sources = [Path(__file__), *sorted(package.glob("*.py"))]
     atomic_write_json(args.out / "spec.json", {
@@ -217,6 +268,13 @@ def main():
            "MUJOCO_EGL_DEVICE_ID": str(args.gpu), "ROBOTWIN_RENDER_DEVICE": "cuda:0",
            "PYTHONPATH": os.pathsep.join(str(ROOT / p) for p in ("src", "runtime/src"))}
     env.pop("OMNIGIBSON_GPU_ID", None)
+    if (task.backend == "simple"
+            and task.backend_kwargs.get("sim_mode", "mujoco_isaac") == "mujoco_isaac"):
+        from roboenv.provisioning.gpu import gpu_environment, resolve_gpu
+
+        # Match the normal launch path's physical CUDA/Vulkan device identity.
+        # Resolve against the caller's restrictions, before the generic mask.
+        env.update(gpu_environment(resolve_gpu(args.gpu)))
     with (args.out / "native.log").open("x") as log:
         process = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT,
                                    start_new_session=True)
@@ -229,7 +287,7 @@ def main():
                 "passed": False, "error": "probe interrupted",
             })
             raise
-    report = json.loads((args.out / "result.json").read_text())
+    report = finish_report(args.out, code)
     print(json.dumps(report))
     return 0 if code == 0 and report.get("passed") else 1
 

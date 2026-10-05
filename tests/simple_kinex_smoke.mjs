@@ -63,11 +63,13 @@ try {
   } })
   assert.equal(motion.steps, 30)
   const after = await readings()
+  const armMotion = Math.hypot(...after.left_arm.positions.map((q, i) => q - before.left_arm.positions[i]))
+  assert.ok(armMotion > 0.005, `No measured arm motion: ${armMotion}`)
   const elapsed = after.base.timestamp - before.base.timestamp
   assert.ok(clockMode === 'stepped' ? Math.abs(elapsed - 3) < 1e-8 : elapsed > 0)
   await runtime.recording.snap({ sessionID: invocation.sessionID, devices: ['camera_head_left', 'camera_head_right'] })
   const recording = await runtime.recording.stop({ summary: 'No-model SIMPLE probe' })
-  await writeFile(output, JSON.stringify({ passed: true, before, after, handGeometry, motion, started, recording }, null, 2))
+  await writeFile(output, JSON.stringify({ passed: true, before, after, armMotion, handGeometry, motion, started, recording }, null, 2))
 } finally {
   await runtime.dispose()
 }

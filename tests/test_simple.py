@@ -104,6 +104,46 @@ def test_isaac_eula_default_preserves_explicit_environment(
     assert world.env is None  # Acceptance is configured before native simulator startup.
 
 
+@pytest.mark.parametrize(
+    "task_name,native_horizon",
+    [("g1-xmove-pick", 800), ("g1-transfer-between-tables", 1200), ("g1-bend-pick", 800)],
+)
+def test_simple_stepped_budget_is_10000_for_each_task(
+    monkeypatch, tmp_path, task_name, native_horizon
+):
+    task = resolve_task("simple/" + task_name).task
+    env_id = task.backend_kwargs["env_id"]
+    for name in ("SIMPLE_DATA_DIR", "SIMPLE_OFFLINE", "MUJOCO_GL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(
+        backend,
+        "entries",
+        lambda root: [{"env_id": env_id, "metadata": {"max_episode_steps": native_horizon}}],
+    )
+    monkeypatch.setattr(backend, "status", lambda root, names: {"ready": True})
+    monkeypatch.setattr(backend, "verify_assets", lambda root: tmp_path)
+    robot_sha256 = json.loads(FACTS.read_text())["robot_sha256"]
+    monkeypatch.setattr(backend, "digest", lambda path: robot_sha256)
+    world = backend.SimpleEnv(env_id=env_id, sim_mode="mujoco")
+    assert world.execution_mode == "realtime" and world.max_steps is None
+    world.configure_execution_mode("stepped")
+    assert world.max_steps == 10_000
+    monkeypatch.setattr(world, "_step", lambda targets: ({}, 0.0, False, False, {}))
+    world.steps = native_horizon - 1
+    world.advance({})
+    assert not world.done
+    world.steps = 9998
+    world.advance({})
+    assert not world.done
+    world.advance({})
+    assert world.done and world.steps == 10_000 and world.timestamp == 200.0
+    with pytest.raises(ValueError, match="terminated"):
+        world.advance({})
+    assert world.steps == 10_000
+    world.configure_execution_mode("realtime")
+    assert world.max_steps is None
+
+
 def test_three_examples_and_twelve_native_teleop_registrations():
     source = ROOT / "third_party/SIMPLE"
     if not (source / "src/simple/envs/__init__.py").exists():

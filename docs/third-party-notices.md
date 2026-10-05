@@ -14,7 +14,9 @@ The managed SIMPLE runtime patch routes both renderers through the verified data
 depot, aligns the shared G1 USD waist origins with Sonic's physics model, mirrors
 full-precision MuJoCo state into Isaac without advancing a second physics world
 during capture, and disables process-exiting fast shutdown so the
-owner retains exception and replay exit-status handling. Source revisions remain
+owner retains exception and replay exit-status handling. It also accepts the
+owner's explicit Vulkan GPU selection, with CUDA device zero after visibility
+remapping and single-GPU rendering. Source revisions remain
 unchanged; patch checksums are recorded in the source lock.
 
 | Locked source | Notices inspected within that checkout |

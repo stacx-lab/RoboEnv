@@ -279,6 +279,7 @@ def launch(
     host="127.0.0.1",
     port=0,
     arm_gravity_compensation=None,
+    gpu=None,
     log_stream=None,
     runtime_root=None,
     run_dir=None,
@@ -297,10 +298,14 @@ def launch(
     optional fps and views configure sampling and independent spectator cameras.
     directory selects a new or empty output folder, relative to the caller's cwd.
     Backend assets must already be prepared. No installation or download occurs.
+    gpu selects a host NVIDIA GPU index for SIMPLE Isaac rendering. Omission
+    selects the first GPU permitted by inherited visibility (otherwise GPU 0).
     All run definitions and logs are retained under the selected project's cache.
     """
+    from roboenv.provisioning.gpu import gpu_environment, resolve_gpu, validate_gpu
     from roboenv.recording import recording_config
 
+    validate_gpu(gpu)
     recording = recording_config(recording)
     if execution_mode is not None and execution_mode not in ("stepped", "realtime"):
         raise ValueError("execution_mode must be stepped or realtime")
@@ -327,8 +332,13 @@ def launch(
     if execution_mode is not None:
         resolved = replace(resolved, task=replace(resolved.task, execution_mode=execution_mode))
     spec = resolved.task
+    isaac_simple = spec.backend == "simple" and spec.backend_kwargs.get(
+        "sim_mode", "mujoco_isaac"
+    ) == "mujoco_isaac"
+    if gpu is not None and not isaac_simple:
+        raise ValueError("gpu selection is supported only for SIMPLE Isaac rendering")
     if recording is not None and spec.backend not in {
-        "libero", "robocasa", "robotwin", "robodojo", "behavior"
+        "libero", "robocasa", "robotwin", "robodojo", "behavior", "simple"
     }:
         raise ValueError(f"Spectator recording is not supported for {spec.backend}")
     execution_mode = spec.execution_mode
@@ -342,6 +352,7 @@ def launch(
 
         if not source_status(root, [spec.backend])["ready"]:
             raise ValueError(f"Sources are not ready; run 'roboenv doctor {spec.backend}'")
+    gpu_selection = resolve_gpu(gpu) if isaac_simple else None
     run_id = secrets.token_hex(8)
     runs = (
         Path(run_dir).resolve()
@@ -381,6 +392,8 @@ def launch(
         "devices": str(directory / "devices"),
     }
     record_path = directory / "run.json"
+    if gpu_selection is not None:
+        record["gpu"] = gpu_selection
     if recording is not None:
         record["recording"] = recording.get("directory", str(directory / "evidence/recording"))
     _save(record_path, record)
@@ -405,6 +418,8 @@ def launch(
     )
     if python_path:
         env["PYTHONPATH"] = os.pathsep.join(python_path)
+    if gpu_selection is not None:
+        env.update(gpu_environment(gpu_selection))
     if recording is not None:
         config_path = directory / "server/recording.json"
         _save(config_path, recording)
