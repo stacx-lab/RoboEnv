@@ -30,11 +30,13 @@ class RoboDojoAdapter(NativeDeviceAdapter):
 
     def score(self):
         success = self._env.task_completed()
+        # A graded task keeps RoboDojo's native score here, on its 0..100 scale (its scorer requires
+        # the graded options to sum to 100); a task without grading is binary.
         cached = getattr(self._env._env.reward_manager, "_gated_score_lst", None)
-        reward = float(cached[0]) if cached else float(success)
+        raw = float(cached[0]) if cached else 100.0 * float(success)
         return ScoreReport(
-            reward=reward,
-            raw_score=100 * reward,
+            reward=min(1.0, max(0.0, raw / 100.0)),
+            raw_score=raw,
             completed=success,
             detail={
                 "control_protocol": "native_eval_joint_action",
