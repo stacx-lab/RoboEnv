@@ -6,6 +6,7 @@ import json
 import os
 import random
 import secrets
+import traceback
 from pathlib import Path
 
 import numpy as np
@@ -164,6 +165,8 @@ class SimpleEnv:
                 "control_protocol": "simple-g1-metric-wbc/4",
             }
         except BaseException:
+            # Keep the initialization error visible even if native cleanup fails.
+            traceback.print_exc()
             self.close()
             raise
 

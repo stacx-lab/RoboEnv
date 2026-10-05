@@ -9,11 +9,9 @@ def validate_isaac(world):
     renderer = world.env.isaac
     if renderer is None:
         return
-    from omni.isaac.core.prims import XFormPrim
-
-    torso = XFormPrim(renderer.robot.prim_path + "/torso_link")
-    position, quaternion = torso.get_world_pose()
-    parent = matrix([*position, *quaternion[[1, 2, 3, 0]]])
+    # USD authored transforms do not track the live articulation. MuJoCo owns
+    # the physics state mirrored into Isaac, including the measured torso frame.
+    parent = matrix(world._pose("torso_link"))
     for name, spec in world.model["cameras"].items():
         camera = renderer.cameras[spec["native"]]
         if tuple(camera.get_resolution()) != (spec["width"], spec["height"]):
@@ -33,5 +31,12 @@ def validate_isaac(world):
         optical = matrix([*position, *quaternion[[1, 2, 3, 0]]])
         mount = spec["mount"]
         expected = matrix(mount["translation_m"] + mount["rotation_xyzw"])
-        if not np.allclose(np.linalg.inv(parent) @ optical, expected, atol=1e-4, rtol=0):
-            raise ValueError(f"SIMPLE Isaac camera mount differs: {name}")
+        actual = np.linalg.inv(parent) @ optical
+        if not np.allclose(actual, expected, atol=1e-4, rtol=0):
+            translation = float(np.linalg.norm(actual[:3, 3] - expected[:3, 3]))
+            rotation = actual[:3, :3] @ expected[:3, :3].T
+            angle = float(np.arccos(np.clip((np.trace(rotation) - 1) / 2, -1, 1)))
+            raise ValueError(
+                f"SIMPLE Isaac camera mount differs: {name} "
+                f"(translation {translation:g} m, rotation {angle:g} rad)"
+            )

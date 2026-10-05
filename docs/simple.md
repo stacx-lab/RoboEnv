@@ -36,6 +36,45 @@ the simulator. The checked-in assets and examples cover these three tasks;
 other discovered tasks may need additional assets. Domain randomization defaults
 to native level 0, with levels 1 and 2 selectable in task configuration.
 
+### Assets, calibration and shutdown
+
+`prepare simple` extracts `vMaterials_2.zip` at the depot's data root. Outdated
+extraction receipts are rebuilt from checksum-verified archives; existing matching
+files and old asset paths are preserved. Both native data resolvers honor
+`SIMPLE_DATA_DIR`, so no links into the source checkout are needed. Verification
+only reads assets; run preparation to update an old layout.
+
+The head cameras use 640×360 RGB, a 110° horizontal field of view, and a 5 cm stereo
+baseline. In public pixel-center coordinates, `fx = fy ≈ 224.066412` and
+`(cx, cy) = (319.5, 179.5)`. Isaac's pixel-edge coordinates are converted once by
+subtracting half a pixel. Public optical axes are +X right, +Y down, +Z forward;
+quaternions are xyzw, while MuJoCo and Isaac pose APIs use wxyz.
+
+The USD camera-link fixed joint agrees with the catalog's torso-relative mount.
+The shared G1 USD uses older waist offsets; the managed patch aligns its roll and
+pitch joint origins with Sonic's pinned MuJoCo model. Isaac mirrors full-precision
+MuJoCo state, refreshes articulation transforms, and captures without integrating
+another physics interval. Startup compares the actual optical pose with the measured
+MuJoCo torso, rather than the articulation's authored USD transform. Mount checks
+retain the strict `1e-4` matrix tolerance; there is no tolerance override.
+
+Isaac fast shutdown is disabled so cleanup returns to the worker or replay tool.
+Reset errors remain visible in the worker log, and replay failures retain a
+nonzero exit status. Standalone native and replay commands flush output and exit
+explicitly after cleanup, as the worker does, to avoid native destructors running
+after Kit plugins have unloaded. Replay output must use a fresh path.
+
+On multi-GPU hosts, select a GPU with `CUDA_VISIBLE_DEVICES` before launching and
+allow for cold shader compilation within the startup deadline (900 seconds by
+default). `roboenv.launch` strips inherited `ROBOENV_*` variables before setting
+its own worker configuration.
+
+Kinex's `run --record` requires devices to be loaded; exported profiles initially
+have `loaded: false`. RoboEnv's `launch --record` instead records independent
+spectator views. Neither changes the owner-record transport limit: long realtime
+sessions can exceed the 8 MiB response bound because control intervals accumulate
+in the native replay record. Keep diagnostic sessions bounded.
+
 ## Arm gravity compensation
 
 Arm gravity compensation is enabled by default. To select it explicitly at startup:
