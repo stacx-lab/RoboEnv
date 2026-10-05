@@ -179,6 +179,12 @@ Joint `kinematics.frame` and hand geometry declare their computed frames relativ
 to the device base. `intrinsics.frames` contains only additional references, which
 may attach to computed frames. Exported drivers resolve these through Kinex FK;
 reads remain measurement-only.
+Hand geometry may contain a physical description, optional finger chains and an
+optional weighted center. Moving finger links name model joints directly; fixed
+links contain only an origin. Chains start at the device base, with explicit tip
+offsets. Palm and grasp references are ordinary fixed frames, not geometry
+selectors. Description-only geometry does not advertise FK. A center requires
+fingers and remains a geometric prediction, not contact or grasp feedback.
 
 - `read` samples a sensor or actuator without advancing physics. Actuator state
   includes positions, velocities, efforts, faults and timestamp for joint devices;

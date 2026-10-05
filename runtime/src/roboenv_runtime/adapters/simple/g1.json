@@ -889,15 +889,9 @@
         "left_hand_middle_1_joint": 0.0
       },
       "geometry": {
-        "palm_frame": "palm",
-        "reference_frame": "grasp_reference",
+        "description": "Three fingers: a three-joint thumb opposed by two two-joint fingers. Nominal tips follow the distal links; they are not contact measurements.",
         "fingers": {
           "thumb": {
-            "joints": [
-              "left_hand_thumb_0_joint",
-              "left_hand_thumb_1_joint",
-              "left_hand_thumb_2_joint"
-            ],
             "chain": [
               {
                 "origin": [
@@ -908,19 +902,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 0,
+                "joint": "left_hand_thumb_0_joint",
                 "axis": [
                   0.0,
                   1.0,
@@ -942,19 +925,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 1,
+                "joint": "left_hand_thumb_1_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -976,19 +948,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 2,
+                "joint": "left_hand_thumb_2_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -1014,10 +975,6 @@
             ]
           },
           "index": {
-            "joints": [
-              "left_hand_index_0_joint",
-              "left_hand_index_1_joint"
-            ],
             "chain": [
               {
                 "origin": [
@@ -1028,19 +985,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 0,
+                "joint": "left_hand_index_0_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -1062,19 +1008,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 1,
+                "joint": "left_hand_index_1_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -1100,10 +1035,6 @@
             ]
           },
           "middle": {
-            "joints": [
-              "left_hand_middle_0_joint",
-              "left_hand_middle_1_joint"
-            ],
             "chain": [
               {
                 "origin": [
@@ -1114,19 +1045,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 0,
+                "joint": "left_hand_middle_0_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -1148,19 +1068,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 1,
+                "joint": "left_hand_middle_1_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -1387,15 +1296,9 @@
         "right_hand_middle_1_joint": 0.0
       },
       "geometry": {
-        "palm_frame": "palm",
-        "reference_frame": "grasp_reference",
+        "description": "Three fingers: a three-joint thumb opposed by two two-joint fingers. Nominal tips follow the distal links; they are not contact measurements.",
         "fingers": {
           "thumb": {
-            "joints": [
-              "right_hand_thumb_0_joint",
-              "right_hand_thumb_1_joint",
-              "right_hand_thumb_2_joint"
-            ],
             "chain": [
               {
                 "origin": [
@@ -1406,19 +1309,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 0,
+                "joint": "right_hand_thumb_0_joint",
                 "axis": [
                   0.0,
                   1.0,
@@ -1440,19 +1332,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 1,
+                "joint": "right_hand_thumb_1_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -1474,19 +1355,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 2,
+                "joint": "right_hand_thumb_2_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -1512,10 +1382,6 @@
             ]
           },
           "index": {
-            "joints": [
-              "right_hand_index_0_joint",
-              "right_hand_index_1_joint"
-            ],
             "chain": [
               {
                 "origin": [
@@ -1526,19 +1392,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 0,
+                "joint": "right_hand_index_0_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -1560,19 +1415,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 1,
+                "joint": "right_hand_index_1_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -1598,10 +1442,6 @@
             ]
           },
           "middle": {
-            "joints": [
-              "right_hand_middle_0_joint",
-              "right_hand_middle_1_joint"
-            ],
             "chain": [
               {
                 "origin": [
@@ -1612,19 +1452,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 0,
+                "joint": "right_hand_middle_0_joint",
                 "axis": [
                   0.0,
                   0.0,
@@ -1646,19 +1475,8 @@
                   0.0,
                   0.0,
                   1.0
-                ]
-              },
-              {
-                "origin": [
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  0,
-                  1
                 ],
-                "joint": 1,
+                "joint": "right_hand_middle_1_joint",
                 "axis": [
                   0.0,
                   0.0,

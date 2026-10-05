@@ -120,10 +120,11 @@ def test_mujoco_ticks_pass_configured_cap_only_in_realtime(adapter_type, env_typ
 
 
 @pytest.mark.parametrize("mode", ["realtime", "stepped"])
-def test_simple_keeps_native_termination_but_removes_realtime_horizon(mode):
+def test_simple_retains_success_without_stopping_and_removes_realtime_horizon(mode):
     env = SimpleEnv.__new__(SimpleEnv)
     env.configured_max_steps = 2
     env.max_steps, env.steps, env.done = 2, 0, False
+    env.completed = False
     env.frames, env.images = [], {}
     env._step = lambda _: (None, 0, False, False, {})
     adapter = SimpleAdapter.__new__(SimpleAdapter)
@@ -138,6 +139,9 @@ def test_simple_keeps_native_termination_but_removes_realtime_horizon(mode):
         env.advance({})
         assert not env.done and adapter.budget().max is None
         env._step = lambda _: (None, 1, True, False, {})
+        env.advance({})
+        assert not env.done and env.completed
+        env._step = lambda _: (None, 0, False, True, {})
         env.advance({})
         assert env.done and env.completed
 

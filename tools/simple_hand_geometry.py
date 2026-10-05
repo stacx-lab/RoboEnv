@@ -6,9 +6,7 @@ from pathlib import Path
 import numpy as np
 from roboenv.devices.model import local_frame
 from roboenv.provisioning.simple_assets import digest
-from roboenv_runtime.adapters.urdf_geometry import matrix
-
-IDENTITY = [0, 0, 0, 0, 0, 0, 1]
+from roboenv_runtime.adapters.urdf_geometry import matrix, matrix_pose
 
 
 def vector(node, key, default):
@@ -38,17 +36,19 @@ def extract_hand(tree, path, side, names):
         while current is not base:
             route.insert(0, current)
             current = parents[current]
-        chain, selected = [], []
+        chain, pending = [], np.eye(4)
         for body in route:
-            chain.append({"origin": transform(body)})
+            pending = pending @ matrix(transform(body))
             for joint in body.findall("joint"):
                 if joint.get("name") not in names:
                     raise ValueError("Finger chain contains a non-hand joint")
-                chain.append({"origin": IDENTITY, "joint": len(selected),
+                chain.append({"origin": matrix_pose(pending), "joint": joint.get("name"),
                               "axis": vector(joint, "axis", "0 0 1"),
                               "anchor": vector(joint, "pos", "0 0 0"),
                               "reference": float(joint.get("ref", "0"))})
-                selected.append(joint.get("name"))
+                pending = np.eye(4)
+        if not np.array_equal(pending, np.eye(4)):
+            chain.append({"origin": matrix_pose(pending)})
         # The terminal mesh is the native collision geometry, not its visual duplicate.
         geom = next(g for g in terminal.findall("geom") if g.get("mesh")
                     and g.get("contype", "1") != "0")
@@ -70,7 +70,7 @@ def extract_hand(tree, path, side, names):
         position = (matrix(transform(geom)) @ np.asarray([*point, 1]))[:3]
         offset = [*position, 0, 0, 0, 1]  # Tip axes follow the distal link, not mesh axes.
         frame = finger + "_tip"
-        fingers[finger] = {"joints": selected, "chain": chain, "tip_frame": frame,
+        fingers[finger] = {"chain": chain, "tip_frame": frame,
                            "tip_offset": np.round(offset, 12).tolist()}
         frame_bodies[frame] = body_name
         sources[frame] = {"mesh": str(Path("meshes") / mesh.get("file")),
@@ -86,7 +86,11 @@ def extract_hand(tree, path, side, names):
     center = sum(weights[name] * value for name, value in home_tips.items())
     return {
         "geometry": {
-            "palm_frame": "palm", "reference_frame": "grasp_reference", "fingers": fingers,
+            "description": (
+                "Three fingers: a three-joint thumb opposed by two two-joint fingers. "
+                "Nominal tips follow the distal links; they are not contact measurements."
+            ),
+            "fingers": fingers,
             "center": {"frame": "grasp_center", "weights": weights, "rotation_xyzw": [0, 0, 0, 1]},
         },
         "frames": {"palm": local_frame(transform(palm)),

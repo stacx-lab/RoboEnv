@@ -16,34 +16,105 @@ roboenv launch simple/g1-transfer-between-tables
 
 Execution is synchronous with `sim_mode: mujoco_isaac`: MuJoCo physics with Isaac
 Sim 4.5 RGB rendering. Preparation uses an isolated Python 3.10 environment and
-checksum-verified assets (about 4.3 GB of archives). Isaac requires compatible
+checksum-verified assets (about 5.7 GB of archives). Isaac requires compatible
 NVIDIA RTX rendering hardware and Vulkan. SIMPLE launches with Isaac rendering
 default `OMNI_KIT_ACCEPT_EULA=YES`, accepting NVIDIA's Omniverse EULA automatically.
 An explicitly set environment value is preserved. MuJoCo-only launches do not
 set this variable. Launch never downloads assets.
 
-For diagnostic MuJoCo rendering, copy a representative task YAML, set
+For diagnostic MuJoCo rendering, copy a catalog task YAML, set
 `backend_kwargs.sim_mode: mujoco`, and launch that file. Rendering changes the
 images available to an agent, so results from the two renderers are distinct.
 
-| Example | Native registration | Stepped horizon |
-| --- | --- | --- |
-| `simple/g1-xmove-pick` | `G1WholebodyXMovePickTeleop-v0` | 10,000 intervals / 200 s |
-| `simple/g1-transfer-between-tables` | `G1WholebodyLocomotionPickBetweenTablesTeleop-v0` | 10,000 intervals / 200 s |
-| `simple/g1-bend-pick` | `G1WholebodyBendPickTeleop-v0` | 10,000 intervals / 200 s |
+All 12 decoupled GR00T teleop tasks are included in the catalog and source
+discovery. They share the same base, independent arm/hand controls and stereo
+cameras. Catalog instructions reuse upstream `LanguageDRCfg` instructions with
+the effective default target name: apple for XMove and pick-place-hug, cracker box
+for the other pick/place tasks. Constructor defaults take precedence over class
+DR configuration, matching the target evaluated by native success checks.
+Articulated tasks retain their named fixture (door, oven, faucet, chair or trash
+can); their unrelated target actor does not replace it. No task-specific controller
+or solution is supplied. Agents can read `env.task.instruction` after connecting
+to obtain the upstream instruction for the actual running scene.
 
-RoboEnv's practice protocol uses this common stepped budget for SIMPLE tasks.
-Upstream task metadata retains its original horizons (800, 1200 and 800 intervals
-for the examples above). Realtime remains the default and has no step cap.
+| Task (under `simple/`) | Native registration (under `simple/`) |
+| --- | --- |
+| `g1-xmove-pick` | `G1WholebodyXMovePickTeleop-v0` |
+| `g1-transfer-between-tables` | `G1WholebodyLocomotionPickBetweenTablesTeleop-v0` |
+| `g1-bend-pick` | `G1WholebodyBendPickTeleop-v0` |
+| `bend-pick-and-place` | `G1WholebodyBendPickAndPlaceTeleop-v0` |
+| `bend-handover` | `G1WholebodyBendHandoverTeleop-v0` |
+| `handover` | `G1WholebodyHandoverTeleop-v0` |
+| `pick-and-place-and-hug-container` | `G1WholebodyPickAndPlaceAndHugContainerTeleop-v0` |
+| `close-door` | `G1WholebodyCloseDoorTeleop-v0` |
+| `open-oven` | `G1WholebodyOpenOvenTeleop-v0` |
+| `open-faucet` | `G1WholebodyOpenFaucetTeleop-v0` |
+| `push-office-chair` | `G1WholebodyPushOfficeChairTeleop-v0` |
+| `open-trash-can` | `G1WholebodyOpenTrashCanTeleop-v0` |
 
-Discovery reads the pinned decoupled G1 teleop registrations without importing
-the simulator. The checked-in assets and examples cover these three tasks;
-other discovered tasks may need additional assets. Domain randomization defaults
-to native level 0, with levels 1 and 2 selectable in task configuration.
+These tasks default to **realtime**, without an episode step cap. Explicitly
+selecting `--execution-mode stepped` uses RoboEnv's existing practice budget of
+10,000 control intervals / 200 simulation seconds. This common practice budget
+is distinct from each upstream task's metadata horizon. Domain randomization defaults
+to native level 0; levels 1 and 2 remain selectable. Seed defaults to 0, rendering
+to `mujoco_isaac`, and arm gravity compensation to enabled.
+
+### Success and automatic stopping
+
+Like LIBERO and RoboDojo, SIMPLE defaults to `stop_on_success: false`. Native
+success is retained for the episode, while control and physics can continue.
+To stop at the first successful control interval, override the policy at launch:
+
+```sh
+roboenv launch simple/g1-xmove-pick --gpu 0 --stop-on-success
+```
+
+`--no-stop-on-success` forces continued execution; omitting both flags preserves
+the task YAML policy. Python supports `roboenv.launch(task, stop_on_success=True)`
+or `False`; the default `None` preserves the task policy. Alternatively, set it
+in the task YAML:
+
+```yaml
+execution_mode: realtime
+backend_kwargs:
+  env_id: simple/G1WholebodyOpenOvenTeleop-v0
+  sim_mode: mujoco_isaac
+  dr_level: 0
+  arm_gravity_compensation: true
+  stop_on_success: true
+```
+
+The worker seals the verdict and finishes pending operations without another
+physics interval. The same policy works in realtime. With automatic success
+stopping disabled, stepped budget exhaustion or explicit submission ends the
+episode. Reset starts with a fresh success flag. Score reads use cached native
+results and do not call stateful success predicates or advance physics.
+
+The following summarizes owner-side native predicates, not extra agent inputs.
+Native reward accumulation, thresholds and call frequency remain unchanged:
+
+| Task | Native success condition |
+| --- | --- |
+| XMove pick / bend pick | Target lifted at least 9 cm / 8 cm from its initial height |
+| Transfer between tables / bend pick-and-place | Target contacts container with no hand contact; native accumulator reaches threshold |
+| Handover / bend handover | Target contacts container; native accumulator reaches threshold |
+| Pick-place-hug | Target contacts container, container contacts the body named `table`, and distractors contact the container or target; accumulator reaches threshold |
+| Close door | `articulate_joint_1 < -0.16` rad, with native accumulation |
+| Open oven | Either `articulate_joint_1` or `articulate_joint_2 > 1.4` rad, with native accumulation |
+| Open faucet | Absolute `articulate_joint_0 > 0.7` rad, with native accumulation |
+| Push chair | Absolute world-X displacement exceeds 0.8 m, with native accumulation |
+| Open trash can | `articulate_joint_0 > 0.5` rad, with native accumulation |
+
+Upstream instructions and predicates do not always describe identical stages:
+for example, handover predicates do not verify a complete right-to-left transfer,
+and the hug task checks contacts rather than the full transport sequence. RoboEnv
+preserves both the upstream language and native verdict; it does not strengthen
+these benchmarks or claim official equivalence.
 
 ### Assets, calibration and shutdown
 
-`prepare simple` extracts `vMaterials_2.zip` at the depot's data root. Outdated
+`prepare simple` acquires pinned robot, GraspNet, container, articulated-object
+and all six required HSSD scene archives. It extracts `vMaterials_2.zip` at the depot's data root. Outdated
 extraction receipts are rebuilt from checksum-verified archives; existing matching
 files and old asset paths are preserved. Both native data resolvers honor
 `SIMPLE_DATA_DIR`, so no links into the source checkout are needed. Verification
@@ -176,7 +247,14 @@ Measured state is never projected into joint limits.
 ## Hand geometry
 
 Both `dexterous_hand` profiles include optional `intrinsics.geometry`; ordinary
-`joint` devices are unchanged. The canonical hand frame remains its arm flange.
+`joint` devices are unchanged. Geometry describes the three-finger arrangement
+and supplies finger chains whose moving links name model joints directly. Each
+joint occurs once per finger; fingers may share joints. Chains start at the hand
+base, and compact origins preserve the original transform order. No separate
+finger joint list or palm/reference selector is needed. `tip_offset` retains the
+mesh-derived distal-link-to-tip transform. Description-only geometry is permitted
+but does not enable FK. The weighted center is optional; G1 retains it. The
+canonical hand frame remains its arm flange.
 `palm` is the fixed native palm-link reference. `thumb_tip`, `index_tip`, and
 `middle_tip` are dynamic nominal fingertip frames computed explicitly with local
 hand geometry/FK from measured joint positions.
@@ -210,8 +288,8 @@ tip_in_arm = frames.pose("left_hand:index_tip", "left_arm", readings={"left_hand
 ```
 
 The helper accepts finite measured positions without clamping, so it also works
-with native soft-limit overshoot. Hand `kinematics: null` means no single-endpoint
-FK/IK API; finger-chain prediction uses `kinex.hand.forward` instead.
+with native soft-limit overshoot. Hand `kinematics: null` means no default endpoint
+or IK solver. Finger prediction uses `kinex.hand.forward` or explicit named-frame FK.
 
 To position the fixed reference using arm IK, express the desired reference pose
 in the arm's canonical frame, then remove the flange-to-reference transform:
@@ -229,7 +307,11 @@ solution = arm.ik(flange_goal, seed)  # Still no motion or collision guarantee.
 ```
 
 Use the current Kinex checkout and regenerate existing workspaces to acquire the
-geometry-aware hand schema and profiles. The moving `grasp_center` is unsuitable
+named-joint hand schema and profiles. Migrate numeric finger indexes through the
+old finger joint lists, then remove those lists and geometry palm/reference
+selectors. Preserve fixed frames, calibrated transforms and connection settings;
+refresh copied Kinex Python resources with the profiles, restart owned services
+and reload the hands. The moving `grasp_center` is unsuitable
 as a fixed arm offset when changing finger configurations.
 
 ## Time, stop and concurrent calls
@@ -310,6 +392,12 @@ fresh-process replay with MuJoCo rendering in both clocks for all three examples
 A bounded, no-model Isaac XMove probe also covered worker boot, Kinex measured motion and stop,
 stereo recording, owner finalization and exact fresh-process replay in both clocks
 on one GPU. This does not certify the other Isaac tasks or full integration acceptance.
+The 12-task catalog expansion additionally checks every native success predicate
+on CPU, including accumulator reset and placement release conditions. Bounded
+Isaac probes for open-oven and pick-and-place-and-hug-container each cover 60
+control intervals, stereo RGB, base/arm/hand motion and native geometry. These are
+boot/control checks, not successful task rollouts or fresh-process replay certificates.
+
 Camera acquisition remains below the probe's requested 3 Hz; encoded video FPS
 does not establish capture throughput. Full scene initialization and stabilization
 still take longer than Kit application startup.
@@ -332,7 +420,8 @@ SIMULATOR_PYTHON tests/simple_gravity_probe.py --out NEW_RESULTS
 SIMULATOR_PYTHON tests/simple_hand_probe.py --out NEW_REPORT.json --kinex ../kinex
 ```
 
-The runner covers all three tasks in both clocks, fresh-process replay, altered-record
+The runner covers the original XMove, transfer-between-tables and bend-pick tasks
+in both clocks, fresh-process replay, altered-record
 rejection, Kinex local IK and stereo recordings, and public-service velocity expiry.
 It defaults to Isaac rendering. `--native-only` omits the Kinex/service checks;
 `--tasks xmove` selects a smaller matrix. No model calls or task-solving attempts run.

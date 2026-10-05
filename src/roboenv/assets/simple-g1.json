@@ -51,6 +51,41 @@
       "sha256": "da90862e486eb3f8dff25291923be4d03023afe57ed8aae9c824f20f4fd66338",
       "destination": ".",
       "inventory_sha256": "91958f3a317f6440e55933e10f3f34164c9ce26c770acd7241bcd88d55317ff6"
+    },
+    {
+      "file": "assets_articulated.zip",
+      "size": 27057761,
+      "sha256": "e8e479f6d6d2800f709f443ec022371e04e939aaa8b18f8880ae6e3306f28dd6",
+      "destination": ".",
+      "inventory_sha256": "a4262b343f3417747a1bd3b44a7b6e451a7446c44859f58739d941693564e7a8"
+    },
+    {
+      "file": "scenes_hssd_102344049.zip",
+      "size": 315466965,
+      "sha256": "4e9ffee487fe40f4316bae15fe5ac76de98a3d8edeb770782247eeb09c0a3069",
+      "destination": ".",
+      "inventory_sha256": "d75b3a284f7edc6a6da72319febcc6478b66e3a66fc7f7a8ec7a719496b0cc5f"
+    },
+    {
+      "file": "scenes_hssd_102344280.zip",
+      "size": 221032733,
+      "sha256": "88b9852978687e6c67865a601ec4b4292fd45964b69b8b6476730b15afa91181",
+      "destination": ".",
+      "inventory_sha256": "276d14619d220715c99b9ec2d461e99a9875f7b0d56b056fc6ef378f8b52b2e2"
+    },
+    {
+      "file": "scenes_hssd_102344307.zip",
+      "size": 286527712,
+      "sha256": "e96790e30717508468d4639a4fd504240f9c54dc5043e95459ae86174b6c653f",
+      "destination": ".",
+      "inventory_sha256": "bdd5692e1582ae058e9044e1dced67650f52f3f1f4770239ec754c5962193c36"
+    },
+    {
+      "file": "scenes_hssd_107733960_175999701.zip",
+      "size": 568920681,
+      "sha256": "2da471b3f3e728d3c2a31f9b3010a852e069fc136d80d119c476b55bad59a266",
+      "destination": ".",
+      "inventory_sha256": "aeb1451deedefa7ef1ed26f747c6fc26074e8b93f13079637116716dfbe88dd6"
     }
   ]
 }

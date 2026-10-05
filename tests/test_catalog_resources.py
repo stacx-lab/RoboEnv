@@ -23,8 +23,9 @@ def test_joint_catalogs_use_model_frames_and_shared_driver(catalog_profiles):
         kinematics, geometry = facts.get("kinematics"), facts.get("geometry")
         computed = [kinematics["frame"]] if kinematics else []
         if geometry:
-            computed += [finger["tip_frame"] for finger in geometry["fingers"].values()]
-            computed.append(geometry["center"]["frame"])
+            computed += [finger["tip_frame"] for finger in geometry.get("fingers", {}).values()]
+            if geometry.get("center"):
+                computed.append(geometry["center"]["frame"])
         assert not set(computed).intersection(facts.get("frames", {})), path
         assert path.with_name("driver.py").read_bytes() == driver, path
 

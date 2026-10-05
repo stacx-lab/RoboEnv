@@ -299,7 +299,11 @@ def test_hand_geometry_survives_live_export(tmp_path):
         name = descriptor["name"]
         exported = yaml.safe_load((tmp_path / name / "profile.yaml").read_text())
         assert exported["intrinsics"] == world.control.profiles[name]["intrinsics"]
-        assert exported["intrinsics"]["geometry"]["reference_frame"] == "grasp_reference"
+        assert "grasp_reference" in exported["intrinsics"]["frames"]
+        assert "reference_frame" not in exported["intrinsics"]["geometry"]
+        assert "joints" not in exported["intrinsics"]["geometry"]["fingers"]["thumb"]
+        thumb = exported["intrinsics"]["geometry"]["fingers"]["thumb"]
+        assert isinstance(thumb["chain"][0]["joint"], str)
         assert "thumb_tip" not in exported["intrinsics"]["frames"]
         assert exported["intrinsics"]["geometry"]["fingers"]["thumb"]["tip_frame"] == "thumb_tip"
         assert (tmp_path / name / "driver.py").is_file()
@@ -422,6 +426,7 @@ def test_native_advance_caches_verdict_and_applies_only_finite_horizon(maximum, 
 
     world = SimpleEnv.__new__(SimpleEnv)
     world.steps, world.max_steps, world.done = 1, maximum, False
+    world.completed = False
     world.frames, world.images = [], {"stale": True}
     calls = []
 
