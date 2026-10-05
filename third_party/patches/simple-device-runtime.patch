@@ -18,11 +18,44 @@ index 8762d41..1bd4884 100644
  rlds = [
      "dm-env>=1.6",
      "envlogger[tfds]>=1.2",
+diff --git a/src/simple/core/simulator.py b/src/simple/core/simulator.py
+index b57399d..698e60c 100644
+--- a/src/simple/core/simulator.py
++++ b/src/simple/core/simulator.py
+@@ -33,7 +33,9 @@ class Simulator(ABC):
+         return res.files("simple") / "resources" # type: ignore
+ 
+     def get_data_dir(self) -> str:
+-        return res.files("simple").parent.parent / "data" # type: ignore
++        from simple.utils import get_data_dir
++
++        return get_data_dir()
+ 
+     def resolve_data_path(self,rel_path = None, create_if_not_exist=False) -> str:
+         data_dir = self.get_data_dir()
+diff --git a/src/simple/engines/isaac_app.py b/src/simple/engines/isaac_app.py
+index a9cb6d5..cd27358 100644
+--- a/src/simple/engines/isaac_app.py
++++ b/src/simple/engines/isaac_app.py
+@@ -92,6 +92,8 @@ def create_simulation_app(
+ 
+     sim_cfg = _compact_dict({
+         "headless": headless,
++        # The owning worker/replay must retain control of exceptions and exit status.
++        "fast_shutdown": False,
+         "renderer": renderer,
+         "multi_gpu": multi_gpu,
+         "anti_aliasing": anti_aliasing,
 diff --git a/src/simple/engines/isaacsim.py b/src/simple/engines/isaacsim.py
-index 14fccf8..fe33087 100755
+index 14fccf8..d386dd5 100755
 --- a/src/simple/engines/isaacsim.py
 +++ b/src/simple/engines/isaacsim.py
-@@ -15,7 +15,9 @@ import omni.kit.primitive.mesh
+@@ -11,11 +11,14 @@ import numpy as np
+ import omni.isaac.core.utils.prims as isaacsim_prims
+ import omni.isaac.core.utils.stage as isaacsim_stage
+ import omni.kit.commands
++import omni.physx
+ import omni.kit.primitive.mesh
  import omni.replicator.core as rep
  import omni.usd
  import transforms3d as t3d
@@ -33,7 +66,22 @@ index 14fccf8..fe33087 100755
  from isaacsim.util.debug_draw import _debug_draw
  from omni.isaac.core.objects import GroundPlane, cuboid, sphere
  from omni.isaac.core.prims import GeometryPrim, RigidPrim, XFormPrim
-@@ -795,6 +797,7 @@ class IsaacSimSimulator(Simulator):
+@@ -784,9 +787,12 @@ class IsaacSimSimulator(Simulator):
+         if mujoco_env is not None:
+             self.sync_states(mujoco_env)
+ 
+-        self.world.step(render=False)
++        self.world.physics_sim_view.update_articulations_kinematic()
++        omni.physx.get_physx_interface().update_transformations(False, True, False)
+         self.update_visuals()
+-        rep.orchestrator.step(rt_subframes=1, pause_timeline=False)
++        # Isaac is a renderer for the mirrored MuJoCo state, not a second physics
++        # authority. Advancing PhysX here displaces the articulation before capture.
++        rep.orchestrator.step(rt_subframes=1, delta_time=0.0, pause_timeline=True)
+         self._update_collision_spheres()
+         self.step_id += 1
+ 
+@@ -795,6 +801,7 @@ class IsaacSimSimulator(Simulator):
          if not self.visulize_spheres:
              return
  
@@ -41,6 +89,71 @@ index 14fccf8..fe33087 100755
          from curobo.types.base import TensorDeviceType
          tensor_args = TensorDeviceType()
  
+@@ -861,7 +868,7 @@ class IsaacSimSimulator(Simulator):
+         for jname, jpos in joint_state.items():
+             isaac_jname = self.task.robot.jname_mujoco_to_isaac(jname)
+             joint_indices.append(self.robot.get_dof_index(isaac_jname))
+-            qpos.append(round(jpos,6))
++            qpos.append(jpos)
+         self.robot.set_joint_positions(qpos, joint_indices=joint_indices)
+ 
+         if self.articulated_objects:
+@@ -871,7 +878,7 @@ class IsaacSimSimulator(Simulator):
+                 articulate_joint_pos = []
+                 for articulate_joint, articulate_jpos in articulated_joints_state.items():
+                     articulate_joint_indices.append(articulated_object.get_dof_index(articulate_joint))
+-                    articulate_joint_pos.append(round(articulate_jpos,6))
++                    articulate_joint_pos.append(articulate_jpos)
+                 articulated_object.set_joint_positions(articulate_joint_pos, joint_indices=articulate_joint_indices)
+ 
+         if self.need_gravity:
+@@ -957,6 +964,18 @@ class IsaacSimSimulator(Simulator):
+             prim_path=f"{self.workspace_prim_path}/Robot",
+         )
+ 
++        if self.task.robot.uid == "g1_sonic":
++            # The shared G1 USD predates Sonic's split waist offsets. Match the
++            # pinned MuJoCo model so all torso-mounted visuals share its frame.
++            for name, position in (
++                ("waist_roll_joint", (-0.0039635, 0, 0.035)),
++                ("waist_pitch_joint", (0, 0, 0.019)),
++            ):
++                joint = self.world.stage.GetPrimAtPath(
++                    f"{self.workspace_prim_path}/Robot/{robot_ns}/joints/{name}"
++                )
++                joint.GetAttribute("physics:localPos0").Set(Gf.Vec3f(*position))
++
+         robo_actor = self.task.layout.actors["robot"]
+         self.robot = IsaacRobot(
+             prim_path=f"{self.workspace_prim_path}/Robot/{robot_ns}",
+diff --git a/src/simple/engines/mujoco.py b/src/simple/engines/mujoco.py
+index 4c9cd12..cb7abbf 100644
+--- a/src/simple/engines/mujoco.py
++++ b/src/simple/engines/mujoco.py
+@@ -97,7 +97,7 @@ class MujocoSimulator(Simulator):
+         obj_orientations = [mj_obj.xquat for mj_obj in self.mj_objects.values()]
+         # joint_state = np.array([joint.qpos[0] for joint in self.joints])
+         joint_state = self.task.robot.get_robot_qpos()
+-        robot_position = np.round(self.mjData.qpos[:7], 4)
++        robot_position = self.mjData.qpos[:7].copy()
+         if self.articulated_object_joints is not None:
+             articulated_joints_state = {}
+             for articulate_joint in self.articulated_object_joints:
+@@ -109,12 +109,12 @@ class MujocoSimulator(Simulator):
+ 
+                 articulated_joints_state[articulate_joint] = wrapped_qpos
+             try:
+-                articulate_object_position = np.round(self.mjData.joint("articulate_floating_base").qpos, 4)
++                articulate_object_position = self.mjData.joint("articulate_floating_base").qpos.copy()
+             except (KeyError, ValueError):
+         
+                 body_ptr = self.mjData.body("articulate_base")
+                 combined_pos = np.concatenate([body_ptr.xpos, body_ptr.xquat])
+-                articulate_object_position = np.round(combined_pos, 4)
++                articulate_object_position = combined_pos
+             return [self.render_step, joint_state, self.obj_names, obj_positions, obj_orientations, robot_position, articulated_joints_state, articulate_object_position]
+        
+             
 diff --git a/src/simple/envs/base_dual_env.py b/src/simple/envs/base_dual_env.py
 index 1cd5c09..8f4db4e 100644
 --- a/src/simple/envs/base_dual_env.py

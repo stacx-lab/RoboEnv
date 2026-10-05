@@ -3,6 +3,9 @@
 import argparse
 import copy
 import json
+import os
+import sys
+import traceback
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +38,31 @@ def check_geometry(world):
     return errors
 
 
+def check_cameras(world):
+    """Compare catalog projection with Isaac's native world-to-pixel projection."""
+    from roboenv_runtime.adapters.simple.cameras import validate_isaac
+
+    validate_isaac(world)
+    if world.env.isaac is None:
+        return {}
+    parent = matrix(world._pose("torso_link"))
+    optical_points = np.array([[0, 0, 1], [0.15, -0.1, 1.5], [-0.2, 0.15, 2.0]])
+    errors = {}
+    for name, spec in world.model["cameras"].items():
+        mount = spec["mount"]
+        pose = parent @ matrix(mount["translation_m"] + mount["rotation_xyzw"])
+        points = optical_points @ pose[:3, :3].T + pose[:3, 3]
+        projection = spec["projection"]
+        expected = optical_points[:, :2] / optical_points[:, 2:]
+        expected *= [projection["fx"], projection["fy"]]
+        expected += [projection["cx"], projection["cy"]]
+        camera = world.env.isaac.cameras[spec["native"]]
+        actual = camera.get_image_coords_from_world_points(points) - 0.5
+        errors[name] = float(np.max(np.abs(actual - expected)))
+    assert max(errors.values()) < 0.01, errors
+    return errors
+
+
 def check(args):
     args.out.mkdir(parents=True, exist_ok=False)
     world = SimpleEnv(
@@ -43,7 +71,9 @@ def check(args):
         arm_gravity_compensation=args.arm_gravity_compensation,
     )
     try:
+        world.configure_execution_mode(args.execution_mode)
         world.reset(args.seed)
+        projection_before = check_cameras(world)
         before = {"states": {n: world.read_device(n) for n in world.control.targets}}
         initial = world.state().copy()
         initial_pelvis = np.asarray(world._pose("pelvis")[:3]).copy()
@@ -96,9 +126,7 @@ def check(args):
         assert hand_motion > 0.02, hand_motion
         geometry_after = check_geometry(world)
         hands_after = check_hands(world, args.kinex)
-        from roboenv_runtime.adapters.simple.cameras import validate_isaac
-
-        validate_isaac(world)
+        projection_after = check_cameras(world)
         final_cameras = {n: world.read_camera(n, args.out) for n in world.model["cameras"]}
         from PIL import Image
 
@@ -159,6 +187,8 @@ def check(args):
             "hands_before": hands_before,
             "hands_after": hands_after,
             "geometry_after": geometry_after,
+            "projection_error_px_before": projection_before,
+            "projection_error_px_after": projection_after,
             "cameras": cameras,
         }
         (args.out / "report.json").write_text(json.dumps(report, indent=2) + "\n")
@@ -171,9 +201,21 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--env-id", default="simple/G1WholebodyXMovePickTeleop-v0")
     parser.add_argument("--sim-mode", choices=("mujoco", "mujoco_isaac"), default="mujoco")
+    parser.add_argument("--execution-mode", choices=("stepped", "realtime"), default="stepped")
     parser.add_argument(
         "--arm-gravity-compensation", action=argparse.BooleanOptionalAction, default=True
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--kinex", type=Path, default=Path(__file__).resolve().parents[2] / "kinex")
-    check(parser.parse_args())
+    code = 0
+    try:
+        check(parser.parse_args())
+    except SystemExit as exc:
+        code = exc.code
+    except Exception:
+        traceback.print_exc()
+        code = 1
+    # Like the worker, avoid native destructors after Kit has unloaded its plugins.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)

@@ -2,6 +2,9 @@
 
 import argparse
 import json
+import os
+import sys
+import traceback
 from pathlib import Path
 
 import numpy as np
@@ -118,4 +121,15 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    code = 0
+    try:
+        main()
+    except SystemExit as exc:
+        code = exc.code
+    except Exception:
+        traceback.print_exc()
+        code = 1
+    # Like the worker, avoid native destructors after Kit has unloaded its plugins.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
