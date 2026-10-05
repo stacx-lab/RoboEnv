@@ -1,12 +1,11 @@
 id: libero/bowl-into-bottom-drawer
-backend: libero
-execution_mode: realtime
-backend_task: libero.10_3
 robot: libero/libero-panda-kitchen
 instruction: put the black bowl in the bottom drawer of the cabinet and close it
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
 backend_kwargs:
   suite_name: libero_10
   task_id: 3
   init_state_index: 0
-seed: 0
-budget_mode: practice

@@ -1,20 +1,29 @@
 id: isaaclab/go2-d1-pick-place
-backend: isaaclab
-execution_mode: realtime
-backend_task: isaaclab.go2-d1-pick-place
 robot: isaaclab/isaaclab-go2-d1
-instruction: Pick up the orange block with the D1 gripper, and place it in the green destination zone ahead.
+instruction: Pick up the orange block with the D1 gripper, and place it in the green
+  destination zone ahead.
 seed: 0
 budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
 backend_kwargs:
   task_name: go2-d1-pick-place
   asset_manifest: .cache/isaaclab/go2-d1/assets.json
   max_steps: 6000
   task_spec:
-    object_position: [1.25, 0.0, 0.03]
-    object_size: [0.04, 0.04, 0.06]
+    object_position:
+    - 1.25
+    - 0.0
+    - 0.03
+    object_size:
+    - 0.04
+    - 0.04
+    - 0.06
     object_mass_kg: 0.08
-    destination: [2.5, 0.0, 0.0]
+    destination:
+    - 2.5
+    - 0.0
+    - 0.0
     destination_half_size_m: 0.15
     minimum_carry_base_displacement_m: 0.6
     lift_center_height_m: 0.12

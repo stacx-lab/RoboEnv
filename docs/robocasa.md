@@ -143,8 +143,9 @@ kitchen task, renders nothing, and takes no physics steps. `--out DIRECTORY` wri
 a separate robot directory. Repeated generation is deterministic; rigid mounts
 are also checked after changing arm/lift configuration.
 
-A custom task's `device_bindings` replaces the complete default selection. Logical
-names, profiles, and mounts must match the published device directories.
+A custom task selects a robot arrangement whose owner-side `bindings.yaml` replaces
+the complete default selection. Logical names, profiles, and mounts must match the
+published device directories. Keep this binding plan out of public workspace exports.
 The standard map binds logical `base` to native entity `base`; custom logical names
 are supported. Renaming updates the profile, connection target, stop scope, and
 dependent mounts. Native controller composition remains internal to the world;

@@ -1,12 +1,10 @@
 id: behavior/turning-on-radio
-backend: behavior
-execution_mode: realtime
-backend_task: behavior.turning_on_radio
 robot: behavior/behavior-r1pro
 instruction: Turn on the radio receiver that's on the table in the living room.
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
 backend_kwargs:
   activity_name: turning_on_radio
   scene_model: house_double_floor_lower
-seed: 0
-budget_mode: practice
-device_bindings: null

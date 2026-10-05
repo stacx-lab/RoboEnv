@@ -70,7 +70,7 @@ def test_imports_and_catalog_do_not_boot_simulator():
 import sys
 from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.simple import SimpleAdapter
-resolve_task('simple/g1-xmove-pick')
+resolve_task('simple/xmove-pick')
 assert SimpleAdapter.name == 'simple'
 assert not {'simple', 'torch', 'mujoco', 'isaacsim', 'pinocchio'} & sys.modules.keys()
 """
@@ -106,7 +106,7 @@ def test_isaac_eula_default_preserves_explicit_environment(
 
 @pytest.mark.parametrize(
     "task_name,native_horizon",
-    [("g1-xmove-pick", 800), ("g1-transfer-between-tables", 1200), ("g1-bend-pick", 800)],
+    [("xmove-pick", 800), ("transfer-between-tables", 1200), ("bend-pick", 800)],
 )
 def test_simple_stepped_budget_is_10000_for_each_task(
     monkeypatch, tmp_path, task_name, native_horizon
@@ -151,7 +151,7 @@ def test_three_examples_and_twelve_native_teleop_registrations():
     found = list(entries(source))
     assert len(found) == 12
     assert all(item["env_id"].endswith("Teleop-v0") for item in found)
-    for name in ("g1-xmove-pick", "g1-transfer-between-tables", "g1-bend-pick"):
+    for name in ("xmove-pick", "transfer-between-tables", "bend-pick"):
         task = resolve_task("simple/" + name)
         assert task.task.budget_mode == "practice"
         assert len(task.bindings.devices) == 8
@@ -232,7 +232,7 @@ def test_base_stop_retains_full_posture_and_arm_commands_without_stepping():
 
 
 def test_catalog_routes_upper_body_through_measured_base_torso():
-    resolved = resolve_task("simple/g1-xmove-pick")
+    resolved = resolve_task("simple/xmove-pick")
     profiles = {
         spec.name: spec.resolved_profile(resolved.robot) for spec in resolved.bindings.devices
     }
@@ -256,7 +256,7 @@ def test_catalog_routes_upper_body_through_measured_base_torso():
 
 
 def test_contract_bindings_have_only_basic_actions():
-    resolved = resolve_task("simple/g1-xmove-pick")
+    resolved = resolve_task("simple/xmove-pick")
     world = World()
     context = BindingContext("simple", "g1", SimpleNamespace(_env=world, control_interval_s=0.02))
     from roboenv_runtime.runtime.world import WorldSession
@@ -286,7 +286,7 @@ def test_contract_bindings_have_only_basic_actions():
 def test_hand_geometry_survives_live_export(tmp_path):
     from roboenv.devices.export import export_devices
 
-    resolved = resolve_task("simple/g1-xmove-pick")
+    resolved = resolve_task("simple/xmove-pick")
     world = World()
     service = default_registry().assemble(
         resolved.bindings,
@@ -310,7 +310,7 @@ def test_hand_geometry_survives_live_export(tmp_path):
 
 
 def test_binding_rejects_incorrect_fingertip_offset():
-    resolved = resolve_task("simple/g1-xmove-pick")
+    resolved = resolve_task("simple/xmove-pick")
     spec = next(spec for spec in resolved.bindings.devices if spec.name == "left_hand")
     # Resolving an episode no longer rewrites intrinsics, so state the override here.
     intrinsics = spec.resolved_profile(resolved.robot)["intrinsics"]
@@ -337,7 +337,7 @@ def test_binding_rejects_incorrect_fingertip_offset():
 def test_profile_resolution_does_not_rewrite_catalog():
     path = ROOT / "catalog/robots/simple/simple-g1/devices/base/profile.yaml"
     before = path.read_bytes()
-    resolved = resolve_task("simple/g1-xmove-pick")
+    resolved = resolve_task("simple/xmove-pick")
     spec = next(s for s in resolved.bindings.devices if s.name == "base")
     assert "execution" not in spec.resolved_profile(resolved.robot)["intrinsics"]["control"]
     assert path.read_bytes() == before

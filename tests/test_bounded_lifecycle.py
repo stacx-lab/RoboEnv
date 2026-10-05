@@ -18,7 +18,8 @@ FIXTURE = ROOT / "tests/fixtures/native-toy"
 
 def bounded(tmp_path, *, limit=100, success=True, allow_stop=True, execution_mode=None):
     task = yaml.safe_load((FIXTURE / "task.yaml").read_text())
-    task["backend_kwargs"] = {"max_steps": limit, "stop_on_success": success}
+    task["backend_kwargs"] = {"max_steps": limit}
+    task["stop_on_success"] = success
     path = tmp_path / "task.yaml"
     path.write_text(yaml.safe_dump(task))
     return launch(path, runtime_root=tmp_path, catalog=FIXTURE / "catalog",

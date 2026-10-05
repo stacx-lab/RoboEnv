@@ -173,7 +173,7 @@ class BindingPlan:
         else:
             raise ValueError(
                 f"No default bindings for {backend}/{root.name}; "
-                "robot requires an explicit bindings.yaml or task device_bindings"
+                "robot requires an explicit bindings.yaml"
             )
         for entry in plan.devices:
             entry.definition(root)  # validate parameters/paths before a simulator is started

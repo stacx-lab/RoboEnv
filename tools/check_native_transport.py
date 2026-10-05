@@ -267,7 +267,7 @@ def main():
     try:
         for index, selected in enumerate(cases):
             path = out / f"task-{index}.yaml"
-            path.write_text(yaml.safe_dump(dataclasses.asdict(selected)))
+            path.write_text(yaml.safe_dump(selected.as_dict(), sort_keys=False))
             owners.append(
                 roboenv.launch(
                     path,

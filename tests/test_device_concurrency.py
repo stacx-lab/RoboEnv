@@ -69,8 +69,8 @@ def concurrent_service(tmp_path, monkeypatch, request, execution_mode):
     tasks = tmp_path / "tasks"
     tasks.mkdir()
     (tasks / "concurrent.yaml").write_text(
-        "id: concurrent\nbackend: fakeshell\n"
-        "backend_task: concurrent\nrobot: toy-puck\ninstruction: Test.\n"
+        "id: fakeshell/concurrent\n"
+        "robot: toy-puck\ninstruction: Test.\n"
     )
     monkeypatch.setenv("ROBOENV_TASKS", str(tasks))
     monkeypatch.setenv("ROBOENV_SERVER_ROBOT", str(robot))
@@ -82,7 +82,7 @@ def concurrent_service(tmp_path, monkeypatch, request, execution_mode):
     supervisor = Supervisor(
         SupervisorConfig(
             run_dir=tmp_path / "run",
-            task="concurrent",
+            task="fakeshell/concurrent",
             seed=0,
             budget_mode="practice",
             session="concurrent",

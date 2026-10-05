@@ -9,9 +9,9 @@ RoboEnv owns the world, clocks, native verdict and private replay evidence.
 ```sh
 roboenv prepare simple
 roboenv tasks list --simulator simple
-roboenv launch simple/g1-xmove-pick
-roboenv launch simple/g1-xmove-pick --gpu 0
-roboenv launch simple/g1-transfer-between-tables
+roboenv launch simple/xmove-pick
+roboenv launch simple/xmove-pick --gpu 0
+roboenv launch simple/transfer-between-tables
 ```
 
 Execution is synchronous with `sim_mode: mujoco_isaac`: MuJoCo physics with Isaac
@@ -39,9 +39,9 @@ to obtain the upstream instruction for the actual running scene.
 
 | Task (under `simple/`) | Native registration (under `simple/`) |
 | --- | --- |
-| `g1-xmove-pick` | `G1WholebodyXMovePickTeleop-v0` |
-| `g1-transfer-between-tables` | `G1WholebodyLocomotionPickBetweenTablesTeleop-v0` |
-| `g1-bend-pick` | `G1WholebodyBendPickTeleop-v0` |
+| `xmove-pick` | `G1WholebodyXMovePickTeleop-v0` |
+| `transfer-between-tables` | `G1WholebodyLocomotionPickBetweenTablesTeleop-v0` |
+| `bend-pick` | `G1WholebodyBendPickTeleop-v0` |
 | `bend-pick-and-place` | `G1WholebodyBendPickAndPlaceTeleop-v0` |
 | `bend-handover` | `G1WholebodyBendHandoverTeleop-v0` |
 | `handover` | `G1WholebodyHandoverTeleop-v0` |
@@ -66,7 +66,7 @@ success is retained for the episode, while control and physics can continue.
 To stop at the first successful control interval, override the policy at launch:
 
 ```sh
-roboenv launch simple/g1-xmove-pick --gpu 0 --stop-on-success
+roboenv launch simple/xmove-pick --gpu 0 --stop-on-success
 ```
 
 `--no-stop-on-success` forces continued execution; omitting both flags preserves
@@ -174,8 +174,8 @@ in the native replay record. Keep diagnostic sessions bounded.
 Arm gravity compensation is enabled by default. To select it explicitly at startup:
 
 ```sh
-roboenv launch simple/g1-xmove-pick --arm-gravity-compensation
-roboenv launch simple/g1-xmove-pick --no-arm-gravity-compensation
+roboenv launch simple/xmove-pick --arm-gravity-compensation
+roboenv launch simple/xmove-pick --no-arm-gravity-compensation
 ```
 
 Python owners can pass `arm_gravity_compensation=False` to `roboenv.launch`.
@@ -340,7 +340,7 @@ these are workload-specific timings, not a real-time performance guarantee.
 ## Kinex and replay
 
 ```sh
-python tools/prepare_kinex_workspace.py simple/g1-xmove-pick --out NEW_WORKSPACE
+python tools/prepare_kinex_workspace.py simple/xmove-pick --out NEW_WORKSPACE
 ```
 
 Copied drivers use the standard portable transport, Kinex joint/velocity helpers,
@@ -365,7 +365,7 @@ an official SIMPLE baseline or a task-performance result.
 
 ### Spectator video
 
-`roboenv launch simple/g1-xmove-pick --gpu 0 --record` records the existing
+`roboenv launch simple/xmove-pick --gpu 0 --record` records the existing
 left and right head-camera viewpoints through the shared spectator recorder.
 Both `mujoco_isaac` and diagnostic `mujoco` rendering modes are supported.
 The default is separate 640×360 MP4s at 10 simulation-time FPS, named

@@ -10,9 +10,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 KINEX_TASKS = {
-    "xmove": "simple/g1-xmove-pick",
-    "transfer": "simple/g1-transfer-between-tables",
-    "bend": "simple/g1-bend-pick",
+    "xmove": "simple/xmove-pick",
+    "transfer": "simple/transfer-between-tables",
+    "bend": "simple/bend-pick",
 }
 TASKS = {
     "xmove": "simple/G1WholebodyXMovePickTeleop-v0",

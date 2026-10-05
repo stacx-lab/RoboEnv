@@ -14,10 +14,12 @@ def test_normal_worker_passes_only_typed_budget_arguments(monkeypatch, budget_mo
     from roboenv_runtime.runtime import worker
 
     task = SimpleNamespace(
-        id="robodojo.fixture", backend="robodojo", backend_kwargs={"task_name": "fixture"}
+        id="robodojo/fixture", backend="robodojo", backend_kwargs={"task_name": "fixture"},
+        stop_on_success=False,
     )
 
-    def construct(name, *, task_name):
+    def construct(name, *, task_name, stop_on_success):
+        assert stop_on_success is False
         return name, task_name
 
     monkeypatch.setattr(worker, "make_adapter", construct)

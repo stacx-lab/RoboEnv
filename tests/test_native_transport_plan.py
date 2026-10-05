@@ -9,9 +9,7 @@ from roboenv.tasks.model import Task
 
 def task(backend):
     return Task(
-        "probe",
-        backend,
-        "probe",
+        f"{backend}/probe",
         "robot",
         "Probe devices.",
         backend_kwargs={"scene_model": "fixture"},

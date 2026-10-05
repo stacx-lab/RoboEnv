@@ -10,7 +10,8 @@ class IsaacLabAdapter(AdapterBase):
     embodiment = "go2_d1"
     owner_thread_required = True
 
-    def __init__(self, **kwargs):
+    def __init__(self, *, stop_on_success=False, **kwargs):
+        self._set_stop_on_success(stop_on_success)
         from .go2_d1.environment import Go2Env
 
         self._env = Go2Env(**kwargs)

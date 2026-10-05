@@ -866,7 +866,9 @@ class WorkerRequestHandler(socketserver.StreamRequestHandler):
 
 def build_adapter(task):
     """Instantiate the selected native backend without implicit budget overrides."""
-    return make_adapter(task.backend, **task.backend_kwargs)
+    return make_adapter(
+        task.backend, stop_on_success=task.stop_on_success, **task.backend_kwargs
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

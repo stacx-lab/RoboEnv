@@ -2,7 +2,6 @@
 
 import ast
 import json
-from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,7 +18,7 @@ from roboenv_runtime.runtime.worker import SimWorker
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "third_party/SIMPLE"
 NAMES = [
-    "g1-xmove-pick", "g1-transfer-between-tables", "g1-bend-pick",
+    "xmove-pick", "transfer-between-tables", "bend-pick",
     "bend-pick-and-place", "bend-handover", "handover",
     "pick-and-place-and-hug-container", "close-door", "open-oven",
     "open-faucet", "push-office-chair", "open-trash-can",
@@ -41,8 +40,8 @@ def test_all_decoupled_tasks_have_matching_catalog_and_native_instructions():
     # Constructor defaults override the class DR config (hug uses apple, not
     # its class-level cracker box). Fixture tasks must not inherit that apple.
     targets = {
-        "g1-xmove-pick": "apple", "pick-and-place-and-hug-container": "apple",
-        "g1-transfer-between-tables": "cracker box", "g1-bend-pick": "cracker box",
+        "xmove-pick": "apple", "pick-and-place-and-hug-container": "apple",
+        "transfer-between-tables": "cracker box", "bend-pick": "cracker box",
         "bend-pick-and-place": "cracker box", "bend-handover": "cracker box",
         "handover": "cracker box", "close-door": "door", "open-oven": "oven",
         "open-faucet": "faucet", "push-office-chair": "office chair",
@@ -57,14 +56,15 @@ def test_all_decoupled_tasks_have_matching_catalog_and_native_instructions():
     assert set(native) == set(NAMES)
     assert set(catalog) == {"simple/" + name for name in NAMES}
     for task, _ in discover_tasks(ROOT):
-        assert asdict(task) == asdict(catalog[task.id][0])
+        assert task.as_dict() == catalog[task.id][0].as_dict()
         entry = native[task.id.split("/")[1]]
         assert task.instruction == entry["instruction"]
         assert "{}" not in task.instruction
         assert task.execution_mode == "realtime"
+        assert task.stop_on_success is False
         assert task.backend_kwargs == {
             "env_id": entry["env_id"], "sim_mode": "mujoco_isaac", "dr_level": 0,
-            "arm_gravity_compensation": True, "stop_on_success": False,
+            "arm_gravity_compensation": True,
         }
         assert task.robot == "simple/simple-g1" and task.budget_mode == "practice"
 
@@ -154,7 +154,7 @@ def test_pinned_native_success_failure_and_accumulator_reset(name):
     assert tick(False) == (0.0, False)
 
 
-@pytest.mark.parametrize("name", ["g1-transfer-between-tables", "bend-pick-and-place"])
+@pytest.mark.parametrize("name", ["transfer-between-tables", "bend-pick-and-place"])
 def test_native_placement_requires_releasing_the_object(name):
     task = native_task(next(e for e in source_entries() if e["name"] == name))
     info, native = observation(True)

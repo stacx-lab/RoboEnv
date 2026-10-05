@@ -259,7 +259,7 @@ def main():
     package = ROOT / "runtime/src/roboenv_runtime/spectator"
     sources = [Path(__file__), *sorted(package.glob("*.py"))]
     atomic_write_json(args.out / "spec.json", {
-        "command": command, "timeout_s": args.timeout, "task": asdict(task),
+        "command": command, "timeout_s": args.timeout, "task": task.as_dict(),
         "source_sha256": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                           for p in sources},
     })
