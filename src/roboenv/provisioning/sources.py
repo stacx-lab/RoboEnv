@@ -8,7 +8,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from roboenv.project import project_root
+from roboenv.project import PACKAGED_RECEIPT, project_root
+
+RECEIPT_SCHEMA = "roboenv/sources-receipt/1"
 
 
 def git(root, *args, timeout=600, extra_env=None):
@@ -117,14 +119,85 @@ def managed_tree_matches(root, checkout, patches):
             return False
 
 
+def lock_digest(root):
+    return hashlib.sha256((Path(root) / "upstreams.lock.json").read_bytes()).hexdigest()
+
+
+def write_receipt(project, backends, destination, *, report=None):
+    """Record the verification of the selected sources as the source project passes it now.
+
+    A standalone simulator image copies the sources without their git metadata, so the packaged
+    runtime cannot repeat the check; it reads this receipt instead (``packaged_status``). Refused
+    unless every selected source is ready, so a receipt never vouches for an unverified tree.
+    ``report`` is a ``status`` result already taken for these backends.
+    """
+    report = report if report is not None else status(project, backends)
+    if not report["ready"]:
+        raise ValueError("pinned upstream sources are not ready; run roboenv sources sync first")
+    rows = ("path", "actual", "pin_matches", "origin_matches", "patches_ready")
+    rows += ("managed_tree_matches",)
+    receipt = {
+        "schema": RECEIPT_SCHEMA,
+        "backends": sorted(backends),
+        "upstream_lock_sha256": lock_digest(Path(project)),
+        "sources": {item["name"]: {key: item[key] for key in rows} for item in report["sources"]},
+    }
+    Path(destination).write_text(json.dumps(receipt, indent=2) + "\n")
+    return receipt
+
+
+def packaged_sources(root):
+    """The build receipt of a packaged runtime root, or None for a source checkout."""
+    file = Path(root) / PACKAGED_RECEIPT
+    if not file.is_file():
+        return None
+    receipt = json.loads(file.read_text())
+    if receipt.get("schema") != RECEIPT_SCHEMA:
+        raise ValueError("unsupported sources receipt")
+    if receipt.get("upstream_lock_sha256") != lock_digest(root):
+        raise ValueError("sources receipt does not match the packaged upstream lock")
+    return receipt["sources"]
+
+
+def packaged_status(root, name, item, recorded):
+    """A source the image builder verified and copied without its git metadata: the receipt's
+    row, with the pin and the managed patch files checked again against the packaged lock."""
+    present = (root / item["path"]).is_dir()
+    patches_ready = all(
+        (root / patch["path"]).is_file()
+        and hashlib.sha256((root / patch["path"]).read_bytes()).hexdigest() == patch["sha256"]
+        for patch in item.get("patches", [])
+    )
+    return {
+        "name": name,
+        "path": item["path"],
+        "present": present,
+        "expected": item["revision"],
+        "actual": recorded.get("actual"),
+        "pin_matches": present
+        and recorded.get("actual") == item["revision"]
+        and recorded.get("pin_matches") is True,
+        "origin_matches": recorded.get("origin_matches") is True,
+        "patches_ready": patches_ready and recorded.get("patches_ready") is True,
+        "managed_tree_matches": present
+        and patches_ready
+        and recorded.get("managed_tree_matches") is True,
+        "packaged": True,
+    }
+
+
 def status(project=None, backends=None):
     root, lock = load_lock(project)
+    packaged = packaged_sources(root)
     names = selected_sources(lock, backends or lock["backends"])
     result = []
     for name in names:
         item = lock["sources"][name]
         checkout = root / item["path"]
         present = (checkout / ".git").exists()
+        if not present and packaged is not None and name in packaged:
+            result.append(packaged_status(root, name, item, packaged[name]))
+            continue
         revision = git(checkout, "rev-parse", "HEAD") if present else None
         origin_matches = False
         patches_ready = True
