@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import atexit
+import importlib.util
 import logging
 import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -11,8 +15,54 @@ log = logging.getLogger(__name__)
 _CACHE_VARS = ("TRITON_CACHE_DIR", "TORCHINDUCTOR_CACHE_DIR", "HF_HOME", "XDG_CACHE_HOME")
 
 
+def _writable(directory: Path) -> bool:
+    try:
+        probe = directory / ".roboenv-probe"
+        probe.touch()
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def isaac_apps() -> Path | None:
+    """Isaac Sim's ``apps`` directory as Kit will see it, or None without Isaac Sim."""
+    if os.environ.get("EXP_PATH"):
+        return Path(os.environ["EXP_PATH"])
+    spec = importlib.util.find_spec("isaacsim")
+    if spec is None or not spec.origin:
+        return None
+    return Path(spec.origin).resolve().parent / "apps"
+
+
+def writable_apps(real: Path, parent: Path) -> Path:
+    """A writable stand-in for a read-only Isaac Sim ``apps`` directory.
+
+    OmniGibson copies its experience file into ``apps`` at every launch, and Kit then resolves
+    the extension folders relative to that file (``${app}/../exts`` and its siblings), so a
+    prepared interpreter that is mounted read-only cannot start it. The stand-in is a directory
+    of symlinks, unique to this process: the siblings of ``apps`` at the top, and inside
+    ``apps`` every file of the original except OmniGibson's own, which it writes itself (a link
+    would write through to the read-only original).
+    """
+    real = real.resolve()
+    parent.mkdir(parents=True, exist_ok=True)
+    shadow = Path(tempfile.mkdtemp(prefix="isaacsim-", dir=parent))
+    atexit.register(shutil.rmtree, shadow, ignore_errors=True)
+    apps = shadow / "apps"
+    apps.mkdir()
+    for entry in real.parent.iterdir():
+        if entry.name != "apps":
+            (shadow / entry.name).symlink_to(entry)
+    for entry in real.iterdir():
+        if not entry.name.lower().startswith("omnigibson"):
+            (apps / entry.name).symlink_to(entry)
+    return apps
+
+
 def fix_cache_env() -> None:
-    """Re-point unwritable cache env vars at ``<repo>/.cache`` (see module doc)."""
+    """Re-point what OmniGibson and Isaac Sim write at launch, when it is not writable, at
+    ``<repo>/.cache``: the caches named by ``_CACHE_VARS`` and Isaac Sim's ``apps`` directory."""
     from roboenv_runtime.paths import repo_root
 
     base = repo_root() / ".cache"
@@ -22,15 +72,17 @@ def fix_cache_env() -> None:
         if target is not None:
             try:
                 target.mkdir(parents=True, exist_ok=True)
-                probe = target / ".roboenv-probe"
-                probe.touch()
-                probe.unlink()
-                continue  # writable — leave it alone
             except OSError:
                 pass
+            else:
+                if _writable(target):
+                    continue  # writable — leave it alone
         fallback = base / var.lower()
         fallback.mkdir(parents=True, exist_ok=True)
         os.environ[var] = str(fallback)
+    apps = isaac_apps()
+    if apps is not None and not _writable(apps):
+        os.environ["EXP_PATH"] = str(writable_apps(apps, base / "behavior"))
     os.environ.setdefault("OMNIGIBSON_HEADLESS", "1")
     depot = repo_root() / "third_party/BEHAVIOR-1K/OmniGibson/datasets"
     if depot.is_dir():
