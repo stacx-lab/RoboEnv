@@ -35,8 +35,8 @@
       "file": "vMaterials_2.zip",
       "size": 3171531177,
       "sha256": "9e9819bdcd03dce499f45f87b8af27563d6ff6c868492cf0d6e769626921243d",
-      "destination": "vMaterials_2",
-      "inventory_sha256": "365a7d1c26a4d17f8100373851c419ef93ea3526ec60903e2bfb6c5ba3827ad1"
+      "destination": ".",
+      "inventory_sha256": "3ec682cc7fb86a73fe5fd7ab0df87d3c73754a475de6133707c9f86d7419fd12"
     },
     {
       "file": "assets_objects.zip",

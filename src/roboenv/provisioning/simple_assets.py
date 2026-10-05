@@ -77,14 +77,16 @@ def prepare_assets(root, *, progress=None, archives=None):
     data = depot / "data"
     for entry, archive in downloads:
         receipt = depot / (entry["file"] + ".json")
-        if receipt.exists():
-            if digest(receipt) != entry["inventory_sha256"]:
-                raise ValueError("SIMPLE inventory differs from pinned extraction")
+        if receipt.exists() and digest(receipt) == entry["inventory_sha256"]:
             for item in json.loads(receipt.read_text()):
                 path = data / item["path"]
                 if not path.is_file() or path.is_symlink() or digest(path) != item["sha256"]:
                     raise ValueError(f"SIMPLE extracted asset changed: {item['path']}")
             continue
+        # Re-stage changed layouts from the verified archive. Existing files must
+        # still match; obsolete paths are preserved rather than removed.
+        if receipt.exists() and progress:
+            progress(f"Refreshing SIMPLE assets for the current pin: {entry['file']}")
         with tempfile.TemporaryDirectory(dir=depot) as temporary:
             staged = Path(temporary) / "data"
             extract(archive, staged / entry["destination"])
@@ -119,7 +121,9 @@ def verify_assets(root):
         if not receipt.is_file():
             raise ValueError("SIMPLE assets missing; run roboenv prepare simple")
         if digest(receipt) != entry["inventory_sha256"]:
-            raise ValueError("SIMPLE inventory differs from pinned extraction")
+            raise ValueError(
+                "SIMPLE inventory differs from current pin; run roboenv prepare simple"
+            )
         for item in json.loads(receipt.read_text()):
             path = depot / "data" / item["path"]
             if not path.is_file() or path.is_symlink() or digest(path) != item["sha256"]:

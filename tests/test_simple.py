@@ -433,23 +433,16 @@ def test_generator_reproduces_catalog_and_facts(tmp_path):
     ).read_bytes()
 
 
-def test_isaac_camera_calibration_checks_actual_optical_mount(monkeypatch):
+@pytest.mark.parametrize(
+    "invalid", ["dimensions", "intrinsics", "half_pixel", "translation", "rotation"]
+)
+def test_isaac_camera_calibration_checks_actual_optical_mount(invalid):
     import numpy as np
     from roboenv_runtime.adapters.simple.cameras import validate_isaac
     from roboenv_runtime.adapters.urdf_geometry import matrix, matrix_pose
 
     facts = json.loads(FACTS.read_text())
     parent = np.array([0.3, -0.2, 0.7, 0, 0, np.sin(0.2), np.cos(0.2)])
-    wxyz = [parent[6], *parent[3:6]]
-    monkeypatch.setitem(
-        sys.modules,
-        "omni.isaac.core.prims",
-        SimpleNamespace(
-            XFormPrim=lambda path: SimpleNamespace(
-                get_world_pose=lambda: (parent[:3], np.array(wxyz))
-            ),
-        ),
-    )
     cameras = {}
     for spec in facts["cameras"].values():
         mount = spec["mount"]
@@ -471,11 +464,26 @@ def test_isaac_camera_calibration_checks_actual_optical_mount(monkeypatch):
             ),
         )
     renderer = SimpleNamespace(robot=SimpleNamespace(prim_path="/Robot/G1"), cameras=cameras)
-    world = SimpleNamespace(model=facts, env=SimpleNamespace(isaac=renderer))
+    world = SimpleNamespace(
+        model=facts, env=SimpleNamespace(isaac=renderer), _pose=lambda name: parent
+    )
     validate_isaac(world)
-    camera = next(iter(cameras.values()))
-    camera.get_intrinsics_matrix = lambda: np.eye(3)
-    with pytest.raises(ValueError, match="intrinsics differ"):
+    camera = cameras[facts["cameras"]["camera_head_right"]["native"]]
+    if invalid == "dimensions":
+        camera.get_resolution = lambda: (360, 640)
+    elif invalid in {"intrinsics", "half_pixel"}:
+        value = camera.get_intrinsics_matrix()
+        value[0, 0] += 1 if invalid == "intrinsics" else 0
+        value[:2, 2] -= 0.5 if invalid == "half_pixel" else 0
+        camera.get_intrinsics_matrix = lambda: value
+    else:
+        position, quaternion = camera.get_world_pose(camera_axes="ros")
+        if invalid == "translation":
+            position[0] += 0.01
+        else:
+            quaternion = np.array([1, 0, 0, 0])
+        camera.get_world_pose = lambda camera_axes: (position, quaternion)
+    with pytest.raises(ValueError, match="differ"):
         validate_isaac(world)
 
 
