@@ -10,6 +10,7 @@ RoboEnv owns the world, clocks, native verdict and private replay evidence.
 roboenv prepare simple
 roboenv tasks list --simulator simple
 roboenv launch simple/g1-xmove-pick
+roboenv launch simple/g1-xmove-pick --gpu 0
 roboenv launch simple/g1-transfer-between-tables
 ```
 
@@ -25,11 +26,15 @@ For diagnostic MuJoCo rendering, copy a representative task YAML, set
 `backend_kwargs.sim_mode: mujoco`, and launch that file. Rendering changes the
 images available to an agent, so results from the two renderers are distinct.
 
-| Example | Native registration | Synchronous horizon |
+| Example | Native registration | Stepped horizon |
 | --- | --- | --- |
-| `simple/g1-xmove-pick` | `G1WholebodyXMovePickTeleop-v0` | 800 intervals / 16 s |
-| `simple/g1-transfer-between-tables` | `G1WholebodyLocomotionPickBetweenTablesTeleop-v0` | 1200 intervals / 24 s |
-| `simple/g1-bend-pick` | `G1WholebodyBendPickTeleop-v0` | 800 intervals / 16 s |
+| `simple/g1-xmove-pick` | `G1WholebodyXMovePickTeleop-v0` | 10,000 intervals / 200 s |
+| `simple/g1-transfer-between-tables` | `G1WholebodyLocomotionPickBetweenTablesTeleop-v0` | 10,000 intervals / 200 s |
+| `simple/g1-bend-pick` | `G1WholebodyBendPickTeleop-v0` | 10,000 intervals / 200 s |
+
+RoboEnv's practice protocol uses this common stepped budget for SIMPLE tasks.
+Upstream task metadata retains its original horizons (800, 1200 and 800 intervals
+for the examples above). Realtime remains the default and has no step cap.
 
 Discovery reads the pinned decoupled G1 teleop registrations without importing
 the simulator. The checked-in assets and examples cover these three tasks;
@@ -64,9 +69,27 @@ nonzero exit status. Standalone native and replay commands flush output and exit
 explicitly after cleanup, as the worker does, to avoid native destructors running
 after Kit plugins have unloaded. Replay output must use a fresh path.
 
-On multi-GPU hosts, select a GPU with `CUDA_VISIBLE_DEVICES` before launching and
-allow for cold shader compilation within the startup deadline (900 seconds by
-default). `roboenv.launch` strips inherited `ROBOENV_*` variables before setting
+Isaac launches use one physical GPU. Select its host `nvidia-smi` index with
+`--gpu N`, or `roboenv.launch(..., gpu=N)` in Python. Without a selector, launch
+uses the first GPU permitted by inherited `CUDA_VISIBLE_DEVICES` and
+`NVIDIA_VISIBLE_DEVICES` restrictions, or GPU 0 when unrestricted. Explicit
+selections outside those restrictions fail before startup. Full GPU UUIDs and
+unambiguous UUID prefixes are supported in visibility masks; MIG selectors are
+not supported. The selector currently applies only to SIMPLE with Isaac rendering.
+
+Launch matches CUDA and Vulkan devices by UUID, limits CUDA visibility to the
+selected card, and explicitly selects Isaac's matching rendering device with
+multi-GPU rendering disabled. CUDA visibility alone does not select a Vulkan
+renderer. This also avoids the cross-card CUDA peer-to-peer startup validation
+that can stall multi-GPU hosts with IOMMU enabled. MuJoCo still owns CPU physics.
+Private run metadata and worker logs record the resolved GPU identity.
+
+Allow for cold shader compilation within the startup deadline (900 seconds by
+default). Wait for RoboEnv's ready endpoint before loading Kinex devices; Kit's
+`app ready` message precedes scene initialization and is not service readiness.
+After restarting a service, set Kinex's `ROBOENV_ENDPOINT` to the new endpoint,
+update any workspace `connection.json` pinned to an old episode, and reload the
+devices. `roboenv.launch` strips inherited `ROBOENV_*` variables before setting
 its own worker configuration.
 
 Kinex's `run --record` requires devices to be loaded; exported profiles initially
@@ -219,9 +242,18 @@ Realtime advances continuously; stepped advances during world waits.
 Independent devices share each tick;
 new commands replace prior motion on the same device. Stop cancels that device's active and
 queued commands, zeroing base travel or holding measured joints. It retains peer
-targets and posture. Stepped retains the native horizon; realtime removes the
-step cap. Native non-timeout termination conditions remain active in both modes.
+targets and posture. Stepped has a 10,000-control-step budget (200 simulated
+seconds); realtime removes the step cap. Native non-timeout termination conditions
+remain active in both modes.
 Reads, status, stop, recording and local FK/IK never advance physics.
+
+`world.wait(2)` waits for two seconds of simulation time, not wall time.
+Isaac synchronization/rendering runs once per 20 ms control interval, following
+upstream evaluation/replay, while MuJoCo retains all four 5 ms physics substeps.
+Rendering can still make simulation slower than real time. A bounded no-recording
+XMove diagnostic on an NVIDIA L40S measured approximately 30.4 wall seconds for two simulation
+seconds with substep rendering, versus 9.1 seconds with control-interval rendering;
+these are workload-specific timings, not a real-time performance guarantee.
 
 ## Kinex and replay
 
@@ -249,9 +281,38 @@ an official SIMPLE baseline or a task-performance result.
 
 ## Validation
 
-The current revision passes native control, Kinex stereo recording and fresh-process
-replay checks with MuJoCo rendering in both clocks for all three examples. Isaac
-rendering remains unvalidated; selecting it as the default does not certify that path.
+### Spectator video
+
+`roboenv launch simple/g1-xmove-pick --gpu 0 --record` records the existing
+left and right head-camera viewpoints through the shared spectator recorder.
+Both `mujoco_isaac` and diagnostic `mujoco` rendering modes are supported.
+The default is separate 640×360 MP4s at 10 simulation-time FPS, named
+`camera_head_left.mp4` and `camera_head_right.mp4`. Camera poses follow the live
+stereo sources. Isaac recording reads existing sensor buffers without additional
+GPU rendering or camera products. Use `--record-views` to select a camera;
+explicit output sizes resample the native images on the CPU and add no scene
+detail. Fixed-pose spectator views are unsupported for SIMPLE.
+See [spectator recording](spectator.md) for configuration,
+timing, metadata and failure handling.
+
+SIMPLE spectator rendering is experimental. CPU boundary tests do not establish
+native isolation, capture throughput, task success or replay. Native MuJoCo
+spectator checks pass for all three examples in both clocks. Stepped Isaac XMove's
+frame/state checks pass with unchanged agent images, but its standalone probe
+crashes during Kit shutdown; a complete Isaac isolation certificate remains
+pending. The normal Isaac XMove CLI recording/owner-stop path passes in both clocks.
+The spectator probe is separate from the Kinex stereo checks below.
+
+### Device and replay checks
+
+Earlier integration validation covered native control, Kinex stereo recording and
+fresh-process replay with MuJoCo rendering in both clocks for all three examples.
+A bounded, no-model Isaac XMove probe also covered worker boot, Kinex measured motion and stop,
+stereo recording, owner finalization and exact fresh-process replay in both clocks
+on one GPU. This does not certify the other Isaac tasks or full integration acceptance.
+Camera acquisition remains below the probe's requested 3 Hz; encoded video FPS
+does not establish capture throughput. Full scene initialization and stabilization
+still take longer than Kit application startup.
 Hand geometry is checked against native MuJoCo transforms across 102 configurations,
 including both hands, individual joint perturbations, limits, and measured overshoot.
 The Kinex checks exercise live fingertip frames, local prediction, and fixed grasp
@@ -259,6 +320,8 @@ reference conversion through arm IK. These checks do not establish grasp success
 
 ```sh
 python tools/accept_simple.py --python SIMULATOR_PYTHON --out NEW_RESULTS
+# Select one host GPU for Isaac validation and replay:
+python tools/accept_simple.py --python SIMULATOR_PYTHON --out NEW_RESULTS --gpu 0
 # Diagnostic matrix with MuJoCo images:
 python tools/accept_simple.py --python SIMULATOR_PYTHON --out NEW_RESULTS --sim-mode mujoco
 # Uncompensated native checks and replay:
@@ -276,8 +339,9 @@ It defaults to Isaac rendering. `--native-only` omits the Kinex/service checks;
 
 Report offline conformance, native boot/control, rendering, Kinex recording and replay
 separately. Previous PR validation used obsolete contracts and does not certify this
-implementation. Isaac acceptance requires a fresh successful run on an appropriately
-configured host; MuJoCo checks alone do not establish Isaac support or visual parity.
+implementation. Broader Isaac acceptance requires fresh successful checks on an
+appropriately configured host; MuJoCo checks alone do not establish Isaac support
+or visual parity.
 Container isolation certification and task-performance evaluation remain separate.
 
 Source and asset pins, managed patch checksums and dependency locks are versioned.

@@ -110,6 +110,35 @@ def test_isaac_capture_does_not_integrate_mirrored_state():
     assert world.step_id == 1
 
 
+@pytest.mark.parametrize("every_substep,render_ticks", [(True, [1, 2, 3, 4]), (False, [4])])
+def test_control_interval_rendering_preserves_physics_and_verdict(every_substep, render_ticks):
+    tree = source("envs/sonic_loco_manip.py")
+    method = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "step")
+    namespace = {}
+    module = ast.Module(body=[method], type_ignores=[])
+    exec(compile(module, "sonic_loco_manip.py", "exec"), namespace)
+    ticks, rendered, actions, predicates = [], [], [], []
+    native = types.SimpleNamespace(
+        control_decimal=4, sync_isaac_every_substep=every_substep, step_count=0,
+        mujoco=types.SimpleNamespace(
+            apply_action=lambda action: actions.append(action),
+            step=lambda **kwargs: ticks.append(kwargs),
+        ),
+        isaac=types.SimpleNamespace(step=lambda _: rendered.append(len(ticks))),
+        _emit_timing=lambda _: None, _get_obs=lambda: {"camera": "frame"},
+        _get_info=lambda: {"task": "native"},
+        task=types.SimpleNamespace(
+            compute_reward=lambda *a, **kw: 0.5,
+            check_success=lambda info, **kw: predicates.append(info) or True,
+        ),
+    )
+    result = namespace["step"](native, "target")
+    assert ticks == [{"render": False}] * 4 and actions == ["target"] * 4
+    assert rendered == render_ticks
+    assert predicates == [{"task": "native"}]
+    assert native.step_count == 1 and result[1:4] == (0.5, True, False)
+
+
 def test_rendered_sonic_waist_matches_physics_geometry():
     tree = source("engines/isaacsim.py")
     method = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
@@ -125,7 +154,11 @@ def test_rendered_sonic_waist_matches_physics_geometry():
     }
 
 
-def test_isaac_shutdown_returns_to_owner(monkeypatch):
+@pytest.mark.parametrize("selected", [None, "3"])
+def test_isaac_shutdown_and_single_gpu_configuration(monkeypatch, selected):
+    monkeypatch.delenv("SIMPLE_ISAAC_ACTIVE_GPU", raising=False)
+    if selected is not None:
+        monkeypatch.setenv("SIMPLE_ISAAC_ACTIVE_GPU", selected)
     tree = source("engines/isaac_app.py")
     monkeypatch.setitem(sys.modules, "simple.utils", types.SimpleNamespace(
         env_flag=lambda name, default: default,
@@ -140,6 +173,11 @@ def test_isaac_shutdown_returns_to_owner(monkeypatch):
 
     namespace["create_simulation_app"](create, headless=True)
     assert configs[0]["fast_shutdown"] is False
+    if selected is not None:
+        assert configs[0]["active_gpu"] == 3
+        assert configs[0]["physics_gpu"] == 0
+        assert configs[0]["multi_gpu"] is False
+        assert configs[0]["max_gpu_count"] == 1
 
 
 @pytest.mark.parametrize("outcome", ["passed", "mismatch", "exception"])

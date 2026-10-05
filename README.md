@@ -87,7 +87,8 @@ run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready
 Python callers can enable streaming with `log_stream=sys.stderr`.
 
 Add `--record` to save experimental spectator MP4s at 10 simulation-time FPS,
-with independent 720-pixel-high overview and wrist views. See
+with independent 720-pixel-high overview/wrist views on supported backends.
+SIMPLE records its existing 640×360 left/right head-camera frames. See
 [spectator recording](docs/spectator.md) for custom views, timing and backend coverage.
 
 Official LIBERO uses the same typed device path with complete scene-specific Panda
@@ -138,7 +139,8 @@ See [gripper geometry](docs/grippers.md) for frame conventions and source valida
 
 SIMPLE G1 uses a `velocity` base for legs and waist, separate `joint` arms,
 `dexterous_hand` fingers, and stereo RGB cameras. Run `roboenv prepare simple`
-and `roboenv launch simple/g1-xmove-pick`. It uses Isaac rendering over MuJoCo physics with command-driven stepping. See [SIMPLE setup, contracts and validation](docs/simple.md) for requirements
+and `roboenv launch simple/g1-xmove-pick --gpu 0`. Isaac rendering uses one selected
+GPU over MuJoCo CPU physics with command-driven stepping. See [SIMPLE setup, contracts and validation](docs/simple.md) for requirements
 and the current validation limits. The metric control interface is a practice
 protocol; native success predicates are preserved.
 

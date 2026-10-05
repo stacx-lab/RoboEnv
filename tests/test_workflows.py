@@ -217,6 +217,10 @@ def test_launch_validation_precedes_process_creation(monkeypatch):
         launch_toy(timeout=float("nan"))
     with pytest.raises(ValueError, match="port"):
         launch_toy(port=-1)
+    with pytest.raises(ValueError, match="nonnegative"):
+        launch_toy(gpu=-1)
+    with pytest.raises(ValueError, match="only for SIMPLE Isaac"):
+        launch_toy(gpu=0)
 
 
 def test_occupied_port_fails_before_a_world_is_started():

@@ -69,6 +69,7 @@ def check(args):
         env_id=args.env_id,
         sim_mode=args.sim_mode,
         arm_gravity_compensation=args.arm_gravity_compensation,
+        gpu=args.gpu,
     )
     try:
         world.configure_execution_mode(args.execution_mode)
@@ -199,6 +200,7 @@ def check(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--gpu", type=int, help="Host GPU index for Isaac rendering")
     parser.add_argument("--env-id", default="simple/G1WholebodyXMovePickTeleop-v0")
     parser.add_argument("--sim-mode", choices=("mujoco", "mujoco_isaac"), default="mujoco")
     parser.add_argument("--execution-mode", choices=("stepped", "realtime"), default="stepped")

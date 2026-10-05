@@ -14,20 +14,42 @@ FFmpeg with `libx264` must be on
 PATH; it is optional when recording is disabled. Python owners use
 `roboenv.launch(task, recording={})`, or pass `recording={"fps": 5, "views": [...]}`.
 Use `recording={"directory": "./recordings/episode-1"}` to select the output folder.
-Recording is experimental on all five backends. LIBERO, RoboCasa and RoboTwin
+Recording is experimental on all six backends. LIBERO, RoboCasa and RoboTwin
 have native spectator isolation checks; RoboDojo and BEHAVIOR remain unverified.
+SIMPLE's MuJoCo checks cover all three example tasks in both clock modes.
+Its stepped Isaac XMove frame/state checks pass, but a standalone Kit shutdown crash
+prevents a complete native isolation certificate. The normal Isaac XMove CLI
+recording and owner-stop path passes in both clocks; neither establishes task success.
 There is no browser preview or offline replay fallback.
 
 Defaults are **10 simulation-time FPS**, height **720**, and the source camera's
 aspect ratio. LIBERO and RoboCasa select `third_person` and `wrist`; RoboTwin,
 RoboDojo and BEHAVIOR select `third_person`, `left_wrist` and `right_wrist`.
 These are separate spectator cameras; changing their resolution does not resize
-agent observations. For example, `views.json` for LIBERO can contain:
+agent observations. SIMPLE instead records the existing `camera_head_left` and
+`camera_head_right` frames at their native 640×360 resolution in both
+`mujoco_isaac` and diagnostic `mujoco` modes. Its views therefore have exactly
+the device cameras' positions, orientations and optical parameters. Explicit
+output sizes resample those frames on the CPU, without adding scene detail.
+SIMPLE does not support fixed-pose spectator views. For example, `views.json`
+for LIBERO can contain:
 
 ```json
 [
   {"name": "overview", "source": "third_person", "height": 720},
   {"name": "hand", "source": "wrist", "width": 480, "height": 480}
+]
+```
+
+For SIMPLE, record both head views or select just the left view:
+
+```sh
+roboenv launch simple/g1-xmove-pick --gpu 0 --record
+```
+
+```json
+[
+  {"name": "left", "source": "camera_head_left", "height": 360}
 ]
 ```
 
@@ -60,7 +82,7 @@ partial videos and an incomplete manifest. Fragmented MP4 retains completed
 fragments where possible. Recording files and cameras are not exposed through
 agent device discovery or health responses.
 
-## One interface, three engines
+## Shared recording interface
 
 ```python
 from roboenv_runtime.spectator import ViewSpec, create_spectator_renderer
@@ -77,7 +99,8 @@ finally:
 ```
 
 Omitting views selects the available third-person and wrist views, at height 720
-with the source aspect ratio. Dual-arm backends use `left_wrist` and `right_wrist`.
+with the source aspect ratio, or both native 640×360 head-camera views for SIMPLE.
+Dual-arm backends other than SIMPLE use `left_wrist` and `right_wrist`.
 BEHAVIOR resolves these roles from mounting metadata, not numbered camera names.
 The `third_person` role follows the benchmark's existing overview/head camera;
 it does not imply a fixed camera outside the robot.
@@ -94,6 +117,10 @@ reads wrist mount poses directly, bypassing task hooks that may randomize lighti
 Isaac uses separate camera prims and render products while sharing the world's
 native render graph. Its products remain allocated until world shutdown; do not
 repeatedly create renderers in a live world.
+SIMPLE reads its existing Isaac sensor buffers without another render update.
+Independent high-resolution Isaac products were excluded because native probes
+found that their initialization changed the agent images through the shared
+renderer. MuJoCo mode reads its existing camera renderer at its native resolution.
 
 Create one renderer after reset and close it before replacing or destroying the
 world. Creation, capture and cleanup belong on the world's owner thread. Captures
@@ -124,7 +151,23 @@ state, RNG state, budgets, verdicts and device descriptors around setup/capture/
 cleanup, checks agent image changes against baseline renderer variability, and
 retains sample PNGs, capture latency, a run specification and a result receipt.
 A native hang is bounded by the parent process timeout. Always inspect
-`result.json`; process exit alone is not a passing receipt.
+`result.json`; process exit alone is not a passing receipt. The receipt distinguishes
+`isolation_passed` from `native_exit_code`; overall `passed` requires both the
+isolation checks and a clean native exit.
+
+SIMPLE uses the same probe, with `--sim-mode mujoco_isaac` (the task default) or
+`--sim-mode mujoco`. For example:
+
+```sh
+.venv/bin/python tools/check_spectator.py simple/g1-xmove-pick \
+  --gpu 0 --clock stepped --sim-mode mujoco_isaac --seconds 2 \
+  --out .cache/spectator/simple-xmove-isaac-stepped
+```
+
+Its probe forces fresh stereo reads and compares controller state, native counters
+and camera calibration as well as physics state. Capture latency is reported
+separately from configured video FPS. GPU selection follows the normal SIMPLE
+launch path's CUDA/Vulkan identity checks.
 
 This renderer probe does **not** establish HTTP concurrency, recording throughput,
 encoder failure isolation, task success, or fresh-process replay. CPU encoder and

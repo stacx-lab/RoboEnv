@@ -34,10 +34,17 @@ class SimpleEnv:
         dr_level=0,
         initialization=None,
         stabilize_steps=300,
+        gpu=None,
     ):
         if type(arm_gravity_compensation) is not bool:
             raise ValueError("arm_gravity_compensation must be a boolean")
         self.arm_gravity_compensation = arm_gravity_compensation
+        from roboenv.provisioning.gpu import validate_gpu
+
+        validate_gpu(gpu)
+        if gpu is not None and sim_mode != "mujoco_isaac":
+            raise ValueError("gpu selection requires SIMPLE Isaac rendering")
+        self.gpu = gpu
         root = repo_root()
         self.root = root
         self.env = None
@@ -60,7 +67,8 @@ class SimpleEnv:
         self.env_id, self.sim_mode, self.dr_level = env_id, sim_mode, dr_level
         self.initial_state = copy.deepcopy(initialization)
         self.stabilize_steps = stabilize_steps
-        self.configured_max_steps = tasks[env_id]["metadata"]["max_episode_steps"]
+        # RoboEnv's practice protocol uses a shared 200-second stepped budget.
+        self.configured_max_steps = 10_000
         self.max_steps = None
         os.environ["SIMPLE_DATA_DIR"] = str(data)
         os.environ["SIMPLE_OFFLINE"] = "1"
@@ -83,6 +91,11 @@ class SimpleEnv:
     def reset(self, seed):
         if self.env is not None:
             raise ValueError("SIMPLE reset requires a fresh worker")
+        if self.sim_mode == "mujoco_isaac":
+            from roboenv.provisioning.gpu import configure_simple_gpu
+
+            selection = configure_simple_gpu(self.gpu)
+            print("SIMPLE GPU selection: " + json.dumps(selection, sort_keys=True), flush=True)
         import gymnasium as gym
         import simple.envs  # noqa: F401
         from gear_sonic.utils.mujoco_sim.configs import SimLoopConfig
@@ -103,6 +116,9 @@ class SimpleEnv:
                 render_hz=50,
                 dr_level=self.dr_level,
             ).unwrapped
+            # Match upstream evaluation/replay: physics stays at 200 Hz, while
+            # Isaac mirrors the final state once per 50 Hz control interval.
+            self.env.sync_isaac_every_substep = False
             self.task = self.env.task
             options = (
                 {"state_dict": copy.deepcopy(self.initial_state)} if self.initial_state else None

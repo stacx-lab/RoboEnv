@@ -63,6 +63,10 @@ def add_commands(commands):
                 help="Disable SIMPLE arm gravity feedforward",
             )
             parser.set_defaults(arm_gravity_compensation=None)
+            parser.add_argument(
+                "--gpu", type=int,
+                help="Host GPU index for SIMPLE Isaac (default: first permitted GPU, else 0)",
+            )
             parser.add_argument("--host", default="127.0.0.1")
             parser.add_argument("--interpreter", type=Path)
             parser.add_argument("--timeout", type=float, default=900)
@@ -168,6 +172,7 @@ def execute(args):
             port=args.port,
             host=args.host,
             arm_gravity_compensation=args.arm_gravity_compensation,
+            gpu=args.gpu,
             log_stream=sys.stderr,
             runtime_root=args.runtime_root,
             run_dir=args.run_dir,

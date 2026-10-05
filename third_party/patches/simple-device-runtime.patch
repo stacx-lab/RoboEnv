@@ -34,7 +34,7 @@ index b57399d..698e60c 100644
      def resolve_data_path(self,rel_path = None, create_if_not_exist=False) -> str:
          data_dir = self.get_data_dir()
 diff --git a/src/simple/engines/isaac_app.py b/src/simple/engines/isaac_app.py
-index a9cb6d5..cd27358 100644
+index a9cb6d5..52b19c8 100644
 --- a/src/simple/engines/isaac_app.py
 +++ b/src/simple/engines/isaac_app.py
 @@ -92,6 +92,8 @@ def create_simulation_app(
@@ -46,6 +46,19 @@ index a9cb6d5..cd27358 100644
          "renderer": renderer,
          "multi_gpu": multi_gpu,
          "anti_aliasing": anti_aliasing,
+@@ -100,6 +102,12 @@ def create_simulation_app(
+         "height": height,
+         "experience": experience,
+     })
++    selected_gpu = os.getenv("SIMPLE_ISAAC_ACTIVE_GPU")
++    if selected_gpu is not None:
++        # RoboEnv selects a physical GPU before native imports. Vulkan retains
++        # its own ordinal; CUDA sees only that GPU and remaps it to zero.
++        sim_cfg.update(active_gpu=int(selected_gpu), physics_gpu=0,
++                       multi_gpu=False, max_gpu_count=1)
+     if extra_args:
+         sim_cfg["extra_args"] = extra_args
+ 
 diff --git a/src/simple/engines/isaacsim.py b/src/simple/engines/isaacsim.py
 index 14fccf8..d386dd5 100755
 --- a/src/simple/engines/isaacsim.py
