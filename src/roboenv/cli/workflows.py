@@ -74,6 +74,16 @@ def add_commands(commands):
                 "--execution-mode", choices=("stepped", "realtime"),
                 help="Override the task catalog execution mode"
             )
+            success = parser.add_mutually_exclusive_group()
+            success.add_argument(
+                "--stop-on-success", dest="stop_on_success", action="store_true",
+                help="End the episode at the first successful control interval",
+            )
+            success.add_argument(
+                "--no-stop-on-success", dest="stop_on_success", action="store_false",
+                help="Continue after success, overriding the task setting",
+            )
+            parser.set_defaults(stop_on_success=None)
             parser.add_argument("--detach", action="store_true")
             parser.add_argument(
                 "--record", nargs="?", const=True, type=Path, metavar="DIR",
@@ -165,6 +175,7 @@ def execute(args):
         environment = launch(
             args.task,
             execution_mode=args.execution_mode,
+            stop_on_success=args.stop_on_success,
             project=args.project,
             catalog=args.catalog,
             interpreter=args.interpreter,

@@ -301,9 +301,11 @@ class SimpleEnv:
         self.frames.append(copy.deepcopy(targets))
         self.steps += 1
         self.reward = float(reward)
-        self.completed = bool(terminated)
+        # SonicLocoManipEnv uses terminated exclusively for native success.
+        # Retain that verdict, but let the worker own stop_on_success policy.
+        self.completed = self.completed or bool(terminated)
         self.done = bool(
-            terminated or truncated or (self.max_steps is not None and self.steps >= self.max_steps)
+            truncated or (self.max_steps is not None and self.steps >= self.max_steps)
         )
         self.images = {}
 

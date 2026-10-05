@@ -26,7 +26,9 @@ def frame_poses(world, name):
         )
         for finger in geometry["fingers"].values()
     }
-    center = geometry["center"]
+    center = geometry.get("center")
+    if center is None:
+        return frames
     frames[center["frame"]] = [
         sum(weight * frames[geometry["fingers"][finger]["tip_frame"]][axis]
             for finger, weight in center["weights"].items())

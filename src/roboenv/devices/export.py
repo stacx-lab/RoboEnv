@@ -174,7 +174,7 @@ def export_devices(profiles, directory, connection):
                 ]
             if (
                 descriptor["type"] == "dexterous_hand"
-                and descriptor["intrinsics"].get("geometry")
+                and descriptor["intrinsics"].get("geometry", {}).get("fingers")
                 and "fk" not in actions
             ):
                 actions.append("fk")

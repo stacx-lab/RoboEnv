@@ -382,7 +382,7 @@ def test_grouped_catalog_ids_and_listing(capsys):
     from roboenv.tasks.catalog import load_catalog
 
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 18
+    assert len(catalog) == 27
     for identifier, (task, path) in catalog.items():
         assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
         assert identifier.split("/")[0] == task.backend
@@ -406,7 +406,9 @@ def test_grouped_catalog_ids_and_listing(capsys):
     assert main(["tasks", "list", "--project", str(ROOT)]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["ids"] == sorted(catalog)
-    assert result["execution_modes"] == {key: "realtime" for key in catalog}
+    assert result["execution_modes"] == {
+        key: task.execution_mode for key, (task, _) in catalog.items()
+    }
     assert main(["tasks", "list", "--simulator", "robocasa", "--project", str(ROOT)]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["ids"] == ["robocasa/arrange-vegetables", "robocasa/pick-place-microwave"]

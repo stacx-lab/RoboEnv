@@ -287,6 +287,7 @@ def launch(
     advertise_host=None,
     python_path=(),
     execution_mode=None,
+    stop_on_success=None,
     recording=None,
 ):
     """Start a task in its isolated interpreter; return after device readiness.
@@ -294,6 +295,7 @@ def launch(
     arm_gravity_compensation overrides the SIMPLE task setting; None preserves
     the task value, which defaults to True. Other backends reject this override.
     execution_mode overrides the task setting; None preserves the catalog mode.
+    stop_on_success overrides the task's backend policy; None preserves its value.
     recording={} enables experimental owner-only MP4s (10 simulation fps);
     optional fps and views configure sampling and independent spectator cameras.
     directory selects a new or empty output folder, relative to the caller's cwd.
@@ -309,6 +311,8 @@ def launch(
     recording = recording_config(recording)
     if execution_mode is not None and execution_mode not in ("stepped", "realtime"):
         raise ValueError("execution_mode must be stepped or realtime")
+    if stop_on_success is not None and type(stop_on_success) is not bool:
+        raise ValueError("stop_on_success must be a boolean")
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
         raise ValueError("timeout must be a positive finite number")
     if not math.isfinite(timeout) or timeout <= 0:
@@ -331,6 +335,15 @@ def launch(
     )
     if execution_mode is not None:
         resolved = replace(resolved, task=replace(resolved.task, execution_mode=execution_mode))
+    if stop_on_success is not None:
+        if resolved.task.backend not in {
+            "libero", "robocasa", "robotwin", "robodojo", "behavior", "simple", "fakeshell"
+        }:
+            raise ValueError(f"stop_on_success is not supported for {resolved.task.backend}")
+        resolved = replace(resolved, task=replace(
+            resolved.task,
+            backend_kwargs={**resolved.task.backend_kwargs, "stop_on_success": stop_on_success},
+        ))
     spec = resolved.task
     isaac_simple = spec.backend == "simple" and spec.backend_kwargs.get(
         "sim_mode", "mujoco_isaac"

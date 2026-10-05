@@ -217,6 +217,7 @@ def _dimensions(device):
         lines.append(
             "Reads report aperture, faults and timestamp; finger poses are unavailable."
         )
+    if device["type"] in {"gripper", "dexterous_hand"}:
         description = facts.get("geometry", {}).get("description")
         if description:
             lines.append(description)

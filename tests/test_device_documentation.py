@@ -103,3 +103,23 @@ def test_documentation_exports_actual_live_action_contract(device_service, tmp_p
             if action["supported"]:
                 assert f"### {name}\n" in text
     assert "### read" in text
+
+
+@pytest.mark.parametrize("fingers", [False, True])
+def test_hand_description_and_optional_fk_export(tmp_path, fingers):
+    from roboenv.devices.export import export_devices
+
+    geometry = {"description": "Three opposed fingers."}
+    if fingers:
+        geometry["fingers"] = {"index": {
+            "chain": [{"joint": "knuckle", "origin": [0, 0, 0, 0, 0, 0, 1],
+                       "axis": [0, 0, 1], "anchor": [0, 0, 0], "reference": 0}],
+            "tip_frame": "index_tip", "tip_offset": [0, 0, .05, 0, 0, 0, 1]}}
+    device = {"name": "hand", "type": "dexterous_hand", "intrinsics": {"geometry": geometry},
+              "extrinsics": {}, "actions": {"read": {"supported": True}}}
+    text = render_documentation({}, [device], {"endpoint": "http://sim:8123"})
+    assert "Three opposed fingers." in text
+    export_devices([device], tmp_path, {"endpoint": "http://sim:8123"})
+    exported = yaml.safe_load((tmp_path / "hand/profile.yaml").read_text())
+    assert ("fk" in exported["access"]["driver"]["actions"]) is fingers
+    assert exported["intrinsics"]["geometry"] == geometry

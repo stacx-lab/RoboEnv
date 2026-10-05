@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src"), str(ROOT / "runtime/src")]
 from roboenv.devices.export import driver_access, write_driver  # noqa: E402
 from roboenv.provisioning.simple_assets import digest  # noqa: E402
-from roboenv.tasks.simple import REPRESENTATIVES, discover_tasks  # noqa: E402
+from roboenv.tasks.simple import discover_tasks  # noqa: E402
 from roboenv_runtime.adapters.simple.profiles import IDENTITY, NAMES, profiles  # noqa: E402
 from roboenv_runtime.adapters.urdf_geometry import matrix, matrix_pose  # noqa: E402
 from simple_hand_geometry import extract_hand  # noqa: E402
@@ -255,7 +255,8 @@ def generate(out, facts_out, *, bindings_out=None):
                 actions += ["write", "stop"]
             if value["type"] == "joint":
                 actions += ["fk", "ik"]
-            elif value["type"] == "dexterous_hand":
+            elif (value["type"] == "dexterous_hand"
+                  and value["intrinsics"].get("geometry", {}).get("fingers")):
                 actions += ["fk"]
             profile["access"] = driver_access(value["type"], name, actions, "http://127.0.0.1:8123")
             write_driver(directory, value["type"])
@@ -281,8 +282,6 @@ def generate(out, facts_out, *, bindings_out=None):
     from dataclasses import asdict
 
     for task, _ in discover_tasks(ROOT):
-        if task.id.split("/")[1] not in REPRESENTATIVES.values():
-            continue
         target = out / "tasks" / task.id / "task.yaml"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(yaml.safe_dump(asdict(task), sort_keys=False))

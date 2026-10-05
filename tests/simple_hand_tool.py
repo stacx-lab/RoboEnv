@@ -17,8 +17,7 @@ for side in ("left", "right"):
         resolved = frames.pose(name + ":" + frame, name, readings={name: state})
         error = pose_error(pose, flat(pose_to_rt(resolved)))
         assert error["position_m"] < 1e-6 and error["rotation_rad"] < 1e-6, error
-    geometry = hand["intrinsics"]["geometry"]
-    reference = frames.pose(name + ":" + geometry["reference_frame"], arm + ":flange")
+    reference = frames.pose(name + ":grasp_reference", arm + ":flange")
     arm_profile = profile(arm)
     joint = JointDevice(arm_profile)
     seed = joint.project(device(arm)["data"]["positions"])

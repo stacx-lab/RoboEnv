@@ -2,12 +2,13 @@ id: simple/g1-bend-pick
 backend: simple
 backend_task: simple.G1WholebodyBendPickTeleop-v0
 robot: simple/simple-g1
-instruction: A task where the G1 Wholebody robot must bend and pick up an object.
+instruction: bend the robot and pick up the cracker box
 backend_kwargs:
   env_id: simple/G1WholebodyBendPickTeleop-v0
   sim_mode: mujoco_isaac
   dr_level: 0
   arm_gravity_compensation: true
+  stop_on_success: false
 seed: 0
 budget_mode: practice
 device_bindings: null

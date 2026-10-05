@@ -1,0 +1,15 @@
+id: simple/push-office-chair
+backend: simple
+backend_task: simple.G1WholebodyPushOfficeChairTeleop-v0
+robot: simple/simple-g1
+instruction: move forward to the office chair and push it to the table
+backend_kwargs:
+  env_id: simple/G1WholebodyPushOfficeChairTeleop-v0
+  sim_mode: mujoco_isaac
+  dr_level: 0
+  arm_gravity_compensation: true
+  stop_on_success: false
+seed: 0
+budget_mode: practice
+device_bindings: null
+execution_mode: realtime
