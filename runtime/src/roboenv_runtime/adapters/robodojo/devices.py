@@ -190,9 +190,8 @@ class RoboDojoDevices(RoboDojoEnv):
             self.frame_limit = None
             self._env.step_lim = float("inf")
         else:
-            native_limit = self.native_step_limit
-            self._env.step_lim = native_limit
-            self.frame_limit = min(native_limit, self.requested_frame_limit or native_limit)
+            self.frame_limit = self.requested_frame_limit or self.native_step_limit
+            self._env.step_lim = self.frame_limit
 
     def exhausted(self):
         return bool(self._env.end_flag[0]) or (
