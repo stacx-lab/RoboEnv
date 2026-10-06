@@ -79,6 +79,47 @@ def test_simulator_resolves_the_verified_depot(monkeypatch, tmp_path):
     assert namespace["get_data_dir"](None) == tmp_path
 
 
+def test_isaac_startup_and_reset_select_dlaa(monkeypatch):
+    configs, settings = [], {}
+    monkeypatch.setitem(sys.modules, "isaacsim", types.SimpleNamespace(
+        SimulationApp=lambda config: configs.append(config),
+    ))
+    monkeypatch.setitem(sys.modules, "simple.engines.isaac_app", types.SimpleNamespace(
+        create_simulation_app=lambda factory, **kwargs: factory(kwargs),
+    ))
+    namespace = {"_ISAAC_LOADED": False, "_preload_native_runtime": lambda: None}
+    method = next(n for n in ast.walk(source("envs/base_dual_env.py"))
+                  if isinstance(n, ast.FunctionDef) and n.name == "_init_isaac")
+    exec(compile(ast.Module(body=[method], type_ignores=[]), "base_dual_env.py", "exec"),
+         namespace)
+    namespace["_init_isaac"](None, headless=True)
+    assert configs[0]["anti_aliasing"] == 4
+
+    namespace.update(
+        env_flag=lambda name, default: default,
+        carb=types.SimpleNamespace(settings=types.SimpleNamespace(
+            get_settings=lambda: types.SimpleNamespace(set=settings.__setitem__),
+        )),
+        omni=types.SimpleNamespace(kit=types.SimpleNamespace(commands=types.SimpleNamespace(
+            execute=lambda *args, **kwargs: (True, None),
+        ))),
+        rep=types.SimpleNamespace(settings=types.SimpleNamespace(
+            set_render_rtx_realtime=lambda **kwargs: settings.update(kwargs),
+        )),
+    )
+    cls = next(n for n in ast.walk(source("engines/isaacsim.py"))
+               if isinstance(n, ast.ClassDef) and n.name == "IsaacSimSimulator")
+    methods = [n for n in cls.body if isinstance(n, ast.FunctionDef)
+               and n.name in {"_config_isaac", "reset"}]
+    exec(compile(ast.Module(body=methods, type_ignores=[]), "isaacsim.py", "exec"), namespace)
+    world = types.SimpleNamespace(_config_isaac=lambda: namespace["_config_isaac"](None))
+    world._config_isaac()
+    assert settings["antialiasing"] == "DLAA"
+    settings["antialiasing"] = "FXAA"
+    namespace["reset"](world)
+    assert settings["antialiasing"] == "DLAA"
+
+
 def test_isaac_capture_does_not_integrate_mirrored_state():
     tree = source("engines/isaacsim.py")
     method = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "step")

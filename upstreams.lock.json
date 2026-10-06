@@ -144,7 +144,7 @@
       "patches": [
         {
           "path": "third_party/patches/simple-device-runtime.patch",
-          "sha256": "2470be9941df719121a42db17e159d7ba3b294982e141aa3877a4515356bb24e"
+          "sha256": "cf825c78ef5ac41c991de669daa62a1e66245a1d511108b597ae67fc4eeb51a0"
         },
         {
           "path": "third_party/patches/simple-arm-gravity-compensation.patch",
