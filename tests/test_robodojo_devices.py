@@ -9,6 +9,23 @@ from roboenv_runtime.adapters.robodojo import devices
 from roboenv_runtime.adapters.robodojo.rig import camera_intrinsics, euler_pose
 
 
+@pytest.mark.parametrize("requested,expected", [(None, 100), (50, 50), (7500, 7500)])
+def test_explicit_frame_budget_reaches_native_eval_env(requested, expected):
+    env = devices.RoboDojoDevices.__new__(devices.RoboDojoDevices)
+    env.native_step_limit = 100
+    env.requested_frame_limit = requested
+    env._env = SimpleNamespace(step_lim=100, end_flag=[False])
+    env.control = SimpleNamespace(frame=expected - 1)
+    env._configure_step_limit()
+    assert env.frame_limit == env._env.step_lim == expected
+    assert not env.exhausted()
+    env.control.frame = expected
+    assert env.exhausted()
+    env.control.frame = 0
+    env._env.end_flag[0] = True
+    assert env.exhausted()
+
+
 @pytest.mark.parametrize("budget_mode", ["practice", "official"])
 def test_normal_worker_passes_only_typed_budget_arguments(monkeypatch, budget_mode):
     from roboenv_runtime.runtime import worker
