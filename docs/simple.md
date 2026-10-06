@@ -371,7 +371,10 @@ Both `mujoco_isaac` and diagnostic `mujoco` rendering modes are supported.
 The default is separate 640×360 MP4s at 10 simulation-time FPS, named
 `camera_head_left.mp4` and `camera_head_right.mp4`. Camera poses follow the live
 stereo sources. Isaac recording reads existing sensor buffers without additional
-GPU rendering or camera products. Use `--record-views` to select a camera;
+GPU rendering or camera products. Isaac defaults to DLAA to reduce background
+shimmer during camera motion, with one render subframe per control interval.
+The native 640×360 camera resolution and optical calibration are unchanged.
+Use `--record-views` to select a camera;
 explicit output sizes resample the native images on the CPU and add no scene
 detail. Fixed-pose spectator views are unsupported for SIMPLE.
 See [spectator recording](spectator.md) for configuration,
