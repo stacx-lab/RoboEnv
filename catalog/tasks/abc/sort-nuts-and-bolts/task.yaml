@@ -3,12 +3,7 @@ robot: abc/abc-yam
 instruction: sort the nuts and bolts into their matching bins
 seed: 0
 budget_mode: practice
-# execution_mode: realtime
-# stop_on_success: false
-# backend_kwargs:
-#   task_name: sort_nuts_and_bolts
-execution_mode: stepped
+execution_mode: realtime
+stop_on_success: false
 backend_kwargs:
   task_name: sort_nuts_and_bolts
-  camera_backend: blender
-  render_gpu_id: 0
