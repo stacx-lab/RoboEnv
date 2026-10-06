@@ -1,0 +1,9 @@
+id: abc/inhand-transfer-item-to-other-side
+robot: abc/abc-yam
+instruction: inhand transfer the item to other side
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: inhand_transfer_item_to_other_side

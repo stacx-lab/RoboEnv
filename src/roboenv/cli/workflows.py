@@ -25,6 +25,11 @@ def add_commands(commands):
             parser.add_argument("simulator")
         if name == "prepare":
             parser.add_argument(
+                "--renderer",
+                choices=("mujoco", "blender"),
+                help="Optional ABC renderer preparation",
+            )
+            parser.add_argument(
                 "--prefix", type=Path, help="New environment (default: .venv-sim/SIMULATOR)"
             )
         if name == "launch":
@@ -149,13 +154,19 @@ def execute(args):
 
             prepared = (
                 prepare(
-                    args.simulator, project=args.project, install_to=args.prefix, progress=progress
+                    args.simulator,
+                    project=args.project,
+                    install_to=args.prefix,
+                    progress=progress,
+                    **({"renderer": args.renderer} if args.renderer is not None else {}),
                 )
                 or {}
             )
         result = doctor(args.simulator, project=args.project)
         if "downloaded_assets_verified" in prepared:
             result["downloaded_assets_verified"] = prepared["downloaded_assets_verified"]
+        if "rendering" in prepared:
+            result["rendering"] = prepared["rendering"]
         emit(result, machine=args.json)
         return 0 if result["install_preflight_passed"] else 1
     if args.command == "launch":

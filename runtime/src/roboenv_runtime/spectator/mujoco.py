@@ -13,7 +13,9 @@ class Engine:
     def __init__(self, adapter):
         self.world = adapter._env
         height, width = self.world._camera_size
-        names = ({"third_person": "agentview", "wrist": "robot0_eye_in_hand"}
+        self.abc = adapter.name == "abc"
+        names = ({"third_person": "top", "wrist": "left", "right_wrist": "right"}
+                 if self.abc else {"third_person": "agentview", "wrist": "robot0_eye_in_hand"}
                  if adapter.name == "libero" else
                  {"third_person": "robot0_agentview_left", "wrist": "robot0_eye_in_hand"})
         self.sources = {role: CameraSource(name, width, height)
@@ -23,12 +25,15 @@ class Engine:
     def open(self, views):
         import mujoco as mj
 
-        self.model, self.data = self.world.sim.model._model, self.world.sim.data._data
+        if self.abc:
+            self.model, self.data = self.world.env.model, self.world.env.data
+        else:
+            self.model, self.data = self.world.sim.model._model, self.world.sim.data._data
         self.scene = mj.MjvScene(self.model, maxgeom=10000)
         self.camera, self.options = mj.MjvCamera(), mj.MjvOption()
         self.perturb = mj.MjvPerturb()
         # Keep the established scene visibility, without borrowing its context.
-        original = self.world.sim._render_context_offscreen
+        original = None if self.abc else self.world.sim._render_context_offscreen
         if original is not None:
             for field in ("geomgroup", "sitegroup", "jointgroup", "tendongroup",
                           "actuatorgroup", "flags"):
@@ -49,7 +54,7 @@ class Engine:
         try:
             yield
         finally:
-            original = self.world.sim._render_context_offscreen
+            original = None if self.abc else self.world.sim._render_context_offscreen
             if original is not None:
                 original.gl_ctx.make_current()
 
@@ -89,6 +94,6 @@ class Engine:
                 self.context.free()
             self.gl.free()
             self.gl = self.context = None
-            original = self.world.sim._render_context_offscreen
+            original = None if self.abc else self.world.sim._render_context_offscreen
             if original is not None:
                 original.gl_ctx.make_current()

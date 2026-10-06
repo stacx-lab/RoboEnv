@@ -1,0 +1,9 @@
+id: abc/sort-nuts-and-bolts
+robot: abc/abc-yam
+instruction: sort the nuts and bolts into their matching bins
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: sort_nuts_and_bolts

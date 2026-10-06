@@ -139,6 +139,21 @@
         "roboenv_runtime.adapters.simple"
       ],
       "asset_instructions": "docs/simple.md"
+    },
+    "abc": {
+      "python": "3.12",
+      "lock": "runtime/locks/abc-resolved.txt",
+      "source_only": [
+        "third_party/abc"
+      ],
+      "editables": [],
+      "index_url": "https://pypi.org/simple",
+      "extra_indexes": [],
+      "known_blockers": [],
+      "import_probes": [
+        "roboenv_runtime.adapters.abc.backend"
+      ],
+      "asset_instructions": "docs/abc.md"
     }
   }
 }

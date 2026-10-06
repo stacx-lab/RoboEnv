@@ -1,0 +1,9 @@
+id: abc/pouring
+robot: abc/abc-yam
+instruction: pour from one container into another
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: pouring

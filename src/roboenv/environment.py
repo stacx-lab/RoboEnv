@@ -346,7 +346,7 @@ def launch(
     if gpu is not None and not isaac_simple:
         raise ValueError("gpu selection is supported only for SIMPLE Isaac rendering")
     if recording is not None and spec.backend not in {
-        "libero", "robocasa", "robotwin", "robodojo", "behavior", "simple"
+        "abc", "libero", "robocasa", "robotwin", "robodojo", "behavior", "simple"
     }:
         raise ValueError(f"Spectator recording is not supported for {spec.backend}")
     execution_mode = spec.execution_mode

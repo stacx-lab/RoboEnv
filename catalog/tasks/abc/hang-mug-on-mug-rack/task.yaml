@@ -1,0 +1,9 @@
+id: abc/hang-mug-on-mug-rack
+robot: abc/abc-yam
+instruction: hang mug on mug rack
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: hang_mug_on_mug_rack

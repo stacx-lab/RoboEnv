@@ -16,7 +16,7 @@ def default_registry():
     registry.register("libero.device/1", bind_libero)
     from .native_devices import bind as bind_native
 
-    for backend in ("robotwin", "robodojo", "behavior"):
+    for backend in ("robotwin", "robodojo", "behavior", "abc"):
         registry.register(f"{backend}.device/1", bind_native)
     from .backends.simple import register as register_simple
 

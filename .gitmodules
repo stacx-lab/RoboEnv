@@ -24,3 +24,6 @@
 [submodule "third_party/SIMPLE"]
 	path = third_party/SIMPLE
 	url = https://github.com/physical-superintelligence-lab/SIMPLE.git
+[submodule "abc"]
+	path = third_party/abc
+	url = https://github.com/amazon-far/abc.git

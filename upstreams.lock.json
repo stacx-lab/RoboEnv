@@ -7,7 +7,8 @@
     "robotwin",
     "behavior",
     "isaaclab",
-    "simple"
+    "simple",
+    "abc"
   ],
   "sources": {
     "robocasa": {
@@ -183,6 +184,24 @@
       "revision": "cf26ccef0e615c9509140322bec154adc391c052",
       "backends": [
         "simple"
+      ]
+    },
+    "abc": {
+      "path": "third_party/abc",
+      "url": "https://github.com/amazon-far/abc.git",
+      "revision": "d0832d12651d1b260a652861a14648dc5f3660c7",
+      "backends": [
+        "abc"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/abc-unified-arm-mounts.patch",
+          "sha256": "5ea387963ce29844ca70daaa26de93d4d15368df5417307179ba94433ec25d7f"
+        },
+        {
+          "path": "third_party/patches/abc-blender-live.patch",
+          "sha256": "2fbcf9dc318031a7f6b3cd17cb7ad3955459754df10cc639cf205a3c17d39731"
+        }
       ]
     }
   }

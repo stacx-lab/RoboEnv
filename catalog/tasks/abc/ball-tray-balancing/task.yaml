@@ -1,0 +1,9 @@
+id: abc/ball-tray-balancing
+robot: abc/abc-yam
+instruction: grab the tray handles and keep the ball balanced on the tray
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: ball_tray_balancing

@@ -138,6 +138,15 @@
           "sha256": "a5d73fc4aca9074e3e6fe0b1a0ba763cf9514b2249b7390ed20fe8d53630bf25"
         }
       ]
+    },
+    "abc": {
+      "revision": "d0832d12651d1b260a652861a14648dc5f3660c7",
+      "notices": [
+        {
+          "path": "LICENSE",
+          "sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b"
+        }
+      ]
     }
   }
 }

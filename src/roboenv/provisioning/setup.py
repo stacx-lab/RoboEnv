@@ -473,8 +473,10 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
     return report
 
 
-def prepare(backend, *, project=None, install_to=None, progress=None):
+def prepare(backend, *, project=None, install_to=None, progress=None, renderer=None):
     """Prepare a source-backed interpreter and the backend's supported asset depot."""
+    if renderer is not None and (backend != "abc" or renderer not in {"mujoco", "blender"}):
+        raise ValueError("Renderer preparation supports abc with mujoco or blender")
     root = project_root(project)
     # Validate the backend before using it in a filesystem path or syncing sources.
     with stage(progress, "Checking simulator configuration and existing sources"):
@@ -509,13 +511,30 @@ def prepare(backend, *, project=None, install_to=None, progress=None):
         # current inputs rather than relabeling that historical installation proof.
         report, _ = audit(backend, root)
         report.update(sources_ready=True, clean_install_verified=False)
-        return _prepare_assets(backend, root, report, progress)
+    else:
+        report = install(backend, destination, project=root, progress=progress)
+    report = _prepare_assets(backend, root, report, progress)
+    if renderer == "blender":
+        from roboenv.provisioning.abc_blender import prepare as prepare_blender
 
-    report = install(backend, destination, project=root, progress=progress)
-    return _prepare_assets(backend, root, report, progress)
+        python = record["python"] if record is not None else str(destination / "bin/python")
+        probe = subprocess.run(
+            [python, "-c", "from pxr import Usd; from PIL import Image"], capture_output=True
+        )
+        if probe.returncode:
+            raise ValueError(
+                "ABC interpreter lacks Blender Python dependencies; existing environments "
+                "are preserved. Run roboenv prepare abc --renderer blender --prefix NEW_DIRECTORY"
+            )
+        report["rendering"] = prepare_blender(root, progress=progress)
+    return report
 
 
 def _prepare_assets(backend, root, report, progress):
+    if backend == "abc":
+        from roboenv.provisioning.abc_assets import prepare_assets
+
+        return {**report, **prepare_assets(root, progress=progress)}
     if backend == "simple":
         from roboenv.provisioning.simple_assets import prepare_assets
 
@@ -562,7 +581,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "backend",
-        choices=("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab", "simple"),
+        choices=(
+            "abc", "libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab", "simple"
+        ),
     )
     parser.add_argument(
         "--install", action="store_true", help="May download many GB; assets excluded"

@@ -1,0 +1,9 @@
+id: abc/turn-mug-right-side-up
+robot: abc/abc-yam
+instruction: turn mug right side up
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: turn_mug_right_side_up

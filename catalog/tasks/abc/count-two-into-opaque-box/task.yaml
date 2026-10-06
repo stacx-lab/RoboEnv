@@ -1,0 +1,9 @@
+id: abc/count-two-into-opaque-box
+robot: abc/abc-yam
+instruction: put exactly two objects in the opaque box
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: count_two_into_opaque_box

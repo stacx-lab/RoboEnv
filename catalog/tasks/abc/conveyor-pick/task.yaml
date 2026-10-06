@@ -1,0 +1,9 @@
+id: abc/conveyor-pick
+robot: abc/abc-yam
+instruction: pick objects from the conveyor belt and put them in the bin
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: conveyor_pick
