@@ -40,6 +40,21 @@ def test_explicit_selection_cannot_escape_inherited_restrictions(environment):
         gpu.select_gpu(DEVICES, VULKAN, 0, environment)
 
 
+@pytest.mark.parametrize("mask", ["7", "0"])
+def test_mask_applied_by_a_container_runtime_permits_the_visible_device(mask):
+    # Inside a container the runtime has exposed host GPU 7 alone, renumbered as index 0: the mask
+    # it leaves behind cannot be matched against the probe; the one visible device is what remains.
+    visible = [{**DEVICES[1], "index": 0}]
+    selection = gpu.select_gpu(visible, VULKAN, None, {"NVIDIA_VISIBLE_DEVICES": mask})
+    assert (selection["uuid"], selection["vulkan_index"]) == (DEVICES[1]["uuid"], 1)
+
+
+def test_mask_naming_more_hosts_gpus_than_visible_still_fails_closed():
+    visible = [{**DEVICES[1], "index": 0}]
+    with pytest.raises(ValueError, match="available full GPUs"):
+        gpu.select_gpu(visible, VULKAN, None, {"NVIDIA_VISIBLE_DEVICES": "6,7"})
+
+
 @pytest.mark.parametrize("mask", ["", "-1", "99", "2,2", "MIG-unknown"])
 def test_invalid_visibility_fails_closed(mask):
     with pytest.raises(ValueError):

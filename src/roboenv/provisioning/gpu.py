@@ -17,6 +17,17 @@ def validate_gpu(gpu):
         raise ValueError("gpu must be a nonnegative host GPU index")
 
 
+def applied_by_runtime(tokens, devices):
+    """Whether a container runtime has already applied this NVIDIA_VISIBLE_DEVICES mask.
+
+    The runtime takes host GPU indices and exposes exactly those devices, renumbered from zero,
+    so inside the container the mask names indices the probe cannot show: as many devices visible
+    as the mask selects, all selected by index. The visible devices are then the permitted ones. A
+    mask of UUIDs matches the probe directly and is judged below like any other.
+    """
+    return len(tokens) == len(devices) and all(token.isdecimal() for token in tokens)
+
+
 def select_gpu(devices, vulkan, gpu, environment):
     """Match physical identity, independently of CUDA/Vulkan enumeration order."""
     validate_gpu(gpu)
@@ -26,9 +37,11 @@ def select_gpu(devices, vulkan, gpu, environment):
         mask = environment.get(key)
         if mask is None or (key == "NVIDIA_VISIBLE_DEVICES" and mask == "all"):
             continue
+        tokens = [token.strip() for token in mask.split(",")]
+        if key == "NVIDIA_VISIBLE_DEVICES" and applied_by_runtime(tokens, devices):
+            continue
         selected = []
-        for token in mask.split(","):
-            token = token.strip()
+        for token in tokens:
             matches = [d for d in devices if str(d["index"]) == token
                        or (token.startswith("GPU-") and d["uuid"].startswith(token))]
             if len(matches) != 1:
