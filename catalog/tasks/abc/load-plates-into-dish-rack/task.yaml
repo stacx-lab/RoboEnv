@@ -1,0 +1,9 @@
+id: abc/load-plates-into-dish-rack
+robot: abc/abc-yam
+instruction: load plates into tabletop dish rack
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: load_plates_into_dish_rack

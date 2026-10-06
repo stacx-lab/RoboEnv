@@ -1,0 +1,9 @@
+id: abc/throw-plastic-bottles-in-bin
+robot: abc/abc-yam
+instruction: throw plastic bottles in bin
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: throw_plastic_bottles_in_bin

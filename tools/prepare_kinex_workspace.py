@@ -4,6 +4,7 @@ import argparse
 import json
 import shutil
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import yaml
@@ -40,9 +41,14 @@ def prepare(task, destination, *, project=None, catalog=None):
                     target = device / support
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(source / support, target)
+        (staging / "task.py").write_text(
+            files("roboenv").joinpath("assets/task-client.py").read_text()
+        )
         (staging / "instruction.md").write_text(resolved.task.instruction + "\n")
         (staging / "AGENTS.md").write_text(
-            "# Robot workspace\n\nRead instruction.md for the current episode's public task.\n\n"
+            "# Robot workspace\n\nRead instruction.md for the task outline. "
+            "Run `python task.py` after connecting and between stages to read "
+            "the current public instruction.\n\n"
             "Use the declared device interfaces and camera observations. JointDevice writes "
             "accept absolute joint positions; acceptance does not imply arrival. "
             "Stop holds a device. The environment owner controls the episode lifecycle.\n"

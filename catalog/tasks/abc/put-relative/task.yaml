@@ -1,0 +1,9 @@
+id: abc/put-relative
+robot: abc/abc-yam
+instruction: put one object in a relative position to another object
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: put_relative

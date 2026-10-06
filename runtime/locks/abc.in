@@ -1,0 +1,10 @@
+numpy
+mujoco~=3.8.0
+gymnasium>=1.1
+imageio[ffmpeg]
+PyYAML
+-r device-service.txt
+
+packaging
+usd-core
+Pillow

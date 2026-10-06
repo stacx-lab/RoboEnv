@@ -7,7 +7,7 @@ from pathlib import Path
 from roboenv_runtime.adapters.native_record import compare, digest
 from roboenv_runtime.core.adapter import make_adapter
 
-TOLERANCES = {"robotwin": 1e-5, "robodojo": 1e-4, "behavior": 1e-4}
+TOLERANCES = {"abc": 1e-8, "robotwin": 1e-5, "robodojo": 1e-4, "behavior": 1e-4}
 
 
 def replay(record, *, out=None):

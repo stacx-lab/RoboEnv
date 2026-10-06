@@ -1,0 +1,9 @@
+id: abc/grab-specific-object-from-clutter
+robot: abc/abc-yam
+instruction: grab the target object from the cluttered table and place it in the box
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: grab_specific_object_from_clutter

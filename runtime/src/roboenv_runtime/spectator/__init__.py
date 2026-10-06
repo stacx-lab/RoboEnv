@@ -98,10 +98,12 @@ class SpectatorRenderer:
 
 def create_spectator_renderer(adapter, views=None):
     """Create once after reset; close before resetting or destroying the world."""
-    engines = {"libero": "mujoco", "robocasa": "mujoco", "robotwin": "sapien",
+    engines = {"abc": "mujoco", "libero": "mujoco", "robocasa": "mujoco", "robotwin": "sapien",
                "robodojo": "isaac", "behavior": "isaac", "simple": "simple"}
     if adapter.name not in engines:
         raise ValueError(f"Spectator rendering is not supported for {adapter.name}")
+    if adapter.name == "abc" and adapter._env.camera_backend == "blender":
+        engines["abc"] = "abc_blender"
     module = import_module(f"{__name__}.{engines[adapter.name]}")
     engine = module.Engine(adapter)
     if adapter.name == "simple" and views is None:

@@ -1,0 +1,10 @@
+id: abc/build-wood-block-tower
+robot: abc/abc-yam
+instruction: Build a self-supporting tower of at least five blocks and release it
+  for one second.
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: build_wood_block_tower

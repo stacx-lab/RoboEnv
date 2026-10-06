@@ -1,0 +1,9 @@
+id: abc/sweep-away-paper-scraps-from-table
+robot: abc/abc-yam
+instruction: sweep away paper scraps from the table
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: sweep_away_paper_scraps_from_table

@@ -68,3 +68,8 @@ received images; array/base64 HTTP reads avoid local temporary files. File mode
 supports artifacts larger than the existing in-memory response limit. Exported
 Kinex drivers accept the same option; arrays cross their JSON boundary as base64
 and are decoded in the calling Kinex Python runtime.
+
+For tasks with changing instructions, call `env.refresh_task()` between stages.
+It updates `env.task` through the existing public description endpoint.
+`roboenv describe` and copied Kinex workspaces' `python task.py` read the same
+current instruction without exposing native task state.

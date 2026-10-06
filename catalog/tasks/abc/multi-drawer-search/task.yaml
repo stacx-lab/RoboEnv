@@ -1,0 +1,10 @@
+id: abc/multi-drawer-search
+robot: abc/abc-yam
+instruction: find the target object hidden in one of the drawers and place it in the
+  bin
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: multi_drawer_search

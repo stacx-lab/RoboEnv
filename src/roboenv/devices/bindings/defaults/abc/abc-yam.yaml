@@ -1,0 +1,28 @@
+schema_version: roboenv/bindings/1
+backend: abc
+embodiment: yam
+devices:
+  camera_left:
+    binding: abc.device/1
+    entity: camera_left
+  camera_right:
+    binding: abc.device/1
+    entity: camera_right
+  camera_top:
+    binding: abc.device/1
+    entity: camera_top
+  left_arm:
+    binding: abc.device/1
+    entity: left_arm
+  left_gripper:
+    binding: abc.device/1
+    entity: left_gripper
+  right_arm:
+    binding: abc.device/1
+    entity: right_arm
+  right_gripper:
+    binding: abc.device/1
+    entity: right_gripper
+  world:
+    binding: abc.device/1
+    entity: world
