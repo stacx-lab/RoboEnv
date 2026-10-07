@@ -7,6 +7,7 @@ import pytest
 import yaml
 from helpers import load_tool
 from roboenv.devices.bindings.spec import BindingPlan, binding_resource
+from roboenv.devices.export import DRIVERS
 from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.bindings import default_registry
 
@@ -28,6 +29,19 @@ def test_joint_catalogs_use_model_frames_and_shared_driver(catalog_profiles):
                 computed.append(geometry["center"]["frame"])
         assert not set(computed).intersection(facts.get("frames", {})), path
         assert path.with_name("driver.py").read_bytes() == driver, path
+
+
+def test_all_catalog_drivers_match_exported_resources(catalog_profiles):
+    assets = ROOT / "src/roboenv/assets"
+    for path, profile in catalog_profiles:
+        assert path.with_name("driver.py").read_bytes() == (
+            assets / DRIVERS[profile["type"]]
+        ).read_bytes(), path
+    for collection in {path.parent.parent for path, _ in catalog_profiles}:
+        for name in ("_roboenv.py", "_camera.py"):
+            source = collection / name
+            if source.exists():
+                assert source.read_bytes() == (assets / name).read_bytes(), source
 
 
 def test_public_catalog_contains_only_robot_and_task_definitions():
