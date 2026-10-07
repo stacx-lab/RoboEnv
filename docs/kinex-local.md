@@ -68,6 +68,13 @@ The agent environment does not need RoboEnv or simulator dependencies. There is
 one transport module per device collection, outside the individual device folders.
 Drivers resolve it relative to their own file, so the working directory is irrelevant.
 When copying selected devices, include the collection's `_roboenv.py` once.
+
+Kinex `servo` plans locally and submits the complete joint trajectory. It accepts
+no `duration_s`, `ik` or `max_joint_delta` argument. Refresh copied servo tools and
+Python helpers together. Direct device IK retains its optional seed; numerical
+retries use nearby seeds only. Rename profile `intrinsics.kinematics.ik.search`
+to `ik.budget`; there is no per-call budget override.
+
 When upgrading an existing workspace, refresh actuator drivers and the shared
 `_roboenv.py` together, preserve workspace-specific connection/calibration facts,
 then reload the affected devices. Failed write-feedback validation cancels only

@@ -154,6 +154,12 @@ All native operations run on the simulation creation thread. Realtime advances
 while idle; stepped mode advances only during world waits. Count native intervals
 in both modes; realtime reports an unbounded limit, while stepped enforces its horizon.
 
+The portable joint driver's `ik` accepts `pose` and optional `seed`, `frame`,
+`reference_frame`. Explicit seeds avoid a state read; absent seeds use projected
+measured joints. Numerical IK retries only near the original seed, with search limits
+configured by profile `ik.budget`. Legacy `ik.search` is rejected. Keep exported
+catalog drivers synchronized with `joint-client.py`.
+
 Put FK/IK in the joint driver. Export static geometry where needed; a serial
 chain can use Kinex's `kinex.kinematics`. The simulator supplies measured state
 and geometry, not a solver RPC. Local computation must not mutate live state.
