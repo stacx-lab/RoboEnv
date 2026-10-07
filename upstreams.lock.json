@@ -92,7 +92,7 @@
     "behavior": {
       "path": "third_party/BEHAVIOR-1K",
       "url": "https://github.com/StanfordVL/BEHAVIOR-1K.git",
-      "revision": "bd049de3119acdcdf2334fe9e1ebe060fa20c108",
+      "revision": "a8247a8cc1633fe1ca0cc66aa07243d46c64f155",
       "backends": [
         "behavior"
       ],
@@ -100,6 +100,10 @@
         {
           "path": "third_party/patches/behavior-optional-workflows.patch",
           "sha256": "9b91c1d8a1f7fcb000ebd96fe520c9636f9b888d83a48172203ac00cf3ce3871"
+        },
+        {
+          "path": "third_party/patches/behavior-gpu-selection.patch",
+          "sha256": "fb006f05f8d7b14bed8cf9233a9bab0c75a40400fa88d56ccb6d93eb6bf448e6"
         }
       ]
     },

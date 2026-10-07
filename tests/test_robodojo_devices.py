@@ -47,15 +47,7 @@ def test_normal_worker_passes_only_typed_budget_arguments(monkeypatch, budget_mo
 def test_worker_output_isolation_and_explicit_run_id(monkeypatch, tmp_path, explicit):
     from roboenv_runtime.adapters.robodojo import backend
 
-    class Launcher:
-        @staticmethod
-        def add_app_launcher_args(parser):
-            parser.add_argument("--kit_args")
-
-        def __init__(self, args):
-            self.app = object()
-
-    monkeypatch.setitem(sys.modules, "isaaclab.app", SimpleNamespace(AppLauncher=Launcher))
+    monkeypatch.setattr("roboenv_runtime.adapters.gpu.launch_isaaclab", lambda *a, **k: object())
     monkeypatch.setattr(backend, "ROBODOJO_ROOT", str(tmp_path))
     monkeypatch.setattr(sys, "path", list(sys.path))
     ids = []

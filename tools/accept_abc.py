@@ -19,8 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def run(out, kinex, node, renderer="mujoco"):
     out.mkdir(parents=True, exist_ok=False)
     python = resolve_interpreter(ROOT, "abc", None)
-    environment = {**os.environ, "MUJOCO_GL": "egl", "MUJOCO_EGL_DEVICE_ID": "0"}
-    os.environ.update(MUJOCO_GL="egl", MUJOCO_EGL_DEVICE_ID="0")
+    environment = {**os.environ, "MUJOCO_GL": "egl"}
+    os.environ.setdefault("MUJOCO_GL", "egl")
     report = {"passed": False, "model_calls": 0, "renderer": renderer, "checks": {}}
 
     def task(name):

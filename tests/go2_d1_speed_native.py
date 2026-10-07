@@ -19,9 +19,9 @@ CASES = {
 }
 
 
-def run(out, cases, device="cuda:0"):
+def run(out, cases):
     out.mkdir(parents=True, exist_ok=False)
-    world = Go2Env(cameras=False, device=device)
+    world = Go2Env(cameras=False)
     try:
         results = {}
         for name in cases:
@@ -111,6 +111,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--cases", nargs="+", choices=CASES, default=list(CASES))
-    parser.add_argument("--device", default="cuda:0")
     args = parser.parse_args()
-    run(args.out, args.cases, args.device)
+    run(args.out, args.cases)

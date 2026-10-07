@@ -13,17 +13,12 @@ if not SOURCE.is_dir():
 if str(SOURCE) not in sys.path:
     sys.path.insert(0, str(SOURCE))
 
-import abc_sim
-import mujoco
 import numpy as np
 
 from roboenv_runtime.adapters.device_control import DeviceControl
 from roboenv_runtime.adapters.native_record import compare, digest, initialize_record
 from .adapter import frame_budget
 from .rig import CAMERA_SIZE, aperture, describe, rig_id
-
-if not Path(abc_sim.__file__).resolve().is_relative_to(SOURCE.resolve()):
-    raise ImportError("ABC imported outside its pinned source")
 
 
 class ABCEnv:
@@ -38,20 +33,27 @@ class ABCEnv:
         randomization=None,
         max_steps=None,
         camera_backend="mujoco",
-        render_gpu_id=0,
     ):
+        from roboenv.provisioning.gpu import configure_gpu
+
+        configure_gpu("abc")
+        import abc_sim
         from abc_sim.task_registry import get_task_physics_defaults
+
+        if not Path(abc_sim.__file__).resolve().is_relative_to(SOURCE.resolve()):
+            raise ImportError("ABC imported outside its pinned source")
+        self._abc_sim = abc_sim
 
         self.spec = abc_sim.get_task_spec(task_name)
         self.task_name = self.spec.name
         if camera_backend not in {"mujoco", "blender"}:
             raise ValueError("ABC camera_backend must be mujoco or blender")
-        self.camera_backend, self.render_gpu_id = camera_backend, render_gpu_id
+        self.camera_backend = camera_backend
         self.blender_settings = None
         if camera_backend == "blender":
             from .rendering import settings
 
-            self.blender_settings = settings(render_gpu_id)
+            self.blender_settings = settings()
         if type(randomize) is not bool or (
             randomization is not None and not isinstance(randomization, dict)
         ):
@@ -80,7 +82,7 @@ class ABCEnv:
 
         self.close()
         self.seed = seed
-        self.env = abc_sim.make_env(
+        self.env = self._abc_sim.make_env(
             task=self.task_name,
             render_cameras=False,
             terminate_on_success=False,
@@ -148,7 +150,6 @@ class ABCEnv:
                 "randomization": self.randomization,
                 "max_steps": self.max_steps,
                 "camera_backend": self.camera_backend,
-                "render_gpu_id": self.render_gpu_id,
             },
             "abc",
         )
@@ -247,6 +248,8 @@ class ABCEnv:
                 self.renderer = BlenderImages(self)
             return self.renderer.read()[name.removeprefix("camera_")].copy(), None
         if self.renderer is None:
+            import mujoco
+
             self.renderer = mujoco.Renderer(self.env.model, height=480, width=640)
         self.renderer.update_scene(self.env.data, camera=name.removeprefix("camera_"))
         return self.renderer.render().copy(), None

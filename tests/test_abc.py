@@ -84,6 +84,7 @@ def test_blender_cameras_share_one_render_per_control_frame(monkeypatch):
 
     class Provider:
         def __init__(self, *args, **kwargs):
+            assert kwargs["gpu_id"] is None  # Inherit the resolved CUDA mask.
             calls.append("open")
 
         def initial_frames(self):
@@ -106,7 +107,7 @@ def test_blender_cameras_share_one_render_per_control_frame(monkeypatch):
         control=SimpleNamespace(frame=0),
         timestamp=0,
         _camera_names=("top", "left"),
-        blender_settings={},
+        blender_settings={"gpu_id": None},
     )
     images = BlenderImages(world)
     assert images.read()["top"] == images.read()["left"] == "initial"

@@ -1,60 +1,121 @@
-"""Bounded, process-local GPU selection for SIMPLE's CUDA/Vulkan renderer.
+"""One CUDA-visible GPU, matched to each renderer by physical identity.
 
-Importing this module does not load a GPU library. Vulkan discovery runs in a
-short-lived child, before any simulator imports or world creation.
+Driver discovery lives in a bounded child. Importing this module does not load
+CUDA, Vulkan, EGL, or a simulator, and launch never changes its caller's mask.
 """
 
-import csv
+import ctypes as c
 import json
 import os
 import subprocess
 import sys
 import uuid
+from pathlib import Path
 
 
-def validate_gpu(gpu):
-    if gpu is not None and (type(gpu) is not int or gpu < 0):
-        raise ValueError("gpu must be a nonnegative host GPU index")
+def graphics_apis(backend, options=None):
+    options = options or {}
+    if backend in {"behavior", "robodojo", "isaaclab", "robotwin"}:
+        return ("vulkan",)
+    if backend == "simple" and options.get("sim_mode", "mujoco_isaac") == "mujoco_isaac":
+        return ("vulkan", "egl")
+    if backend in {"libero", "robocasa", "abc", "simple"}:
+        if options.get("enable_render", True):
+            return ("egl",)
+    return ()
 
 
-def select_gpu(devices, vulkan, gpu, environment):
-    """Match physical identity, independently of CUDA/Vulkan enumeration order."""
-    validate_gpu(gpu)
-    permitted = list(devices)
-    # Container visibility is a restriction as well, when supplied by its runtime.
-    for key in ("NVIDIA_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES"):
-        mask = environment.get(key)
-        if mask is None or (key == "NVIDIA_VISIBLE_DEVICES" and mask == "all"):
+def _cuda_device():
+    """Query logical zero under the inherited mask without creating a context."""
+    cuda = c.CDLL("libcuda.so.1")
+
+    def check(code):
+        if code:
+            raise RuntimeError(
+                f"CUDA discovery failed: CUresult {code}; "
+                "check CUDA_VISIBLE_DEVICES and the NVIDIA driver"
+            )
+
+    check(cuda.cuInit(0))
+    count = c.c_int()
+    check(cuda.cuDeviceGetCount(c.byref(count)))
+    if count.value < 1:
+        raise ValueError("No GPU is visible to CUDA; check CUDA_VISIBLE_DEVICES")
+    device = c.c_int()
+    check(cuda.cuDeviceGet(c.byref(device), 0))
+    identity = (c.c_ubyte * 16)()
+    check(cuda.cuDeviceGetUuid_v2(c.byref(identity), device))
+    physical = (c.c_ubyte * 16)()
+    check(cuda.cuDeviceGetUuid(c.byref(physical), device))
+    if bytes(identity) != bytes(physical):
+        raise ValueError("MIG instances are unsupported: a full graphics-capable GPU is required")
+    bus = c.create_string_buffer(32)
+    check(cuda.cuDeviceGetPCIBusId(bus, len(bus), device))
+    return {"uuid": "GPU-" + str(uuid.UUID(bytes=bytes(identity))),
+            "pci_bus_id": bus.value.decode().lower(), "cuda_index": 0}
+
+
+def _egl_devices():
+    """Enumerate EGL devices without making a rendering context."""
+    egl = c.CDLL("libEGL.so.1")
+    egl.eglGetProcAddress.argtypes = [c.c_char_p]
+    egl.eglGetProcAddress.restype = c.c_void_p
+
+    def function(name, result, *args):
+        address = egl.eglGetProcAddress(name.encode())
+        if not address:
+            raise RuntimeError(f"EGL GPU discovery requires {name}")
+        return c.CFUNCTYPE(result, *args)(address)
+
+    query = function("eglQueryDevicesEXT", c.c_uint, c.c_int,
+                     c.POINTER(c.c_void_p), c.POINTER(c.c_int))
+    string = function("eglQueryDeviceStringEXT", c.c_char_p, c.c_void_p, c.c_int)
+    count = c.c_int()
+    if not query(0, None, c.byref(count)):
+        raise RuntimeError("EGL device enumeration failed")
+    devices = (c.c_void_p * count.value)()
+    if not query(count.value, devices, c.byref(count)):
+        raise RuntimeError("EGL device enumeration failed")
+    result = []
+    for index, device in enumerate(devices[:count.value]):
+        extensions = (string(device, 0x3055) or b"").decode().split()
+        # A Mesa device may describe the same PCI slot without CUDA interop.
+        if "EGL_NV_device_cuda" not in extensions:
             continue
-        selected = []
-        for token in mask.split(","):
-            token = token.strip()
-            matches = [d for d in devices if str(d["index"]) == token
-                       or (token.startswith("GPU-") and d["uuid"].startswith(token))]
-            if len(matches) != 1:
-                raise ValueError(f"{key} must select available full GPUs by index or UUID")
-            if matches[0] in selected:
-                raise ValueError(f"{key} contains a duplicate GPU")
-            selected.append(matches[0])
-        permitted = [d for d in selected if d in permitted]
-    if not permitted:
-        raise ValueError("No GPU is permitted by inherited GPU visibility")
-    if gpu is None:
-        device = permitted[0]
-    else:
-        device = next((d for d in permitted if d["index"] == gpu), None)
-        if device is None:
-            raise ValueError(f"GPU {gpu} is unavailable or excluded by inherited GPU visibility")
-    matches = [d for d in vulkan if d["uuid"].lower() == device["uuid"].lower()]
+        entry = {"index": index}
+        if "EGL_EXT_device_persistent_id" in extensions:
+            binary = function("eglQueryDeviceBinaryEXT", c.c_uint, c.c_void_p,
+                              c.c_int, c.c_int, c.c_void_p, c.POINTER(c.c_int))
+            identity, size = (c.c_ubyte * 16)(), c.c_int()
+            if binary(device, 0x335C, 16, identity, c.byref(size)) and size.value == 16:
+                entry["uuid"] = "GPU-" + str(uuid.UUID(bytes=bytes(identity)))
+        for extension, attribute in (("EGL_EXT_device_drm_render_node", 0x3377),
+                                     ("EGL_EXT_device_drm", 0x3233)):
+            if extension in extensions:
+                node = string(device, attribute)
+                if node:
+                    path = Path("/sys/class/drm") / Path(node.decode()).name / "device"
+                    if path.exists():
+                        entry["pci_bus_id"] = path.resolve().name.lower()
+                        break
+        result.append(entry)
+    return result
+
+
+def match_graphics(device, candidates, api):
+    matches = [item for item in candidates if
+               item.get("uuid", "").lower() == device["uuid"].lower()]
+    # Prefer UUID: multiple EGL vendors may expose the same PCI device.
+    if not matches:
+        matches = [item for item in candidates if
+                   item.get("pci_bus_id", "").lower() == device["pci_bus_id"].lower()]
     if len(matches) != 1:
-        raise ValueError(f"Selected GPU {device['index']} has no unique Vulkan device")
-    return {**device, "vulkan_index": matches[0]["index"], "cuda_index": 0}
+        raise ValueError(f"CUDA GPU {device['uuid']} has no unique {api} device")
+    return matches[0]["index"]
 
 
 def _vulkan_devices():
     """Query Vulkan 1.1 device UUIDs without creating a logical/rendering device."""
-    import ctypes as c
-
     class Application(c.Structure):
         _fields_ = [("sType", c.c_uint32), ("pNext", c.c_void_p),
                     ("name", c.c_char_p), ("version", c.c_uint32),
@@ -117,52 +178,60 @@ def _vulkan_devices():
         vk.vkDestroyInstance(instance, None)
 
 
-def _probe():
-    result = subprocess.run(
-        ["nvidia-smi", "--query-gpu=index,uuid,pci.bus_id", "--format=csv,noheader,nounits"],
-        capture_output=True, text=True, check=True, timeout=5,
-    )
-    devices = [{"index": int(index), "uuid": identity.strip(), "pci_bus_id": pci.strip()}
-               for index, identity, pci in csv.reader(result.stdout.splitlines())]
-    return {"devices": devices, "vulkan": _vulkan_devices()}
+def _probe(apis):
+    device = _cuda_device()
+    for api in apis:
+        candidates = _vulkan_devices() if api == "vulkan" else _egl_devices()
+        device[api + "_index"] = match_graphics(device, candidates, api)
+    return device
 
 
-def resolve_gpu(gpu=None):
-    validate_gpu(gpu)
+def resolve_gpu(apis):
+    """Resolve the first CUDA-visible GPU; container masks are already applied."""
+    if not apis:
+        return None
+    if set(apis) - {"egl", "vulkan"}:
+        raise ValueError("Unknown graphics API")
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "roboenv.provisioning.gpu"],
+            [sys.executable, "-m", "roboenv.provisioning.gpu", *apis],
             capture_output=True, text=True, check=True, timeout=15,
         )
-        inventory = json.loads(result.stdout)
+        return json.loads(result.stdout)
     except (OSError, subprocess.SubprocessError, ValueError) as exc:
         detail = getattr(exc, "stderr", None) or str(exc)
-        raise RuntimeError(f"SIMPLE GPU discovery failed before launch: {detail}") from exc
-    return select_gpu(inventory["devices"], inventory["vulkan"], gpu, os.environ)
+        raise RuntimeError(f"GPU discovery failed before launch: {detail}") from exc
 
 
 def gpu_environment(selection):
-    return {
-        "CUDA_VISIBLE_DEVICES": selection["uuid"],
-        "SIMPLE_ISAAC_ACTIVE_GPU": str(selection["vulkan_index"]),
-        "ROBOENV_SIMPLE_GPU": json.dumps(selection, sort_keys=True),
-    }
+    return {"CUDA_VISIBLE_DEVICES": selection["uuid"],
+            "ROBOENV_GPU": json.dumps(selection, sort_keys=True),
+            **({"MUJOCO_EGL_DEVICE_ID": str(selection["egl_index"])}
+               if "egl_index" in selection else {}),
+            **({"SIMPLE_ISAAC_ACTIVE_GPU": str(selection["vulkan_index"])}
+               if "vulkan_index" in selection else {}),
+            "ROBOTWIN_RENDER_DEVICE": "cuda:0"}
 
 
-def configure_simple_gpu(gpu=None):
-    """Called before SIMPLE imports, also by standalone native/replay tools."""
-    validate_gpu(gpu)
-    inherited = os.environ.get("ROBOENV_SIMPLE_GPU")
-    if inherited and gpu is None:
+def configure_gpu(backend, options=None):
+    """Apply worker-local settings, including when a native/replay tool starts directly."""
+    apis = graphics_apis(backend, options)
+    if not apis:
+        return None
+    inherited = os.environ.get("ROBOENV_GPU")
+    if inherited:
         selection = json.loads(inherited)
-        if any(os.environ.get(key) != value
-               for key, value in gpu_environment(selection).items()):
-            raise ValueError("SIMPLE GPU configuration changed after launch")
+        if os.environ.get("CUDA_VISIBLE_DEVICES") != selection["uuid"]:
+            raise ValueError("GPU configuration changed after launch")
+        if any(api + "_index" not in selection for api in apis):
+            raise ValueError("GPU configuration lacks required renderer identity")
     else:
-        selection = resolve_gpu(gpu)
-        os.environ.update(gpu_environment(selection))
+        selection = resolve_gpu(apis)
+    os.environ.update(gpu_environment(selection))
+    os.environ.setdefault("MUJOCO_GL", "egl")
+    print("RoboEnv GPU selection: " + json.dumps(selection, sort_keys=True), flush=True)
     return selection
 
 
 if __name__ == "__main__":
-    print(json.dumps(_probe()))
+    print(json.dumps(_probe(tuple(sys.argv[1:]))))

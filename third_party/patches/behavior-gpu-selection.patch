@@ -1,0 +1,15 @@
+diff --git a/OmniGibson/omnigibson/simulator.py b/OmniGibson/omnigibson/simulator.py
+index a5c4cce..74a3952 100644
+--- a/OmniGibson/omnigibson/simulator.py
++++ b/OmniGibson/omnigibson/simulator.py
+@@ -198,6 +198,10 @@ def _launch_app():
+     if gpu_id is not None:
+         config_kwargs["active_gpu"] = gpu_id
+         config_kwargs["physics_gpu"] = gpu_id
++    # Rendering uses Vulkan ordinals; physics uses CUDA-visible ordinals.
++    if os.environ.get("OMNIGIBSON_RENDER_GPU") is not None:
++        config_kwargs["active_gpu"] = int(os.environ["OMNIGIBSON_RENDER_GPU"])
++        config_kwargs["max_gpu_count"] = 1
+ 
+     # Clear the argv - Isaac Sim unfortunately reads from it directly, so we need to clear it to avoid issues.
+     # Otherwise it will inherit the arguments of the entrypoint script.

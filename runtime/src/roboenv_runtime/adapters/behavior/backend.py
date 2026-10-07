@@ -149,6 +149,13 @@ class BehaviorBackend:
         """Import omnigibson and create the environment (idempotent)."""
         if self.env is not None:
             return
+        from roboenv.provisioning.acceptance import acceptance_environment
+        from roboenv.provisioning.gpu import configure_gpu
+
+        os.environ.update(acceptance_environment())
+        selection = configure_gpu("behavior")
+        os.environ["OMNIGIBSON_GPU_ID"] = "0"
+        os.environ["OMNIGIBSON_RENDER_GPU"] = str(selection["vulkan_index"])
         fix_cache_env()
         import omnigibson as og
 

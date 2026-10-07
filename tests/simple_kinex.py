@@ -68,7 +68,7 @@ def check(args):
         timeout=60,
     )
     with roboenv.launch(
-        task, project=ROOT, interpreter=sys.executable, timeout=args.startup_timeout, gpu=args.gpu,
+        task, project=ROOT, interpreter=sys.executable, timeout=args.startup_timeout,
         run_dir=out / "runs",
     ) as run:
         for driver in (workspace / ".kinex/devices").glob("*/driver.py"):
@@ -130,7 +130,6 @@ def check(args):
             str(out / "owner/owner-record.json"),
             "--out",
             str(out / "replay.json"),
-            *([] if args.gpu is None else ["--gpu", str(args.gpu)]),
         ],
         check=True,
         timeout=args.startup_timeout,
@@ -156,7 +155,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--task", default="simple/xmove-pick")
-    parser.add_argument("--gpu", type=int, help="Host GPU index for Isaac rendering")
     parser.add_argument("--execution-mode", choices=("stepped", "realtime"), default="stepped")
     parser.add_argument("--startup-timeout", type=float, default=900)
     parser.add_argument(

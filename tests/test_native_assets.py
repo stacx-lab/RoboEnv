@@ -117,8 +117,8 @@ def test_behavior_acquisition_requires_both_licenses_before_network_or_engine(
 ):
     from roboenv.provisioning.behavior_assets import acquire, prepare_assets
 
-    monkeypatch.delenv("OMNI_KIT_ACCEPT_EULA", raising=False)
-    monkeypatch.delenv("ROBOENV_BEHAVIOR_ACCEPT_LICENSE", raising=False)
+    monkeypatch.setenv("OMNI_KIT_ACCEPT_EULA", "NO")
+    monkeypatch.setenv("ROBOENV_BEHAVIOR_ACCEPT_LICENSE", "NO")
     assert len(prepare_assets(tmp_path)["license_acceptance_required"]) == 2
     monkeypatch.setenv("OMNI_KIT_ACCEPT_EULA", "YES")
     assert prepare_assets(tmp_path)["license_acceptance_required"] == [

@@ -48,7 +48,7 @@ for LIBERO can contain:
 For SIMPLE, record both head views or select just the left view:
 
 ```sh
-roboenv launch simple/xmove-pick --gpu 0 --record
+roboenv launch simple/xmove-pick --record
 ```
 
 ```json
@@ -138,7 +138,7 @@ sequentially, in both clock modes, into fresh private output directories:
 
 ```sh
 .venv/bin/python tools/check_spectator.py libero/bowl-onto-plate \
-  --gpu 0 --clock stepped --seconds 2 --timeout 180 \
+  --clock stepped --seconds 2 --timeout 180 \
   --out .cache/spectator/libero-stepped
 ```
 
@@ -164,7 +164,7 @@ SIMPLE uses the same probe, with `--sim-mode mujoco_isaac` (the task default) or
 
 ```sh
 .venv/bin/python tools/check_spectator.py simple/xmove-pick \
-  --gpu 0 --clock stepped --sim-mode mujoco_isaac --seconds 2 \
+  --clock stepped --sim-mode mujoco_isaac --seconds 2 \
   --out .cache/spectator/simple-xmove-isaac-stepped
 ```
 

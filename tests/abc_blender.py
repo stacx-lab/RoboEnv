@@ -6,13 +6,14 @@ import time
 from pathlib import Path
 
 import imageio.v3 as iio
-import mujoco
 import numpy as np
 from roboenv_runtime.adapters.abc.backend import ABCEnv
 from roboenv_runtime.adapters.abc.rendering import settings
 
 
 def state(model, data):
+    import mujoco
+
     signature = mujoco.mjtState.mjSTATE_INTEGRATION
     result = np.empty(mujoco.mj_stateSize(model, signature))
     mujoco.mj_getState(model, data, result, signature)
@@ -20,6 +21,10 @@ def state(model, data):
 
 
 def projection(out):
+    from roboenv.provisioning.gpu import configure_gpu
+
+    configure_gpu("abc")
+    import mujoco
     from abc_sim.rendering.blender.live import BlenderCameraProvider
 
     model = mujoco.MjModel.from_xml_string("""<mujoco>
@@ -32,7 +37,7 @@ def projection(out):
         </body></worldbody></mujoco>""")
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
-    options = {k: v for k, v in settings(0).items() if k != "identity"}
+    options = {k: v for k, v in settings().items() if k != "identity"}
     views = [
         dict(name="top", source="top", width=300, height=200, fov_y=60),
         dict(
@@ -112,6 +117,7 @@ def projection(out):
 def scene(task, out):
     started = time.monotonic()
     world = ABCEnv(task, camera_backend="blender")
+    import mujoco
     reference = None
     try:
         world.reset(seed=0)

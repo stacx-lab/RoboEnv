@@ -1,5 +1,6 @@
 """Keep one RoboEnv world on OmniGibson's batched environment API."""
 
+import os
 import sys
 from types import SimpleNamespace
 
@@ -10,6 +11,11 @@ from roboenv_runtime.adapters.behavior.devices import BehaviorDevices
 
 @pytest.mark.parametrize("count", [1, 2])
 def test_boot_selects_the_only_scene_and_robot(monkeypatch, count):
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    monkeypatch.delenv("OMNI_KIT_ACCEPT_EULA", raising=False)
+    monkeypatch.setattr(
+        "roboenv.provisioning.gpu.configure_gpu", lambda backend: {"vulkan_index": 3},
+    )
     world = backend.BehaviorBackend("turning_on_radio", scene_model="house")
     robot = object()
     configs = []
@@ -20,6 +26,9 @@ def test_boot_selects_the_only_scene_and_robot(monkeypatch, count):
     ))
 
     def configs_seen(config):
+        assert os.environ["OMNIGIBSON_GPU_ID"] == "0"
+        assert os.environ["OMNIGIBSON_RENDER_GPU"] == "3"
+        assert os.environ["OMNI_KIT_ACCEPT_EULA"] == "YES"
         configs.append(config)
 
     if count == 1:

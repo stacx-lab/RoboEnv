@@ -14,7 +14,6 @@ def main():
     parser.add_argument("--case", choices=("commands", "state", "verdict", "gravity"),
                         required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--gpu", type=int, help="Host GPU index for Isaac rendering")
     args = parser.parse_args()
     if args.out.exists():
         raise ValueError("Use a new receipt")
@@ -33,7 +32,7 @@ def main():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     try:
-        result = module.replay(record, gpu=args.gpu)
+        result = module.replay(record)
         rejected = not result["passed"]
     except ValueError as error:
         expected = {"commands": "composed targets differ",

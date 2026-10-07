@@ -44,8 +44,9 @@ RoboDojo. BEHAVIOR also needs distinct `--instances FIRST SECOND`; seeds alone
 do not select different presampled activity instances. The check rejects
 effectively identical loaded states.
 
-For a single GPU on an Isaac host, use `CUDA_VISIBLE_DEVICES` and leave
-`OMNIGIBSON_GPU_ID` unset so Kit and PhysX can select the masked device. Verify the
+Use `CUDA_VISIBLE_DEVICES` for every backend and native/replay tool. RoboEnv maps
+logical CUDA device zero to the matching renderer device and supplies internal
+settings; no separate `OMNIGIBSON_GPU_ID` or EGL selector is required. Verify the
 actual renderer/physics device in native logs. A source or import check does not
 establish GPU readiness.
 
