@@ -48,6 +48,11 @@ remain subject to the [release gates](releasing.md).
 Before changing a source pin, inspect the new notice files and deliberately update
 the inventory. A changed hash must never be accepted merely to silence the check.
 
+The managed RoboTwin GPU patch selects the same device for its initial SAPIEN
+renderer and scene render system. The legacy renderer wrapper ignores device
+arguments; the patch uses the device-aware constructor. The upstream source pin
+is unchanged.
+
 ## ABC
 
 ABC (`amazon-far/abc`) is pinned in `upstreams.lock.json` under `third_party/abc`.

@@ -316,16 +316,21 @@ roboenv launch robodojo/general-pickup
 An unset mask selects logical `cuda:0` according to the CUDA driver's default order.
 A list such as `6,2` selects its first visible device. GPU UUIDs and CUDA-supported
 UUID prefixes work as masks. Empty or disabled visibility fails before a GPU-backed
-launch; CPU-only checks do not probe GPUs. Full GPUs are supported; MIG devices
-without a matching graphics device cannot run these renderers.
+launch; CPU-only checks do not probe GPUs. MIG instances are unsupported; these
+renderers require a full graphics-capable GPU.
 
 RoboEnv queries the selected CUDA device's identity in a bounded child process,
-then matches the graphics device required by the backend. Worker subprocesses see
-only that card. Vulkan and EGL ordinals need not equal CUDA ordinals; multi-GPU
+then matches the graphics device required by the backend. Worker subprocesses expose
+only that card to CUDA. Vulkan and EGL ordinals need not equal CUDA ordinals; multi-GPU
 rendering is disabled. RoboEnv derives internal renderer settings, including
 `MUJOCO_EGL_DEVICE_ID`, `ROBOTWIN_RENDER_DEVICE`, and Isaac GPU settings. Set
 `CUDA_VISIBLE_DEVICES` rather than supplying these backend-specific overrides.
 The parent shell and other running services are unchanged.
+
+This selects one GPU for simulation and rendering; it is not hardware isolation.
+The NVIDIA Vulkan driver may retain a small initialization context on another GPU
+even when the renderer explicitly selects the requested device. Use container
+GPU isolation when access to other physical cards must be prevented.
 
 In containers, the NVIDIA runtime has already applied `NVIDIA_VISIBLE_DEVICES`.
 RoboEnv queries devices actually visible inside the container and does not compare

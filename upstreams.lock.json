@@ -85,7 +85,7 @@
       "patches": [
         {
           "path": "third_party/patches/robotwin-runtime.patch",
-          "sha256": "b9b31f968bba21237d1a180d960a3d5de6eaf3803e479811ab9df250bb853a9f"
+          "sha256": "9bfe4a9ad9854fa62ccb17c1a25289710e3c9e910b48efdf70518dbeca4f43b1"
         }
       ]
     },

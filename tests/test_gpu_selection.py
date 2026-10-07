@@ -235,3 +235,48 @@ def test_probe_loads_only_required_graphics_library(monkeypatch):
     monkeypatch.setattr(gpu, "_egl_devices", lambda: [{"index": 5, "uuid": DEVICE["uuid"]}])
     monkeypatch.setattr(gpu, "_vulkan_devices", lambda: pytest.fail("unexpected Vulkan load"))
     assert gpu._probe(("egl",)) == {**DEVICE, "egl_index": 5}
+
+
+@pytest.mark.parametrize("selected", [None, "cuda:0"])
+def test_robotwin_selects_the_device_before_creating_either_renderer(monkeypatch, selected):
+    import ast
+
+    source = Path(__file__).resolve().parents[1] / "third_party/RoboTwin/envs/_base_task.py"
+    if not source.is_file():
+        pytest.skip("Requires managed RoboTwin source; no simulator imports")
+    method = next(node for node in ast.walk(ast.parse(source.read_text()))
+                  if isinstance(node, ast.FunctionDef) and node.name == "setup_scene")
+    calls = []
+
+    class SceneReached(Exception):
+        pass
+
+    def scene(*args):
+        raise SceneReached
+
+    render = SimpleNamespace(**{
+        name: lambda *a, **k: None for name in (
+            "set_global_config", "set_camera_shader_dir", "set_ray_tracing_samples_per_pixel",
+            "set_ray_tracing_path_depth", "set_ray_tracing_denoiser",
+        )
+    })
+    render.SapienRenderer = lambda device: calls.append(("renderer", device))
+    render.RenderSystem = lambda device: calls.append(("scene", device))
+    sapien = SimpleNamespace(
+        Engine=lambda: SimpleNamespace(set_renderer=lambda renderer: None, create_scene=scene),
+        Device=lambda device: device,
+        SapienRenderer=lambda: calls.append(("legacy", None)),
+        render=render,
+        physx=SimpleNamespace(set_scene_config=lambda config: None, PhysxCpuSystem=lambda: None),
+        Scene=scene, SceneConfig=lambda: None,
+    )
+    monkeypatch.setitem(sys.modules, "sapien.render", render)
+    monkeypatch.delenv("ROBOTWIN_RENDER_DEVICE", raising=False)
+    if selected is not None:
+        monkeypatch.setenv("ROBOTWIN_RENDER_DEVICE", selected)
+    namespace = {"sapien": sapien, "os": os}
+    exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), namespace)
+    with pytest.raises(SceneReached):
+        namespace["setup_scene"](SimpleNamespace())
+    assert calls == ([("legacy", None)] if selected is None else
+                     [("renderer", selected), ("scene", selected)])
