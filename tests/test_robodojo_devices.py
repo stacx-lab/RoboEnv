@@ -240,3 +240,38 @@ def test_render_projection_waits_for_ready_parameters_without_hiding_mismatch(mo
             world._render_intrinsics("head_camera")
     assert calls[0] == ("attach", product) and calls[-1] == ("detach", product)
     assert calls.count("render") == {"transient": 4, "unavailable": 8, "mismatch": 3}[mode]
+
+
+class _View:
+    def __init__(self, valid):
+        self.valid = valid
+
+    def is_physics_handle_valid(self):
+        return self.valid
+
+    def get_world_positions(self):
+        return np.ones((1, 2, 3))
+
+    def get_velocities(self):
+        return np.zeros((1, 2, 3))
+
+
+def _object(**fields):
+    return SimpleNamespace(get_world_pose=lambda: np.zeros(7), **fields)
+
+
+def test_object_state_reads_only_the_handles_an_object_has():
+    from roboenv_runtime.adapters.robodojo.devices import object_state
+
+    encode = lambda value: np.asarray(value).tolist()  # noqa: E731
+    # A conveyor item is a plain prim wrapper among the rigid objects: a pose, no velocity.
+    assert set(object_state("rigid", _object(), encode)) == {"pose"}
+    rigid = _object(get_linear_velocity=lambda: np.ones(3), get_angular_velocity=lambda: np.ones(3))
+    assert object_state("rigid", rigid, encode)["linear_velocity"] == [1.0, 1.0, 1.0]
+    # A garment's cloth view is read once initialized; before that the prim's own points stand in.
+    prim = SimpleNamespace(GetAttribute=lambda name: SimpleNamespace(Get=lambda: [(1.0, 2.0, 3.0)]))
+    before = object_state("garment", _object(_cloth_prim_view=_View(False), prim=prim), encode)
+    assert before["points"] == [[1.0, 2.0, 3.0]] and "velocities" not in before
+    after = object_state("garment", _object(_cloth_prim_view=_View(True), prim=prim), encode)
+    assert after["points"] == np.ones((1, 2, 3)).tolist()
+    assert after["velocities"] == np.zeros((1, 2, 3)).tolist()

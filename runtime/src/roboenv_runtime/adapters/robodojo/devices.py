@@ -25,6 +25,37 @@ def pose_matrix(pose):
     return matrix([*pose[:3], *pose[4:7], pose[3]])
 
 
+def object_state(kind, obj, encode):
+    """The live state of one task object for the owner's evidence.
+
+    Not every object of a kind has the same handles: RoboDojo's conveyor items are plain prim
+    wrappers (`DynamicObject`) among the rigid objects, with a pose but no velocity, and a garment's
+    cloth view exists before the object initializes it on its first step (`is_physics_handle_valid`
+    is false until then), so before that the prim's own points stand for the particles.
+    """
+    entry = {"pose": encode(obj.get_world_pose())}
+    if kind in {"rigid", "articulation"} and hasattr(obj, "get_linear_velocity"):
+        entry.update(
+            linear_velocity=encode(obj.get_linear_velocity()),
+            angular_velocity=encode(obj.get_angular_velocity()),
+        )
+    if kind == "articulation":
+        entry.update(
+            joint_positions=encode(obj.get_joint_positions()),
+            joint_velocities=encode(obj.get_joint_velocities()),
+        )
+    if kind == "garment":
+        view = getattr(obj, "_cloth_prim_view", None)
+        if view is not None and view.is_physics_handle_valid():
+            entry.update(
+                points=encode(view.get_world_positions()),
+                velocities=encode(view.get_velocities()),
+            )
+        else:
+            entry["points"] = encode(np.asarray(obj.prim.GetAttribute("points").Get()))
+    return entry
+
+
 class RoboDojoDevices(RoboDojoEnv):
     unbounded = False
 
@@ -416,23 +447,7 @@ class RoboDojoDevices(RoboDojoEnv):
                         ),
                     }
                     continue
-                entry = {"pose": encode(obj.get_world_pose())}
-                if kind in {"rigid", "articulation"}:
-                    entry.update(
-                        linear_velocity=encode(obj.get_linear_velocity()),
-                        angular_velocity=encode(obj.get_angular_velocity()),
-                    )
-                if kind == "articulation":
-                    entry.update(
-                        joint_positions=encode(obj.get_joint_positions()),
-                        joint_velocities=encode(obj.get_joint_velocities()),
-                    )
-                if kind == "garment":
-                    entry.update(
-                        points=encode(obj._cloth_prim_view.get_world_positions()),
-                        velocities=encode(obj._cloth_prim_view.get_velocities()),
-                    )
-                objects[kind][name] = entry
+                objects[kind][name] = object_state(kind, obj, encode)
         reward = self._env.reward_manager
         state["task_objects"] = objects
         state["reward_state"] = {
