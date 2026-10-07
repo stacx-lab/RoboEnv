@@ -200,7 +200,7 @@ Record three 22-second MP4 clips (forward/backward, sideways, turning) with a fi
 spectator camera and commanded/measured velocity overlays:
 
 ```sh
-OMNI_KIT_ACCEPT_EULA=YES "$ISAAC_PY" tools/record_go2_d1_demos.py \
+"$ISAAC_PY" tools/record_go2_d1_demos.py \
   --out generated/go2-d1-velocity-demos
 ```
 
@@ -240,10 +240,10 @@ pitch endpoints are ±0.12 rad (±6.88°). The angle overlays use degrees; comma
 and raw telemetry retain radians. Height is the base origin above the flat floor.
 
 ```sh
-OMNI_KIT_ACCEPT_EULA=YES "$ISAAC_PY" tools/record_go2_d1_demos.py \
+"$ISAAC_PY" tools/record_go2_d1_demos.py \
   --posture --out generated/go2-posture-videos
 # Optionally test the same posture commands while walking:
-OMNI_KIT_ACCEPT_EULA=YES "$ISAAC_PY" tools/record_go2_d1_demos.py \
+"$ISAAC_PY" tools/record_go2_d1_demos.py \
   --posture --walk-speed 0.5 --out generated/go2-walking-posture-videos
 ```
 
@@ -294,11 +294,11 @@ The existing approximate dynamics and disabled robot self-collisions still apply
 these tests do not certify collision-free motion or hardware operation.
 
 ```sh
-OMNI_KIT_ACCEPT_EULA=YES "$ISAAC_PY" tests/go2_d1_tasks_native.py \
+"$ISAAC_PY" tests/go2_d1_tasks_native.py \
   --task go2-d1-reach --cameras --out .cache/go2-reach-probe
-OMNI_KIT_ACCEPT_EULA=YES "$ISAAC_PY" tests/go2_d1_tasks_native.py \
+"$ISAAC_PY" tests/go2_d1_tasks_native.py \
   --task go2-d1-pick-place --cameras --out .cache/go2-pick-place-probe
-OMNI_KIT_ACCEPT_EULA=YES "$ISAAC_PY" tools/replay_go2_d1.py \
+"$ISAAC_PY" tools/replay_go2_d1.py \
   .cache/go2-pick-place-probe/record.json --out .cache/go2-pick-place-replay.json
 # Add --video generated/pick-place.mp4 for a spectator recording of that replay.
 ```

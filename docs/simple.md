@@ -10,7 +10,7 @@ RoboEnv owns the world, clocks, native verdict and private replay evidence.
 roboenv prepare simple
 roboenv tasks list --simulator simple
 roboenv launch simple/xmove-pick
-roboenv launch simple/xmove-pick --gpu 0
+roboenv launch simple/xmove-pick
 roboenv launch simple/transfer-between-tables
 ```
 
@@ -66,7 +66,7 @@ success is retained for the episode, while control and physics can continue.
 To stop at the first successful control interval, override the policy at launch:
 
 ```sh
-roboenv launch simple/xmove-pick --gpu 0 --stop-on-success
+roboenv launch simple/xmove-pick --stop-on-success
 ```
 
 `--no-stop-on-success` forces continued execution; omitting both flags preserves
@@ -140,20 +140,13 @@ nonzero exit status. Standalone native and replay commands flush output and exit
 explicitly after cleanup, as the worker does, to avoid native destructors running
 after Kit plugins have unloaded. Replay output must use a fresh path.
 
-Isaac launches use one physical GPU. Select its host `nvidia-smi` index with
-`--gpu N`, or `roboenv.launch(..., gpu=N)` in Python. Without a selector, launch
-uses the first GPU permitted by inherited `CUDA_VISIBLE_DEVICES` and
-`NVIDIA_VISIBLE_DEVICES` restrictions, or GPU 0 when unrestricted. Explicit
-selections outside those restrictions fail before startup. Full GPU UUIDs and
-unambiguous UUID prefixes are supported in visibility masks; MIG selectors are
-not supported. The selector currently applies only to SIMPLE with Isaac rendering.
-
-Launch matches CUDA and Vulkan devices by UUID, limits CUDA visibility to the
-selected card, and explicitly selects Isaac's matching rendering device with
-multi-GPU rendering disabled. CUDA visibility alone does not select a Vulkan
-renderer. This also avoids the cross-card CUDA peer-to-peer startup validation
-that can stall multi-GPU hosts with IOMMU enabled. MuJoCo still owns CPU physics.
-Private run metadata and worker logs record the resolved GPU identity.
+All launch and replay paths use the first GPU visible to CUDA. Select it outside
+RoboEnv, for example `CUDA_VISIBLE_DEVICES=6 roboenv launch simple/xmove-pick`.
+The shared resolver matches CUDA, Vulkan and EGL identities and enables only that
+card. CUDA physics uses logical device zero; rendering uses the matching graphics
+device index. MuJoCo still owns CPU physics. Private run metadata and worker logs
+record the resolved GPU identity. See [shared launch defaults](setup.md#gpu-and-license-defaults)
+for container behavior and migration from the removed `--gpu` option.
 
 Allow for cold shader compilation within the startup deadline (900 seconds by
 default). Wait for RoboEnv's ready endpoint before loading Kinex devices; Kit's
@@ -365,7 +358,7 @@ an official SIMPLE baseline or a task-performance result.
 
 ### Spectator video
 
-`roboenv launch simple/xmove-pick --gpu 0 --record` records the existing
+`roboenv launch simple/xmove-pick --record` records the existing
 left and right head-camera viewpoints through the shared spectator recorder.
 Both `mujoco_isaac` and diagnostic `mujoco` rendering modes are supported.
 The default is separate 640×360 MP4s at 10 simulation-time FPS, named
@@ -412,7 +405,7 @@ reference conversion through arm IK. These checks do not establish grasp success
 ```sh
 python tools/accept_simple.py --python SIMULATOR_PYTHON --out NEW_RESULTS
 # Select one host GPU for Isaac validation and replay:
-python tools/accept_simple.py --python SIMULATOR_PYTHON --out NEW_RESULTS --gpu 0
+python tools/accept_simple.py --python SIMULATOR_PYTHON --out NEW_RESULTS
 # Diagnostic matrix with MuJoCo images:
 python tools/accept_simple.py --python SIMULATOR_PYTHON --out NEW_RESULTS --sim-mode mujoco
 # Uncompensated native checks and replay:

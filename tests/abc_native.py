@@ -4,11 +4,12 @@ import json
 from pathlib import Path
 
 import numpy as np
-from roboenv_runtime.adapters.abc.backend import ABCEnv, abc_sim
+from roboenv_runtime.adapters.abc.backend import ABCEnv
 from roboenv_runtime.adapters.abc.scoring import BlockTower, MarkersInDrawer, geom_points
 
 
 def scoring_checks():
+    import abc_sim
     import mujoco
 
     env = abc_sim.make_env(task="put_markers_in_top_drawer", render_cameras=False)
@@ -121,6 +122,9 @@ def contact_check():
 
 
 def check():
+    from roboenv.provisioning.gpu import configure_gpu
+
+    configure_gpu("abc")
     result = scoring_checks()
     result["loaded_contact_and_release"] = contact_check()
     world = ABCEnv("put_plastic_bottles_in_bin")

@@ -32,25 +32,15 @@ def _boot_isaac(headless: bool = True, enable_cameras: bool = True):
     # workers must not reuse another world's native output directory.
     os.environ.setdefault("ROBODOJO_RUN_ID", f"roboenv-{secrets.token_hex(8)}")
 
-    import argparse
+    from roboenv_runtime.adapters.gpu import launch_isaaclab
 
-    from isaaclab.app import AppLauncher
-
-    parser = argparse.ArgumentParser()
-    AppLauncher.add_app_launcher_args(parser)
-    argv = []
-    if headless:
-        argv.append("--headless")
-    if enable_cameras:
-        argv.append("--enable_cameras")
-    argv += [
-        "--kit_args",
-        " --enable isaacsim.replicator.behavior --enable isaacsim.sensors.camera",
-    ]
-    # AppLauncher parses sys.argv too; hide the harness's own flags from it.
+    # AppLauncher parses sys.argv too; hide the caller's own flags from it.
     saved_argv, sys.argv = sys.argv, sys.argv[:1]
     try:
-        _APP = AppLauncher(parser.parse_args(argv)).app
+        _APP = launch_isaaclab(
+            "robodojo", headless=headless, enable_cameras=enable_cameras,
+            kit_args=" --enable isaacsim.replicator.behavior --enable isaacsim.sensors.camera",
+        )
     finally:
         sys.argv = saved_argv
     return _APP

@@ -57,6 +57,9 @@ class RoboCasaEnv:
         if type(stop_on_success) is not bool:
             raise ValueError("stop_on_success must be a boolean")
         self.stop_on_success = stop_on_success
+        from roboenv.provisioning.gpu import configure_gpu
+
+        configure_gpu("robocasa", {"enable_render": enable_render})
         _ensure_offscreen_rendering()
         import robocasa  # noqa: F401  (importing it registers the kitchen environments)
         import robosuite

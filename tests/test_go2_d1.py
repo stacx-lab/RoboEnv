@@ -55,17 +55,24 @@ def test_native_defaults_eula_before_isaac_import(monkeypatch, tmp_path, existin
     monkeypatch.setattr(native, "validate_robot_profiles", lambda *args: None)
     monkeypatch.setattr(native.Native, "_create", lambda *args: None)
 
-    class AppModule(ModuleType):
-        def __getattr__(self, name):
-            if name == "AppLauncher":
-                assert os.environ.get("OMNI_KIT_ACCEPT_EULA") == expected
-                return lambda **kwargs: SimpleNamespace(app=object())
-            raise AttributeError(name)
+    from roboenv_runtime.adapters import gpu as native_gpu
+
+    monkeypatch.setattr(os, "environ", dict(os.environ))
+    monkeypatch.setattr(native_gpu, "configure_gpu", lambda backend: {"vulkan_index": 3})
+
+    class Launcher:
+        def __init__(self, **kwargs):
+            assert os.environ.get("OMNI_KIT_ACCEPT_EULA") == expected
+            self._config_resolution(kwargs)
+            self.app = object()
+
+        def _config_resolution(self, kwargs):
+            self._sim_app_config = {}
 
     package = ModuleType("isaaclab")
     package.__path__ = []
     monkeypatch.setitem(sys.modules, "isaaclab", package)
-    monkeypatch.setitem(sys.modules, "isaaclab.app", AppModule("isaaclab.app"))
+    monkeypatch.setitem(sys.modules, "isaaclab.app", SimpleNamespace(AppLauncher=Launcher))
 
     world = native.Native(manifest)
     assert world.app is not None

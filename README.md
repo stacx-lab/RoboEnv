@@ -24,6 +24,12 @@ see [setup](docs/setup.md) for prerequisites and diagnostics.
 
 ## Start and connect
 
+Select a GPU with `CUDA_VISIBLE_DEVICES` before launch, for example
+`CUDA_VISIBLE_DEVICES=6 roboenv launch robodojo/general-pickup`. Every backend
+uses the first CUDA-visible card and maps its renderer to the same physical GPU.
+Isaac EULA and BEHAVIOR dataset acceptance default to `YES`, preserving explicit
+opt-outs. See [GPU and license defaults](docs/setup.md#gpu-and-license-defaults).
+
 Tasks default to `execution_mode: realtime`; `stepped` is an explicit opt-in.
 `stepped` freezes idle simulation; `realtime` advances it against a monotonic clock.
 `roboenv tasks list` reports each task's mode. Launch uses the resolved task setting;
@@ -147,7 +153,7 @@ See [gripper geometry](docs/grippers.md) for frame conventions and source valida
 
 SIMPLE G1 uses a `velocity` base for legs and waist, separate `joint` arms,
 `dexterous_hand` fingers, and stereo RGB cameras. Run `roboenv prepare simple`
-and `roboenv launch simple/xmove-pick --gpu 0`. Isaac rendering uses one selected
+and `roboenv launch simple/xmove-pick`. Isaac rendering uses one selected
 GPU over MuJoCo CPU physics with command-driven stepping. See [SIMPLE setup, contracts and validation](docs/simple.md) for requirements
 and the current validation limits. The metric control interface is a practice
 protocol; native success predicates are preserved.

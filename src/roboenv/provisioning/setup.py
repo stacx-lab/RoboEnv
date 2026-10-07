@@ -9,7 +9,6 @@ Rejected installs preserve a private failure log.
 import argparse
 import hashlib
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -346,8 +345,10 @@ def install(backend, prefix, *, project=None, sdk=None, runtime=None, wheels=Non
     logs.mkdir(parents=True, exist_ok=True)
     private = Path(tempfile.mkdtemp(prefix=backend + "-", dir=logs))
     logfile = private / "install.private.log"
+    from roboenv.provisioning.acceptance import acceptance_environment
+
     environment = {
-        **os.environ,
+        **acceptance_environment(),
         "PYTHONNOUSERSITE": "1",
     }
     for name in (

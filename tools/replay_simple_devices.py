@@ -11,7 +11,7 @@ import numpy as np
 from roboenv_runtime.adapters.simple.backend import SimpleEnv
 
 
-def replay(record, *, gpu=None):
+def replay(record):
     if record.get("schema") != "roboenv/simple-record/3":
         raise ValueError("Expected a SIMPLE owner record")
     mode = record.get("execution_mode")
@@ -31,7 +31,6 @@ def replay(record, *, gpu=None):
         dr_level=metadata["dr_level"],
         initialization=json.loads(metadata["state_dict_json"]),
         stabilize_steps=metadata["stabilize_steps"],
-        gpu=gpu,
     )
     try:
         world.configure_execution_mode(mode)
@@ -111,11 +110,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("record", type=Path)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--gpu", type=int, help="Host GPU index for Isaac rendering")
     args = parser.parse_args()
     if args.out.exists():
         raise ValueError("Replay output must be new")
-    result = replay(json.loads(args.record.read_text()), gpu=args.gpu)
+    result = replay(json.loads(args.record.read_text()))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2) + "\n")
     if not result["passed"]:

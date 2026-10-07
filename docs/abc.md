@@ -10,7 +10,7 @@ All 33 task definitions are checked into `catalog/tasks/abc` and available throu
 ```sh
 roboenv prepare abc
 roboenv tasks discover --backends abc --out generated/abc-source
-MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0 roboenv launch abc/put-plastic-bottles-in-bin
+roboenv launch abc/put-plastic-bottles-in-bin
 ```
 
 Preparation installs an isolated Python 3.12 environment and verifies the upstream
@@ -66,10 +66,10 @@ execution_mode: stepped
 backend_kwargs:
   task_name: put_plastic_bottles_in_bin
   camera_backend: blender
-  render_gpu_id: 0
 ```
 
-Launch that YAML with `roboenv launch PATH --record`. The complete task still needs
+Launch that YAML with `roboenv launch PATH --record`. Select a card externally with
+`CUDA_VISIBLE_DEVICES`; both MuJoCo and Blender use the same selected GPU. The complete task still needs
 its original `id`, `robot`, instruction and budget fields. The same `abc/abc-yam`
 catalog serves both renderers. Spectator source views and custom fixed poses keep
 their declared resolution and field of view; device cameras remain 640×480 RGB.

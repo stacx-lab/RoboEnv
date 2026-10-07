@@ -34,17 +34,10 @@ class SimpleEnv:
         dr_level=0,
         initialization=None,
         stabilize_steps=300,
-        gpu=None,
     ):
         if type(arm_gravity_compensation) is not bool:
             raise ValueError("arm_gravity_compensation must be a boolean")
         self.arm_gravity_compensation = arm_gravity_compensation
-        from roboenv.provisioning.gpu import validate_gpu
-
-        validate_gpu(gpu)
-        if gpu is not None and sim_mode != "mujoco_isaac":
-            raise ValueError("gpu selection requires SIMPLE Isaac rendering")
-        self.gpu = gpu
         root = repo_root()
         self.root = root
         self.env = None
@@ -91,11 +84,9 @@ class SimpleEnv:
     def reset(self, seed):
         if self.env is not None:
             raise ValueError("SIMPLE reset requires a fresh worker")
-        if self.sim_mode == "mujoco_isaac":
-            from roboenv.provisioning.gpu import configure_simple_gpu
+        from roboenv.provisioning.gpu import configure_gpu
 
-            selection = configure_simple_gpu(self.gpu)
-            print("SIMPLE GPU selection: " + json.dumps(selection, sort_keys=True), flush=True)
+        configure_gpu("simple", {"sim_mode": self.sim_mode})
         import gymnasium as gym
         import simple.envs  # noqa: F401
         from gear_sonic.utils.mujoco_sim.configs import SimLoopConfig

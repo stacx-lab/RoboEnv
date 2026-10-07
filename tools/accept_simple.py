@@ -31,8 +31,6 @@ def run(args):
     env["PYTHONNOUSERSITE"] = "1"
 
     def stage(name, command, receipt):
-        if args.gpu is not None:
-            command += ["--gpu", str(args.gpu)]
         started = time.monotonic()
         error = None
         with (args.out / f"{name}.log").open("x") as log:
@@ -156,7 +154,6 @@ if __name__ == "__main__":
         default=Path(os.environ.get("KINEX_ROOT", ROOT.parent / "kinex")),
     )
     parser.add_argument("--node", default=os.environ.get("NODE", "node"))
-    parser.add_argument("--gpu", type=int, help="Host GPU index for Isaac rendering")
     parser.add_argument("--sim-mode", choices=("mujoco", "mujoco_isaac"), default="mujoco_isaac")
     parser.add_argument("--jobs", type=int, choices=(1, 2), default=1)
     parser.add_argument("--timeout", type=int, default=600, help="Seconds per child stage")

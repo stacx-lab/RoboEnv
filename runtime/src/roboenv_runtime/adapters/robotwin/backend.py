@@ -123,6 +123,9 @@ class RoboTwinEnv:
         self.task_name = task_name
         self.allow_seed_substitution = allow_seed_substitution
 
+        from roboenv.provisioning.gpu import configure_gpu
+
+        configure_gpu("robotwin")
         _ensure_robotwin_imported()  # chdirs this process into the RoboTwin root
 
         self._base_args = _assemble_task_args(

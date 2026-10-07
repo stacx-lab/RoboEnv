@@ -41,6 +41,9 @@ class LiberoEnv:
             raise ValueError("Only native LIBERO RGB sensors are supported")
         if tuple(camera_size) != CAMERA_SIZE:
             raise ValueError(f"Native LIBERO catalogs require camera_size={CAMERA_SIZE}")
+        from roboenv.provisioning.gpu import configure_gpu
+
+        configure_gpu("libero", {"enable_render": enable_render})
         ensure_libero_config()
         os.environ.setdefault("MUJOCO_GL", "egl")
         os.environ.setdefault("PYOPENGL_PLATFORM", "egl")

@@ -229,7 +229,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("task")
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--gpu", type=int, required=True)
     parser.add_argument("--interpreter", type=Path)
     parser.add_argument("--clock", choices=("stepped", "realtime"), default="stepped")
     parser.add_argument("--seconds", type=float, default=2)
@@ -239,7 +238,7 @@ def main():
                         help="Override SIMPLE rendering mode")
     parser.add_argument("--native", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.gpu < 0 or not 0 < args.seconds <= 300 or not 0 < args.timeout < float("inf"):
+    if not 0 < args.seconds <= 300 or not 0 < args.timeout < float("inf"):
         parser.error("Use 0 < seconds <= 300 and a finite positive timeout")
     args.out = args.out.resolve()
     if args.views:
@@ -250,7 +249,7 @@ def main():
     task = resolve_probe(args).task
     interpreter = resolve_interpreter(ROOT, task.backend, args.interpreter)
     command = [str(interpreter), str(Path(__file__).resolve()), args.task, "--native",
-               "--out", str(args.out), "--gpu", str(args.gpu), "--clock", args.clock,
+               "--out", str(args.out), "--clock", args.clock,
                "--seconds", str(args.seconds)]
     if args.views:
         command.extend(["--views", str(args.views)])
@@ -264,17 +263,14 @@ def main():
                           for p in sources},
     })
     atomic_write_json(args.out / "result.json", {"passed": False, "error": "probe did not finish"})
-    env = {**os.environ, "CUDA_VISIBLE_DEVICES": str(args.gpu), "MUJOCO_GL": "egl",
-           "MUJOCO_EGL_DEVICE_ID": str(args.gpu), "ROBOTWIN_RENDER_DEVICE": "cuda:0",
-           "PYTHONPATH": os.pathsep.join(str(ROOT / p) for p in ("src", "runtime/src"))}
-    env.pop("OMNIGIBSON_GPU_ID", None)
-    if (task.backend == "simple"
-            and task.backend_kwargs.get("sim_mode", "mujoco_isaac") == "mujoco_isaac"):
-        from roboenv.provisioning.gpu import gpu_environment, resolve_gpu
+    from roboenv.provisioning.acceptance import acceptance_environment
+    from roboenv.provisioning.gpu import gpu_environment, graphics_apis, resolve_gpu
 
-        # Match the normal launch path's physical CUDA/Vulkan device identity.
-        # Resolve against the caller's restrictions, before the generic mask.
-        env.update(gpu_environment(resolve_gpu(args.gpu)))
+    env = {**acceptance_environment(), "MUJOCO_GL": "egl",
+           "PYTHONPATH": os.pathsep.join(str(ROOT / p) for p in ("src", "runtime/src"))}
+    selection = resolve_gpu(graphics_apis(task.backend, task.backend_kwargs))
+    if selection is not None:
+        env.update(gpu_environment(selection))
     with (args.out / "native.log").open("x") as log:
         process = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT,
                                    start_new_session=True)

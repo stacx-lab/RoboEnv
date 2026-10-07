@@ -1,4 +1,4 @@
-"""Acquire pinned BEHAVIOR bundles only after explicit third-party acceptance."""
+"""Acquire pinned BEHAVIOR bundles with configurable third-party acceptance."""
 
 import argparse
 import hashlib
@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from zipfile import ZipFile
 
+from roboenv.provisioning.acceptance import acceptance_environment
 from roboenv.provisioning.assets import _digest
 from roboenv.provisioning.progress import stage
 from roboenv.provisioning.robocasa_assets import _target
@@ -38,13 +39,14 @@ ARCHIVES = {
 
 
 def acceptance_missing():
+    environment = acceptance_environment()
     return [
         name
         for variable, name in (
             ("OMNI_KIT_ACCEPT_EULA", "Isaac Sim EULA"),
             ("ROBOENV_BEHAVIOR_ACCEPT_LICENSE", "BEHAVIOR Data Bundle agreement"),
         )
-        if os.environ.get(variable, "").upper() != "YES"
+        if environment[variable].upper() != "YES"
     ]
 
 
@@ -151,8 +153,9 @@ def acquire(project, cache):
             )
     else:
         link.symlink_to(depot, target_is_directory=True)
-    # Use the upstream key installation within OmniGibson after explicit acceptance.
+    # Use the upstream key installation within OmniGibson after acceptance checks.
     # No key bytes or decryption output enter receipts or the agent workspace.
+    os.environ.update(acceptance_environment())
     os.environ["OMNIGIBSON_DATA_PATH"] = str(depot)
     from omnigibson.utils.asset_utils import download_key, get_key_path
 
@@ -199,6 +202,7 @@ def prepare_assets(project, *, progress=None):
                 str(output),
             ],
             cwd=project,
+            env=acceptance_environment(),
             stdin=subprocess.DEVNULL,
             check=True,
             timeout=14400,

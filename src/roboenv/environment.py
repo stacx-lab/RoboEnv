@@ -279,7 +279,6 @@ def launch(
     host="127.0.0.1",
     port=0,
     arm_gravity_compensation=None,
-    gpu=None,
     log_stream=None,
     runtime_root=None,
     run_dir=None,
@@ -300,14 +299,14 @@ def launch(
     optional fps and views configure sampling and independent spectator cameras.
     directory selects a new or empty output folder, relative to the caller's cwd.
     Backend assets must already be prepared. No installation or download occurs.
-    gpu selects a host NVIDIA GPU index for SIMPLE Isaac rendering. Omission
-    selects the first GPU permitted by inherited visibility (otherwise GPU 0).
+    The first CUDA-visible GPU owns compute and rendering. Select it through
+    CUDA_VISIBLE_DEVICES before launch.
     All run definitions and logs are retained under the selected project's cache.
     """
-    from roboenv.provisioning.gpu import gpu_environment, resolve_gpu, validate_gpu
+    from roboenv.provisioning.acceptance import acceptance_environment
+    from roboenv.provisioning.gpu import gpu_environment, graphics_apis, resolve_gpu
     from roboenv.recording import recording_config
 
-    validate_gpu(gpu)
     recording = recording_config(recording)
     if execution_mode is not None and execution_mode not in ("stepped", "realtime"):
         raise ValueError("execution_mode must be stepped or realtime")
@@ -340,11 +339,6 @@ def launch(
             resolved.task, stop_on_success=stop_on_success,
         ))
     spec = resolved.task
-    isaac_simple = spec.backend == "simple" and spec.backend_kwargs.get(
-        "sim_mode", "mujoco_isaac"
-    ) == "mujoco_isaac"
-    if gpu is not None and not isaac_simple:
-        raise ValueError("gpu selection is supported only for SIMPLE Isaac rendering")
     if recording is not None and spec.backend not in {
         "abc", "libero", "robocasa", "robotwin", "robodojo", "behavior", "simple"
     }:
@@ -360,7 +354,7 @@ def launch(
 
         if not source_status(root, [spec.backend])["ready"]:
             raise ValueError(f"Sources are not ready; run 'roboenv doctor {spec.backend}'")
-    gpu_selection = resolve_gpu(gpu) if isaac_simple else None
+    gpu_selection = resolve_gpu(graphics_apis(spec.backend, spec.backend_kwargs))
     run_id = secrets.token_hex(8)
     runs = (
         Path(run_dir).resolve()
@@ -405,9 +399,10 @@ def launch(
     if recording is not None:
         record["recording"] = recording.get("directory", str(directory / "evidence/recording"))
     _save(record_path, record)
-    env = dict(os.environ)
+    env = acceptance_environment()
     for key in list(env):
-        if key.startswith("ROBOENV_") or key in {"PYTHONPATH", "PYTHONHOME"}:
+        if ((key.startswith("ROBOENV_") and key != "ROBOENV_BEHAVIOR_ACCEPT_LICENSE")
+                or key in {"PYTHONPATH", "PYTHONHOME"}):
             env.pop(key)
     env.update(
         ROBOENV_ROOT=str(root),

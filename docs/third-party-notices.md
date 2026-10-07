@@ -16,8 +16,13 @@ full-precision MuJoCo state into Isaac without advancing a second physics world
 during capture, and disables process-exiting fast shutdown so the
 owner retains exception and replay exit-status handling. It also accepts the
 owner's explicit Vulkan GPU selection, with CUDA device zero after visibility
-remapping and single-GPU rendering. Source revisions remain
-unchanged; patch checksums are recorded in the source lock.
+remapping and single-GPU rendering. Patch checksums are recorded in the source lock.
+
+The BEHAVIOR source pin includes the upstream presampled-pose selection option
+and CI runner update through `a8247a8`. Its inspected code licenses are unchanged.
+The managed GPU patch separates the Vulkan rendering index from CUDA physics
+index zero; existing optional-workflow patches remain applied. Historical
+validation receipts describe their original source revisions.
 
 | Locked source | Notices inspected within that checkout |
 |---|---|
@@ -42,6 +47,11 @@ remain subject to the [release gates](releasing.md).
 
 Before changing a source pin, inspect the new notice files and deliberately update
 the inventory. A changed hash must never be accepted merely to silence the check.
+
+The managed RoboTwin GPU patch selects the same device for its initial SAPIEN
+renderer and scene render system. The legacy renderer wrapper ignores device
+arguments; the patch uses the device-aware constructor. The upstream source pin
+is unchanged.
 
 ## ABC
 

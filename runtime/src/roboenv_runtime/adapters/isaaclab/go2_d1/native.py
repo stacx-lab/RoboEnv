@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import os
 import sys
 import traceback
 from pathlib import Path
@@ -21,7 +20,6 @@ class Native:
     def __init__(
         self,
         asset_manifest,
-        device="cuda:0",
         cameras=True,
         task_name="go2-d1-control",
         task_spec=None,
@@ -53,12 +51,11 @@ class Native:
         self.device_profiles = device_profiles
         self.app = self.sim = None
         self.cameras = {}
-        os.environ.setdefault("OMNI_KIT_ACCEPT_EULA", "YES")
-        from isaaclab.app import AppLauncher
+        from roboenv_runtime.adapters.gpu import launch_isaaclab
 
-        self.app = AppLauncher(headless=True, enable_cameras=cameras, device=device).app
+        self.app = launch_isaaclab("isaaclab", headless=True, enable_cameras=cameras)
         try:
-            self._create(manifest.parent, device, cameras)
+            self._create(manifest.parent, "cuda:0", cameras)
         except BaseException:
             self.close()
             raise

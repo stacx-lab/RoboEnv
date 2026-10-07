@@ -4,7 +4,6 @@ import argparse
 import json
 from pathlib import Path
 
-import mujoco
 import numpy as np
 import yaml
 from roboenv_runtime.adapters.libero.adapter import LiberoAdapter
@@ -14,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def matrix(pose):
+    import mujoco
+
     result = np.eye(4)
     quat = np.asarray([pose["rotation_xyzw"][3], *pose["rotation_xyzw"][:3]])
     rotation = np.empty(9)
@@ -25,6 +26,7 @@ def matrix(pose):
 
 def check(directory):
     adapter = LiberoAdapter(enable_render=True)
+    import mujoco
     try:
         adapter.reset(0)
         world = adapter._env

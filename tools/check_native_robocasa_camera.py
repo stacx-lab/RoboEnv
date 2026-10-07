@@ -12,13 +12,17 @@ import numpy as np
 import yaml
 from roboenv_runtime.adapters.robocasa.backend import RoboCasaEnv
 from roboenv_runtime.adapters.robocasa.depth import write_depth
-from robosuite.utils.binding_utils import MjRenderContextOffscreen, MjSim
 from scipy.spatial.transform import Rotation
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def check(out):
+    from roboenv.provisioning.gpu import configure_gpu
+
+    configure_gpu("robocasa")
+    from robosuite.utils.binding_utils import MjRenderContextOffscreen, MjSim
+
     out.mkdir(parents=True, exist_ok=False)
     results = []
     for name in ("camera_left", "camera_right", "camera_wrist"):

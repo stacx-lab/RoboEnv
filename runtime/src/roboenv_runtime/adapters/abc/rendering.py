@@ -8,22 +8,20 @@ from roboenv.provisioning.assets import _digest
 from roboenv_runtime.paths import repo_root
 
 
-def settings(gpu_id):
+def settings():
     binary, hdri = paths(repo_root())
     samples = int(os.environ.get("ABC_BLENDER_SAMPLES", "16"))
     denoiser = os.environ.get("ABC_BLENDER_DENOISER", "OPENIMAGEDENOISE")
     if samples < 1 or denoiser not in {"OPENIMAGEDENOISE", "OPTIX", "NONE"}:
         raise ValueError("Invalid ABC Blender samples or denoiser")
-    if type(gpu_id) is not int or gpu_id < 0:
-        raise ValueError("render_gpu_id must be a nonnegative integer")
     version = subprocess.run([str(binary), "--version"], check=True, capture_output=True,
                              text=True, timeout=30).stdout.splitlines()[0]
     return {
         "blender": str(binary), "hdri": str(hdri), "samples": samples,
-        "denoiser": denoiser, "gpu_id": gpu_id,
+        "denoiser": denoiser, "gpu_id": None,
         "identity": {"version": version, "binary_sha256": _digest(binary),
                      "hdri_sha256": _digest(hdri), "samples": samples,
-                     "denoiser": denoiser, "gpu_id": gpu_id},
+                     "denoiser": denoiser, "gpu_id": None},
     }
 
 

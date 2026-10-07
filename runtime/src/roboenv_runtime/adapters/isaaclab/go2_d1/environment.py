@@ -37,7 +37,6 @@ class Go2Env:
     def __init__(
         self,
         asset_manifest=".cache/isaaclab/go2-d1/assets.json",
-        device="cuda:0",
         cameras=True,
         task_name="go2-d1-control",
         max_steps=None,
@@ -87,7 +86,6 @@ class Go2Env:
         self.task_name = task_name
         self.native = Native(
             repo_root() / asset_manifest,
-            device=device,
             cameras=cameras,
             task_name=task_name,
             task_spec=spec,

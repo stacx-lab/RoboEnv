@@ -77,13 +77,13 @@ depot, so it must remain available for launch.
 RoboDojo requires Isaac Sim and supports the upstream ARX X5 robot.
 
 BEHAVIOR preparation acquires the pinned robot assets, encrypted scene/object
-bundle and 2026 challenge instances after explicit acceptance is supplied through
-`OMNI_KIT_ACCEPT_EULA=YES` and `ROBOENV_BEHAVIOR_ACCEPT_LICENSE=YES`. Set these only
-after reviewing and accepting the respective upstream agreements. The upstream
-OmniGibson key installer runs within its own interpreter; keys and native data
-remain in the private depot. Existing bundles are verified and preserved. Source
-availability alone does not grant access to these assets. Setup does not accept
-licenses or download model checkpoints. `doctor` reports recipe
+bundle and 2026 challenge instances. RoboEnv defaults Isaac Sim EULA and BEHAVIOR
+Data Bundle agreement acceptance to `YES`; explicit nonacceptance is preserved.
+The upstream OmniGibson key installer runs within its own interpreter; keys and
+native data remain in the private depot. Existing bundles are verified and preserved.
+Source availability alone does not grant access to these assets. Setup does not
+download model checkpoints. See [GPU and license defaults](#gpu-and-license-defaults).
+`doctor` reports recipe
 and source blockers and whether an interpreter has been registered; it does not
 certify GPU, asset, or task readiness. Add `--json` for automation.
 
@@ -303,3 +303,49 @@ receipts in `.cache/roboenv/assets/robocasa`, preserving those project-relative
 paths. Synchronize image-local sources before copying assets into their checkout.
 Subsequent `roboenv prepare robocasa` verifies these files and skips their downloads.
 Do not include private diagnostic logs with the receipts.
+
+## GPU and license defaults
+
+All eight simulator backends use the first CUDA-visible GPU for compute and rendering:
+
+```sh
+export CUDA_VISIBLE_DEVICES=6
+roboenv launch robodojo/general-pickup
+```
+
+An unset mask selects logical `cuda:0` according to the CUDA driver's default order.
+A list such as `6,2` selects its first visible device. GPU UUIDs and CUDA-supported
+UUID prefixes work as masks. Empty or disabled visibility fails before a GPU-backed
+launch; CPU-only checks do not probe GPUs. MIG instances are unsupported; these
+renderers require a full graphics-capable GPU.
+
+RoboEnv queries the selected CUDA device's identity in a bounded child process,
+then matches the graphics device required by the backend. Worker subprocesses expose
+only that card to CUDA. Vulkan and EGL ordinals need not equal CUDA ordinals; multi-GPU
+rendering is disabled. RoboEnv derives internal renderer settings, including
+`MUJOCO_EGL_DEVICE_ID`, `ROBOTWIN_RENDER_DEVICE`, and Isaac GPU settings. Set
+`CUDA_VISIBLE_DEVICES` rather than supplying these backend-specific overrides.
+The parent shell and other running services are unchanged.
+
+This selects one GPU for simulation and rendering; it is not hardware isolation.
+The NVIDIA Vulkan driver may retain a small initialization context on another GPU
+even when the renderer explicitly selects the requested device. Use container
+GPU isolation when access to other physical cards must be prevented.
+
+In containers, the NVIDIA runtime has already applied `NVIDIA_VISIBLE_DEVICES`.
+RoboEnv queries devices actually visible inside the container and does not compare
+that variable's host indices against renumbered container indices. Private run
+metadata and worker logs retain the selected UUID and renderer indices. Replay
+selects the current process's visible GPU, allowing another machine or card.
+
+The SIMPLE `--gpu` / Python `gpu=` selectors, Go2 `device` selector, and ABC
+`render_gpu_id` task field have been removed. Remove them from custom tasks and
+scripts, and export `CUDA_VISIBLE_DEVICES` before launch or a native/replay tool.
+ABC's Blender subprocess inherits the same mask.
+
+Preparation and Isaac startup default `OMNI_KIT_ACCEPT_EULA=YES`; BEHAVIOR
+preparation also defaults `ROBOENV_BEHAVIOR_ACCEPT_LICENSE=YES`. These defaults
+accept the respective upstream agreements. Explicit values such as `NO` or an
+empty string are preserved; asset acquisition remains blocked when acceptance is
+declined. Defaults are passed to owned subprocesses rather than exported into the
+calling shell. GPU selection and license defaults do not install missing assets.
