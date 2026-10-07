@@ -46,7 +46,7 @@ def check(root, temporary):
         assert native._step_count == 8
         np.testing.assert_allclose(native._robot.part_controllers["right"].goal_qpos, goal)
         assert np.linalg.norm(native.sim.data.qpos - initial) > 1e-4
-        # Exercise the actual upper-layer planner against native torque dynamics,
+        # Exercise the local joint planner against native torque dynamics,
         # whose introspected joint model has no velocity or acceleration limits.
         kinex_root, _ = kinex_sources()
         sys.path.insert(0, str(kinex_root / "packages/core/assets/python"))
@@ -68,7 +68,7 @@ def check(root, temporary):
         goal = call("arm", "read")["positions"]
         goal[0] += 0.1
         before = native._step_count
-        tool.control({"device": "arm", "joints": goal, "duration_s": 5})
+        tool.control({"device": "arm", "joints": goal})
         assert native._step_count == before
         call("world", "wait", duration_s=5)
         np.testing.assert_allclose(call("arm", "read")["positions"], goal, atol=0.01)

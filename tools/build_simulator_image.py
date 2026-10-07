@@ -22,6 +22,7 @@ from roboenv.tasks.catalog import BACKENDS
 
 WORKSPACE = Path(__file__).resolve().parents[1]
 SOURCES = {
+    "abc": ["third_party/abc"],
     "simple": ["third_party/SIMPLE"],
     "isaaclab": ["third_party/IsaacLab"],
     "libero": ["third_party/LIBERO"],
@@ -35,6 +36,7 @@ SOURCES = {
     "behavior": ["third_party/BEHAVIOR-1K"],
 }
 EXTERNAL = {
+    "abc": ["third_party/abc/abc_sim/models/assets"],
     "simple": [".cache/simple/data"],
     "isaaclab": [".cache/isaaclab/assets"],
     "libero": [],

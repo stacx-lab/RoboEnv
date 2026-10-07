@@ -18,7 +18,7 @@ EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
 
 @control_binding
 def bind(spec, root, context):
-    if context.backend not in {"robotwin", "robodojo", "behavior"}:
+    if context.backend not in {"robotwin", "robodojo", "behavior", "abc"}:
         raise ValueError("Source-backed device binding requires its native backend")
     world = context.native._env
     if context.embodiment != world.embodiment or spec.config:

@@ -1,0 +1,10 @@
+id: abc/put-markers-in-bottom-drawer
+robot: abc/abc-yam
+instruction: Put all five markers in the bottom drawer, release them, and close the
+  drawer.
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: put_markers_in_bottom_drawer

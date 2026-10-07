@@ -16,7 +16,7 @@ from roboenv.provisioning.sources import load_lock, status
 from roboenv.tasks.artifacts import Bundle
 from roboenv.tasks.model import Task
 
-BACKENDS = ("libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab", "simple")
+BACKENDS = ("abc", "libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab", "simple")
 ROBOTS = {
     "simple": "simple/simple-g1",
     "libero": "libero/libero-panda-tabletop",
@@ -207,6 +207,12 @@ def _isaaclab(root, issues):
         yield Task.load(source), source
 
 
+def _abc(root, issues):
+    from roboenv.tasks.abc import discover_tasks
+
+    yield from discover_tasks(root)
+
+
 def _simple(root, issues):
     from roboenv.tasks.simple import discover_tasks
 
@@ -214,6 +220,7 @@ def _simple(root, issues):
 
 
 DISCOVERERS = {
+    "abc": _abc,
     "simple": _simple,
     "isaaclab": _isaaclab,
     "libero": _libero,

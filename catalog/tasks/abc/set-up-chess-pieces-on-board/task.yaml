@@ -1,0 +1,9 @@
+id: abc/set-up-chess-pieces-on-board
+robot: abc/abc-yam
+instruction: set up chess pieces on the board
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: set_up_chess_pieces_on_board

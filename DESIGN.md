@@ -4,7 +4,7 @@ RoboEnv exposes **a task and a set of devices** backed by one simulation service
 The task supplies an instruction. Devices supply basic sensor readings and actuator
 commands. The agent perceives the scene, plans, and writes control programs.
 
-All seven simulator backends use this task and typed-device contract. Native
+All eight simulator backends use this task and typed-device contract. Native
 control, rendering and success predicates remain simulator-specific.
 See [RoboCasa devices](docs/robocasa.md) for implemented semantics and validation limits.
 
@@ -139,7 +139,8 @@ explicit session/generation pin when required. These values never enter static p
 
 | API | Meaning |
 |---|---|
-| `env.task` | Immutable public task ID, instruction, and explicitly permitted context |
+| `env.task` | Immutable snapshot of public task ID, instruction, and permitted context |
+| `env.refresh_task()` | Refresh the snapshot for native instruction transitions |
 | `env.devices()` | Declared device profiles and supported operations |
 | `env.device(name)` | Handle for a declared device; unknown names fail |
 | `device.profile` | Configuration and capabilities for that device |

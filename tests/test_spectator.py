@@ -130,6 +130,7 @@ def test_behavior_view_roles_follow_mounts_not_camera_numbers():
 def test_mujoco_restores_owner_context_on_render_failure():
     calls = []
     engine = MujocoEngine.__new__(MujocoEngine)
+    engine.abc = False
     engine.gl = SimpleNamespace(make_current=lambda: calls.append("spectator"))
     engine.world = SimpleNamespace(sim=SimpleNamespace(_render_context_offscreen=SimpleNamespace(
         gl_ctx=SimpleNamespace(make_current=lambda: calls.append("owner")),

@@ -39,7 +39,7 @@ At a stepped horizon, physics freezes and unfinished buffers or waits end with
 does not fail the world. The worker automatically seals the native verdict and records
 `step_limit` when unsuccessful. Owner verification retains its strict budget eligibility checks.
 
-All seven simulators and the test backend accept top-level
+All eight simulators and the test backend accept top-level
 `stop_on_success: true` to end at the first successful control
 interval in either clock mode. The default is `false`: success alone does not end
 execution. Launch flags `--stop-on-success` and `--no-stop-on-success` override the
@@ -171,6 +171,11 @@ Sensor and actuator readings now use numeric `timestamp` in seconds. Update cust
 and consumers together; no old-field aliases are supported. Refresh exported/copied
 drivers and runtime resources, then reload devices and restart owned RoboEnv services.
 UUID-based IDs now use 16 random hexadecimal characters (with existing prefixes).
+
+ABC supports all 33 canonical tasks with bimanual YAM devices and native RGB
+cameras. Run `roboenv prepare abc` and `roboenv launch abc/put-plastic-bottles-in-bin`.
+See [ABC setup and scoring](docs/abc.md) for the 300-second stepped budget,
+changing instructions, and the four RoboEnv-defined evaluators.
 
 ## Connect a coding agent
 

@@ -38,6 +38,12 @@ class Environment:
         self._closed = False
         self._artifacts = None
 
+    def refresh_task(self):
+        """Read the current public instruction, including native task transitions."""
+        task = self._transport.describe()["task"]
+        self.task = TaskInfo(task["id"], task["instruction"], _freeze(task.get("context", {})))
+        return self.task
+
     def devices(self):
         return deepcopy(list(self._profiles.values()))
 

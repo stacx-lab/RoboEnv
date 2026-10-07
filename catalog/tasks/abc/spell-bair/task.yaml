@@ -1,0 +1,9 @@
+id: abc/spell-bair
+robot: abc/abc-yam
+instruction: spell bair
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: spell_bair

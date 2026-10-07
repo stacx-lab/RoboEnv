@@ -156,6 +156,7 @@ class AdapterBase(ABC):
 _REGISTRY: dict[str, type] = {}
 
 BUILTIN_ADAPTERS: dict[str, str] = {
+    "abc": "roboenv_runtime.adapters.abc",
     "fakeshell": "roboenv_runtime.adapters.fakeshell",
     "robodojo": "roboenv_runtime.adapters.robodojo",
     "robotwin": "roboenv_runtime.adapters.robotwin",

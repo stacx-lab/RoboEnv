@@ -1,0 +1,227 @@
+diff --git a/abc_sim/rendering/blender/live.py b/abc_sim/rendering/blender/live.py
+index 496973c..10122a6 100644
+--- a/abc_sim/rendering/blender/live.py
++++ b/abc_sim/rendering/blender/live.py
+@@ -1,6 +1,4 @@
+-"""Blender Cycles as a live camera backend: one Blender process per bound model, poses streamed over a unix socket.
+-
+-ABC_BLENDER_SAMPLES / ABC_BLENDER_DENOISER override the 16 spp + OIDN default (e.g. 4 + OPTIX for the old setting)."""
++"""Blender Cycles cameras with bounded process ownership and streamed native poses."""
+ 
+ from __future__ import annotations
+ 
+@@ -26,63 +24,139 @@ RENDER = Path(__file__).with_name("render_usd.py")
+ 
+ 
+ class BlenderCameraProvider(CameraProvider):
+-    def __init__(self, model, data, *, width, height, gpu_id, camera_names):
+-        super().__init__(camera_names=tuple(camera_names))
+-        self._data = data
++    def __init__(self, model, data, *, width, height, gpu_id, camera_names,
++                 views=None, blender=None, hdri=None, samples=None, denoiser=None,
++                 startup_timeout=120.0, render_timeout=30.0, shutdown_timeout=5.0):
++        if views is None:
++            views = [dict(name=name, source=name, width=width, height=height,
++                          fov_y=float(model.cam_fovy[model.cam(name).id])) for name in camera_names]
++        super().__init__(camera_names=tuple(view["name"] for view in views))
++        self._model, self._data, self._views = model, data, views
++        self._proc = self._sock = self._io = self._log = None
+         self._dir = tempfile.mkdtemp(prefix="abc_blender_", dir="/dev/shm")
+         self._calls, self._render_s = 0, 0.0
+-        t0 = time.time()
+-        mujoco.mj_forward(model, data)   # a freshly bound MjData has no poses yet
+-        exporter = usd_exporter.USDExporter(model=model, output_directory="usd", output_directory_root=self._dir,
+-                                            camera_names=list(self.camera_names), verbose=False)
+-        exporter.update_scene(data)
++        self._shutdown_timeout = shutdown_timeout
++        try:
++            self._open(width, height, gpu_id, blender, hdri, samples, denoiser,
++                       startup_timeout, render_timeout)
++        except BaseException:
++            self.close()
++            raise
++
++    def _open(self, width, height, gpu_id, blender, hdri, samples, denoiser,
++              startup_timeout, render_timeout):
++        started = time.monotonic()
++        # USD export must never forward or alter the world's live MjData.
++        snapshot = mujoco.MjData(self._model)
++        mujoco.mj_copyData(snapshot, self._model, self._data)
++        sources = sorted({v["source"] for v in self._views if v.get("source")})
++        exporter = usd_exporter.USDExporter(model=self._model, output_directory="usd",
++            output_directory_root=self._dir, camera_names=sources, verbose=False)
++        exporter.update_scene(snapshot)
+         UsdGeom.SetStageMetersPerUnit(exporter.stage, 1.0)
+         exporter.save_scene(filetype="usdc")
+-        geoms = geom_records(model, exporter)
+-        Path(self._dir, "geoms.json").write_text(json.dumps({"geoms": geoms, "cameras": list(self.camera_names)}))
++        geoms = geom_records(self._model, exporter)
++        Path(self._dir, "geoms.json").write_text(json.dumps({
++            "geoms": geoms, "cameras": sources, "live_views": self._views}))
+         self._geom_ids = [g["id"] for g in geoms]
+-        self._cam_ids = [model.cam(name).id for name in self.camera_names]
+         env = dict(os.environ)
+         if gpu_id is not None:
+             env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+         self._log = open(f"{self._dir}/blender.log", "w")
+-        self._proc = subprocess.Popen(
+-            [os.environ.get("BLENDER", "blender"), "-b", "--python-exit-code", "1", "--python", str(RENDER), "--",
+-             "--usd", f"{self._dir}/usd/frames/frame_1.usdc", "--meta", f"{self._dir}/geoms.json", "--out", self._dir,
+-             "--size", f"{width}x{height}", "--samples", os.environ.get("ABC_BLENDER_SAMPLES", "16"), "--device", "OPTIX",
+-             "--denoiser", os.environ.get("ABC_BLENDER_DENOISER", "OPENIMAGEDENOISE"), "--no-bevel",
+-             "--serve", f"{self._dir}/sock"],
+-            env=env, stdout=self._log, stderr=subprocess.STDOUT, start_new_session=True)
++        command = [str(blender or os.environ.get("BLENDER", "blender")), "-b",
++            "--python-exit-code", "1", "--python", str(RENDER), "--",
++            "--usd", f"{self._dir}/usd/frames/frame_1.usdc", "--meta", f"{self._dir}/geoms.json",
++            "--out", self._dir, "--size", f"{width}x{height}", "--samples",
++            str(samples if samples is not None else os.environ.get("ABC_BLENDER_SAMPLES", "16")),
++            "--device", "OPTIX", "--denoiser", denoiser or os.environ.get("ABC_BLENDER_DENOISER", "OPENIMAGEDENOISE"),
++            "--no-bevel", "--serve", f"{self._dir}/sock"]
++        if hdri:
++            command.extend(["--hdri", str(hdri)])
++        self._proc = subprocess.Popen(command, env=env, stdout=self._log,
++                                      stderr=subprocess.STDOUT, start_new_session=True)
+         self._sock = socket.socket(socket.AF_UNIX)
+-        while self._proc.poll() is None:
++        self._sock.settimeout(render_timeout)
++        while True:
++            if self._proc.poll() is not None:
++                raise RuntimeError(self._failure("Blender exited during startup"))
++            if time.monotonic() - started >= startup_timeout:
++                raise TimeoutError(self._failure("Blender startup timed out"))
+             try:
+                 self._sock.connect(f"{self._dir}/sock")
+                 break
+             except (FileNotFoundError, ConnectionRefusedError):
+-                time.sleep(0.2)
+-        if self._proc.poll() is not None:
+-            raise RuntimeError(f"blender exited with {self._proc.returncode}, see {self._log.name}")
++                time.sleep(0.1)
+         self._io = self._sock.makefile("rwb")
+-        self.frames_for_step(0, 0.0)     # the exported state: calibrates the server's object transforms, warms the session
+-        print(f"blender: ready in {time.time() - t0:.1f}s", flush=True)
++        # Shader/BVH compilation is part of cold startup, not a steady-state read.
++        self._sock.settimeout(max(0.01, startup_timeout - (time.monotonic() - started)))
++        self._initial_frames = self.frames_for_step(0, 0.0)
++        self._sock.settimeout(render_timeout)
++        print(f"blender: ready in {time.monotonic() - started:.1f}s", flush=True)
++
++    def _failure(self, message):
++        if self._log:
++            self._log.flush()
++        log = Path(self._dir, "blender.log")
++        return message + "\n" + (log.read_text(errors="replace")[-4000:] if log.exists() else "")
++
++    def initial_frames(self):
++        return self._initial_frames
+ 
+     def frames_for_step(self, step_idx: int, query_ts: float) -> dict[str, np.ndarray]:
+-        t0 = time.time()
++        started = time.monotonic()
+         d = self._data
++        cameras = []
++        for view in self._views:
++            if view.get("source"):
++                cid = self._model.cam(view["source"]).id
++                cameras.append(np.concatenate([d.cam_xpos[cid], d.cam_xmat[cid]]))
++            else:
++                cameras.append(view["matrix_pose"])
+         poses = np.concatenate([
+             np.concatenate([d.geom_xpos[self._geom_ids], d.geom_xmat[self._geom_ids]], axis=1),
+-            np.concatenate([d.cam_xpos[self._cam_ids], d.cam_xmat[self._cam_ids]], axis=1),
++            np.asarray(cameras),
+         ])
+-        self._io.write(poses.astype(np.float32).tobytes())
+-        self._io.flush()
+-        frames = {name: np.asarray(Image.open(self._io.readline().decode().strip())) for name in self.camera_names}
+-        self._calls, self._render_s = self._calls + 1, self._render_s + time.time() - t0
++        try:
++            self._io.write(poses.astype(np.float32).tobytes())
++            self._io.flush()
++            frames = {}
++            for name in self.camera_names:
++                filename = self._io.readline().decode().strip()
++                if not filename:
++                    raise RuntimeError("Blender closed its render connection")
++                with Image.open(filename) as frame:
++                    frames[name] = np.asarray(frame.convert("RGB")).copy()
++        except (OSError, RuntimeError, ValueError) as exc:
++            message = self._failure(f"Blender render failed: {exc}")
++            self.close()
++            raise RuntimeError(message) from exc
++        self._calls += 1
++        self._render_s += time.monotonic() - started
+         return frames
+ 
+     def close(self) -> None:
+-        self._io.close()
+-        self._sock.close()               # EOF ends the server loop
+-        self._proc.wait()
+-        self._log.close()
+-        shutil.rmtree(self._dir)
+-        print(f"blender: {self._calls} renders, {1000 * self._render_s / self._calls:.0f}ms/call", flush=True)
++        if self._io is not None:
++            try:
++                self._io.close()
++            except OSError:
++                pass
++            self._io = None
++        if self._sock is not None:
++            self._sock.close()
++            self._sock = None
++        if self._proc is not None:
++            try:
++                self._proc.wait(timeout=self._shutdown_timeout)
++            except subprocess.TimeoutExpired:
++                self._proc.terminate()
++                try:
++                    self._proc.wait(timeout=self._shutdown_timeout)
++                except subprocess.TimeoutExpired:
++                    self._proc.kill()
++                    self._proc.wait(timeout=self._shutdown_timeout)
++            self._proc = None
++        if self._log is not None:
++            self._log.close()
++            self._log = None
++        if Path(self._dir).exists():
++            shutil.rmtree(self._dir)
+diff --git a/abc_sim/rendering/blender/render_usd.py b/abc_sim/rendering/blender/render_usd.py
+index bdb0b02..31f3ec7 100644
+--- a/abc_sim/rendering/blender/render_usd.py
++++ b/abc_sim/rendering/blender/render_usd.py
+@@ -635,7 +635,18 @@ def serve(path):
+     scene.render.image_settings.file_format = "BMP"
+     scene.render.use_overwrite = True
+     scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = W, H, 100
+-    cams = [(name, CAMERAS[name][0]) for name in meta["cameras"]]
++    views = meta.get("live_views")
++    if views is None:
++        views = [dict(name=name, width=W, height=H, fov_y=robot_fovy) for name in meta["cameras"]]
++    cams = []
++    for view in views:
++        data = bpy.data.cameras.new("Live_" + view["name"])
++        data.sensor_fit, data.sensor_height = "VERTICAL", 24.0
++        data.lens = lens_for_fovy(view["fov_y"])
++        data.clip_start, data.clip_end = 0.01, 100.0
++        cam = bpy.data.objects.new(data.name, data)
++        scene.collection.objects.link(cam)
++        cams.append((view["name"], cam))
+     objs = [bpy.data.objects[f"Mesh_{g['usd']}"] for g in meta["geoms"]] + [cam for _, cam in cams]
+     fix = None
+     srv = socket.socket(socket.AF_UNIX)
+@@ -646,10 +657,12 @@ def serve(path):
+         poses = [Matrix.Translation(p[:3]) @ Matrix((p[3:6], p[6:9], p[9:12])).to_4x4()
+                  for p in np.frombuffer(buf, np.float32).reshape(-1, 12).tolist()]
+         if fix is None:                                  # the exported state: keep whatever the importer baked into each object
+-            fix = [m.inverted() @ o.matrix_world for o, m in zip(objs, poses)]
++            fix = [m.inverted() @ o.matrix_world for o, m in zip(objs[:len(meta["geoms"])], poses)]
++            fix.extend(Matrix.Identity(4) for _ in cams)
+         for o, m, s in zip(objs, poses, fix):
+             o.matrix_world = m @ s
+-        for name, cam in cams:
++        for (name, cam), view in zip(cams, views):
++            scene.render.resolution_x, scene.render.resolution_y = view["width"], view["height"]
+             scene.camera = cam
+             scene.render.filepath = f"{args.out}/{name}.bmp"
+             bpy.ops.render.render(write_still=True)

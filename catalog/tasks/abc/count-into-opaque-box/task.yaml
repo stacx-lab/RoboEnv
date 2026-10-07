@@ -1,0 +1,9 @@
+id: abc/count-into-opaque-box
+robot: abc/abc-yam
+instruction: put the prompted number of objects in the opaque box
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: count_into_opaque_box

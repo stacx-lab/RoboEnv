@@ -1,0 +1,132 @@
+diff --git a/abc_sim/models/yam_ball_tray_balancing_scene.xml b/abc_sim/models/yam_ball_tray_balancing_scene.xml
+index 3fd18d4..5148a19 100644
+--- a/abc_sim/models/yam_ball_tray_balancing_scene.xml
++++ b/abc_sim/models/yam_ball_tray_balancing_scene.xml
+@@ -137,7 +137,7 @@
+     <geom name="table_plane" type="plane" size="0.2975 0.65 0.01" pos="0.6 0 0.75" rgba="0 0 0 0" group="3"/>
+ 
+     <!-- ==================== LEFT ARM ==================== -->
+-    <body name="left_arm" pos="0.2525 0.31 0.75" childclass="yam">
++    <body name="left_arm" pos="0.2525 0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="left_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+@@ -269,7 +269,7 @@
+     </body>
+ 
+     <!-- ==================== RIGHT ARM ==================== -->
+-    <body name="right_arm" pos="0.2525 -0.31 0.75" childclass="yam">
++    <body name="right_arm" pos="0.2525 -0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="right_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+diff --git a/abc_sim/models/yam_count_into_opaque_box_scene.xml b/abc_sim/models/yam_count_into_opaque_box_scene.xml
+index b5d4fc6..b268b15 100644
+--- a/abc_sim/models/yam_count_into_opaque_box_scene.xml
++++ b/abc_sim/models/yam_count_into_opaque_box_scene.xml
+@@ -194,7 +194,7 @@
+     <!-- COUNT_BOX_OBJECTS_END -->
+ 
+     <!-- ==================== LEFT ARM ==================== -->
+-    <body name="left_arm" pos="0.2525 0.31 0.75" childclass="yam">
++    <body name="left_arm" pos="0.2525 0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="left_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+@@ -326,7 +326,7 @@
+     </body>
+ 
+     <!-- ==================== RIGHT ARM ==================== -->
+-    <body name="right_arm" pos="0.2525 -0.31 0.75" childclass="yam">
++    <body name="right_arm" pos="0.2525 -0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="right_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+diff --git a/abc_sim/models/yam_grab_clutter_scene.xml b/abc_sim/models/yam_grab_clutter_scene.xml
+index d1bca1d..e2c2ae9 100644
+--- a/abc_sim/models/yam_grab_clutter_scene.xml
++++ b/abc_sim/models/yam_grab_clutter_scene.xml
+@@ -186,7 +186,7 @@
+     <!-- GRAB_CLUTTER_OBJECTS_END -->
+ 
+     <!-- ==================== LEFT ARM ==================== -->
+-    <body name="left_arm" pos="0.2525 0.31 0.75" childclass="yam">
++    <body name="left_arm" pos="0.2525 0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="left_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+@@ -318,7 +318,7 @@
+     </body>
+ 
+     <!-- ==================== RIGHT ARM ==================== -->
+-    <body name="right_arm" pos="0.2525 -0.31 0.75" childclass="yam">
++    <body name="right_arm" pos="0.2525 -0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="right_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+diff --git a/abc_sim/models/yam_lego_blocks_sorting_scene.xml b/abc_sim/models/yam_lego_blocks_sorting_scene.xml
+index 72ccefe..ba6f8b1 100644
+--- a/abc_sim/models/yam_lego_blocks_sorting_scene.xml
++++ b/abc_sim/models/yam_lego_blocks_sorting_scene.xml
+@@ -357,7 +357,7 @@
+     <!-- LEGO_BLOCKS_SORTING_OBJECTS_END -->
+ 
+     <!-- ==================== LEFT ARM ==================== -->
+-    <body name="left_arm" pos="0.2525 0.31 0.75" childclass="yam">
++    <body name="left_arm" pos="0.2525 0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="left_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+@@ -489,7 +489,7 @@
+     </body>
+ 
+     <!-- ==================== RIGHT ARM ==================== -->
+-    <body name="right_arm" pos="0.2525 -0.31 0.75" childclass="yam">
++    <body name="right_arm" pos="0.2525 -0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="right_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+diff --git a/abc_sim/models/yam_nuts_bolts_sorting_scene.xml b/abc_sim/models/yam_nuts_bolts_sorting_scene.xml
+index ea491d0..4f3414e 100644
+--- a/abc_sim/models/yam_nuts_bolts_sorting_scene.xml
++++ b/abc_sim/models/yam_nuts_bolts_sorting_scene.xml
+@@ -377,7 +377,7 @@
+     <!-- NUTS_BOLTS_SORTING_OBJECTS_END -->
+ 
+     <!-- ==================== LEFT ARM ==================== -->
+-    <body name="left_arm" pos="0.2525 0.31 0.75" childclass="yam">
++    <body name="left_arm" pos="0.2525 0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="left_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+@@ -509,7 +509,7 @@
+     </body>
+ 
+     <!-- ==================== RIGHT ARM ==================== -->
+-    <body name="right_arm" pos="0.2525 -0.31 0.75" childclass="yam">
++    <body name="right_arm" pos="0.2525 -0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="right_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+diff --git a/abc_sim/models/yam_put_relative_scene.xml b/abc_sim/models/yam_put_relative_scene.xml
+index e503495..6909bda 100644
+--- a/abc_sim/models/yam_put_relative_scene.xml
++++ b/abc_sim/models/yam_put_relative_scene.xml
+@@ -169,7 +169,7 @@
+     <!-- RELATIVE_PUT_OBJECTS_END -->
+ 
+     <!-- ==================== LEFT ARM ==================== -->
+-    <body name="left_arm" pos="0.2525 0.31 0.75" childclass="yam">
++    <body name="left_arm" pos="0.2525 0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="left_link_1" pos="0 0 0.0631" quat="1 0 0 1">
+@@ -301,7 +301,7 @@
+     </body>
+ 
+     <!-- ==================== RIGHT ARM ==================== -->
+-    <body name="right_arm" pos="0.2525 -0.31 0.75" childclass="yam">
++    <body name="right_arm" pos="0.2525 -0.31 0.76" childclass="yam">
+       <geom class="visual" pos="0 0 -0.0006" quat="1 0 0 1" mesh="model2"/>
+       <geom class="collision" size="0.033 0.01" pos="0.0 0.0 0.026" quat="1 0 0 0"/>
+       <body name="right_link_1" pos="0 0 0.0631" quat="1 0 0 1">

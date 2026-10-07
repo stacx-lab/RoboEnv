@@ -1,5 +1,9 @@
 # Spectator recording (experimental)
 
+ABC uses MuJoCo by default. Setting its task `backend_kwargs.camera_backend` to
+`blender` also selects Blender for spectator recording, including named cameras
+and custom fixed-pose views. See [ABC rendering setup](abc.md#blender-rendering).
+
 ```sh
 roboenv launch libero/bowl-onto-plate --record
 roboenv launch libero/bowl-onto-plate --record ./recordings/episode-1
@@ -174,3 +178,6 @@ encoder failure isolation, task success, or fresh-process replay. CPU encoder an
 lifecycle checks are in `tests/test_recording.py`. Missing environments and skipped
 native checks are not acceptance evidence. Shared native render failures can still
 affect the simulator even when encoding runs in a separate process.
+
+ABC uses the shared MuJoCo spectator renderer with `third_person` (top),
+`wrist` (left), and `right_wrist` views, independent of agent RGB cameras.
