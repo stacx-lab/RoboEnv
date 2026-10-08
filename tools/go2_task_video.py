@@ -4,7 +4,7 @@ import subprocess
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import matrix_quat
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.controllers import matrix_quat
 
 
 class TaskVideo:

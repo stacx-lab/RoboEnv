@@ -1,0 +1,40 @@
+id: isaaclab/yam-calibrate-dual-arm
+robot: isaaclab/isaaclab-yam-calibrate-dual-arm
+instruction: 'Calibrate right_arm''s base relative
+
+  to left_arm''s base using dual-arm alignment.
+
+  Both grippers carry pointed probes whose tips coincide with their calibrated TCPs.
+
+  Keep the grippers open while using these rigid attachments.
+
+  Four fixed fiducials A (red), B (green), C (blue), D (yellow) have noncoplanar top
+
+  centers. Touch the same top-center point of each fiducial with each probe, recording
+
+  TCP positions in the respective arm BASE frame. Use left_contact/right_contact
+
+  force readings as simulated contact confirmation; they report fixture-filtered
+
+  normal forces on the probe-bearing flange in the gripper TCP axes, not contact
+
+  positions or hidden transforms.
+
+  Only one arm moves at a time. Park the other arm and retract before switching.
+
+  Fit second-base-in-anchor-base and save right_arm extrinsics with parent left_arm,
+
+  parent_frame left_arm. Gripper mounts and TCPs are already calibrated; do not
+
+  calibrate individual world mounts. Retain contact observations and solver evidence.
+
+  This is ungraded practice: save the workspace profile, with no submission or
+
+  automatic completion. Contact feedback confirms contact, not exact centering.'
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: yam-calibrate-dual-arm
+  asset_manifest: .cache/isaaclab/yam/assets.json

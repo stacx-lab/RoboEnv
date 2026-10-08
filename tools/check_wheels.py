@@ -70,9 +70,18 @@ code = (
     "plan = yaml_load(resource.read_text());"
     "assert plan['embodiment'] == 'go2_d1';"
     "assert plan['devices']['arm']['binding'] == 'isaaclab.go2-d1/1';"
+    "from roboenv_runtime.adapters.isaaclab.registry import TASKS, get_task;"
+    "tasks = [get_task(name) for name in TASKS];"
+    "assert len(tasks) == 6 and {task.embodiment for task in tasks} == {'go2_d1', 'yam'};"
+    "assert all('.whl/' in sys.modules[task.__module__].__file__ for task in tasks);"
+    "resource = binding_resource('isaaclab-yam-calibrate-wrist-cameras', backend='isaaclab');"
+    "assert '.whl/' in str(resource);"
+    "plan = yaml_load(resource.read_text());"
+    "assert plan['devices']['camera_left']['binding'] == 'isaaclab.yam/1';"
     "from roboenv_runtime.bindings import default_registry; default_registry();"
     "assert '.whl/' in roboenv.__file__;"
-    "assert not {'torch','mujoco','harbor','roborl','kinex'} & sys.modules.keys()"
+    "assert not {'torch','mujoco','isaaclab','isaacsim','harbor','roborl','kinex'}"
+    " & sys.modules.keys()"
 )
 subprocess.run([sys.executable, "-I", "-c", code], check=True)
 print("Wheel contents and lightweight isolated imports passed.")

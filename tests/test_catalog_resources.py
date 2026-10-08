@@ -115,7 +115,8 @@ def test_copied_go2_catalog_keeps_bindings_private_and_drivers_portable(tmp_path
     catalog = tmp_path / "catalog"
     rig = catalog / "robots/isaaclab/isaaclab-go2-d1"
     shutil.copytree(source, rig)
-    shutil.copytree(CATALOG / "tasks/isaaclab", catalog / "tasks/isaaclab")
+    for path in (CATALOG / "tasks/isaaclab").glob("go2-*"):
+        shutil.copytree(path, catalog / "tasks/isaaclab" / path.name)
     tasks = load_catalog(catalog / "tasks")
     assert set(tasks) == {
         "isaaclab/go2-d1-control",

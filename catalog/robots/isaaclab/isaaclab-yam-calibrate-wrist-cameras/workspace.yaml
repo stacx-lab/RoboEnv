@@ -1,0 +1,22 @@
+identity:
+  source: user
+  id: isaaclab-yam-calibrate-wrist-cameras
+  name: isaaclab-yam-calibrate-wrist-cameras
+  platform: sim
+  kind: other
+  model: abc-yam
+sim:
+  source: user
+  simulator: isaaclab
+devices:
+  source: user
+safety:
+  source: user
+  max_cartesian_velocity: null
+  max_joint_velocity: null
+  keep_out_zones: []
+  notes: Limits are handled by the native simulator. Stop affects only its device;
+    the world owns simulation time.
+meta:
+  created_at: '2026-09-09T00:00:00Z'
+  updated_at: '2026-09-09T00:00:00Z'

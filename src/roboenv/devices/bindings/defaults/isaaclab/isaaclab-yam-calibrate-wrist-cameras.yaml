@@ -1,0 +1,28 @@
+schema_version: roboenv/bindings/1
+backend: isaaclab
+embodiment: yam
+devices:
+  camera_left:
+    binding: isaaclab.yam/1
+    entity: camera_left
+  camera_right:
+    binding: isaaclab.yam/1
+    entity: camera_right
+  camera_top:
+    binding: isaaclab.yam/1
+    entity: camera_top
+  left_arm:
+    binding: isaaclab.yam/1
+    entity: left_arm
+  left_gripper:
+    binding: isaaclab.yam/1
+    entity: left_gripper
+  right_arm:
+    binding: isaaclab.yam/1
+    entity: right_arm
+  right_gripper:
+    binding: isaaclab.yam/1
+    entity: right_gripper
+  world:
+    binding: isaaclab.yam/1
+    entity: world

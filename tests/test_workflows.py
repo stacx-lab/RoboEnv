@@ -382,19 +382,15 @@ def test_grouped_catalog_ids_and_listing(capsys):
     from roboenv.tasks.catalog import load_catalog
 
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 60
+    assert len(catalog) == 63
     for identifier, (task, path) in catalog.items():
         assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
         assert identifier.split("/")[0] == task.backend
         resolved = resolve_task(identifier, project=ROOT)
         expected = task
         if task.backend == "isaaclab":
-            gripper = next(d for d in resolved.bindings.devices if d.name == "gripper")
-            from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import gripper_tcp
-
-            tcp = gripper_tcp(gripper.resolved_profile(resolved.robot))
             expected = replace(task, backend_kwargs={
-                **task.backend_kwargs, "tcp_in_flange_m": tcp,
+                **task.backend_kwargs,
                 "device_profiles": {
                     d.name: {k: v for k, v in d.resolved_profile(resolved.robot).items()
                              if k in {"type", "intrinsics", "extrinsics"}}
@@ -515,3 +511,13 @@ def test_task_commands_do_not_import_agent_frameworks(tmp_path, monkeypatch, cap
     assert inventory["schema"] == "roboenv/discovered-tasks/1"
     assert not inventory["execution_verified"]
     assert len(inventory["tasks"]["libero/example"]["source_sha256"]) == 64
+
+
+@pytest.mark.parametrize("task", ["go2-d1-control", "yam-calibrate-wrist-cameras"])
+def test_isaaclab_recording_passes_launch_validation(monkeypatch, task):
+    def interpreter(*args):
+        raise RuntimeError("reached interpreter resolution")
+
+    monkeypatch.setattr("roboenv.environment.resolve_interpreter", interpreter)
+    with pytest.raises(RuntimeError, match="reached interpreter resolution"):
+        launch("isaaclab/" + task, project=ROOT, recording={})

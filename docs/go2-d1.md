@@ -10,6 +10,11 @@ folded (`Joint2=-0.65`, `Joint3=1.2`, `Joint5=-0.55` radians) for locomotion.
 The control practice world contains a floor and the robot. Two additional task
 worlds use the same controllers: `go2-d1-reach` and `go2-d1-pick-place` (below).
 
+Robot implementation lives under `adapters/isaaclab/robots/go2_d1/`; each task owns
+its scene and scoring under `adapters/isaaclab/tasks/`. See the
+[Isaac Lab implementation guide](isaaclab.md#implementation-layout) for task
+registration, extension points and replay compatibility after the reorganization.
+
 ## Prepare and launch
 
 Use the isolated Isaac Lab installation described in [isaaclab.md](isaaclab.md).
@@ -111,7 +116,7 @@ metres and an XYZW quaternion. The device's local `ik` action returns joint
 angles, which are then sent through `write`; it does not step physics. The HTTP
 joint interface accepts joint targets, not an RPC IK request. The native test
 also exercises the standalone URDF solver in
-`roboenv_runtime.adapters.isaaclab.go2_d1.adapter.RobotModel`.
+`roboenv_runtime.adapters.isaaclab.robots.go2_d1.robot.RobotModel`.
 
 ## Clock and stop behavior
 
@@ -150,7 +155,7 @@ into metres.
 
 The source D1 URDF has unusable zero effort/velocity limits. Preparation and the
 native arm actuators use the torque mapping in
-[`limits.py`](../runtime/src/roboenv_runtime/adapters/isaaclab/go2_d1/limits.py):
+[`limits.py`](../runtime/src/roboenv_runtime/adapters/isaaclab/robots/go2_d1/limits.py):
 3.3 Nm for `d1_Joint1` and `d1_Joint2`, and 1.7 Nm for `d1_Joint3` through
 `d1_Joint6`, sourced from the D1 specification referenced there. That table does
 not distinguish continuous, peak or stall torque. Arm joint positions retain the

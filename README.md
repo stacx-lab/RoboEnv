@@ -97,6 +97,7 @@ Python callers can enable streaming with `log_stream=sys.stderr`.
 
 Add `--record` to save experimental spectator MP4s at 10 simulation-time FPS,
 with independent 720-pixel-high overview/wrist views on supported backends.
+Isaac Lab records a dedicated third-person overview of the Go2 or YAM workspace.
 SIMPLE records its existing 640×360 left/right head-camera frames. See
 [spectator recording](docs/spectator.md) for custom views, timing and backend coverage.
 
@@ -160,6 +161,8 @@ protocol; native success predicates are preserved.
 
 The experimental [Go2–D1 Isaac Lab environment](docs/go2-d1.md) provides base
 velocity/height/tilt control, independent arm IK, a gripper, and two mounted RGB-D cameras.
+The [dual-YAM calibration exercises](docs/yam-calibration.md) provide ungraded
+overhead-camera, combined wrist-camera, and dual-arm alignment practice.
 See [Isaac Lab setup](docs/isaaclab.md) for installation and diagnostics. The former
 Isaac Lab G1 practice task has been removed; SIMPLE's G1 integration remains available.
 

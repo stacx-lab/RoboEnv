@@ -8,8 +8,8 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import matrix_quat, quat_matrix
-from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.controllers import matrix_quat, quat_matrix
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.environment import Go2Env
 
 CASES = {
     "forward-backward": (0, 0.08, -0.06, "Forward / backward", "vx", "m/s"),

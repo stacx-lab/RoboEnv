@@ -101,7 +101,6 @@
         "third_party/IsaacLab/source/isaaclab",
         "third_party/IsaacLab/source/isaaclab_assets",
         "third_party/IsaacLab/source/isaaclab_tasks",
-        "third_party/IsaacLab/source/isaaclab_teleop",
         "third_party/IsaacLab/source/isaaclab_physx",
         "third_party/IsaacLab/source/isaaclab_ov"
       ],

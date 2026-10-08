@@ -1,0 +1,32 @@
+id: isaaclab/yam-calibrate-wrist-cameras
+robot: isaaclab/isaaclab-yam-calibrate-wrist-cameras
+instruction: 'Calibrate BOTH camera_left and
+
+  camera_right extrinsics in this exercise.
+
+  A fixed, upward-facing 7 x 5 ChArUco board (DICT_4X4_50, squares 0.03 m,
+
+  markers 0.0225 m) is on the table. Both wrist-camera extrinsics start unknown.
+
+  For each camera, collect diverse views paired with its own arm''s measured flange
+
+  pose in that arm''s base frame, then use eye-in-hand calibration. Save camera_left
+
+  relative to left_arm/flange and camera_right relative to right_arm/flange.
+
+  Collect independently or interleave the two datasets; synchronous captures and
+
+  simultaneous arm motion are not required. Keep the other arm parked while moving.
+
+  Retain observations and solver evidence. This is ungraded practice: update both
+
+  workspace profiles locally, with no submission or automatic completion.
+
+  Camera reads and joint reads are sequential, not synchronized.'
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: yam-calibrate-wrist-cameras
+  asset_manifest: .cache/isaaclab/yam/assets.json

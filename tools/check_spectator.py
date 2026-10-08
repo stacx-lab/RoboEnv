@@ -56,6 +56,38 @@ def snapshot(worker):
                            "pose": camera.get_world_pose(camera_axes="usd")}
                     for name, camera in isaac.cameras.items()
                 }
+    elif adapter.name == "isaaclab":
+        from roboenv_runtime.adapters.isaaclab.robots.yam.native import array
+
+        engine = native.native
+        robots = engine.robots if adapter.embodiment == "yam" else {"robot": engine.robot}
+        state = {"robots": {
+            name: {field: array(getattr(robot.data, field)) for field in (
+                "root_link_pose_w", "root_lin_vel_w", "root_ang_vel_w", "joint_pos", "joint_vel")}
+            for name, robot in robots.items()}, "steps": engine.steps,
+            "targets": native.targets, "events": native.events,
+            "task": engine.snapshot() if adapter.embodiment == "go2_d1" else {
+                "contacts": {name: array(sensor.data.force_matrix_w)
+                             for name, sensor in engine.contacts.items()}},
+            "cameras": {name: {"intrinsics": array(camera.data.intrinsic_matrices),
+                                "resolution": [camera.cfg.width, camera.cfg.height],
+                                "position": array(camera.data.pos_w),
+                                "orientation": array(camera.data.quat_w_world)}
+                        for name, camera in engine.cameras.items()}}
+        # Sensor buffers can remain cached between physics ticks. Check PhysX
+        # directly too, so a render-only update cannot conceal native motion.
+        state["raw_physics"] = {
+            name: {
+                field: getattr(robot.root_view, method)().numpy().copy()
+                for field, method in (
+                    ("joint_pos", "get_dof_positions"),
+                    ("joint_vel", "get_dof_velocities"),
+                    ("root_pose", "get_root_transforms"),
+                    ("root_vel", "get_root_velocities"),
+                )
+            }
+            for name, robot in robots.items()
+        }
     else:
         state = native.owner_state()
     rng = {"python": random.getstate(), "numpy": np.random.get_state()}
@@ -105,7 +137,7 @@ def probe(args):
         def images():
             import cv2
 
-            if adapter.name == "simple":
+            if adapter.name in {"simple", "isaaclab"}:
                 # Force real sensor acquisition: cached images would hide shared
                 # render-product corruption in the before/after comparison.
                 adapter._env.images.clear()
@@ -123,7 +155,22 @@ def probe(args):
             return result
 
         # Establish ordinary renderer variability and initialize existing sensors.
-        first, baseline = images(), images()
+        if adapter.name == "isaaclab":
+            # Settle RTX temporal history after positioning all device cameras.
+            # Keep the same MAE gate; compare stable images, not startup frames.
+            for _ in range(32):
+                images()
+        first = images()
+        if adapter.name == "isaaclab":
+            from roboenv_runtime.spectator.isaaclab import Engine
+
+            # Match the setup/capture render gap. Adjacent RTX frames share a
+            # temporal history and underestimate ordinary long-gap variability.
+            control_renderer = Engine(adapter)
+            for _ in range(control_renderer.warmup_frames + 1):
+                control_renderer.render()
+            report["baseline_render_updates"] = control_renderer.warmup_frames + 1
+        baseline = images()
         before = snapshot(worker)
         specs = ([ViewSpec(**value) for value in json.loads(args.views.read_text())]
                  if args.views else None)
@@ -153,13 +200,20 @@ def probe(args):
 
         capture()
         after = images()
+        if adapter.name == "isaaclab":
+            for name in baseline:
+                if name.endswith("/file"):
+                    stem = name.replace("/", "_")
+                    write_png(args.out / (stem + "_before.png"), baseline[name][..., ::-1])
+                    write_png(args.out / (stem + "_after.png"), after[name][..., ::-1])
         report["agent_image_mae"] = {}
+        image_failures = []
         for name in baseline:
             natural = np.abs(first[name].astype(float) - baseline[name]).mean()
             change = np.abs(after[name].astype(float) - baseline[name]).mean()
             report["agent_image_mae"][name] = {"baseline": natural, "spectator": change}
             if change > natural + 1:
-                raise ValueError(f"{name}: agent image changed beyond baseline variability")
+                image_failures.append(name)
         terminal = worker.world.after_advance
 
         def after_advance():
@@ -195,9 +249,15 @@ def probe(args):
         if snapshot(worker) != state:
             raise ValueError("Spectator cleanup changed the world")
         images()  # Agent sensors must remain usable after spectator cleanup.
-        report.update(passed=True, captures=captures, max_capture_s=max(latency),
+        report.update(passed=not image_failures, state_isolation_passed=True,
+                      image_isolation_passed=not image_failures,
+                      captures=captures, max_capture_s=max(latency),
                       mean_capture_s=sum(latency) / len(latency),
                       native_success=adapter.score().completed)
+        if image_failures:
+            report["error"] = (
+                "Agent images changed beyond baseline variability: " + ", ".join(image_failures)
+            )
     except Exception as exc:
         report["error"] = f"{type(exc).__name__}: {exc}"
     finally:

@@ -106,7 +106,7 @@ def test_sdk_buffered_writes_use_actions_for_every_actuator_type(kind, actions):
 
 def test_entire_catalog_uses_canonical_format_and_robot_bindings():
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 60
+    assert len(catalog) == 63
     assert {task.backend for task, _ in catalog.values()} == set(BACKENDS)
     fields = ["id", "robot", "instruction", "seed", "budget_mode", "execution_mode",
               "stop_on_success", "backend_kwargs"]

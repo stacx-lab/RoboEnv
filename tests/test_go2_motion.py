@@ -12,8 +12,8 @@ from roboenv.devices.execution import request_identity
 from roboenv.devices.model import DeviceError
 from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.isaaclab.adapter import IsaacLabAdapter
-from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import DEFAULT
-from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.controllers import DEFAULT
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.environment import Go2Env
 from roboenv_runtime.bindings.assembly import assemble_devices
 from roboenv_runtime.runtime.worker import SimWorker
 from roboenv_runtime.runtime.world import WorldSession
@@ -63,6 +63,7 @@ def rig():
     }
     owner = IsaacLabAdapter.__new__(IsaacLabAdapter)
     owner._env = env
+    owner.embodiment = "go2_d1"
     session = WorldSession(owner, "stepped")
     service = assemble_devices(task.robot, session)
     yield env, session, service, samples
@@ -230,7 +231,7 @@ def test_episode_budget_interrupts_wait_stops_base_without_device_fault(rig):
 
 @pytest.fixture
 def native_stub(rig, monkeypatch):
-    from roboenv_runtime.adapters.isaaclab.go2_d1 import native
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1 import native
 
     env = rig[0]
     env.native.arm_target = np.zeros(6)
@@ -238,7 +239,7 @@ def native_stub(rig, monkeypatch):
     env.native.reset = lambda seed: None
     env.native.home = {}
     monkeypatch.setattr(native, "Native", lambda *args, **kwargs: env.native)
-    monkeypatch.setattr(Go2Env, "source_identity", staticmethod(lambda: {}))
+    monkeypatch.setattr(Go2Env, "source_identity", staticmethod(lambda task_name: {}))
 
 
 @pytest.mark.parametrize("mode", ["stepped", "realtime"])
@@ -284,6 +285,7 @@ def test_catalog_episode_limits_in_both_clocks(native_stub, monkeypatch, mode, t
     env = Go2Env(**resolved.task.backend_kwargs)
     owner = IsaacLabAdapter.__new__(IsaacLabAdapter)
     owner._env = env
+    owner.embodiment = "go2_d1"
     now = [100.0]
     monkeypatch.setattr("roboenv_runtime.runtime.world.time.monotonic", lambda: now[0])
     session = WorldSession(owner, mode)
@@ -318,7 +320,7 @@ def test_realtime_replay_does_not_restore_a_step_cap(native_stub, tmp_path, monk
     native.asset_sha, native.seed, native.payload_mass_kg = "fixture", 0, 0.08
     task = dict(placement_started=False, completed=False, failure=None,
                 hold=0, lift_hold=0, contact_loss=0)
-    from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import definition
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.task import definition
 
     spec = definition("go2-d1-pick-place")
     spec.update(destination=[3, 0, 0], object_mass_kg=0.2, tcp_in_flange_m=[0, 0, 0.15])
@@ -360,7 +362,7 @@ def test_realtime_replay_does_not_restore_a_step_cap(native_stub, tmp_path, monk
     ({"task_name": "go2-d1-pick-place", "max_steps": True}, ValueError),
 ])
 def test_removed_modes_and_invalid_budgets_fail_before_native_start(monkeypatch, kwargs, error):
-    from roboenv_runtime.adapters.isaaclab.go2_d1 import native
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1 import native
 
     def forbidden(*args, **values):
         pytest.fail("Invalid configuration started the native simulator")
@@ -471,7 +473,8 @@ def test_base_public_write_preserves_commands_outside_former_bounds(rig):
 
 
 def test_resolved_profiles_start_without_source_catalog(native_stub, monkeypatch):
-    from roboenv_runtime.adapters.isaaclab.go2_d1 import environment, tasks
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1 import environment
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1 import task as tasks
 
     resolved = resolve_task("isaaclab/go2-d1-reach", project=ROOT)
     expected = copy.deepcopy(resolved.task.backend_kwargs["device_profiles"])

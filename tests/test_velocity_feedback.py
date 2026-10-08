@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from roboenv_runtime.adapters.behavior.devices import BehaviorDevices
-from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.environment import Go2Env
 from roboenv_runtime.adapters.simple.backend import SimpleEnv
 from roboenv_runtime.bindings.backends.isaaclab.go2_d1 import read_robot_state
 

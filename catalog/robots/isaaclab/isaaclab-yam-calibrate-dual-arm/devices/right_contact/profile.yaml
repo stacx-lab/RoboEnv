@@ -1,0 +1,59 @@
+name: right_contact
+type: force_torque
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  measurement:
+    quantity: contact_normal
+    target:
+      device: right_gripper
+      frame: tcp
+    force:
+      axes:
+      - x
+      - y
+      - z
+      range: null
+      resolution: null
+      bias:
+        x: 0.0
+        y: 0.0
+        z: 0.0
+    torque: null
+  sample_rate_hz: 29.41176470588235
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mount:
+    parent: right_gripper
+    parent_frame: tcp
+    translation_m:
+    - 0
+    - 0
+    - 0
+    rotation_xyzw:
+    - 0
+    - 0
+    - 0
+    - 1
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: right_contact
+  driver:
+    entry: driver.py
+    persistent: true
+    actions:
+    - load
+    - unload
+    - status
+    - read
+meta:
+  created_at: '2026-10-07T00:00:00Z'
+  updated_at: '2026-10-07T00:00:00Z'

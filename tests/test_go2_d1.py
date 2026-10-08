@@ -13,10 +13,9 @@ import numpy as np
 import pytest
 import yaml
 from roboenv.tasks.resolve import resolve_task
-from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import (
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.controllers import (
     COMMAND_FIELDS,
     DEFAULT,
-    RobotModel,
     Trot,
     leg_ik,
     matrix_quat,
@@ -24,7 +23,8 @@ from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import (
     rotation,
     validate_command,
 )
-from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.environment import Go2Env
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.robot import RobotModel
 
 ROOT = Path(__file__).resolve().parents[1]
 RIG = ROOT / "catalog/robots/isaaclab/isaaclab-go2-d1"
@@ -42,7 +42,7 @@ def command(**changes):
 
 @pytest.mark.parametrize("existing", [None, "YES", "NO", ""])
 def test_native_defaults_eula_before_isaac_import(monkeypatch, tmp_path, existing):
-    from roboenv_runtime.adapters.isaaclab.go2_d1 import native
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1 import native
 
     monkeypatch.delenv("OMNI_KIT_ACCEPT_EULA", raising=False)
     if existing is not None:
@@ -240,7 +240,7 @@ def test_gripper_read_needs_no_joint_feedback():
 
 
 def test_camera_observation_helper_is_importable():
-    from roboenv_runtime.adapters.isaaclab.observations import camera_state
+    from roboenv_runtime.adapters.isaaclab.common.observations import camera_state
 
     assert callable(camera_state)
 

@@ -18,7 +18,7 @@ FFmpeg with `libx264` must be on
 PATH; it is optional when recording is disabled. Python owners use
 `roboenv.launch(task, recording={})`, or pass `recording={"fps": 5, "views": [...]}`.
 Use `recording={"directory": "./recordings/episode-1"}` to select the output folder.
-Recording is experimental on all six backends. LIBERO, RoboCasa and RoboTwin
+Recording is experimental on supported backends. LIBERO, RoboCasa and RoboTwin
 have native spectator isolation checks; RoboDojo and BEHAVIOR remain unverified.
 SIMPLE's MuJoCo checks cover all three example tasks in both clock modes.
 Its stepped Isaac XMove frame/state checks pass, but a standalone Kit shutdown crash
@@ -60,6 +60,100 @@ roboenv launch simple/xmove-pick --record
 Video dimensions must be even. Views and FPS stay fixed for the episode.
 Unknown views, invalid settings and unavailable encoders fail requested recording
 startup before the service becomes ready.
+
+## Isaac Lab views
+
+All three Go2–D1 tasks and all three YAM calibration exercises support `--record`.
+They default to one dedicated `third_person` camera at 1280×720, with a 50°
+vertical field of view and 10 simulation-time FPS:
+
+```sh
+roboenv launch isaaclab/yam-calibrate-wrist-cameras --record
+roboenv launch isaaclab/go2-d1-control --record
+```
+
+YAM looks through the enclosure's open front from `(-1.1, -0.5, 1.85)` toward
+`(0.5, 0, 1.05)` in world metres. This keeps both arms and the tabletop in view
+without looking through the opaque back or side walls. Go2 control follows the
+base's XY translation with a level horizon, from offset `(1.6, -2.2, 1.4)` toward
+`(0.3, 0, 0.4)`. It does not rotate with the base. Reach and pick-and-place use
+fixed oblique workspace views, starting respectively at `(2.7, -3.2, 2.1)` and
+`(3.6, -4, 2.6)`, looking toward `(0.65, 0, 0.45)` and `(1.2, 0, 0.45)`.
+These views back away as needed to fit the task's configured interaction regions
+inside a 10% image-edge margin.
+
+Custom fixed-pose `ViewSpec` entries are supported through `--record-views`.
+Their `pose` is world XYZ plus XYZW quaternion with OpenCV optical axes (right,
+down, forward). Spectator cameras have separate USD prims and render products;
+they are absent from the public device catalog and do not supply calibration
+measurements. Capture calls render without advancing physics. One renderer owns
+all views for an episode, and its native products stay alive until world shutdown.
+
+### Isaac Lab validation limits
+
+The matrix below records the initial spectator validation with the original
+YAM renderer. YAM calibration cameras subsequently switched to supersampling,
+first with offline path tracing and then with real-time RTX/DLAA for live-session
+performance; see [camera image quality](yam-calibration.md#camera-image-quality).
+Historical recordings and receipts retain their original renderer settings.
+
+The intermediate offline-path-tracing configuration passed a stepped wrist-task
+state/image-isolation and motion probe, but its spectator captures averaged 7.6
+seconds on the shared validation GPU. That configuration has been replaced.
+The full task/clock matrix and CLI recordings have not been repeated with the
+current renderer.
+
+After the real-time RTX/DLAA change, a stepped wrist-calibration probe passed
+state and device-image isolation, produced measured arm motion, and exited cleanly.
+Seven 1280×720 spectator captures average 0.102 seconds (maximum 0.109 seconds).
+The images pass the existing variability tolerance; temporal rendering does not
+promise pixel-identical output. See the YAM camera documentation for whole-loop
+timings and the remaining gap from wall-clock realtime.
+That receipt predates the YAM inertial correction. The corrected model has separate
+buffer/hold and raw PhysX state checks in `tests/yam_hold_native.py`; the full
+spectator image-isolation matrix has not been repeated for it.
+
+The final review added corrected-model probes for all three YAM layouts:
+overhead and dual-arm in stepped mode, and wrist calibration in realtime mode.
+All passed state/image isolation and small-motion checks with clean native exits;
+capture times averaged 0.105–0.110 seconds. The overhead retest also includes the
+corrected board orientation. The latest wrist and overhead checks inspect raw
+PhysX joint and root state in addition to cached sensor buffers. Resolved view
+metadata now reports the actual 50-degree vertical field of view; this metadata
+correction does not change the lens or relabel historical recordings.
+
+A separate 79.526-second recorded-command replay produced 796 frames with no
+drops and no render-induced raw joint-state changes. Its strict arm-settling
+gate failed at some poses; see [final comparison](yam-calibration.md#final-comparison).
+A fresh Go2 control probe again preserved state and completed motion, but failed
+wrist-RGB isolation (mean absolute change 3.15 versus a 2.81 tolerance). The
+known Go2 image-isolation limitation remains.
+
+Bounded GPU probes exercise all six tasks in stepped and realtime modes with
+small arm motions. All 12 state/lifecycle checks pass with clean native exits. All six YAM cases
+pass the device-image checks. Go2 pick-and-place passes in the final two runs;
+control and reach exceed the wrist-RGB threshold in both clocks (8/12 image
+checks pass overall).
+Go2 preserves physical state, RNG, budgets, device inventory, camera poses and
+intrinsics, and depth images, but its wrist RGB sometimes exceeds the probe's
+image-change tolerance. **Go2 recording is not image-isolation certified.**
+The shared RTX graph can change rendered appearance even when the camera and
+physics state are unchanged; do not assume recorded and unrecorded RGB are
+interchangeable for pixel-sensitive experiments.
+
+The probe warms device cameras and compares equal render-update gaps before and
+after spectator creation, keeping the existing baseline MAE + 1 threshold.
+Image failures remain failures in its receipt; motion and state checks continue
+so their results can be reported separately. Native products receive a bounded
+64-update warmup at startup, which adds startup latency without advancing physics.
+The final render path uses the pinned Isaac Lab tiled-product pipeline.
+
+Four normal CLI recordings (Go2 and YAM, each in both clocks) complete with zero
+dropped samples and decodable MP4s, using both the overview and a custom
+640×360 fixed view. These are framing, lifecycle, and recording checks;
+they do not certify task success, calibration accuracy, or trajectory replay.
+If CUDA reports that its temporary-directory name is too long, launch with a
+short `--run-dir` path; the private CLI probes used a short temporary run root.
 
 ## Timing and lifecycle
 
@@ -104,10 +198,11 @@ finally:
 
 Omitting views selects the available third-person and wrist views, at height 720
 with the source aspect ratio, or both native 640×360 head-camera views for SIMPLE.
-Dual-arm backends other than SIMPLE use `left_wrist` and `right_wrist`.
+RoboTwin, RoboDojo, and BEHAVIOR also use `left_wrist` and `right_wrist`;
+Isaac Lab defaults to its dedicated `third_person` overview only.
 BEHAVIOR resolves these roles from mounting metadata, not numbered camera names.
-The `third_person` role follows the benchmark's existing overview/head camera;
-it does not imply a fixed camera outside the robot.
+On backends other than Isaac Lab, the `third_person` role follows the benchmark's
+existing overview/head camera; it does not imply a fixed camera outside the robot.
 
 A view with `pose=(x, y, z, qx, qy, qz, qw)` instead of `source` defines an
 additional fixed spectator camera. The pose is world-relative, in metres, with

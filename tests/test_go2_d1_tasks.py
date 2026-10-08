@@ -6,12 +6,12 @@ import itertools
 import numpy as np
 import pytest
 from roboenv.tasks.resolve import resolve_task
-from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import (
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.task import (
     CONTROL,
     PICK_PLACE,
     REACH,
-    TaskState,
     definition,
+    make_state,
 )
 
 REACH_POSITION = definition(REACH)["reach_position"]
@@ -57,7 +57,7 @@ def update(state, sample, count):
 
 
 def test_reach_requires_base_motion_orientation_and_continuous_hold():
-    s = TaskState(REACH)
+    s = make_state(REACH)
     update(s, reach_sample(base_position=[0, 0, 0.3]), 60)
     assert not s.completed
     update(s, reach_sample(tcp_quaternion=[0, 0, 0, 1]), 60)
@@ -75,7 +75,7 @@ def test_reach_requires_base_motion_orientation_and_continuous_hold():
 
 
 def test_pick_place_requires_bilateral_lift_carry_release_and_settle():
-    s = TaskState(PICK_PLACE)
+    s = make_state(PICK_PLACE)
     update(s, payload_sample(z=0.03), 60)
     assert s.pickup_base is None
     update(s, payload_sample(finger_forces=[2, 0]), 60)
@@ -99,7 +99,7 @@ def test_pick_place_requires_bilateral_lift_carry_release_and_settle():
 
 @pytest.mark.parametrize("failure", [{"finger_forces": [0, 0]}, {"z": 0.03}])
 def test_transport_drop_is_terminal_and_cannot_be_recovered(failure):
-    s = TaskState(PICK_PLACE)
+    s = make_state(PICK_PLACE)
     update(s, payload_sample(), 10)
     update(s, payload_sample(**failure), 11)
     assert s.failure == "object_dropped" and s.done
@@ -108,7 +108,7 @@ def test_transport_drop_is_terminal_and_cannot_be_recovered(failure):
 
 
 def test_destination_checks_entire_object_and_no_success_before_pickup():
-    s = TaskState(PICK_PLACE)
+    s = make_state(PICK_PLACE)
     release = payload_sample(x=2.5, z=0.03, base_x=2.13, finger_forces=[0, 0], gripper_opening=1.0)
     update(s, release, 100)
     assert not s.completed and s.pickup_base is None
@@ -120,7 +120,7 @@ def test_destination_checks_entire_object_and_no_success_before_pickup():
 
 @pytest.mark.parametrize("name", [REACH, PICK_PLACE])
 def test_fall_prevents_success(name):
-    s = TaskState(name)
+    s = make_state(name)
     s.update({"fallen": True})
     assert s.failure == "robot_fallen" and not s.completed
 
@@ -158,7 +158,7 @@ def test_public_robot_feedback_does_not_expose_task_verdict(fault, expected):
 
 @pytest.mark.parametrize("name", [CONTROL, REACH, PICK_PLACE])
 def test_task_state_and_snapshot_have_no_stage(name):
-    state = TaskState(name)
+    state = make_state(name)
     assert not hasattr(state, "stage")
     assert "stage" not in state.snapshot()
     state.update({"fallen": True})
@@ -166,7 +166,7 @@ def test_task_state_and_snapshot_have_no_stage(name):
 
 
 def test_placement_latch_preserves_destination_failure_after_block_is_raised():
-    state = TaskState(PICK_PLACE)
+    state = make_state(PICK_PLACE)
     update(state, payload_sample(), 10)
     state.update(payload_sample(x=2.5, z=0.06, base_x=2.13))
     state.update(payload_sample(x=2.5, z=0.2, base_x=2.13))
@@ -176,7 +176,7 @@ def test_placement_latch_preserves_destination_failure_after_block_is_raised():
 
 
 def test_custom_reach_spec_controls_goal_tolerance_hold_and_snapshot():
-    from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import catalog_definition
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.task import catalog_definition
 
     spec = catalog_definition(REACH)
     spec.update(
@@ -185,7 +185,7 @@ def test_custom_reach_spec_controls_goal_tolerance_hold_and_snapshot():
         reach_position_tolerance_m=0.01,
         hold_steps=2,
     )
-    state = TaskState(REACH, spec, [0, 0, 0.2])
+    state = make_state(REACH, spec, [0, 0, 0.2])
     update(state, reach_sample(), 50)
     assert not state.completed
     sample = reach_sample(tcp_position=[2.02, 0, 0.8], tcp_quaternion=[0, 0, 0, 1])
@@ -202,11 +202,11 @@ def test_custom_reach_spec_controls_goal_tolerance_hold_and_snapshot():
 
 
 def test_custom_destination_and_pick_hold_are_used():
-    from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import catalog_definition
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.task import catalog_definition
 
     spec = catalog_definition(PICK_PLACE)
     spec.update(destination=[3, 0, 0], destination_half_size_m=0.1, lift_hold_steps=2, hold_steps=2)
-    state = TaskState(PICK_PLACE, spec)
+    state = make_state(PICK_PLACE, spec)
     update(state, payload_sample(), 2)
     assert state.pickup_base is not None
     release = payload_sample(x=3, z=0.03, base_x=2.5, finger_forces=[0, 0], gripper_opening=1)
@@ -232,9 +232,9 @@ def test_custom_destination_and_pick_hold_are_used():
     ],
 )
 def test_invalid_task_spec_is_rejected_before_native_start(monkeypatch, name, changes):
-    from roboenv_runtime.adapters.isaaclab.go2_d1 import native
-    from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
-    from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import catalog_definition
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1 import native
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.environment import Go2Env
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.task import catalog_definition
 
     def forbidden(*args, **kwargs):
         pytest.fail("Invalid configuration started Isaac")
@@ -244,11 +244,31 @@ def test_invalid_task_spec_is_rejected_before_native_start(monkeypatch, name, ch
         Go2Env(task_name=name, task_spec={**catalog_definition(name), **changes})
 
 
+@pytest.mark.parametrize("part", ["tcp", "mount"])
+def test_robot_mount_validation_precedes_native_start(monkeypatch, part):
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1 import native
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.environment import Go2Env, load_profiles
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Invalid robot geometry started Isaac")
+
+    monkeypatch.setattr(native, "Native", forbidden)
+    profiles = load_profiles()
+    gripper = profiles["gripper"]
+    frame = (
+        gripper["intrinsics"]["frames"]["tcp"] if part == "tcp"
+        else gripper["extrinsics"]["mount"]
+    )
+    frame["rotation_xyzw"] = [0, 0, 1, 0]
+    with pytest.raises(ValueError, match="aligned"):
+        Go2Env(device_profiles=profiles)
+
+
 def test_resolved_configuration_is_portable_and_uses_selected_robot(tmp_path, monkeypatch):
     import shutil
 
     import yaml
-    from roboenv_runtime.adapters.isaaclab.go2_d1 import tasks
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1 import task as tasks
 
     original = resolve_task("isaaclab/" + REACH)
     catalog = tmp_path / "catalog"
@@ -268,7 +288,9 @@ def test_resolved_configuration_is_portable_and_uses_selected_robot(tmp_path, mo
     monkeypatch.setattr(tasks, "catalog_definition", forbidden)
     monkeypatch.setattr(tasks, "catalog_tcp", forbidden)
     kwargs = resolved.task.backend_kwargs
-    spec = definition(REACH, kwargs["task_spec"], kwargs["tcp_in_flange_m"])
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.task import gripper_tcp
+
+    spec = definition(REACH, kwargs["task_spec"], gripper_tcp(kwargs["device_profiles"]["gripper"]))
     assert spec["tcp_in_flange_m"] == [0, 0, 0.2]
     assert spec["reach_position"] == REACH_POSITION
 
@@ -276,7 +298,8 @@ def test_resolved_configuration_is_portable_and_uses_selected_robot(tmp_path, mo
 def test_scene_measurements_use_configured_tcp_and_object_dimensions():
     from types import SimpleNamespace
 
-    from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import TaskScene, catalog_definition
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.task import catalog_definition
+    from roboenv_runtime.adapters.isaaclab.tasks.go2_d1_pick_place.task import Scene as TaskScene
 
     config = catalog_definition(PICK_PLACE)
     config["object_size"] = [0.1, 0.2, 0.3]
