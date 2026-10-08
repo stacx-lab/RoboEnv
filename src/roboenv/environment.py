@@ -340,7 +340,7 @@ def launch(
         ))
     spec = resolved.task
     if recording is not None and spec.backend not in {
-        "abc", "libero", "robocasa", "robotwin", "robodojo", "behavior", "simple"
+        "abc", "libero", "robocasa", "robotwin", "robodojo", "behavior", "simple", "isaaclab"
     }:
         raise ValueError(f"Spectator recording is not supported for {spec.backend}")
     execution_mode = spec.execution_mode

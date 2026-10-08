@@ -1,0 +1,30 @@
+id: isaaclab/yam-calibrate-overhead-camera
+robot: isaaclab/isaaclab-yam-calibrate-overhead-camera
+instruction: 'Calibrate camera_top extrinsics
+
+  using eye-to-hand camera calibration.
+
+  A 7 x 5 ChArUco board (DICT_4X4_50, squares 0.03 m, markers 0.0225 m)
+
+  is rigidly attached to the left-arm flange, with its printed face along flange -Z.
+
+  Move the left arm through diverse board-visible poses and pair images with measured
+
+  left_arm flange poses in the arm base frame. The board attachment need not be known
+
+  to the hand-eye solver. Compose the solved camera-in-base transform with the known
+
+  left_arm world mount and save camera_top''s world-relative extrinsics.
+
+  Keep the right arm parked. Retain observations and solver evidence in the workspace.
+
+  This is ungraded practice: save the profile locally; there is no result submission
+
+  or automatic completion. Camera reads and joint reads are sequential, not synchronized.'
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: yam-calibrate-overhead-camera
+  asset_manifest: .cache/isaaclab/yam/assets.json

@@ -5,8 +5,12 @@ import json
 from pathlib import Path
 
 import numpy as np
-from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import DEFAULT, matrix_quat, quat_matrix
-from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.controllers import (
+    DEFAULT,
+    matrix_quat,
+    quat_matrix,
+)
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.environment import Go2Env
 
 CASES = {
     "forward": [0.05, 0, 0, 0.30, 0, 0],

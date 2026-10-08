@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from helpers import load_tool
-from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.environment import Go2Env
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -63,6 +63,28 @@ def test_source_identity_rejects_unknown_lock_schema(identity_inputs):
     path.write_text(json.dumps(lock))
     with pytest.raises(ValueError, match="Unsupported upstream lock"):
         Go2Env.source_identity()
+
+
+@pytest.mark.parametrize("relative,changes_reach", [
+    ("robots/go2_d1/controllers.py", True),
+    ("common/observations.py", True),
+    ("tasks/go2_d1_reach/scoring.py", True),
+    ("tasks/go2_d1_pick_place/scoring.py", False),
+])
+def test_replay_identity_covers_shared_and_selected_task_sources(
+    identity_inputs, monkeypatch, relative, changes_reach,
+):
+    original = Go2Env.source_identity("go2-d1-reach")
+    read_bytes = Path.read_bytes
+
+    def changed(path):
+        content = read_bytes(path)
+        if path.as_posix().endswith(relative):
+            return content + b"\n# changed implementation\n"
+        return content
+
+    monkeypatch.setattr(Path, "read_bytes", changed)
+    assert (Go2Env.source_identity("go2-d1-reach") != original) is changes_reach
 
 
 @pytest.mark.parametrize("legacy", [False, True])

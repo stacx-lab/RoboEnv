@@ -1,20 +1,25 @@
-"""Go2–D1 device interface with environment-owned clock and verdict."""
+"""RoboEnv lifecycle bridge for registered Isaac Lab tasks."""
 
 from roboenv_runtime.core.adapter import AdapterBase, register_adapter
-from roboenv_runtime.core.types import Budget, ScoreReport
+
+from .registry import get_task
 
 
 @register_adapter
 class IsaacLabAdapter(AdapterBase):
     name = "isaaclab"
-    embodiment = "go2_d1"
     owner_thread_required = True
 
-    def __init__(self, *, stop_on_success=False, **kwargs):
+    def __init__(self, *, task_name="go2-d1-control", stop_on_success=False, **kwargs):
         self._set_stop_on_success(stop_on_success)
-        from .go2_d1.environment import Go2Env
+        task = get_task(task_name)
+        self.embodiment = task.embodiment
+        self._env = task.create_environment(**kwargs)
 
-        self._env = Go2Env(**kwargs)
+    @property
+    def environment(self):
+        """Robot-specific device bindings access their registered environment here."""
+        return self._env
 
     @property
     def control_interval_s(self):
@@ -24,8 +29,9 @@ class IsaacLabAdapter(AdapterBase):
         self._env.tick()
 
     def configure_execution_mode(self, mode):
-        """Apply the shared world's mode to the Go2 practice horizon."""
+        """Apply the shared world's execution policy to the selected environment."""
         self._env.configure_execution_mode(mode)
+        self.execution_mode = mode
 
     def reset(self, seed):
         self._env.reset(seed)
@@ -34,14 +40,10 @@ class IsaacLabAdapter(AdapterBase):
         self._env.close()
 
     def score(self):
-        return ScoreReport(
-            reward=float(self._env.completed),
-            raw_score=float(self._env.completed),
-            completed=self._env.completed,
-        )
+        return self._env.score()
 
     def budget(self):
-        return Budget(used=self._env.steps, max=self._env.max_steps, unit="action_frames")
+        return self._env.budget()
 
     def observe(self):
         return self._env.record()

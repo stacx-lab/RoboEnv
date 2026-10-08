@@ -20,7 +20,7 @@ def read_robot_state(world, name):
 def bind(spec, root, context):
     if context.backend != "isaaclab" or context.embodiment != "go2_d1":
         raise ValueError("Go2–D1 binding requires the Go2–D1 world")
-    world = context.native._env
+    world = context.native.environment
     definition = spec.definition(root)
     if spec.config or spec.entity != spec.name or context.devices.get(spec.entity) != spec.name:
         raise ValueError("Go2–D1 requires canonical unique devices")

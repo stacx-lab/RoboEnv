@@ -41,6 +41,13 @@ def test_isaaclab_cloudxr_is_opt_in(monkeypatch):
     assert any(value.name == "isaacteleop" and "cloudxr" in value.extras for value in optional)
 
 
+def test_isaaclab_runtime_omits_optional_teleoperation():
+    recipe = json.loads((ROOT / "runtime/environments.json").read_text())["backends"]["isaaclab"]
+    packages = {Path(path).name for path in recipe["editables"]}
+    assert {"isaaclab", "isaaclab_physx", "isaaclab_assets", "isaaclab_tasks"} <= packages
+    assert "isaaclab_teleop" not in packages
+
+
 def test_robocasa_uses_resolved_lock():
     recipe = json.loads((ROOT / "runtime/environments.json").read_text())["backends"]["robocasa"]
     assert recipe["lock"] == "runtime/locks/robocasa-resolved.txt"

@@ -29,7 +29,7 @@ def stop_method(backend, cls, method):
     ("robotwin/devices.py", "RoboTwinDevices", "device_stop", "left_gripper"),
     ("robodojo/devices.py", "RoboDojoDevices", "device_stop", "left_gripper"),
     ("behavior/devices.py", "BehaviorDevices", "device_stop", "left_gripper"),
-    ("isaaclab/go2_d1/environment.py", "Go2Env", "stop", "gripper"),
+    ("isaaclab/robots/go2_d1/environment.py", "Go2Env", "stop", "gripper"),
 ])
 def test_stop_retains_goal_despite_different_measured_aperture(backend, cls, method, name):
     stop = stop_method(backend, cls, method)

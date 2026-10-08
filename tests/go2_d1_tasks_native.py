@@ -5,9 +5,9 @@ import json
 from pathlib import Path
 
 import numpy as np
-from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import matrix_quat, quat_matrix
-from roboenv_runtime.adapters.isaaclab.go2_d1.environment import Go2Env
-from roboenv_runtime.adapters.isaaclab.go2_d1.tasks import PICK_PLACE, REACH, TCP
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.controllers import matrix_quat, quat_matrix
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.environment import Go2Env
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1.task import PICK_PLACE, REACH
 
 
 def run(out, task, cameras=False, drop=False):
@@ -18,6 +18,7 @@ def run(out, task, cameras=False, drop=False):
     trace = []
     try:
         n = w.native
+        tcp_offset = np.asarray(n.task_spec["tcp_in_flange_m"])
         posture = [0.30, 0.0, 0.0]
         velocity = [0.0, 0.0, 0.0]
         arm = np.array([n.home[k] for k in n.model.arm_names])
@@ -66,7 +67,7 @@ def run(out, task, cameras=False, drop=False):
         def tcp():
             root = n.root_pose()
             t = n.model.forward(n.joints())["d1_Link6"]
-            return root[:3] + quat_matrix(root[3:]) @ (t[:3, 3] + t[:3, :3] @ TCP)
+            return root[:3] + quat_matrix(root[3:]) @ (t[:3, 3] + t[:3, :3] @ tcp_offset)
 
         def move(target, rotation, seconds=3.0):
             nonlocal arm
@@ -79,7 +80,7 @@ def run(out, task, cameras=False, drop=False):
                     root = n.root_pose()
                     rb = quat_matrix(root[3:])
                     goal = initial + (np.array(target) - initial) * min((i + 5) / count, 1.0)
-                    flange_world = goal - rotation @ TCP
+                    flange_world = goal - rotation @ tcp_offset
                     mount = n.model.forward({})["d1_base_link"]
                     p = mount[:3, :3].T @ (rb.T @ (flange_world - root[:3]) - mount[:3, 3])
                     rot = mount[:3, :3].T @ rb.T @ rotation
@@ -101,7 +102,10 @@ def run(out, task, cameras=False, drop=False):
             root = n.root_pose()
             rb = quat_matrix(root[3:])
             seed = [0.0, 1.45, 0.30, 0.0, -0.3, 0.0]
-            pos = rb.T @ (np.array([1.25, 0, 0.25]) - down @ TCP - root[:3]) - [0.085, 0, 0.094]
+            pos = (
+                rb.T @ (np.array([1.25, 0, 0.25]) - down @ tcp_offset - root[:3])
+                - [0.085, 0, 0.094]
+            )
             arm = np.array(n.model.arm_ik([*pos, *matrix_quat(rb.T @ down)], seed, iterations=250))
             step(200, "pregrasp")
             move([1.25, 0, 0.045], down, 4.0)

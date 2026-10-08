@@ -14,7 +14,7 @@ from roboenv_runtime.adapters.simple.adapter import SimpleAdapter
 from roboenv_runtime.runtime.worker import SimWorker
 
 ADAPTERS = [
-    (IsaacLabAdapter, "isaaclab.go2_d1.environment", "Go2Env"),
+    (IsaacLabAdapter, "isaaclab.robots.go2_d1.environment", "Go2Env"),
     (SimpleAdapter, "simple.backend", "SimpleEnv"),
     (LiberoAdapter, "libero.backend", "LiberoEnv"),
     (RoboTwinAdapter, "robotwin.devices", "RoboTwinDevices"),
@@ -53,7 +53,10 @@ def test_policy_is_consumed_and_native_arguments_preserved(adapter_type, policy)
     adapter = adapter_type(*args, **kwargs, **policy)
     assert adapter.stop_on_success is policy.get("stop_on_success", False)
     assert adapter._env.args[:len(args)] == args
-    assert adapter._env.kwargs == kwargs
+    expected = (
+        {"task_name": "go2-d1-control", **kwargs} if adapter_type is IsaacLabAdapter else kwargs
+    )
+    assert adapter._env.kwargs == expected
 
 
 @pytest.mark.parametrize("value", [None, 0, 1, "true", []])

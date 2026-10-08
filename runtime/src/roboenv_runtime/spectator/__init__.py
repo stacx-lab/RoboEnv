@@ -43,6 +43,7 @@ class CameraSource:
     native: object
     width: int
     height: int
+    fov_y: float | None = None
 
 
 class SpectatorRenderer:
@@ -66,7 +67,8 @@ class SpectatorRenderer:
                 source = sources.get(view.source)
                 aspect = source.width / source.height if source else 16 / 9
                 width = view.width or max(2, round(view.height * aspect / 2) * 2)
-                resolved.append(replace(view, width=width))
+                fov_y = source.fov_y if source and source.fov_y is not None else view.fov_y
+                resolved.append(replace(view, width=width, fov_y=fov_y))
             self.views = tuple(resolved)
             engine.open(self.views)
         except BaseException:
@@ -99,7 +101,7 @@ class SpectatorRenderer:
 def create_spectator_renderer(adapter, views=None):
     """Create once after reset; close before resetting or destroying the world."""
     engines = {"abc": "mujoco", "libero": "mujoco", "robocasa": "mujoco", "robotwin": "sapien",
-               "robodojo": "isaac", "behavior": "isaac", "simple": "simple"}
+               "robodojo": "isaac", "behavior": "isaac", "simple": "simple", "isaaclab": "isaaclab"}
     if adapter.name not in engines:
         raise ValueError(f"Spectator rendering is not supported for {adapter.name}")
     if adapter.name == "abc" and adapter._env.camera_backend == "blender":

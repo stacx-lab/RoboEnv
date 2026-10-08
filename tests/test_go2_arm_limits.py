@@ -9,7 +9,7 @@ from types import ModuleType, SimpleNamespace
 import numpy as np
 import pytest
 from helpers import load_tool
-from roboenv_runtime.adapters.isaaclab.go2_d1 import native
+from roboenv_runtime.adapters.isaaclab.robots.go2_d1 import native
 
 TORQUES = [3.3, 3.3, 1.7, 1.7, 1.7, 1.7]
 BOUNDS = [2.35, 1.57, 1.57, 2.35, 1.57, 2.35]
@@ -55,8 +55,8 @@ def test_preparation_and_catalog_preserve_positions_and_use_motor_torques(tmp_pa
         assert actual == [-bound, bound, torque]
         assert math.isinf(float(limit.get("velocity")))
         assert manifest["practice_assumptions"][f"d1_Joint{index}"]["velocity"] is None
-    from roboenv_runtime.adapters.isaaclab.go2_d1.adapter import RobotModel
-    from roboenv_runtime.adapters.isaaclab.go2_d1.environment import load_profiles
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.environment import load_profiles
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.robot import RobotModel
 
     values = load_profiles()
     joints = values["arm"]["intrinsics"]["model"]["joints"]
@@ -127,6 +127,7 @@ def test_native_arm_overrides_imported_velocity_and_effort_limits(tmp_path, monk
         monkeypatch.setitem(sys.modules, name, module)
     world = native.Native.__new__(native.Native)
     world.task_name = "go2-d1-control"
+    world.task_type = native.task_type(world.task_name)
     world.home = {}
     world.model = SimpleNamespace(
         arm_names=[f"d1_Joint{i}" for i in range(1, 7)],
