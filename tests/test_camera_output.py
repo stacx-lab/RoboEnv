@@ -48,6 +48,7 @@ def camera_server(tmp_path):
         },
     }
     calls = []
+    artifact_lengths = {}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -78,7 +79,13 @@ def camera_server(tmp_path):
 
         def send(self, body):
             self.send_response(200)
-            self.send_header("Content-Length", str(len(body)))
+            length = (
+                artifact_lengths.get(Path(self.path).name, len(body))
+                if self.command == "GET"
+                else len(body)
+            )
+            if length is not None:
+                self.send_header("Content-Length", str(length))
             self.end_headers()
             self.wfile.write(body)
 
@@ -99,6 +106,7 @@ def camera_server(tmp_path):
             depth=depth,
             calls=calls,
             endpoint=endpoint,
+            artifact_lengths=artifact_lengths,
         )
     finally:
         wire.close_all()
@@ -150,8 +158,11 @@ def test_driver_converts_received_images_and_keeps_server_read_unchanged(
     Path(files["file"]).parent.rmdir()
 
 
-def test_sdk_array_base64_and_default_file_outputs(camera_server):
+@pytest.mark.parametrize("content_length", [True, False])
+def test_sdk_array_base64_and_default_file_outputs(camera_server, content_length):
     fixture = camera_server
+    if not content_length:
+        fixture.artifact_lengths.update({name: None for name in fixture.images})
     requests = []
 
     def call(action, args):
@@ -182,6 +193,29 @@ def test_sdk_array_base64_and_default_file_outputs(camera_server):
         assert all(args == {} for _, args in requests)
         assert "output" not in fixture.data
     assert not Path(files["file"]).exists()
+
+
+@pytest.mark.parametrize("output", ["file", "base64"])
+def test_sdk_rejects_truncated_download_and_removes_partial_file(camera_server, output):
+    fixture = camera_server
+    fixture.artifact_lengths["rgb.png"] = len(fixture.images["rgb.png"])
+    fixture.images["rgb.png"] = fixture.images["rgb.png"][:26]
+    transport = SimpleNamespace(
+        endpoint=fixture.endpoint,
+        session="test",
+        generation=0,
+        describe=lambda: {"task": {"id": "test", "instruction": "test"}},
+        devices=lambda: {"devices": [fixture.profile]},
+        device=lambda _: SimpleNamespace(call=lambda *_: {"data": fixture.data}),
+    )
+    with Environment(transport) as env:
+        with pytest.raises(ValueError, match="Incomplete image download"):
+            env.device("camera").read(output=output)
+        if output == "file":
+            assert env._artifacts is not None
+            assert not list(env._artifacts.iterdir())
+        else:
+            assert env._artifacts is None
 
 
 def test_local_content_preserves_server_files(camera_server, tmp_path):
@@ -231,3 +265,21 @@ def test_oversized_remote_content_fails_without_local_artifacts(camera_server, m
     fixture.images["rgb.png"] = b"x" * 1025
     with pytest.raises(ValueError, match="output='file'"):
         fixture.wire.remote("read", {}, image_output="base64")
+
+
+def test_sdk_remote_content_limit_allows_streaming_to_file(camera_server):
+    fixture = camera_server
+    fixture.images["rgb.png"] = b"x" * (8 * 1024 * 1024 + 1)
+    transport = SimpleNamespace(
+        endpoint=fixture.endpoint,
+        session="test",
+        generation=0,
+        describe=lambda: {"task": {"id": "test", "instruction": "test"}},
+        devices=lambda: {"devices": []},
+    )
+    with Environment(transport) as env:
+        with pytest.raises(ValueError, match="output='file'"):
+            env._download("/server/rgb.png", content=True)
+        assert env._artifacts is None
+        path = Path(env._download("/server/rgb.png"))
+        assert path.read_bytes() == fixture.images["rgb.png"]
