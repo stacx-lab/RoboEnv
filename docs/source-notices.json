@@ -21,11 +21,11 @@
       ]
     },
     "robodojo": {
-      "revision": "726e9aabfaa642203722eb126f5eaf0f37f3e1ad",
+      "revision": "cb2a37d58dbbeb2777b0c2b30e97ecb8ab91095c",
       "notices": [
         {
           "path": "LICENSE",
-          "sha256": "7794bb06af8fe5485ca912454ad1665ccd7846c45f9c2b1258658e480948cdbe"
+          "sha256": "4f2b6958d25115c1bc461044e022889852d9e3a9bb854ab581c416514b9984a0"
         }
       ]
     },
