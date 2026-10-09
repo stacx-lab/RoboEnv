@@ -42,9 +42,13 @@ Panda keeps its native `grip_site` TCP and two opposing 16 × 16 mm inner pads.
 The driver calibrates aperture conversion from the compiled geometry at setup;
 reads use measured joint positions without computing finger poses.
 
-Piper, ALOHA AgileX, ARX X5 and R1Pro place the TCP at the midpoint of two
-source contact reference points at zero finger displacement, keeping the arm
-flange's axes. Their mesh-defined contact surfaces have no calibrated rectangular
+RoboTwin Piper and ALOHA AgileX use the position and orientation returned by the
+native robot's TCP convention. The rig derives this fixed transform from the
+end-effector joint anchor, embodiment rotation matrices and gripper bias.
+ARX X5 and R1Pro place the TCP at the midpoint of two source contact reference
+points at zero finger displacement, keeping the arm flange's axes.
+
+All four models use mesh-defined contact surfaces with no calibrated rectangular
 pad dimensions. Internal measured finger positions determine aperture, including
 asymmetric openings. Aperture is clamped at zero for soft-contact overlap and
 is not whole-finger clearance or a guarantee that an object fits.
@@ -65,6 +69,10 @@ The numerical fixtures retain source joint transforms and the mesh facets
 containing each contact. Tests verify source surface membership, normals, asymmetric aperture,
 fixed TCP transforms, both-arm catalogs and native read/stop integration. MuJoCo tests also exercise the LIBERO binding without stepping
 physics. These checks do not replace full task replay in each simulator.
+
+Earlier RoboTwin profiles used the contact-reference midpoint as TCP. Refresh
+these profiles when upgrading; controllers that stored that frame must use the
+new native transform. Aperture and finger geometry retain their calibration.
 
 Existing workspaces contain copied profiles. Refresh their device profiles and
 reload the devices after updating RoboEnv; restart the environment service to

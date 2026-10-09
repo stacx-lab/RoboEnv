@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
+from roboenv.devices.model import local_frame
 from roboenv_runtime.adapters.gripper_geometry import ParallelGripper
 from roboenv_runtime.adapters.urdf_geometry import (
     fixed_transform,
@@ -21,6 +22,31 @@ from roboenv_runtime.bindings.backends.robocasa.camera import intrinsics as came
 
 EMBODIMENTS = {"piper": ["piper", "piper", 0.6], "aloha_agilex": ["aloha-agilex"]}
 OPTICAL = np.array([[0, 0, 1, 0], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]])
+
+
+def native_tcp(urdf, config, index, flange):
+    """Flange-to-TCP transform matching RoboTwin Robot._trans_endpose."""
+    joint = next(j for j in ET.parse(urdf).getroot().findall("joint")
+                 if j.get("name") == config["ee_joints"][index])
+    transform = fixed_transform(urdf, flange, joint.find("child").get("link"))
+    if config.get("ee_frame", "joint") == "joint":
+        # SAPIEN's URDF loader uses this basis for the joint's child anchor.
+        # Even a +X URDF axis has a rotated anchor; it is not the link frame.
+        node = joint.find("axis")
+        axis = np.fromstring(node.get("xyz", "1 0 0") if node is not None else "1 0 0", sep=" ")
+        axis /= np.linalg.norm(axis)
+        tangent = np.cross(axis, [0, 0, 1] if abs(axis[0]) > 0.9 else [1, 0, 0])
+        tangent /= np.linalg.norm(tangent)
+        transform[:3, :3] = transform[:3, :3] @ np.column_stack(
+            (axis, tangent, np.cross(axis, tangent))
+        )
+    elif config["ee_frame"] != "link":
+        raise ValueError("Unsupported RoboTwin end-effector frame")
+    transform[:3, :3] = (transform[:3, :3]
+                        @ np.asarray(config.get("global_trans_matrix", np.eye(3)))
+                        @ np.asarray(config.get("delta_matrix", np.eye(3))))
+    transform[:3, 3] += transform[:3, :3] @ [config["gripper_bias"], 0, 0]
+    return transform
 
 
 def describe(root, embodiment, *, assets=None):
@@ -81,6 +107,9 @@ def describe(root, embodiment, *, assets=None):
             urdf, grip_names, flange, "piper" if embodiment == "piper" else "aloha"
         )
         facts[gripper] = geometry.device(gripper, arm)
+        facts[gripper]["intrinsics"]["frames"]["tcp"] = local_frame(matrix_pose(
+            np.linalg.inv(geometry.mount) @ native_tcp(urdf, config, index, flange)
+        ))
         links = {link.attrib["name"] for link in tree.findall("link")}
         camera_link = side + "_camera" if side + "_camera" in links else "camera"
         camera_mount = fixed_transform(urdf, flange, camera_link) @ OPTICAL

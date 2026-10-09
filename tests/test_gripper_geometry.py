@@ -8,8 +8,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import yaml
+from roboenv.devices.model import local_frame
 from roboenv_runtime.adapters.gripper_geometry import ParallelGripper
-from roboenv_runtime.adapters.urdf_geometry import fixed_transform, matrix, origin
+from roboenv_runtime.adapters.robotwin.rig import native_tcp
+from roboenv_runtime.adapters.urdf_geometry import fixed_transform, matrix, matrix_pose, origin
 from roboenv_runtime.bindings.backends.libero.devices import same_facts
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,6 +98,16 @@ def test_catalogs_match_source_geometry_on_both_arms(tmp_path, case):
             matrix(mount["translation_m"] + mount["rotation_xyzw"])
             @ matrix(tcp["translation_m"] + tcp["rotation_xyzw"]), geometry.tcp, atol=1e-9,
         )
+        if case["model"] in {"aloha", "piper"}:
+            native = np.eye(4)
+            if case["model"] == "aloha":
+                native[:3, 3] = [0.12, 0, 0]
+            else:
+                native[:3, :3] = [[0, 0, -1], [0, 1, 0], [1, 0, 0]]
+                native[:3, 3] = [0, 0, 0.12]
+            facts["intrinsics"]["frames"]["tcp"] = local_frame(
+                matrix_pose(np.linalg.inv(geometry.mount) @ native)
+            )
         for key in ("intrinsics", "extrinsics"):
             assert same_facts(profile[key], facts[key])
 
@@ -165,3 +177,26 @@ def test_native_read_paths_publish_aperture_without_finger_poses(tmp_path, backe
     assert world.device_stop("left_gripper")["stopped"]
     assert stopped == [("left_gripper", [0.1])]
     assert goals["right_gripper"] == [0.8]
+
+
+@pytest.mark.parametrize("axis,global_rotation,delta,expected", [
+    ([1, 0, 0], np.diag([1, -1, -1]), np.eye(3), np.eye(3)),
+    ([0, 0, 1], [[0, 0, 1], [0, 1, 0], [-1, 0, 0]],
+     [[0, 0, -1], [0, 1, 0], [1, 0, 0]], [[0, 0, -1], [0, 1, 0], [1, 0, 0]]),
+])
+def test_robotwin_native_tcp_includes_joint_anchor_and_native_bias(
+    tmp_path, axis, global_rotation, delta, expected
+):
+    urdf = tmp_path / "ee.urdf"
+    urdf.write_text('<robot><joint name="ee" type="revolute"><parent link="wrist"/>'
+                    '<child link="flange"/><axis xyz="' + " ".join(map(str, axis))
+                    + '"/></joint></robot>')
+    config = {"ee_joints": ["ee", "ee"], "gripper_bias": 0.12,
+              "global_trans_matrix": global_rotation, "delta_matrix": delta}
+    for index in (0, 1):
+        tcp = native_tcp(urdf, config, index, "flange")
+        np.testing.assert_allclose(tcp[:3, :3], expected, atol=1e-12)
+        np.testing.assert_allclose(tcp[:3, 3], np.asarray(expected) @ [0.12, 0, 0], atol=1e-12)
+    config["ee_frame"] = "link"
+    tcp = native_tcp(urdf, config, 0, "flange")
+    np.testing.assert_allclose(tcp[:3, :3], np.asarray(global_rotation) @ delta, atol=1e-12)
