@@ -7,7 +7,9 @@ import shutil
 import subprocess
 from dataclasses import FrozenInstanceError
 from pathlib import Path
+from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import yaml
 from helpers import kinex_sources, native_interpreter
@@ -18,6 +20,88 @@ from roboenv.devices.export import export_devices
 from roboenv.tasks.resolve import resolve_task
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture
+def robocasa_history_owner():
+    from roboenv_runtime.adapters.robocasa.adapter import RoboCasaAdapter
+    from roboenv_runtime.adapters.robocasa.backend import RoboCasaEnv
+
+    class NativeKitchen:
+        def reset(self):
+            self.evaluations = 0
+            self.on_tray = True
+            self.events = []
+            return {}
+
+        def _check_success(self):
+            self.events.append("reward")
+            self.evaluations += 1
+            return self.evaluations > 10 and self.on_tray
+
+        def step(self, action):
+            # Kitchen's sparse reward precedes task/fixture update_state hooks.
+            reward = float(self._check_success())
+            self.events.append("update_state")
+            return {}, reward, False, {}
+
+    native = NativeKitchen()
+    controller = SimpleNamespace(
+        actuator_min=np.array([-1.0, -1.0]),
+        actuator_max=np.array([1.0, 1.0]),
+        qpos_index=[0, 1],
+        set_goal=lambda goal: None,
+    )
+    native.robots = [SimpleNamespace(
+        action_dim=1,
+        composite_controller=SimpleNamespace(),
+        part_controllers={"right_gripper": controller},
+        gripper={"right": SimpleNamespace(format_action=lambda action: action)},
+    )]
+    native.sim = SimpleNamespace(
+        data=SimpleNamespace(qpos=np.zeros(2)), forward=lambda: None,
+    )
+    owner = RoboCasaEnv.__new__(RoboCasaEnv)
+    owner.env, owner._max_steps = native, None
+    owner.stop_on_success = True
+    owner.reset()
+    adapter = RoboCasaAdapter.__new__(RoboCasaAdapter)
+    adapter._env = owner
+    return owner, native, adapter
+
+
+def test_robocasa_score_polling_preserves_native_history(robocasa_history_owner):
+    from roboenv_runtime.runtime.scoring import SimpleScorer
+
+    owner, native, adapter = robocasa_history_owner
+    scorer = SimpleScorer(adapter)
+    for frame in range(12):
+        for _ in range(20):
+            assert owner.task_completed() is (frame > 10)
+            assert adapter.score().completed is (frame > 10)
+            assert scorer.peek()["completed"] is (frame > 10)
+        assert native.evaluations == frame
+        assert native.events == ["reward", "update_state"] * frame
+        if frame < 11:
+            owner.tick()
+    # Cache the current native result, not a successful result from an earlier frame.
+    native.on_tray = False
+    owner.tick()
+    assert not scorer.submit()["completed"]
+    assert native.evaluations == 12
+
+
+def test_robocasa_reset_discards_cached_success(robocasa_history_owner):
+    owner, native, adapter = robocasa_history_owner
+    for _ in range(11):
+        owner.tick()
+    assert owner.task_completed()
+    owner.reset()
+    assert not owner.task_completed()
+    assert not adapter.score().completed
+    assert owner.get_step_budget()["used"] == 0
+    assert native.evaluations == 0
+    assert native.events == []
 
 
 def test_task_selects_robot_with_custom_devices(tmp_path):

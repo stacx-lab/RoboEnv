@@ -74,6 +74,7 @@ class RoboCasaEnv:
         self.configured_max_steps = max_steps
         self._max_steps = max_steps
         self._step_count = 0
+        self._task_completed = False
         controller_config = joint_controller_config(robot)
         env_kwargs: dict[str, Any] = {
             "robots": robot,
@@ -133,8 +134,8 @@ class RoboCasaEnv:
         return str(self.episode_meta().get("lang", ""))
 
     def task_completed(self) -> bool:
-        """The benchmark's own success check."""
-        return bool(self.env._check_success())
+        """Native success at the last control interval, without advancing task history."""
+        return self._task_completed
 
     def list_objects(self) -> list[str]:
         """Names of the task's movable objects."""
@@ -207,6 +208,7 @@ class RoboCasaEnv:
             self.env.rng = np.random.default_rng(seed)
         self._obs = self.env.reset()
         self._step_count = 0
+        self._task_completed = False
         self._stream_commands = {}
         # Reset seeds a fresh hold; ordinary stop must preserve the grasp target.
         controller = self._robot.part_controllers["right_gripper"]
@@ -277,7 +279,10 @@ class RoboCasaEnv:
         previous = composite.__dict__.get("set_goal")
         composite.set_goal = update_streams
         try:
-            self._obs, _, _, _ = self.env.step(np.zeros(self._robot.action_dim))
+            self._obs, reward, _, _ = self.env.step(np.zeros(self._robot.action_dim))
+            # Kitchen.reward already evaluates the native predicate before update_state.
+            # Rechecking it here or on reads advances history-dependent task counters.
+            self._task_completed = bool(reward)
             self.sim.forward()  # Publish transforms consistent with the integrated joints.
             self._step_count += 1
         finally:
