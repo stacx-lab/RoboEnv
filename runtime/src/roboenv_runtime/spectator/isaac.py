@@ -71,9 +71,15 @@ class Engine:
     def capture(self, views):
         from pxr import Gf
 
-        for view in views:
-            transform = self.view_transform(view)
-            self.cameras[view.name].Set(Gf.Matrix4d(transform.T.tolist()))
+        context = nullcontext()
+        if self.backend == "behavior":
+            import omnigibson as og
+            context = og.sim.editing_usd()
+        # Commit all camera transforms to Fabric before rendering the frame.
+        with context:
+            for view in views:
+                transform = self.view_transform(view)
+                self.cameras[view.name].Set(Gf.Matrix4d(transform.T.tolist()))
         self.render()
         return {v.name: np.asarray(self.annotators[v.name].get_data())[..., :3] for v in views}
 
