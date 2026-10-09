@@ -274,3 +274,50 @@ def test_invalid_factory_result_is_not_accepted(constructor):
     config.deploy_cfg = {"port": 1234}
     with pytest.raises(TypeError, match="must return"):
         namespace["create_eval_env"](config, object(), model_client_factory=lambda **kwargs: None)
+
+
+@pytest.mark.parametrize("policy", [None, False, True])
+def test_native_success_policy_preserves_default_and_continuation(constructor, policy):
+    namespace, config, _ = constructor
+    if policy is not None:
+        config.eval_cfg["stop_on_success"] = policy
+    native = namespace["create_eval_env"](config, object(), model_client=Client())
+    assert native.completed == [False]
+    captures, evaluations = [], []
+    native.step_lim = 100
+    native.take_action_cnt = [1]
+    native.reward_manager = SimpleNamespace(
+        get_reward=lambda **kwargs: evaluations.append(kwargs) or [1.0],
+    )
+    native.get_obs_batch = lambda **kwargs: captures.append(kwargs)
+    expected_end = policy is not False
+    assert native.is_episode_end() is expected_end
+    assert native.completed == native.success == [True]
+    assert native.end_flag == [expected_end]
+    assert len(evaluations) == 1
+    assert len(captures) == int(expected_end)
+    if not expected_end:
+        native.take_action_cnt[0] += 1
+        assert not native.is_episode_end()
+        assert native.get_running_env_idx_list() == [0]
+        native.take_action_cnt[0] = native.step_lim
+        assert native.is_episode_end()
+        assert native.completed == native.success == [True]
+        assert len(captures) == 1
+
+
+@pytest.mark.parametrize("failure", ["native_failure", "horizon"])
+def test_disabling_success_stop_retains_native_failure_and_horizon(constructor, failure):
+    namespace, config, _ = constructor
+    config.eval_cfg["stop_on_success"] = False
+    native = namespace["create_eval_env"](config, object(), model_client=Client())
+    native.step_lim = 100
+    native.take_action_cnt = [100 if failure == "horizon" else 2]
+    native.success = [failure != "native_failure"]
+    native.completed = [True]  # Previously successful continuation can still fail.
+    native.reward_manager = SimpleNamespace(get_reward=lambda **kwargs: [0.0])
+    captures = []
+    native.get_obs_batch = lambda **kwargs: captures.append(kwargs)
+    assert native.is_episode_end()
+    assert native.success == native.completed == [False]
+    assert len(captures) == 1

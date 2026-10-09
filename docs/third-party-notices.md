@@ -6,6 +6,10 @@ license/notice at that revision. The preflight checks coverage, revisions and
 available bytes; `--verify-upstreams` also requires the actual checkouts and patches.
 This inventory covers source notices, not asset or binary redistribution approval.
 
+The managed RoboDojo success-policy patch separates task completion from episode
+termination so the owner can choose whether success ends an episode. Native
+reward evaluation, failure checks and horizon checks retain their original rules.
+
 The managed Isaac Lab CloudXR patch makes streaming dependencies opt-in through
 ``isaaclab_teleop[cloudxr]``. Default RoboEnv installs retain the teleoperation
 retargeters and UI without CloudXR's incompatible WebSocket requirement.

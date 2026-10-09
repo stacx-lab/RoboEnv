@@ -56,6 +56,8 @@ def test_policy_is_consumed_and_native_arguments_preserved(adapter_type, policy)
     expected = (
         {"task_name": "go2-d1-control", **kwargs} if adapter_type is IsaacLabAdapter else kwargs
     )
+    if adapter_type is RoboDojoAdapter:
+        expected = {**expected, "stop_on_success": adapter.stop_on_success}
     assert adapter._env.kwargs == expected
 
 

@@ -68,11 +68,13 @@ class RoboDojoEnv:
     """Native construction shared by the typed device implementation."""
 
     def __init__(
-        self, task_name="pack_objects_into_box", seed=0, env_cfg_type="arx_x5", headless=True
+        self, task_name="pack_objects_into_box", seed=0, env_cfg_type="arx_x5", headless=True,
+        *, stop_on_success=False,
     ):
         self.task_name = task_name
         self.env_cfg_type = env_cfg_type
         self.seed = seed
+        self.stop_on_success = stop_on_success
         self._app = _boot_isaac(headless=headless)
         self._env = None
         self._build()
@@ -96,6 +98,7 @@ class RoboDojoEnv:
         eval_cfg["additional_info"] = ""
         eval_cfg["seed"] = seed
         eval_cfg["physx_monitor_enabled"] = False
+        eval_cfg["stop_on_success"] = self.stop_on_success
 
         deploy_cfg = {
             "policy_name": "roboenv",

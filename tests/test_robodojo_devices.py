@@ -43,6 +43,38 @@ def test_normal_worker_passes_only_typed_budget_arguments(monkeypatch, budget_mo
     assert worker.build_adapter(task) == ("robodojo", "fixture")
 
 
+@pytest.mark.parametrize("stop_on_success", [False, True])
+def test_adapter_passes_success_policy_and_reports_native_end(monkeypatch, stop_on_success):
+    from roboenv_runtime.adapters.robodojo.adapter import RoboDojoAdapter
+
+    calls = []
+    native = SimpleNamespace(end_flag=[False])
+
+    def construct(*args, **kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(_env=native)
+
+    monkeypatch.setattr(devices, "RoboDojoDevices", construct)
+    adapter = RoboDojoAdapter(stop_on_success=stop_on_success)
+    assert calls == [{"stop_on_success": stop_on_success}]
+    assert not adapter.episode_done
+    native.end_flag[0] = True
+    assert adapter.episode_done
+
+
+def test_completion_read_uses_evaluated_success_without_ending_episode():
+    world = devices.RoboDojoDevices.__new__(devices.RoboDojoDevices)
+    native = world._env = SimpleNamespace(
+        success=[True], completed=[False], end_flag=[False],
+    )
+    assert not world.task_completed()
+    native.completed[0] = True
+    assert world.task_completed()
+    assert not native.end_flag[0]
+    native.success[0] = False
+    assert not world.task_completed()
+
+
 @pytest.mark.parametrize("explicit", [None, "user-evaluation"])
 def test_worker_output_isolation_and_explicit_run_id(monkeypatch, tmp_path, explicit):
     from roboenv_runtime.adapters.robodojo import backend
