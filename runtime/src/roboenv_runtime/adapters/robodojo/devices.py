@@ -46,7 +46,13 @@ def object_state(kind, obj, encode):
         )
     if kind == "garment":
         view = getattr(obj, "_cloth_prim_view", None)
-        if view is not None and view.is_physics_handle_valid():
+        if getattr(obj, "_device", None) == "cpu":
+            # CPU garments use live USD geometry without initializing the tensor view.
+            entry.update(
+                points=encode(obj.sample_mesh_vertices()[0]),
+                velocities=encode(np.asarray(obj._prim.GetAttribute("velocities").Get())),
+            )
+        elif view is not None and view.is_physics_handle_valid():
             entry.update(
                 points=encode(view.get_world_positions()),
                 velocities=encode(view.get_velocities()),

@@ -9,6 +9,77 @@ from roboenv_runtime.adapters.robodojo import devices
 from roboenv_runtime.adapters.robodojo.rig import camera_intrinsics, euler_pose
 
 
+@pytest.fixture
+def owner_world():
+    reward = SimpleNamespace(**{key: [] for key in (
+        "score_achieved", "score_completed_count", "final_score_achieved",
+        "final_score_completed_count", "score_meta", "score_trigger_meta", "final_score_meta",
+    )}, func_parser=SimpleNamespace(
+        pre_state={}, robot_origin_endpose={}, joint_ratio_transition_state={},
+    ))
+    world = devices.RoboDojoDevices.__new__(devices.RoboDojoDevices)
+    world._env = SimpleNamespace(
+        sim=SimpleNamespace(scene=SimpleNamespace(get_state=lambda: {})),
+        scene_manager=SimpleNamespace(
+            _rigid_and_dynamic_objects=[{}], _articulation_objects=[{}],
+            _geometry_objects=[{}], _garment_objects=[{}], _fluid_objects=[{}],
+        ),
+        reward_manager=reward,
+        robot_manager=SimpleNamespace(control_manager=SimpleNamespace(prev_control={})),
+        take_action_cnt=[0], end_flag=[False], success=[False], completed=[False],
+    )
+    return world
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_owner_state_reads_native_garment_path_without_initializing_tensor_view(
+    device, owner_world,
+):
+    points = np.zeros((3, 3))
+    velocity = np.ones((3, 3))
+
+    def unavailable():
+        raise AssertionError("Used a garment path the native environment does not initialize")
+
+    garment = SimpleNamespace(
+        _device=device,
+        get_world_pose=lambda: ([0, 0, 0], [1, 0, 0, 0]),
+        sample_mesh_vertices=(
+            (lambda: (points, None, None, None)) if device == "cpu" else unavailable
+        ),
+        _prim=SimpleNamespace(GetAttribute=lambda name: SimpleNamespace(Get=lambda: velocity)),
+        _cloth_prim_view=SimpleNamespace(
+            is_physics_handle_valid=lambda: device != "cpu",
+            get_world_positions=unavailable if device == "cpu" else lambda: points,
+            get_velocities=unavailable if device == "cpu" else lambda: velocity,
+        ),
+    )
+    world = owner_world
+    world._env.scene_manager._garment_objects = [{"shirt": garment}]
+    first = world.owner_state()
+    assert first["state"]["task_objects"]["garment"]["shirt"]["points"] == points.tolist()
+    points[0, 0] = 0.25
+    assert world.owner_state()["sha256"] != first["sha256"]
+
+
+def test_owner_state_reads_available_rigid_object_handles(owner_world):
+    class Dynamic:
+        def get_world_pose(self):
+            return ([0, 0, 0], [1, 0, 0, 0])
+
+    registry = owner_world._env.scene_manager._rigid_and_dynamic_objects[0]
+    registry["conveyor"] = Dynamic()
+    state = owner_world.owner_state()["state"]["task_objects"]["rigid"]["conveyor"]
+    assert state == {"pose": [[0, 0, 0], [1, 0, 0, 0]]}
+    registry["rigid"] = SimpleNamespace(get_world_pose=lambda: ([0, 0, 0], [1, 0, 0, 0]))
+    state = owner_world.owner_state()["state"]["task_objects"]["rigid"]["rigid"]
+    assert set(state) == {"pose"}
+    registry["rigid"].get_linear_velocity = lambda: [1, 2, 3]
+    registry["rigid"].get_angular_velocity = lambda: [4, 5, 6]
+    state = owner_world.owner_state()["state"]["task_objects"]["rigid"]["rigid"]
+    assert state["linear_velocity"] == [1, 2, 3] and state["angular_velocity"] == [4, 5, 6]
+
+
 @pytest.mark.parametrize("requested,expected", [(None, 100), (50, 50), (7500, 7500)])
 def test_explicit_frame_budget_reaches_native_eval_env(requested, expected):
     env = devices.RoboDojoDevices.__new__(devices.RoboDojoDevices)
