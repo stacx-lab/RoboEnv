@@ -74,6 +74,7 @@ def lazy_environment(monkeypatch, native_dt=0.004):
         obs_manager=SimpleNamespace(collect_interval=10),
         sim_step=lambda: None,
         process_control_info=lambda control, index: [],
+        reward_manager=SimpleNamespace(),
     )
 
     def construct(self, **kwargs):
@@ -98,6 +99,30 @@ def test_native_simulation_can_be_absent_until_first_reset(monkeypatch):
     assert world.physics_steps == 0
     native.sim_step()
     assert world.physics_steps == 1
+
+
+def test_native_layout_selection_and_initialization_provenance(monkeypatch):
+    select_layout = devices.RoboDojoEnv._layout_id_for
+    native = lazy_environment(monkeypatch)
+    monkeypatch.setattr(devices.RoboDojoEnv, "_layout_id_for", select_layout)
+    native.seed_manager = SimpleNamespace(seed_list=[9, 3], seed_info={3: {}, 9: {}})
+    world = devices.RoboDojoDevices("general_pickup", max_steps=7500)
+    # Stop before device construction; reset provenance must already be complete.
+    class DeviceConstructionReached(Exception):
+        pass
+
+    def stop():
+        raise DeviceConstructionReached
+
+    native.robot_manager = SimpleNamespace(get_robot_by_arm_name=lambda _: stop())
+    assert world._layout_id_for(3) == 3
+    with pytest.raises(DeviceConstructionReached):
+        world.reset(seed=1)
+    assert world.initialization["layout_ids"] == [9, 3]
+    assert world.initialization["effective_layout"] == 3
+    assert native.env_seeds == [3]
+    assert world.initialization["max_steps"] == native.step_lim == 7500
+    assert world.initialization["control_frequency_hz"] == 25
 
 
 def test_reset_rejects_native_clock_drift_before_exposing_devices(monkeypatch):

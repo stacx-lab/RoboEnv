@@ -347,6 +347,12 @@ class SimWorker:
                     and self.adapter.budget().exhausted else "stopped"
                 )
                 from roboenv_runtime.runtime.atomic import atomic_write_json
+                from roboenv_runtime.runtime.evidence import save_terminal_evidence
+
+                evidence = save_terminal_evidence(
+                    self.run_dir, observation, verdict, session=self.session,
+                    diagnostics=getattr(self.adapter, "final_diagnostics", None),
+                )
 
                 atomic_write_json(
                     self.run_dir / "terminal.json",
@@ -355,6 +361,7 @@ class SimWorker:
                         "verdict": verdict,
                         "task": self.task_id,
                         "seed": self.seed,
+                        "evidence": evidence,
                     },
                 )
             except Exception:

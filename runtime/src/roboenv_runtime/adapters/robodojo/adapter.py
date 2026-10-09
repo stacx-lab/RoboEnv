@@ -43,3 +43,8 @@ class RoboDojoAdapter(NativeDeviceAdapter):
                 "official_action_equivalence": False,
             },
         )
+
+    def final_diagnostics(self):
+        if self._env.diagnostics is None:
+            return {"complete": False, "error": self._env.diagnostics_error}
+        return self._env.diagnostics.snapshot()

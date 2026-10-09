@@ -153,10 +153,14 @@ class RoboDojoEnv:
         # The simulator-only path has no dependency on an optional policy package.
         self._env = ee_mod.create_eval_env(cfg, self._app, model_client=_NoopModelClient())
 
+    def _layout_ids(self) -> list[int]:
+        """Return the native selector order used for this environment."""
+        sm = self._env.seed_manager
+        return list(getattr(sm, "seed_list", None) or sorted(getattr(sm, "seed_info", {}).keys()))
+
     def _layout_id_for(self, seed: int) -> int:
         """Map a trial seed onto one of the task's saved native layout ids."""
-        sm = self._env.seed_manager
-        ids = list(getattr(sm, "seed_list", None) or sorted(getattr(sm, "seed_info", {}).keys()))
+        ids = self._layout_ids()
         if not ids:
             return int(seed)
         return int(ids[int(seed) % len(ids)])
