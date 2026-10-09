@@ -106,6 +106,8 @@ class RoboDojoDevices(RoboDojoEnv):
         # every deformable, fluid, trigger or support-arm state.
         layout = self._layout_id_for(self.seed)
         self._env.env_seeds = [layout]
+        # Drop the previous episode's observer before native reset can evaluate.
+        self._env.reward_manager.diagnostic_observer = None
         self._env.reset(seed=[layout])
         if not np.isclose(self._env.sim.physics_dt, self.physics_dt, rtol=0, atol=1e-12):
             raise ValueError("Native physics timestep differs from the declared control clock")
@@ -113,9 +115,18 @@ class RoboDojoDevices(RoboDojoEnv):
             hook = getattr(self._env, name, None)
             if callable(hook):
                 hook()
+        from .diagnostics import PredicateDiagnostics
+
+        self.diagnostics = None
+        self.diagnostics_error = None
+        try:
+            self.diagnostics = PredicateDiagnostics(self._env)
+        except Exception as exc:
+            self.diagnostics_error = f"{type(exc).__name__}: {exc}"
         self.initialization = {
             "requested_seed": self.seed,
             "effective_layout": layout,
+            "layout_ids": self._layout_ids(),
             "layout_config": self.layout_config,
             "embodiment_adaptation": self.layout_config != self.embodiment,
             "mode": "native_saved_layout",
@@ -124,6 +135,10 @@ class RoboDojoDevices(RoboDojoEnv):
         }
         self.episode_start_steps = self.physics_steps
         self._configure_step_limit()
+        self.initialization.update(
+            control_frequency_hz=1.0 / self.control_interval,
+            max_steps=self.frame_limit,
+        )
         self.actuators = {}
         limits, targets = {}, {}
         manager = self._env.robot_manager
@@ -270,6 +285,8 @@ class RoboDojoDevices(RoboDojoEnv):
     def _advance(self):
         before = self.physics_steps
         self._env.take_action(self.native_action)
+        if self.diagnostics is not None:
+            self.diagnostics.checkpoint()
         if self.physics_steps - before != self.native_interval:
             raise RuntimeError("Native control cadence changed; acceptance must be revalidated")
 

@@ -10,6 +10,11 @@ The managed Isaac Lab CloudXR patch makes streaming dependencies opt-in through
 ``isaaclab_teleop[cloudxr]``. Default RoboEnv installs retain the teleoperation
 retargeters and UI without CloudXR's incompatible WebSocket requirement.
 
+The managed RoboDojo predicate diagnostics patch adds an optional owner observer
+and measurement collection to native reward functions. It preserves native
+comparisons, short-circuit evaluation, and history updates. The runtime uses
+these hooks for private terminal evidence, without exposing it to agents.
+
 The managed SIMPLE runtime patch routes both renderers through the verified data
 depot, aligns the shared G1 USD waist origins with Sonic's physics model, mirrors
 full-precision MuJoCo state into Isaac without advancing a second physics world

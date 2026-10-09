@@ -1,6 +1,8 @@
 """Submitted trials retain one state and every pre-submit accounting charge."""
 
 import copy
+import hashlib
+import json
 import runpy
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -102,6 +104,64 @@ def test_terminal_snapshots_are_deeply_detached_from_return_values(tmp_path):
         scorer_reply = instance.scorer.submit()
         scorer_reply["budget"]["used"] = -100
         assert instance.scorer.submit()["budget"] == original["budget"]
+    finally:
+        instance.close()
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_terminal_files_match_the_single_sealed_observation(tmp_path, native):
+    instance = worker(tmp_path)
+    if native:
+        observe = instance.adapter.observe
+
+        def native_observe():
+            return {**observe(), "schema": "roboenv/native-device-episode/1"}
+
+        instance.adapter.observe = native_observe
+    instance.adapter.final_diagnostics = lambda: {"complete": True, "goal": []}
+    try:
+        verdict = instance.submit()
+        terminal = json.loads((tmp_path / "terminal.json").read_text())
+        evidence = terminal["evidence"]
+        assert evidence["complete"] and evidence["diagnostics_complete"]
+        name = "native-episode.json" if native else "final-observation.json"
+        raw = (tmp_path / name).read_bytes()
+        assert json.loads(raw) == instance.observe()
+        assert evidence["files"][name]["sha256"] == hashlib.sha256(raw).hexdigest()
+        detail = json.loads((tmp_path / "native-diagnostics.json").read_text())
+        assert detail["verdict"] == verdict
+        assert detail["observation"] == evidence["files"][name]
+        assert detail["session"] == "test"
+        assert (tmp_path / name).stat().st_mode & 0o777 == 0o600
+        instance.submit()
+        assert (tmp_path / name).read_bytes() == raw
+        assert instance.adapter.observations == instance.adapter.evaluations == 1
+    finally:
+        instance.close()
+
+
+@pytest.mark.parametrize("failure", ["snapshot", "diagnostics"])
+def test_evidence_failure_does_not_change_or_repeat_native_evaluation(
+    tmp_path, monkeypatch, failure,
+):
+    from roboenv_runtime.runtime import evidence
+
+    instance = worker(tmp_path)
+    try:
+        if failure == "snapshot":
+            def fail_write(*args, **kwargs):
+                raise OSError("disk full")
+            monkeypatch.setattr(evidence, "atomic_write_json", fail_write)
+        else:
+            def fail_diagnostics():
+                raise ValueError("missing geometry")
+            instance.adapter.final_diagnostics = fail_diagnostics
+        verdict = instance.submit()
+        saved = json.loads((tmp_path / "terminal.json").read_text())
+        assert saved["verdict"] == verdict == instance.submit()
+        key = "complete" if failure == "snapshot" else "diagnostics_complete"
+        assert saved["evidence"][key] is False
+        assert instance.adapter.observations == instance.adapter.evaluations == 1
     finally:
         instance.close()
 

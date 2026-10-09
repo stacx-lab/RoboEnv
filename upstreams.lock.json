@@ -48,6 +48,10 @@
         {
           "path": "third_party/patches/robodojo-optional-policy-client.patch",
           "sha256": "edfd16f3d1f7d6d4407699e85ab0e8c1056a0f8bd521da9999cdfbbb4b47aecc"
+        },
+        {
+          "path": "third_party/patches/robodojo-predicate-diagnostics.patch",
+          "sha256": "77d38cf3d352bed300b8b8a84c57185915bbcb59dc8b7feb65676f347198ec66"
         }
       ]
     },

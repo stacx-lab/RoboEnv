@@ -55,6 +55,24 @@ Natural episode completion cleans unfinished buffers without another
 physics tick before sealing the final snapshot. Explicit cancellation remains an
 interruption; cleanup failures cannot produce a successful final verdict.
 
+Normal episode completion and explicit stop also persist the sealed owner
+observation in `native-episode.json` for native device backends, or
+`final-observation.json` for other adapters. `terminal.json` binds these files by
+SHA-256 and records saving failures separately from the native verdict. This
+evidence is independent of spectator recording and stays in the private run
+directory; it is not part of agent observations.
+
+RoboDojo additionally writes `native-diagnostics.json`: registered goal/score
+condition trees, actual predicate evaluations and stage progression, and
+read-only terminal checks with native measurements, comparison operators and
+units. Detailed terminal checks currently cover the predicates used by Build
+tower and Fasten screws. History-dependent conditions retain their actual
+evaluation frame and are not rerun; unsupported predicates or condition groups
+are explicitly reported. Terminal geometry, historical completion, and the
+authoritative verdict are separate fields. An abruptly killed worker cannot
+guarantee a final snapshot. Existing deployments must be prepared with the new
+runtime and managed native patch before this evidence is available.
+
 ```sh
 roboenv tasks list --simulator robocasa
 roboenv launch robocasa/pick-place-microwave --port 8123

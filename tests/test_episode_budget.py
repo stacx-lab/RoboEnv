@@ -75,6 +75,9 @@ def test_worker_budget_retains_verdict_and_certifiable_journal(tmp_path, duratio
         assert worker.dispatch("submit", {}) == result
         assert worker.dispatch("observe", {})["budget"] == result["budget"]
         assert worker.dispatch("simulation.stop", {})["terminal"]
+        saved = json.loads((tmp_path / "final-observation.json").read_text())
+        assert saved == worker.observe()
+        assert json.loads((tmp_path / "terminal.json").read_text())["evidence"]["complete"]
         assert VERIFY["validate_journal"](journal.path.read_bytes(), session="test",
                                           submit_id="submit", verdict=result)["requests"] == 3
         assert VERIFY["validate_score"](result) is False
