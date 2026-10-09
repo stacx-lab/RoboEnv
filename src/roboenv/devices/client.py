@@ -68,6 +68,7 @@ class Environment:
             if endpoint.scheme == "https"
             else http.client.HTTPConnection
         )(endpoint.hostname, endpoint.port, timeout=30)
+        path = None
         try:
             name = Path(file).name
             connection.request(
@@ -76,18 +77,28 @@ class Environment:
             response = connection.getresponse()
             if response.status != 200:
                 raise RuntimeError(f"Image download failed: HTTP {response.status}")
+            expected = response.length
             if content:
                 raw = response.read(8 * 1024 * 1024 + 1)
                 if len(raw) > 8 * 1024 * 1024:
                     raise ValueError("Camera content is too large; use output='file'")
+                if expected is not None and len(raw) != expected:
+                    raise ValueError("Incomplete image download")
                 return raw
             if self._artifacts is None:
                 self._artifacts = Path(tempfile.mkdtemp(prefix="roboenv-images-"))
             path = self._artifacts / name
+            size = 0
             with path.open("wb") as stream:
                 while chunk := response.read(65536):
-                    stream.write(chunk)
+                    size += stream.write(chunk)
+            if expected is not None and size != expected:
+                raise ValueError("Incomplete image download")
             return str(path)
+        except BaseException:
+            if path is not None:
+                path.unlink(missing_ok=True)
+            raise
         finally:
             connection.close()
 
