@@ -23,6 +23,7 @@ def replay(record, assets, out, video=None):
         tcp_in_flange_m=record["task_definition"].get("tcp_in_flange_m"),
         device_profiles=record.get("device_profiles"),
         max_steps=record.get("max_steps"),
+        stop_on_success=record.get("stop_on_success", True),
         execution_mode=record.get(
             "execution_mode", "realtime" if record.get("max_steps") is None else "stepped"
         ),
