@@ -65,3 +65,16 @@ The managed `abc-blender-live.patch` adds calibrated live camera specifications,
 read-only state export, and bounded renderer lifecycle handling. Optional rendering
 downloads Blender 4.5.3 under its bundled GPL notices and the CC0 Photo Studio 01
 HDRI from Poly Haven. These downloads remain separate from RoboEnv packages.
+
+## RoboBallet
+
+The eight-arm reaching task adapts transition rules from Google LLC's 2025
+RoboBallet release, distributed under Apache-2.0. Its original geometry and
+collision modules are loaded from the separately acquired archive at
+<https://doi.org/10.5281/zenodo.16546403>, pinned by SHA-256
+`ffb8447e6d0f309026d9baa8538d0c77931655323cbb532e0bf8c11a617ad537`.
+Preparation retains the archive's `LICENSE` and `README.md`; original code and
+mesh assets are not embedded in RoboEnv wheels. The checked-in scene records
+its source file hashes and the shared target/workpiece translation. Panda/tool
+geometry retains the archive's component notices. No policy weights or reference
+solutions are included.

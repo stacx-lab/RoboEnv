@@ -1,0 +1,49 @@
+name: workcell
+type: other
+intrinsics:
+  source: user
+  notes: 'Public fully observed planning scene, matching the paper observation scope.
+    read({}) returns target IDs/positions/rotation matrices/completion, 30 oriented
+    obstacle boxes (full spans, centroid, rotation), and eight arms with positions,
+    velocities, home, world base/tool-tip transforms, dwell remaining and last collision
+    rollback. check({"configurations": [[[7 joint angles for arm1], ..., [7 joint
+    angles for arm8]], ...]}) accepts 1..128 full 8-by-7 joint configurations and
+    returns per-configuration valid, collision_pairs and blocked_arms. All transforms
+    and angles use metres/radians in world coordinates. This query tests discrete
+    configurations only, never plans or advances simulation; interpolate and schedule
+    paths yourself. Camera and public scene observations contain no IK solutions,
+    assignments or trajectories.'
+extrinsics:
+  source: user
+  method: manual
+  calibrated_at: null
+  mount:
+    parent: world
+    parent_frame: world
+    translation_m:
+    - 0
+    - 0
+    - 0
+    rotation_xyzw:
+    - 0
+    - 0
+    - 0
+    - 1
+meta:
+  created_at: '2026-10-02T07:16:00Z'
+  updated_at: '2026-10-02T07:16:00Z'
+access:
+  source: user
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: workcell
+  driver:
+    entry: driver.py
+    persistent: true
+    actions:
+    - read
+    - check
+    - load
+    - unload
+    - status

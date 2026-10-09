@@ -18,7 +18,7 @@ def test_isaaclab_keeps_installation_recipe_without_g1():
     assert {task.id for task, _ in _isaaclab(ROOT, [])} == {
         "isaaclab/go2-d1-control", "isaaclab/go2-d1-reach", "isaaclab/go2-d1-pick-place",
         "isaaclab/yam-calibrate-overhead-camera", "isaaclab/yam-calibrate-wrist-cameras",
-        "isaaclab/yam-calibrate-dual-arm",
+        "isaaclab/yam-calibrate-dual-arm", "isaaclab/roboballet-eight-arm",
     }
     assert "isaaclab" in BUILTIN_ADAPTERS
     with pytest.raises((ValueError, FileNotFoundError)):

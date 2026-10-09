@@ -1,0 +1,70 @@
+name: camera_overhead
+type: rgbd
+intrinsics:
+  source: user
+  method: manual
+  calibrated_at: null
+  color:
+    width: 1600
+    height: 900
+    fps: null
+    pixel_format: rgb8
+    image_format: png
+    projection:
+      model: pinhole
+      fx: 1000.0
+      fy: 1000.0
+      cx: 800.0
+      cy: 450.0
+      skew: 0
+    distortion:
+      model: none
+  depth:
+    registration: color
+    width: 1600
+    height: 900
+    fps: null
+    pixel_format: uint16
+    image_format: pgm16_be
+    quantity: z
+    scale_m_per_unit: 0.001
+    invalid_value: 0
+    valid_range_m:
+      min: 0.05
+      max: 15.0
+    reliable_range_m: ???
+extrinsics:
+  source: user
+  method: manual
+  calibrated_at: null
+  mount:
+    parent: world
+    parent_frame: world
+    translation_m:
+    - 2.5
+    - -2.8
+    - 3.2
+    rotation_xyzw:
+    - 0.8195180981715061
+    - 0.31261825013152683
+    - -0.17117534539689064
+    - -0.44873033949390473
+meta:
+  created_at: '2026-10-02T07:16:00Z'
+  updated_at: '2026-10-02T07:16:00Z'
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    camera: camera_overhead
+  driver:
+    entry: driver.py
+    persistent: true
+    actions:
+    - read
+    - load
+    - unload
+    - status

@@ -35,7 +35,7 @@ def test_all_catalog_drivers_match_exported_resources(catalog_profiles):
     assets = ROOT / "src/roboenv/assets"
     for path, profile in catalog_profiles:
         assert path.with_name("driver.py").read_bytes() == (
-            assets / DRIVERS[profile["type"]]
+            assets / DRIVERS.get(profile["type"], "device-client.py")
         ).read_bytes(), path
     for collection in {path.parent.parent for path, _ in catalog_profiles}:
         for name in ("_roboenv.py", "_camera.py"):
@@ -56,7 +56,7 @@ def test_tasks_resolve_from_a_copied_public_catalog(tmp_path):
         original = resolve_task(path, catalog=CATALOG)
         resolved = resolve_task(copied / path.relative_to(CATALOG), catalog=copied)
         assert resolved.bindings == original.bindings
-        assert resolved.task.execution_mode == "realtime"
+        assert resolved.task.execution_mode == original.task.execution_mode
         assert "world" in {spec.name for spec in resolved.bindings.devices}
     assert not (copied / "bindings").exists()
 

@@ -29,6 +29,52 @@ in the isolated runtime.
 Existing environments, cached assets and user workspaces are preserved.
 See [setup](setup.md) for installation requirements.
 
+## RoboBallet eight-arm reaching
+
+`isaaclab/roboballet-eight-arm` exposes eight Panda arms, two RGB-D cameras,
+`world`, and a read-only `workcell` device. It uses the author's original MuJoCo
+kinematics and collision implementation with an Isaac Lab visual scene. Isaac
+rendering does not advance another physics world. No learned policy, assignment,
+IK solution, or reference trajectory is supplied to the agent.
+
+Prepare the runtime and the separately pinned source/mesh archive:
+
+```sh
+roboenv prepare isaaclab
+python tools/prepare_roboballet.py
+roboenv launch isaaclab/roboballet-eight-arm --record
+```
+
+The asset tool requires `zstd` and honors `ROBOENV_ASSET_CACHE`. Use the same cache
+setting at launch, or set `backend_kwargs.asset_directory` to its reported
+`selected` directory. Existing files are verified rather than overwritten.
+Ordinary Isaac Lab preparation does not download RoboBallet assets. The robot
+catalog is `isaaclab/isaaclab-roboballet-eight-panda`; its profiles and drivers
+export through the existing workspace flow.
+
+The catalog defaults to target set 1, seed 0, stepped execution, and
+stop-on-success. It retains 40 oriented targets, 30 obstacles, the 0.1-second
+shared control interval and 420-frame (42-second) horizon. Acceptance requires
+25 mm / 15-degree accuracy, a five-frame dwell, and eventual return of every arm
+to home. Joint samples retain the original velocity/acceleration limits,
+collision rollback and final home-capture rules. Explicit realtime execution
+follows RoboEnv's uncapped policy and is not the bounded 42-second protocol.
+
+`tools/generate_roboballet_scene.py` generates the frozen scene from the author's
+geometry environment. All ten original target sets remain in it. Both targets and the
+workpiece receive the same 0.6 m vertical translation. A conservative reach
+check rejects impossible target sets before renderer startup; passing it does
+not certify a collision-free schedule. `workcell.check` evaluates discrete
+candidate configurations without executing them or advancing the clock.
+
+Owner records contain source and asset identities, seeds, target-set selection,
+commands, initial/final state, and per-frame motion, dwell and collision telemetry.
+Unsafe proposals and rolled-back robot steps are separate counts. `--record`
+uses the existing spectator MP4 pipeline; the legacy offline recording/export
+API is not part of this integration. Historical evidence requires its original
+source and runtime. Native task checks, device transport, rendering isolation and
+task success are separate validation results.
+
 Go2 base reads retain `height_m`, measured as root Z above the scene's Z=0
 reference plane, and body-frame linear/angular velocities. Height is not terrain
 clearance. Reads and write states omit global pose and empty frame maps;

@@ -1,0 +1,23 @@
+identity:
+  source: user
+  id: isaaclab-roboballet-eight-panda
+  name: RoboBallet eight-arm shared reaching workcell
+  platform: sim
+  kind: arm
+  model: Four upright and four inverted Panda arms with original probe tools
+sim:
+  source: user
+  simulator: isaaclab
+devices:
+  source: user
+safety:
+  source: user
+  max_cartesian_velocity: null
+  max_joint_velocity: null
+  keep_out_zones: []
+  notes: Original RoboBallet kinematic collision rollback and joint limits; IsaacLab
+    RGBD scene. No task allocation or motion planning is supplied. Workcell check
+    tests configurations without advancing time.
+meta:
+  created_at: '2026-10-02T07:16:00Z'
+  updated_at: '2026-10-02T07:16:00Z'

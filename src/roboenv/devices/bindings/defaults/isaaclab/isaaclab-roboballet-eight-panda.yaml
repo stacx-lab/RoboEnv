@@ -1,0 +1,40 @@
+schema_version: roboenv/bindings/1
+backend: isaaclab
+embodiment: roboballet_eight_panda
+devices:
+  arm1:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: arm1
+  arm2:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: arm2
+  arm3:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: arm3
+  arm4:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: arm4
+  arm5:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: arm5
+  arm6:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: arm6
+  arm7:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: arm7
+  arm8:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: arm8
+  camera_overhead:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: camera_overhead
+  camera_side:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: camera_side
+  workcell:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: workcell
+  world:
+    binding: isaaclab.roboballet-eight-panda/1
+    entity: world
