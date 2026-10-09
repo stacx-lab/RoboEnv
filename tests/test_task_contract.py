@@ -106,7 +106,7 @@ def test_sdk_buffered_writes_use_actions_for_every_actuator_type(kind, actions):
 
 def test_entire_catalog_uses_canonical_format_and_robot_bindings():
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 63
+    assert len(catalog) == 64
     assert {task.backend for task, _ in catalog.values()} == set(BACKENDS)
     fields = ["id", "robot", "instruction", "seed", "budget_mode", "execution_mode",
               "stop_on_success", "backend_kwargs"]
@@ -116,7 +116,7 @@ def test_entire_catalog_uses_canonical_format_and_robot_bindings():
         assert path.parent.relative_to(ROOT / "catalog/tasks").as_posix() == task.id
         assert path.read_text() == yaml.safe_dump(serialized, sort_keys=False)
         assert Task.from_dict(serialized) == task
-        assert task.stop_on_success is False
+        assert task.stop_on_success is (task.id == "isaaclab/roboballet-eight-arm")
         assert "stop_on_success" not in task.backend_kwargs
         resolved = resolve_task(path, project=ROOT)
         assert resolved.bindings.backend == task.backend

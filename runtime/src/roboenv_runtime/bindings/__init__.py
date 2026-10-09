@@ -27,4 +27,7 @@ def default_registry():
     from .backends.isaaclab.yam import bind as bind_yam
 
     registry.register("isaaclab.yam/1", bind_yam)
+    from .backends.isaaclab.roboballet_eight_panda import bind as bind_roboballet_eight_panda
+
+    registry.register("isaaclab.roboballet-eight-panda/1", bind_roboballet_eight_panda)
     return registry

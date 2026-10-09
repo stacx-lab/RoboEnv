@@ -56,6 +56,18 @@ def snapshot(worker):
                            "pose": camera.get_world_pose(camera_axes="usd")}
                     for name, camera in isaac.cameras.items()
                 }
+    elif adapter.name == "isaaclab" and adapter.embodiment == "roboballet_eight_panda":
+        state = {
+            "record": native.record(), "task_rng": native.task.rng.getstate(),
+            "raw_positions": native.task.world._data.qpos.copy(),
+            "raw_velocities": native.task.world._data.qvel.copy(),
+            "cameras": {name: {
+                "intrinsics": camera.data.intrinsic_matrices.cpu().numpy(),
+                "position": camera.data.pos_w.cpu().numpy(),
+                "orientation": camera.data.quat_w_world.cpu().numpy(),
+                "resolution": [camera.cfg.width, camera.cfg.height],
+            } for name, camera in native.native.cameras.items()},
+        }
     elif adapter.name == "isaaclab":
         from roboenv_runtime.adapters.isaaclab.robots.yam.native import array
 

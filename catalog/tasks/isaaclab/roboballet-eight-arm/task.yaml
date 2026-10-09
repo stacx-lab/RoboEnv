@@ -1,0 +1,51 @@
+id: isaaclab/roboballet-eight-arm
+robot: isaaclab/isaaclab-roboballet-eight-panda
+instruction: 'Complete all 40 pose-reaching operations in the shared RoboBallet workcell
+
+  using eight Panda arms, then return every arm to its initial joint configuration.
+
+  Four arms are table-mounted and four are inverted above the same workpiece.
+
+  Each target specifies a world-frame tool-tip position and full orientation.
+
+  An operation is accepted within 25 mm and 15 degrees, then its arm is held for
+
+  0.5 simulation seconds. A dwelling arm cannot complete another operation.
+
+  Any physically capable arm may perform any operation, in any order. Minimize
+
+  the total simulation makespan while respecting the workpiece, table, tool and
+
+  robot collision geometry. All operations, dwell intervals and return motions
+
+  must finish within the original 42-second simulation horizon.
+
+  The workcell device provides the public target poses, obstacle geometry, robot
+
+  states, progress and home configurations. Its check operation evaluates candidate
+
+  joint configurations without executing them; it does not compute motion plans.
+
+  Device profiles provide tool-tip kinematics and calibrated world-frame mounts.
+
+  Joint commands are nonblocking position samples on the shared 0.1-second clock;
+
+  the environment converts each sample to a requested velocity and applies the
+
+  original 2.175 rad/s velocity and 8 rad/s^2 acceleration limits. A command that
+
+  would collide is rolled back for the affected arm. Inspect measured feedback.
+
+  After all targets are accepted, the original environment finishes each arm''s
+
+  return once all its joints are within 0.25 rad of home. You choose assignments,
+
+  operation order, trajectories, coordination and any planning code you need.'
+seed: 0
+budget_mode: practice
+execution_mode: stepped
+stop_on_success: true
+backend_kwargs:
+  task_name: roboballet-eight-arm
+  target_set_index: 1
+  max_steps: 420

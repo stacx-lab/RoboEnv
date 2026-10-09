@@ -1,0 +1,284 @@
+name: arm7
+type: joint
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  model:
+    format: serial_chain
+    joints:
+    - name: panda7/joint1
+      type: revolute
+      limits:
+        min: -2.8973
+        max: 2.8973
+      max_velocity: 2.175
+      max_effort: null
+    - name: panda7/joint2
+      type: revolute
+      limits:
+        min: -1.7628
+        max: 1.7628
+      max_velocity: 2.175
+      max_effort: null
+    - name: panda7/joint3
+      type: revolute
+      limits:
+        min: -2.8973
+        max: 2.8973
+      max_velocity: 2.175
+      max_effort: null
+    - name: panda7/joint4
+      type: revolute
+      limits:
+        min: -3.0718
+        max: -0.0698
+      max_velocity: 2.175
+      max_effort: null
+    - name: panda7/joint5
+      type: revolute
+      limits:
+        min: -2.8973
+        max: 2.8973
+      max_velocity: 2.175
+      max_effort: null
+    - name: panda7/joint6
+      type: revolute
+      limits:
+        min: -0.0175
+        max: 3.7525
+      max_velocity: 2.175
+      max_effort: null
+    - name: panda7/joint7
+      type: revolute
+      limits:
+        min: -2.8973
+        max: 2.8973
+      max_velocity: 2.175
+      max_effort: null
+    chain:
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.333
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+      joint: 0
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - -0.7071067811865475
+      - 0.0
+      - 0.0
+      - 0.7071067811865475
+      joint: 1
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - -0.316
+      - 0.0
+      - 0.7071067811865475
+      - 0.0
+      - 0.0
+      - 0.7071067811865475
+      joint: 2
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0825
+      - 0.0
+      - 0.0
+      - 0.7071067811865475
+      - 0.0
+      - 0.0
+      - 0.7071067811865475
+      joint: 3
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - -0.0825
+      - 0.384
+      - 0.0
+      - -0.7071067811865475
+      - 0.0
+      - 0.0
+      - 0.7071067811865475
+      joint: 4
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.7071067811865475
+      - 0.0
+      - 0.0
+      - 0.7071067811865475
+      joint: 5
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.088
+      - 0.0
+      - 0.0
+      - 0.7071067811865475
+      - 0.0
+      - 0.0
+      - 0.7071067811865475
+      joint: 6
+      axis:
+      - 0.0
+      - 0.0
+      - 1.0
+      anchor:
+      - 0.0
+      - 0.0
+      - 0.0
+      reference: 0.0
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.1
+      - 0.0
+      - 0.0
+      - 0.9999999989281552
+      - 4.629999995037359e-05
+    - origin:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+    - origin:
+      - 0.04849
+      - 0.0
+      - 0.152411
+      - 0.0
+      - 0.34202028390474665
+      - 0.0
+      - 0.9396925696192966
+  kinematics:
+    frame: tool_tip
+    fk: numerical
+    frame_to_reported:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 1
+    ik:
+      backend: numerical
+      method: damped_least_squares
+      position_tolerance_m: 0.0001
+      rotation_tolerance_rad: 0.001
+      max_iterations: 200
+      damping: 0.01
+  home:
+    panda7/joint1: 0.0
+    panda7/joint2: -0.7853999733924866
+    panda7/joint3: 0.0
+    panda7/joint4: -2.1816999912261963
+    panda7/joint5: 0.0
+    panda7/joint6: 1.3961999416351318
+    panda7/joint7: 0.0
+  control:
+    mode: position
+    limit_handling: native
+  feedback:
+    velocities: true
+    efforts: false
+  stop:
+    behavior: hold
+    affected_devices:
+    - arm7
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mount:
+    parent: world
+    parent_frame: world
+    translation_m:
+    - -0.5515000224113464
+    - 0.6284999847412109
+    - 1.7999999523162842
+    rotation_xyzw:
+    - 1.0
+    - 0.0
+    - 0.0
+    - 6.123234262925839e-17
+meta:
+  created_at: '2026-10-02T07:16:00Z'
+  updated_at: '2026-10-02T07:16:00Z'
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8123
+    device: arm7
+  driver:
+    entry: driver.py
+    persistent: true
+    actions:
+    - read
+    - write
+    - stop
+    - load
+    - unload
+    - status
+    - fk
+    - ik
