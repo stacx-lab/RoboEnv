@@ -1,6 +1,8 @@
 """Spectator contract and native-boundary isolation, without GPU dependencies."""
 
+import sys
 import threading
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import numpy as np
@@ -125,6 +127,69 @@ def test_behavior_view_roles_follow_mounts_not_camera_numbers():
     assert engine.sources["left_wrist"].native is sensors["camera_2"]
     assert engine.sources["third_person"].native is sensors["camera_1"]
     assert engine.sources["right_wrist"].native is sensors["camera_0"]
+
+
+@pytest.mark.parametrize("fail_write", [False, True])
+def test_behavior_capture_edits_usd_before_rendering(monkeypatch, fail_write):
+    calls = []
+    editing = False
+
+    @contextmanager
+    def editing_usd():
+        nonlocal editing
+        assert not editing
+        editing = True
+        calls.append("enter")
+        try:
+            yield
+        finally:
+            editing = False
+            calls.append("sync")
+
+    def set_transform(value):
+        assert editing, "USD edit outside editing_usd"
+        assert np.asarray(value).shape == (4, 4)
+        calls.append("write")
+        if fail_write:
+            raise RuntimeError("camera write failed")
+
+    def render():
+        assert not editing
+        calls.append("render")
+
+    def tensor(value):
+        return SimpleNamespace(cpu=lambda: SimpleNamespace(numpy=lambda: np.asarray(value)))
+
+    monkeypatch.setitem(sys.modules, "omnigibson", SimpleNamespace(
+        sim=SimpleNamespace(editing_usd=editing_usd, render=render),
+    ))
+    monkeypatch.setitem(sys.modules, "pxr", SimpleNamespace(
+        Gf=SimpleNamespace(Matrix4d=lambda value: value),
+    ))
+    engine = IsaacEngine.__new__(IsaacEngine)
+    engine.backend = "behavior"
+    sensor = SimpleNamespace(get_position_orientation=lambda: (
+        tensor([1, 2, 3]), tensor([0, 0, 0, 1]),
+    ))
+    engine.sources = {"left_wrist": CameraSource(sensor, 4, 4)}
+    views = [ViewSpec("wrist", source="left_wrist", width=4, height=4),
+             ViewSpec("fixed", pose=(0, 0, 0, 0, 0, 0, 1), width=4, height=4)]
+    engine.cameras = {v.name: SimpleNamespace(Set=set_transform) for v in views}
+    engine.annotators = {v.name: SimpleNamespace(
+        get_data=lambda: np.full((4, 4, 4), 42, np.uint8),
+    ) for v in views}
+
+    if fail_write:
+        with pytest.raises(RuntimeError, match="camera write failed"):
+            engine.capture(views)
+        assert calls == ["enter", "write", "sync"]
+    else:
+        frames = engine.capture(views)
+        assert calls == ["enter", "write", "write", "sync", "render"]
+        assert set(frames) == {"wrist", "fixed"}
+        assert all(frame.shape == (4, 4, 3) and np.all(frame == 42)
+                   for frame in frames.values())
+    assert not editing
 
 
 def test_mujoco_restores_owner_context_on_render_failure():
