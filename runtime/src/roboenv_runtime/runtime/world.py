@@ -204,11 +204,27 @@ class WorldSession:
             self.freeze()
             self.poll_motions()
             self.native.reset(seed)
-            self.time_s = 0.0
-            self._frozen = False
-            self.failure = None
-            self._episode_error = None
-            self.next_tick = time.monotonic()
+            self._resume_at(0.0)
+
+    def restore(self, token, time_s):
+        """Discard pending work and restore native state with its shared clock."""
+        self._check_thread()
+        with self.lock:
+            if self._closed:
+                raise RuntimeError("world is closed")
+            self.freeze()
+            self.poll_motions()
+            if self.failure is not None:
+                raise self.failure
+            self.native.restore(token)
+            self._resume_at(time_s)
+
+    def _resume_at(self, time_s):
+        self.time_s = time_s
+        self._frozen = False
+        self.failure = None
+        self._episode_error = None
+        self.next_tick = time.monotonic()
 
     def close(self):
         self._check_thread()

@@ -282,3 +282,73 @@ def test_unbounded_budget_verification_keeps_other_success_requirements():
             validate({**result, "budget": {**result["budget"], "max": maximum}})
     with pytest.raises(ValueError):
         validate({**result, "budget": {"used": 1, "unit": "action_frames"}})
+
+
+@pytest.mark.parametrize("mode", ["stepped", "realtime"])
+@pytest.mark.parametrize("latched", [False, True])
+def test_restore_rewinds_clock_score_history_and_discards_pending_work(
+    tmp_path, monkeypatch, mode, latched,
+):
+    class TickedSnapshot(FakeShell):
+        def advance_control(self):
+            self.used += 1
+
+    now = [100.0]
+    monkeypatch.setattr("roboenv_runtime.runtime.world.time.monotonic", lambda: now[0])
+    instance = SimWorker(TickedSnapshot(), task_id="checkpoint", seed=0,
+                         run_dir=tmp_path, execution_mode=mode)
+
+    def advance(frames):
+        waiting = instance.world.wait(frames * 0.02)
+        for _ in range(frames):
+            now[0] += 0.021
+            instance.world.advance()
+        assert waiting.done() and waiting.result()["waited_s"] == pytest.approx(frames * 0.02)
+
+    def motion():
+        while True:
+            yield
+
+    try:
+        advance(2)
+        instance.adapter.pos[0] = instance.adapter.goal_x if latched else 0
+        assert instance.scorer.peek()["latched"] is latched
+        token = instance.checkpoint()
+        advance(3)
+        instance.adapter.pos[0] = instance.adapter.goal_x
+        assert instance.scorer.peek()["latched"]
+        pending_wait = instance.world.wait(10)
+        pending_motion = instance.world.schedule(motion(), threading.Event())
+        now[0] = 200.0
+        instance.restore({"token": token})
+        assert instance.world.time_s == pytest.approx(0.04)
+        assert instance.adapter.used == 2
+        assert instance.scorer.peek()["latched"] is latched
+        assert not instance.world.pending and not instance.world._frozen
+        assert instance.world._episode_error is None and instance.world.failure is None
+        assert instance.world.next_tick == now[0]
+        assert pending_wait.exception().code == "episode_finished"
+        assert pending_motion.exception().code == "operation_interrupted"
+        advance(1)
+        assert instance.world.time_s == pytest.approx(0.06)
+        assert instance.adapter.used == 3
+    finally:
+        instance.close()
+
+
+@pytest.mark.parametrize("seed", [0, 1])
+def test_reset_invalidates_old_checkpoints_before_native_restore(tmp_path, seed):
+    instance = SimWorker(FakeShell(), task_id="checkpoint", seed=0,
+                         run_dir=tmp_path, execution_mode="stepped")
+    try:
+        token = instance.checkpoint()
+        instance.reset({"seed": seed})
+        with pytest.raises(WorkerRPCError, match="unknown checkpoint") as rejected:
+            instance.restore({"token": token})
+        assert rejected.value.code == "checkpoint_identity"
+        assert instance.seed == instance.adapter.seed == seed
+        assert instance.world.time_s == 0 and instance.state == "ready"
+        fresh = instance.checkpoint()
+        assert instance.restore({"token": fresh}) == {"restored": True}
+    finally:
+        instance.close()

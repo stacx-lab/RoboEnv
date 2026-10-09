@@ -16,10 +16,10 @@ SUCCESS_THRESHOLD = 1.0 - 1e-3
 class SimpleScorer:
     """Score authority for adapters without benchmark-side scoring machinery."""
 
-    def __init__(self, adapter: EnvAdapter) -> None:
+    def __init__(self, adapter: EnvAdapter, *, latched: bool = False) -> None:
         self.adapter = adapter
         self._lock = threading.RLock()
-        self._latched = False
+        self._latched = latched
         self._submitted = False
         self._result: dict[str, Any] | None = None
         self._submit_error: Exception | None = None

@@ -402,6 +402,7 @@ class SimWorker:
         self._interrupt_devices()
         self.scorer.close()
         self.state = "resetting"
+        self._checkpoints.clear()
         try:
             if self.devices is not None:
                 self.devices.close()  # release old entity handles before replacing the world
@@ -433,7 +434,10 @@ class SimWorker:
         import secrets
 
         token = secrets.token_hex(8)
-        self._checkpoints[token] = fn()
+        with self.world.lock:
+            self._checkpoints[token] = {
+                "native": fn(), "time_s": self.world.time_s, "latched": self.scorer.latched,
+            }
         return token
 
     def restore(self, args: Mapping[str, Any]) -> Any:
@@ -446,7 +450,7 @@ class SimWorker:
         if "token" not in args:
             raise WorkerRPCError("invalid_args", "restore requires args.token")
         token = args["token"]
-        if token not in self._checkpoints:
+        if not isinstance(token, str) or token not in self._checkpoints:
             raise WorkerRPCError("checkpoint_identity", "unknown checkpoint in this worker")
         self._finish_recording("interrupted")
         self._interrupt_devices()
@@ -454,7 +458,10 @@ class SimWorker:
         try:
             if self.devices is not None:
                 self.devices.close()
-            fn(self._checkpoints[token])
+            checkpoint = self._checkpoints[token]
+            self.world.restore(checkpoint["native"], checkpoint["time_s"])
+            self.scorer.close()
+            self.scorer = SimpleScorer(self.adapter, latched=checkpoint["latched"])
             self._bind_devices()
             self.state = "ready"
         except Exception:
