@@ -1,4 +1,4 @@
-"""ABC-specific discovery, timing and instruction contracts; no native imports."""
+"""ABC discovery and control contracts, with optional CPU MuJoCo checks."""
 
 import ast
 import json
@@ -143,3 +143,73 @@ def test_blender_missing_installation_is_explicit(monkeypatch, tmp_path):
     monkeypatch.delenv("ABC_HDRI", raising=False)
     with pytest.raises(ValueError, match="prepare abc --renderer blender"):
         paths(tmp_path)
+
+
+@pytest.mark.parametrize("velocity", [-0.5, 0.5])
+@pytest.mark.parametrize("supplemental", [False, True])
+def test_observations_use_current_geometry_without_changing_native_evaluation(
+    velocity, supplemental,
+):
+    mujoco = pytest.importorskip("mujoco")
+    import numpy as np
+    from roboenv_runtime.adapters.abc.backend import ABCEnv
+
+    model = mujoco.MjModel.from_xml_string("""
+        <mujoco><option timestep="0.002" gravity="0 0 0"/>
+          <worldbody>
+            <body name="left_lf_down">
+              <geom type="box" size=".006 .002 .04"/>
+            </body>
+            <body name="left_rf_down" pos="0 .04 0">
+              <joint name="finger" type="slide" axis="0 1 0"/>
+              <geom type="box" size=".006 .002 .04" mass="1"/>
+              <site name="finger_tip"/>
+              <camera name="wrist"/>
+            </body>
+          </worldbody>
+          <actuator><general joint="finger" dyntype="filter"/></actuator>
+        </mujoco>
+    """)
+    data = mujoco.MjData(model)
+    data.qvel[0], data.ctrl[0] = velocity, 0.3
+    mujoco.mj_forward(model, data)
+    state_names = ("qpos", "qvel", "act", "ctrl", "qacc_warmstart")
+    after_step, evaluations = {}, []
+
+    def evaluate():
+        evaluations.append(float(data.geom_xpos[1, 1]))
+        return {"success": False, "native_pad_y": evaluations[-1]}
+
+    def step(action, *, render_obs):
+        assert not render_obs
+        for _ in range(17):
+            mujoco.mj_step(model, data)
+        after_step.update({key: getattr(data, key).copy() for key in state_names})
+        after_step["time"] = float(data.time)
+        return None, 0, False, False, {"task_eval": evaluate()}
+
+    world = ABCEnv.__new__(ABCEnv)
+    world.env = SimpleNamespace(model=model, data=data, step=step)
+    world._action = np.zeros(14)
+    world.control = SimpleNamespace(targets={"left_gripper": [0]})
+    world.supplemental = (
+        SimpleNamespace(evaluate=lambda current: evaluate()) if supplemental else None
+    )
+    world._advance()
+
+    expected_pad_y = 0.04 + float(data.qpos[0])
+    # Preserve native predicate timing even though its derived state is older.
+    assert len(evaluations) == (2 if supplemental else 1)
+    assert all(abs(value - expected_pad_y) > 1e-5 for value in evaluations)
+    assert world.evaluation["native_pad_y"] == evaluations[-1]
+    assert world.task_completed() is False
+    for _ in range(2):
+        read = world.device_read("left_gripper")
+        assert read["aperture_m"] == pytest.approx(expected_pad_y - 0.004)
+        assert read["timestamp"] == after_step["time"]
+        assert data.site_xpos[0, 1] == pytest.approx(expected_pad_y)
+        assert data.cam_xpos[0, 1] == pytest.approx(expected_pad_y)
+    assert len(evaluations) == (2 if supplemental else 1)
+    for key in state_names:
+        np.testing.assert_array_equal(getattr(data, key), after_step[key])
+    assert float(data.time) == after_step["time"]

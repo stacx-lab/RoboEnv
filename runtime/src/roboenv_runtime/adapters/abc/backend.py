@@ -188,6 +188,15 @@ class ABCEnv:
     def _advance(self):
         _, _, _, _, info = self.env.step(self._action, render_obs=False)
         self._evaluate(info)
+        # mj_step integrates qpos after computing transforms. Refresh derived
+        # observations after native evaluation, without advancing dynamics or
+        # changing the solver's warm-start state.
+        import mujoco
+
+        mujoco.mj_kinematics(self.env.model, self.env.data)
+        mujoco.mj_comPos(self.env.model, self.env.data)
+        mujoco.mj_comVel(self.env.model, self.env.data)
+        mujoco.mj_camlight(self.env.model, self.env.data)
 
     def _evaluate(self, info=None):
         if self.supplemental is not None:
