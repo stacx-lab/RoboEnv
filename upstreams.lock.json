@@ -40,7 +40,7 @@
     "robodojo": {
       "path": "third_party/RoboDojo",
       "url": "https://github.com/RoboDojo-Benchmark/RoboDojo.git",
-      "revision": "726e9aabfaa642203722eb126f5eaf0f37f3e1ad",
+      "revision": "cb2a37d58dbbeb2777b0c2b30e97ecb8ab91095c",
       "backends": [
         "robodojo"
       ],
