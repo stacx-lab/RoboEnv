@@ -35,6 +35,7 @@ class EnvAdapter(Protocol):
     name: str
     embodiment: str
     control_interval_s: float
+    episode_done: bool
 
     def advance_control(self) -> None:
         """Advance all active devices through one native control interval."""
@@ -97,6 +98,7 @@ class AdapterBase(ABC):
     embodiment: ClassVar[str] = "general"
     execution_mode = "realtime"
     stop_on_success = False
+    episode_done = False
 
     def _set_stop_on_success(self, value: bool) -> None:
         """Store owner policy without passing it to the native constructor."""

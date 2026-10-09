@@ -15,6 +15,7 @@ class IsaacLabAdapter(AdapterBase):
         task = get_task(task_name)
         self.embodiment = task.embodiment
         self._env = task.create_environment(**kwargs)
+        self._env.stop_on_success = self.stop_on_success
 
     @property
     def environment(self):
@@ -27,6 +28,11 @@ class IsaacLabAdapter(AdapterBase):
 
     def advance_control(self):
         self._env.tick()
+
+    @property
+    def episode_done(self):
+        """Task environments may end naturally before the shared step limit."""
+        return bool(getattr(self._env, "done", False))
 
     def configure_execution_mode(self, mode):
         """Apply the shared world's execution policy to the selected environment."""

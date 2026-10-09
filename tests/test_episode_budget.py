@@ -38,6 +38,41 @@ class TickedToy(FakeShell):
             self.pos[0] = self.goal_x
 
 
+@pytest.mark.parametrize("mode", ["stepped", "realtime"])
+@pytest.mark.parametrize("signal", ["after_interval", "no_effects_error"])
+def test_native_failure_seals_before_another_request(tmp_path, mode, signal):
+    from roboenv.devices.model import DeviceError
+
+    class NativeEnd(TickedToy):
+        def advance_control(self):
+            if signal == "no_effects_error":
+                raise DeviceError("episode_finished", "object_dropped",
+                                  details={"effects": "none"})
+            super().advance_control()
+            self.episode_done = True
+
+        def observe(self):
+            return {**super().observe(), "native_failure": "object_dropped"}
+
+    worker = SimWorker(NativeEnd(), task_id="toy", seed=0, run_dir=tmp_path,
+                       execution_mode=mode)
+    try:
+        pending = worker.world.wait(0.02)
+        worker.world.advance()
+        assert pending.done()
+        status = worker.simulation_status(include_verdict=True)
+        assert status["terminal"] and not status["success"]
+        assert status["reason"] == "native_done"
+        assert worker.world.time_s == (0.02 if signal == "after_interval" else 0)
+        assert worker.world.failure is None
+        assert worker.observe()["native_failure"] == "object_dropped"
+        assert json.loads((tmp_path / "terminal.json").read_text())["status"] == status
+        worker.world.advance()
+        assert worker.simulation_status(include_verdict=True) == status
+    finally:
+        worker.close()
+
+
 @pytest.mark.parametrize("duration", [0.06, 0.2])
 @pytest.mark.parametrize("completed", [False, True])
 def test_worker_budget_retains_verdict_and_certifiable_journal(tmp_path, duration, completed):

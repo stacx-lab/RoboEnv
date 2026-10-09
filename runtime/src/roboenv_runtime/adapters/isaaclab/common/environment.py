@@ -11,6 +11,7 @@ from roboenv_runtime.core.types import Budget, ScoreReport
 
 class IsaacEnvironment(Protocol):
     control_interval: float
+    stop_on_success: bool
 
     def tick(self) -> None: ...
     def configure_execution_mode(self, mode: str) -> None: ...

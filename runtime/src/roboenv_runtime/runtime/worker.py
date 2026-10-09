@@ -269,7 +269,8 @@ class SimWorker:
         if self._final_result is not None or self.state == "failed" or self.world.failure is not None:
             return
         success = getattr(self.adapter, "stop_on_success", False) and self.adapter.score().completed
-        if success or (self.world.mode == "stepped" and self.adapter.budget().exhausted):
+        if (success or self.world._episode_error is not None
+                or (self.world.mode == "stepped" and self.adapter.budget().exhausted)):
             self.submit(interrupt=False)
 
     def simulation_status(self, *, include_verdict=False):
@@ -344,7 +345,8 @@ class SimWorker:
                 self._termination_reason = self._termination_reason or (
                     "success" if verdict["completed"] else
                     "step_limit" if self.world.mode == "stepped"
-                    and self.adapter.budget().exhausted else "stopped"
+                    and self.adapter.budget().exhausted else
+                    "native_done" if self.world._episode_error is not None else "stopped"
                 )
                 from roboenv_runtime.runtime.atomic import atomic_write_json
 

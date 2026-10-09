@@ -34,6 +34,7 @@ def load_profiles(robot=None):
 
 class Go2Env:
     control_interval = 0.02
+    stop_on_success = True
 
     def __init__(
         self,
@@ -46,6 +47,7 @@ class Go2Env:
         tcp_in_flange_m=None,
         device_profiles=None,
         execution_mode="stepped",
+        stop_on_success=True,
     ):
         task = task_type(task_name)
         if payload_mass_kg is not None:
@@ -66,6 +68,9 @@ class Go2Env:
         spec = task.definition(task_spec, tcp_in_flange_m)
         if type(cameras) is not bool:
             raise ValueError("cameras must be a boolean")
+        if type(stop_on_success) is not bool:
+            raise ValueError("stop_on_success must be a boolean")
+        self.stop_on_success = stop_on_success
         max_steps = 6000 if max_steps is None else max_steps
         if type(max_steps) is not int or max_steps <= 0:
             raise ValueError("max_steps must be a positive integer")
@@ -182,7 +187,10 @@ class Go2Env:
     def advance(self):
         if self.done:
             return
-        self.native.advance(self.targets["base"], self.targets["arm"], self.targets["gripper"])
+        self.native.advance(
+            self.targets["base"], self.targets["arm"], self.targets["gripper"],
+            stop_on_success=self.stop_on_success,
+        )
         self.images = {}
 
     def tick(self):
@@ -260,6 +268,7 @@ class Go2Env:
             "device_profiles": copy.deepcopy(self.profiles),
             "max_steps": self.max_steps,
             "execution_mode": self.execution_mode,
+            "stop_on_success": self.stop_on_success,
             "events": copy.deepcopy(self.events),
             "targets": {n: q.tolist() for n, q in self.targets.items()},
             "final": self.native.snapshot(),

@@ -171,6 +171,8 @@ class WorldSession:
                     self._resume(job, error=error)
                 if self.mode == "stepped" and self.native.budget().exhausted:
                     self.finish_episode("native episode budget exhausted", settle=False)
+                elif getattr(self.native, "episode_done", False):
+                    self.finish_episode("native episode terminated", settle=False)
                 else:
                     self.poll_motions()
             finally:

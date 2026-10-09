@@ -3,7 +3,7 @@
 import copy
 import json
 from pathlib import Path
-from types import SimpleNamespace
+from types import MethodType, SimpleNamespace
 
 import numpy as np
 import pytest
@@ -51,7 +51,7 @@ def rig():
     env.targets = {"base": DEFAULT.copy(), "arm": np.zeros(6), "gripper": np.zeros(2)}
     samples = []
 
-    def advance(*targets):
+    def advance(*targets, **kwargs):
         env.native.steps += 1
         samples.append(copy.deepcopy(targets))
 
@@ -315,7 +315,7 @@ def test_default_budget_and_recorded_mode_survive_reset(native_stub, mode):
 
 
 def test_realtime_replay_does_not_restore_a_step_cap(native_stub, tmp_path, monkeypatch):
-    env = Go2Env(task_name="go2-d1-pick-place", execution_mode="realtime")
+    env = Go2Env(task_name="go2-d1-pick-place", execution_mode="realtime", stop_on_success=False)
     native = env.native
     native.asset_sha, native.seed, native.payload_mass_kg = "fixture", 0, 0.08
     task = dict(placement_started=False, completed=False, failure=None,
@@ -350,7 +350,76 @@ def test_realtime_replay_does_not_restore_a_step_cap(native_stub, tmp_path, monk
     assert observed["task_spec"]["destination"] == [3, 0, 0]
     assert observed["task_spec"]["object_mass_kg"] == 0.2
     assert observed["tcp_in_flange_m"] == [0, 0, 0.15]
+    assert observed["stop_on_success"] is False
     assert result["passed"] and result["steps"] == 6001
+
+
+@pytest.mark.parametrize("stop", [False, True])
+@pytest.mark.parametrize("ending", ["success", "robot_fallen"])
+def test_native_go2_success_policy_and_failure_sealing(rig, tmp_path, stop, ending):
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.controllers import LEG_NAMES
+    from roboenv_runtime.adapters.isaaclab.robots.go2_d1.native import Native
+    from roboenv_runtime.adapters.isaaclab.tasks.go2_d1_reach.scoring import State
+
+    env = rig[0]
+    native = env.native
+    state = State("go2-d1-reach")
+    # The real predicate is one measured interval from success. Only unavailable
+    # PhysX state and stepping are replaced; Native.advance and Go2Env stay real.
+    state.hold = state.spec["hold_steps"] - 1
+    native.task = state
+    root = np.array([0.6, 0, 0.1 if ending == "robot_fallen" else 0.3, 0, 0, 0, 1])
+    names = LEG_NAMES + native.model.arm_names + ["d1_Joint7_1", "d1_Joint7_2"]
+    native.ids = {name: i for i, name in enumerate(names)}
+    native.model.joints.update({name: {"limits": [-10, 10]} for name in LEG_NAMES})
+    native.dt, native.posture_feedback = 0.005, False
+    native.array = lambda value: value
+    native.root_pose = lambda: root
+    native.gait = SimpleNamespace(targets=lambda *args: np.zeros(12))
+    native.robot = SimpleNamespace(
+        data=SimpleNamespace(
+            joint_pos=SimpleNamespace(
+                torch=SimpleNamespace(clone=lambda: np.zeros((1, len(names))))),
+            root_lin_vel_b=np.zeros(3), root_ang_vel_b=np.zeros(3), root_link_pose_w=root,
+        ),
+        set_joint_position_target_index=lambda **kwargs: None,
+        write_data_to_sim=lambda: None, update=lambda dt: None,
+    )
+    native.sim = SimpleNamespace(step=lambda **kwargs: None)
+    native.scene = SimpleNamespace(
+        physics_update=lambda: None,
+        update=lambda fallen: state.update({
+            "fallen": fallen, "base_position": root[:3], "base_speed": 0,
+            "tcp_position": state.spec["reach_position"],
+            "tcp_quaternion": state.spec["reach_quaternion_xyzw"],
+        }),
+    )
+    native.advance = MethodType(Native.advance, native)
+    env.stop_on_success = stop
+    env.record = lambda: {"native_task": state.snapshot(), "steps": native.steps}
+    env.close = lambda: None
+    adapter = IsaacLabAdapter.__new__(IsaacLabAdapter)
+    adapter._env = env
+    adapter._set_stop_on_success(stop)
+    worker = SimWorker(adapter, task_id="isaaclab/go2-d1-reach", seed=0,
+                       run_dir=tmp_path, execution_mode="stepped", reset_adapter=False)
+    try:
+        worker.world.resolve(worker.world.wait(0.02))
+        status = worker.simulation_status(include_verdict=True)
+        terminal = stop or ending == "robot_fallen"
+        assert status["terminal"] is terminal
+        assert state.completed is (ending == "success")
+        assert state.failure == (None if ending == "success" else ending)
+        if terminal:
+            assert status["reason"] == ("success" if ending == "success" else "native_done")
+            assert status["success"] is (ending == "success")
+            assert (tmp_path / "terminal.json").is_file()
+        else:
+            worker.world.resolve(worker.world.wait(0.02))
+            assert native.steps == 2 and not native.done and not worker.world._frozen
+        assert worker.world.failure is None
+    finally:
+        worker.close()
 
 
 @pytest.mark.parametrize("kwargs, error", [
@@ -388,8 +457,8 @@ def test_native_termination_freezes_clock_and_settles_peer_waits(
     short, long = session.wait(0.02), session.wait(1)
     advance = env.native.advance
 
-    def terminal_tick(*targets):
-        advance(*targets)
+    def terminal_tick(*targets, **kwargs):
+        advance(*targets, **kwargs)
         env.native.done = True
 
     env.native.advance = terminal_tick

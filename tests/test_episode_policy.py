@@ -57,6 +57,8 @@ def test_policy_is_consumed_and_native_arguments_preserved(adapter_type, policy)
         {"task_name": "go2-d1-control", **kwargs} if adapter_type is IsaacLabAdapter else kwargs
     )
     assert adapter._env.kwargs == expected
+    if adapter_type is IsaacLabAdapter:
+        assert adapter._env.stop_on_success is adapter.stop_on_success
 
 
 @pytest.mark.parametrize("value", [None, 0, 1, "true", []])

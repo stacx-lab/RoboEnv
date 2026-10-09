@@ -202,7 +202,7 @@ class Native:
         self.robot.update(self.dt)
         self.scene.reset()
 
-    def advance(self, base, arm, gripper):
+    def advance(self, base, arm, gripper, *, stop_on_success=True):
         if self.done:
             raise ValueError("Go2 episode has terminated")
         for _ in range(4):
@@ -241,7 +241,8 @@ class Native:
         )
 
         self.scene.update(self.done)
-        self.done = self.done or self.task.done
+        self.done = (self.done or self.task.failure is not None
+                     or (stop_on_success and self.task.completed))
 
     def root_pose(self):
         p = self.array(self.robot.data.root_link_pose_w)
