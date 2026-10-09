@@ -72,7 +72,7 @@ def check(out):
         closed = call("gripper", "read")
         contact_count = contacts()
         assert contact_count >= 2, (closed, contact_count)
-        assert abs(closed["positions"][0] - closed["positions"][1]) > 0.02
+        assert closed["aperture_m"] > 0.02
         # Stop does not force the measured joints through the obstructing geometry.
         before = world.sim.get_state().flatten().copy()
         call("arm", "stop")
@@ -80,13 +80,13 @@ def check(out):
         assert np.array_equal(before, world.sim.get_state().flatten())
         session.resolve(session.wait(40 * adapter.control_interval_s))
         stopped = call("gripper", "read")
-        drift = float(np.max(np.abs(np.array(stopped["positions"]) - closed["positions"])))
+        drift = abs(stopped["aperture_m"] - closed["aperture_m"])
         assert drift < 0.005, drift
         assert np.isfinite(world.sim.get_state().flatten()).all()
         call("gripper", "write", actions=[-1], duration_s=40 * adapter.control_interval_s)
         session.resolve(session.wait(40 * adapter.control_interval_s))
         opened = call("gripper", "read")
-        assert abs(opened["positions"][0] - opened["positions"][1]) > 0.06
+        assert opened["aperture_m"] > 0.06
         report = {
             "passed": True,
             "fixture": "owner-only fixed sphere between native fingers",
