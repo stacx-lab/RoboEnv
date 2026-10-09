@@ -33,13 +33,19 @@ def _boot_isaac(headless: bool = True, enable_cameras: bool = True):
     os.environ.setdefault("ROBODOJO_RUN_ID", f"roboenv-{secrets.token_hex(8)}")
 
     from roboenv_runtime.adapters.gpu import launch_isaaclab
+    from env.camera_manager.capture.render_sync import zero_delay_kit_args
 
     # AppLauncher parses sys.argv too; hide the caller's own flags from it.
     saved_argv, sys.argv = sys.argv, sys.argv[:1]
     try:
+        # Keep the native extensions: the optional conveyor graph reverses
+        # the asset's authored surface velocity.
         _APP = launch_isaaclab(
             "robodojo", headless=headless, enable_cameras=enable_cameras,
-            kit_args=" --enable isaacsim.replicator.behavior --enable isaacsim.sensors.camera",
+            kit_args=(
+                "--enable isaacsim.replicator.behavior --enable isaacsim.sensors.camera "
+                + zero_delay_kit_args()
+            ),
         )
     finally:
         sys.argv = saved_argv
