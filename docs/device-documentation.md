@@ -51,7 +51,12 @@ RGBD returns one timestamp for the pair; transport preserves it. Separate
 reads in realtime mode can still describe different simulation instants. Matching
 clock units alone does not make an image and a later joint read an atomic snapshot.
 
-Re-export devices when upgrading a runtime or changing camera calibration so
+RoboTwin gripper `tcp` frames follow the native robot's TCP position and orientation,
+including the end-effector joint anchor and embodiment calibration. Finger surface
+calibration still determines aperture and closing geometry; its midpoint does not
+define the RoboTwin TCP. This corrects earlier profiles that used that midpoint.
+
+Re-export devices when upgrading a runtime or changing camera or TCP calibration so
 the copied profiles reflect the current intrinsics and extrinsics.
 
 ## Camera read output
