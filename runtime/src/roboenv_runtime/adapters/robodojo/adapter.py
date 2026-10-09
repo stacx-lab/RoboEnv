@@ -18,7 +18,13 @@ class RoboDojoAdapter(NativeDeviceAdapter):
         from .devices import RoboDojoDevices
 
         self.embodiment = env_cfg_type
-        self._env = RoboDojoDevices(task_name, env_cfg_type, **kwargs)
+        self._env = RoboDojoDevices(
+            task_name, env_cfg_type, stop_on_success=self.stop_on_success, **kwargs,
+        )
+
+    @property
+    def episode_done(self):
+        return bool(self._env._env.end_flag[0])
 
     def goal(self):
         # The native observation manager already resolved labels and selected a

@@ -1,0 +1,40 @@
+--- a/src/eval_client/eval_env.py
++++ b/src/eval_client/eval_env.py
+@@ -74,6 +74,7 @@
+         def __init__(self, config, app, resume_state=None, **kwargs):
+             super().__init__(config, app, **kwargs)
+             self.eval_cfg = config.eval_cfg
++            self.stop_on_success = bool(self.eval_cfg.get("stop_on_success", True))
+             self.config_name = self.eval_cfg.get("config_name", None)
+             self.task_name = self.eval_cfg.get("task_name", None)
+             self.eval_batch = self.eval_cfg.get("eval_batch", False)
+@@ -133,6 +134,7 @@
+             )
+ 
+             self.success = [True] * self.num_envs
++            self.completed = [False] * self.num_envs
+             self.end_flag = [False] * self.num_envs
+             self.take_action_cnt = [0] * self.num_envs
+             # Per-env streaming video writers: {env_idx: {camera_key: writer}}.
+@@ -247,6 +249,7 @@
+             self.env_seeds = [s if s is not None else safe_seed for s in seed]
+ 
+             self.success = [True] * self.num_envs
++            self.completed = [False] * self.num_envs
+             self.end_flag = [False] * self.num_envs
+             self.take_action_cnt = [0] * self.num_envs
+             # Discard any writers left open by a previous (e.g. crashed or
+@@ -882,8 +885,11 @@
+             for env_idx in range(self.num_envs):
+                 if self.end_flag[env_idx]:
+                     continue
+-                if reward_list[env_idx] > 1 - 1e-3:
+-                    self.end_flag[env_idx] = True
++                self.completed[env_idx] = reward_list[env_idx] > 1 - 1e-3
++                if self.completed[env_idx]:
++                    self.end_flag[env_idx] = (
++                        self.stop_on_success or self.take_action_cnt[env_idx] >= self.step_lim
++                    )
+                     self.success[env_idx] = True
+                     continue
+                 if self.take_action_cnt[env_idx] >= self.step_lim or not self.success[env_idx]:

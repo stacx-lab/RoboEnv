@@ -72,6 +72,7 @@ class RoboDojoDevices(RoboDojoEnv):
         *,
         max_steps=None,
         layout_config=None,
+        stop_on_success=False,
     ):
         if max_steps is not None and (type(max_steps) is not int or max_steps < 1):
             raise ValueError("max_steps must be a positive action-frame count")
@@ -86,7 +87,9 @@ class RoboDojoDevices(RoboDojoEnv):
         self.physics_steps = 0
         self.requested_frame_limit = max_steps
         self.asset_roots = {"robodojo": robodojo_root() / "Assets"}
-        super().__init__(task_name=task_name, env_cfg_type=env_cfg_type)
+        super().__init__(
+            task_name=task_name, env_cfg_type=env_cfg_type, stop_on_success=stop_on_success,
+        )
         self.native_step_limit = int(self._env.step_lim)
         self.native_interval = int(self._env.obs_manager.collect_interval)
         # EvalEnv creates its native simulation on the first reset. Its configured
@@ -434,7 +437,7 @@ class RoboDojoDevices(RoboDojoEnv):
         return frame[:, :, :3].copy(), None
 
     def task_completed(self):
-        return bool(self._env.end_flag[0] and self._env.success[0])
+        return bool(self._env.completed[0] and self._env.success[0])
 
     def owner_state(self):
         # Isaac Lab serializes rigid, articulated and deformable scene state.
