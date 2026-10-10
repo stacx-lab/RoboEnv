@@ -1,11 +1,11 @@
 """Generate incomplete public Isaac YAM profiles from the shared ABC hardware catalog."""
 
 import argparse
-import copy
 from pathlib import Path
 
 import yaml
 from roboenv.devices.export import driver_access, write_driver
+from roboenv_runtime.adapters.isaaclab.robots.yam.assets import rgb_profiles
 from roboenv_runtime.adapters.isaaclab.tasks.yam_calibration.task import TASKS, robot_name
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -108,7 +108,7 @@ def generate(catalog, bindings_out):
         workspace["identity"].update(id=name, name=name, model="abc-yam")
         workspace["sim"]["simulator"] = "isaaclab"
         (robot / "workspace.yaml").write_text(yaml.safe_dump(workspace, sort_keys=False))
-        profiles = copy.deepcopy(originals)
+        profiles = rgb_profiles(originals)
         if task_name == "yam-calibrate-dual-arm":
             profiles["right_arm"]["extrinsics"]["mount"].update(
                 parent="left_arm", parent_frame="left_arm"

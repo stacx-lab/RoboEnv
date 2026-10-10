@@ -250,18 +250,15 @@ class ABCEnv:
     def device_image(self, name):
         if name not in ("camera_top", "camera_left", "camera_right"):
             raise ValueError("Unknown ABC camera")
-        if self.camera_backend == "blender":
-            if self.renderer is None:
-                from .rendering import BlenderImages
-
-                self.renderer = BlenderImages(self)
-            return self.renderer.read()[name.removeprefix("camera_")].copy(), None
         if self.renderer is None:
-            import mujoco
+            from .rendering import BlenderImages, MujocoImages
 
-            self.renderer = mujoco.Renderer(self.env.model, height=480, width=640)
-        self.renderer.update_scene(self.env.data, camera=name.removeprefix("camera_"))
-        return self.renderer.render().copy(), None
+            factory = BlenderImages if self.camera_backend == "blender" else MujocoImages
+            self.renderer = factory(self)
+        camera = name.removeprefix("camera_")
+        pair = (self.renderer.read()[camera] if self.camera_backend == "blender"
+                else self.renderer.read(camera))
+        return tuple(image.copy() for image in pair)
 
     def owner_state(self):
         data = self.env.data

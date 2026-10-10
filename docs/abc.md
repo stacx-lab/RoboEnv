@@ -1,7 +1,7 @@
 # ABC
 
 ABC exposes all 33 canonical tasks through one native CPU MuJoCo world, two YAM
-arms, two grippers, three RGB cameras, and world. Training, policy inference,
+arms, two grippers, three RGB-D cameras, and world. Training, policy inference,
 and MJWarp batching are outside this integration.
 
 All 33 task definitions are checked into `catalog/tasks/abc` and available through
@@ -23,8 +23,13 @@ All tasks share `abc-yam`, with both arm bases at 0.76 m. The managed
 used by the ten tasks that originally mounted at 0.75 m. This is an intentional
 RoboEnv practice-scene change. Devices are `left_arm`, `right_arm`, `left_gripper`, `right_gripper`,
 `camera_top`, `camera_left`, `camera_right`, and `world`. Cameras return native
-640×480 RGB. Arm commands are absolute radians; normalized gripper commands use
-0 for closed and 1 for open. Native limits and gains remain in effect. Gripper
+640×480 aligned RGB and optical-axis depth. Color is an RGB8 PNG; depth is a
+16-bit big-endian PGM with 0.001 metres per unit and zero for invalid pixels.
+Each pair shares one acquisition timestamp. Both MuJoCo and Blender generate
+depth from their own rendered geometry, without advancing physics. This is ideal
+geometric depth; D405-specific sensing effects and hardware calibration belong
+to the separate hardware onboarding procedure. Arm commands are absolute radians;
+normalized gripper commands use 0 for closed and 1 for open. Native limits and gains remain in effect. Gripper
 stop retains its applied target; explicit opening releases it.
 
 Stepped mode defaults to `floor(300 / control_interval_s)` action frames, where
@@ -54,6 +59,9 @@ device images (including Kinex recordings) and RoboEnv spectator videos:
 roboenv prepare abc --renderer blender --prefix .venv-sim/abc-blender
 ```
 
+The checked-in `abc/hang-mug-on-mug-rack` example selects Blender and seed 1;
+prepare the Blender dependencies before launching that example.
+
 Use a new prefix when upgrading an older interpreter without the rendering
 dependencies. Once prepared, omit `--prefix` to reuse the registered interpreter.
 Preparation verifies Blender 4.5.3 Linux x64 and Photo Studio 01 2K HDRI downloads
@@ -72,7 +80,8 @@ Launch that YAML with `roboenv launch PATH --record`. Select a card externally w
 `CUDA_VISIBLE_DEVICES`; both MuJoCo and Blender use the same selected GPU. The complete task still needs
 its original `id`, `robot`, instruction and budget fields. The same `abc/abc-yam`
 catalog serves both renderers. Spectator source views and custom fixed poses keep
-their declared resolution and field of view; device cameras remain 640×480 RGB.
+their declared resolution and field of view; device cameras remain 640×480 RGB-D.
+Spectator videos remain RGB.
 
 Defaults are 16 Cycles samples with OIDN denoising. `ABC_BLENDER_SAMPLES` and
 `ABC_BLENDER_DENOISER` (`OPENIMAGEDENOISE`, `OPTIX`, `NONE`) override quality;
@@ -81,12 +90,17 @@ binary/lighting hashes are included in owner records for replay.
 
 One Blender process serves the device cameras; recording uses an independent
 process. Launch/reset warms the cameras before becoming ready, and repeated reads
-within a control frame reuse the rendered images. Startup, render, and shutdown
-waits are bounded; failures never silently fall back to MuJoCo. A spectator failure
+within a control frame reuse the complete RGB-D pairs. Blender Cycles exports
+its optical-axis Z pass from the same render as color; depth is not denoised
+or color-managed. Missing or malformed depth fails the read explicitly.
+Startup, render, and shutdown waits are bounded; failures never silently fall back to MuJoCo. A spectator failure
 marks recording incomplete through the existing recorder lifecycle.
 
 Rendering does not advance physics or consume the stepped budget. Cycles can slow
 realtime execution below wall-clock speed; use stepped mode when this matters.
+
+After upgrading, refresh copied device profiles/drivers, restart owned simulator
+services and reload Kinex devices so all three cameras are discovered as `rgbd`.
 
 ## Success rules
 
@@ -132,3 +146,32 @@ It uses GPU 0 for EGL rendering and makes no model calls. Native fixtures,
 measured motion, stepped and realtime execution, recording and fresh-process replay are
 reported separately from observed task success. Output directories must be new.
 CPU tests and catalog checks alone do not certify native acceptance.
+
+For native geometry calibration without rendering or GPU initialization:
+
+```sh
+.venv-sim/abc/bin/python tests/abc_calibration.py --kinex ../kinex \
+  --out .cache/abc-calibration.json
+```
+
+Use the registered ABC interpreter if its prefix differs. This compares all 20
+native scenes covering the 33 tasks with the catalog, then checks both arms'
+Kinex FK/IK, gripper TCPs and aperture, and all three optical camera mounts at six
+joint configurations per scene. Translation and rotation-matrix residuals must
+stay below `1e-9`; rendering and dynamic motion require the separate probes below.
+
+For RGB-D conformance, run with the isolated ABC interpreter and a selected GPU:
+
+```sh
+CUDA_VISIBLE_DEVICES=0 .venv-sim/abc-blender/bin/python tests/abc_rgbd.py \
+  --renderer mujoco --out .cache/abc-rgbd-mujoco
+CUDA_VISIBLE_DEVICES=0 .venv-sim/abc-blender/bin/python tests/abc_rgbd.py \
+  --renderer blender --out .cache/abc-rgbd-blender
+```
+
+Use new output directories. The fixtures check optical-axis depth at the center
+and corners (2 mm tolerance), color/depth alignment (2 pixels), moving mounts,
+invalid sky pixels, all three task cameras, caching, reset and unchanged
+physics. Run `tools/accept_abc.py` separately for each renderer to check transport,
+Kinex RGB-D artifacts/recording and fresh-process command replay. A passing device
+probe does not establish hardware sensor fidelity or task success.

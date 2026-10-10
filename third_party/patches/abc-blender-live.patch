@@ -1,8 +1,8 @@
 diff --git a/abc_sim/rendering/blender/live.py b/abc_sim/rendering/blender/live.py
-index 496973c..10122a6 100644
+index 496973c..7ccc8f2 100644
 --- a/abc_sim/rendering/blender/live.py
 +++ b/abc_sim/rendering/blender/live.py
-@@ -1,6 +1,4 @@
+@@ -1,8 +1,6 @@
 -"""Blender Cycles as a live camera backend: one Blender process per bound model, poses streamed over a unix socket.
 -
 -ABC_BLENDER_SAMPLES / ABC_BLENDER_DENOISER override the 16 spp + OIDN default (e.g. 4 + OPTIX for the old setting)."""
@@ -10,7 +10,11 @@ index 496973c..10122a6 100644
  
  from __future__ import annotations
  
-@@ -26,63 +24,139 @@ RENDER = Path(__file__).with_name("render_usd.py")
+ import json
+ import os
+@@ -24,65 +22,157 @@ from abc_sim.rendering.replay.camera_providers import CameraProvider
+ 
+ RENDER = Path(__file__).with_name("render_usd.py")
  
  
  class BlenderCameraProvider(CameraProvider):
@@ -18,13 +22,14 @@ index 496973c..10122a6 100644
 -        super().__init__(camera_names=tuple(camera_names))
 -        self._data = data
 +    def __init__(self, model, data, *, width, height, gpu_id, camera_names,
-+                 views=None, blender=None, hdri=None, samples=None, denoiser=None,
++                 views=None, depth=False, blender=None, hdri=None, samples=None, denoiser=None,
 +                 startup_timeout=120.0, render_timeout=30.0, shutdown_timeout=5.0):
 +        if views is None:
 +            views = [dict(name=name, source=name, width=width, height=height,
 +                          fov_y=float(model.cam_fovy[model.cam(name).id])) for name in camera_names]
 +        super().__init__(camera_names=tuple(view["name"] for view in views))
 +        self._model, self._data, self._views = model, data, views
++        self._depth = depth
 +        self._proc = self._sock = self._io = self._log = None
          self._dir = tempfile.mkdtemp(prefix="abc_blender_", dir="/dev/shm")
          self._calls, self._render_s = 0, 0.0
@@ -57,7 +62,8 @@ index 496973c..10122a6 100644
 -        Path(self._dir, "geoms.json").write_text(json.dumps({"geoms": geoms, "cameras": list(self.camera_names)}))
 +        geoms = geom_records(self._model, exporter)
 +        Path(self._dir, "geoms.json").write_text(json.dumps({
-+            "geoms": geoms, "cameras": sources, "live_views": self._views}))
++            "geoms": geoms, "cameras": sources, "live_views": self._views,
++            "live_depth": self._depth}))
          self._geom_ids = [g["id"] for g in geoms]
 -        self._cam_ids = [model.cam(name).id for name in self.camera_names]
          env = dict(os.environ)
@@ -112,12 +118,14 @@ index 496973c..10122a6 100644
 +            self._log.flush()
 +        log = Path(self._dir, "blender.log")
 +        return message + "\n" + (log.read_text(errors="replace")[-4000:] if log.exists() else "")
-+
+ 
+-    def frames_for_step(self, step_idx: int, query_ts: float) -> dict[str, np.ndarray]:
+-        t0 = time.time()
 +    def initial_frames(self):
 +        return self._initial_frames
- 
-     def frames_for_step(self, step_idx: int, query_ts: float) -> dict[str, np.ndarray]:
--        t0 = time.time()
++
++    def frames_for_step(self, step_idx: int, query_ts: float):
++        """Return RGB arrays, or (RGB, metric Z) pairs when depth is enabled."""
 +        started = time.monotonic()
          d = self._data
 +        cameras = []
@@ -140,13 +148,26 @@ index 496973c..10122a6 100644
 +            self._io.write(poses.astype(np.float32).tobytes())
 +            self._io.flush()
 +            frames = {}
-+            for name in self.camera_names:
++            for name, view in zip(self.camera_names, self._views):
 +                filename = self._io.readline().decode().strip()
 +                if not filename:
 +                    raise RuntimeError("Blender closed its render connection")
 +                with Image.open(filename) as frame:
-+                    frames[name] = np.asarray(frame.convert("RGB")).copy()
-+        except (OSError, RuntimeError, ValueError) as exc:
++                    color = np.asarray(frame.convert("RGB")).copy()
++                if color.shape != (view["height"], view["width"], 3):
++                    raise ValueError("Blender RGB dimensions disagree with camera")
++                if self._depth:
++                    filename = self._io.readline().decode().strip()
++                    if not filename:
++                        raise RuntimeError("Blender omitted depth frame")
++                    depth = np.load(filename, allow_pickle=False)
++                    if (depth.shape != color.shape[:2] or depth.dtype != np.float32
++                            or not np.isfinite(depth).all() or np.any(depth < 0)):
++                        raise ValueError("Malformed Blender metric depth")
++                    frames[name] = (color, depth)
++                else:
++                    frames[name] = color
++        except (OSError, RuntimeError, ValueError, EOFError) as exc:
 +            message = self._failure(f"Blender render failed: {exc}")
 +            self.close()
 +            raise RuntimeError(message) from exc
@@ -187,10 +208,29 @@ index 496973c..10122a6 100644
 +        if Path(self._dir).exists():
 +            shutil.rmtree(self._dir)
 diff --git a/abc_sim/rendering/blender/render_usd.py b/abc_sim/rendering/blender/render_usd.py
-index bdb0b02..31f3ec7 100644
+index bdb0b02..7653c45 100644
 --- a/abc_sim/rendering/blender/render_usd.py
 +++ b/abc_sim/rendering/blender/render_usd.py
-@@ -635,7 +635,18 @@ def serve(path):
+@@ -614,10 +614,16 @@ if args.glare > 0:                                # bloom; compositor API differ
+     tree.links.new(layers.outputs["Image"], glare.inputs["Image"])
+     tree.links.new(glare.outputs["Image"], output.inputs[0])
+ 
+ 
+ 
++def optical_depth(depth, near, far):
++    """Cycles perspective Z is already optical-axis depth in scene metres."""
++    valid = np.isfinite(depth) & (depth > near) & (depth < far)
++    return np.where(valid, depth, 0).astype(np.float32)
++
++
+ def serve(path):
+     """Set the poses streamed over `path` (see abc_sim.rendering.blender.live) and render the policy cameras."""
+     for o in scene.objects:
+         if o.parent is not None and o.parent.type == "EMPTY":    # the importer's root: keep world matrices, drop the hierarchy
+             mw = o.matrix_world.copy()
+@@ -633,29 +639,72 @@ def serve(path):
+         scene.collection.objects.link(user)
+     scene.cycles.max_bounces = 4
      scene.render.image_settings.file_format = "BMP"
      scene.render.use_overwrite = True
      scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = W, H, 100
@@ -198,6 +238,19 @@ index bdb0b02..31f3ec7 100644
 +    views = meta.get("live_views")
 +    if views is None:
 +        views = [dict(name=name, width=W, height=H, fov_y=robot_fovy) for name in meta["cameras"]]
++    depth_output = None
++    if meta.get("live_depth", False):
++        scene.view_layers[0].use_pass_z = True
++        scene.use_nodes = True
++        scene.render.use_compositing = True
++        tree = scene.node_tree
++        layers = tree.nodes.new("CompositorNodeRLayers")
++        depth_output = tree.nodes.new("CompositorNodeOutputFile")
++        depth_output.base_path = args.out
++        depth_output.format.file_format = "OPEN_EXR"
++        depth_output.format.color_depth = "32"
++        depth_output.format.color_mode = "RGB"
++        tree.links.new(layers.outputs["Depth"], depth_output.inputs[0])
 +    cams = []
 +    for view in views:
 +        data = bpy.data.cameras.new("Live_" + view["name"])
@@ -210,7 +263,10 @@ index bdb0b02..31f3ec7 100644
      objs = [bpy.data.objects[f"Mesh_{g['usd']}"] for g in meta["geoms"]] + [cam for _, cam in cams]
      fix = None
      srv = socket.socket(socket.AF_UNIX)
-@@ -646,10 +657,12 @@ def serve(path):
+     srv.bind(path)
+     srv.listen(1)
+     f = srv.accept()[0].makefile("rwb")
+     while buf := f.read(len(objs) * 48):
          poses = [Matrix.Translation(p[:3]) @ Matrix((p[3:6], p[6:9], p[9:12])).to_4x4()
                   for p in np.frombuffer(buf, np.float32).reshape(-1, 12).tolist()]
          if fix is None:                                  # the exported state: keep whatever the importer baked into each object
@@ -224,4 +280,27 @@ index bdb0b02..31f3ec7 100644
 +            scene.render.resolution_x, scene.render.resolution_y = view["width"], view["height"]
              scene.camera = cam
              scene.render.filepath = f"{args.out}/{name}.bmp"
++            if depth_output is not None:
++                depth_output.file_slots[0].path = f"{name}_depth_"
              bpy.ops.render.render(write_still=True)
+             f.write(f"{scene.render.filepath}\n".encode())
++            if depth_output is not None:
++                filename = f"{args.out}/{name}_depth_{scene.frame_current:04d}.exr"
++                image = bpy.data.images.load(filename, check_existing=False)
++                try:
++                    pixels = np.empty(view["height"] * view["width"] * 4, dtype=np.float32)
++                    image.pixels.foreach_get(pixels)
++                    distance = pixels.reshape(view["height"], view["width"], 4)[::-1, :, 0]
++                    depth = optical_depth(distance, cam.data.clip_start,
++                                          cam.data.clip_end)
++                finally:
++                    bpy.data.images.remove(image)
++                os.unlink(filename)
++                filename = f"{args.out}/{name}_depth.npy"
++                np.save(filename, depth, allow_pickle=False)
++                f.write(f"{filename}\n".encode())
+         f.flush()
+ 
+ 
+ if args.serve:
+     serve(args.serve)

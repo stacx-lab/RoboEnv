@@ -177,8 +177,8 @@ def describe(model):
             base[:3, :3], base[:3, 3] = data.xmat[body].reshape(3, 3), data.xpos[body]
             transform = np.linalg.inv(base) @ transform
         facts["camera_" + camera] = {
-            "type": "rgb",
-            "intrinsics": camera_intrinsics(640, 480, model.cam_fovy[cid], False),
+            "type": "rgbd",
+            "intrinsics": camera_intrinsics(640, 480, model.cam_fovy[cid], True),
             "extrinsics": mount(parent, matrix_pose(transform), frame),
         }
     return canonical(facts)

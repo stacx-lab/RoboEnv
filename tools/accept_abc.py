@@ -7,6 +7,7 @@ import subprocess
 import time
 from pathlib import Path
 
+import numpy as np
 import roboenv
 import yaml
 from finalize_episode import finalize
@@ -14,6 +15,50 @@ from prepare_kinex_workspace import prepare
 from roboenv.provisioning.interpreter import resolve_interpreter
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def check_rgbd(client, *, frozen):
+    before = client.device("world").read()
+    result = {}
+    for name in ("camera_top", "camera_left", "camera_right"):
+        frame = client.device(name).read(output="array")
+        assert frame["color"].shape == (480, 640, 3)
+        assert frame["depth"].shape == (480, 640)
+        assert frame["color"].dtype == np.uint8 and frame["depth"].dtype == np.uint16
+        assert np.count_nonzero(frame["depth"]) > 0
+        assert np.isfinite(frame["timestamp"])
+        if frozen:
+            again = client.device(name).read(output="array")
+            assert again["timestamp"] == frame["timestamp"]
+            np.testing.assert_array_equal(again["depth"], frame["depth"])
+        result[name] = {"timestamp": frame["timestamp"],
+                        "valid_pixels": int(np.count_nonzero(frame["depth"]))}
+    if frozen:
+        assert client.device("world").read()["time_s"] == before["time_s"]
+    return result
+
+
+def check_depth_recordings(out):
+    files = sorted(out.rglob("depth.mkv"))
+    assert len(files) == 3, f"Expected three depth recordings, found {files}"
+    for file in files:
+        probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+             "stream=pix_fmt,width,height", "-of", "json", str(file)],
+            capture_output=True, text=True, check=True, timeout=30,
+        )
+        stream = json.loads(probe.stdout)["streams"][0]
+        assert stream == {"width": 640, "height": 480, "pix_fmt": "gray16le"}, stream
+        decoded = subprocess.run(
+            ["ffmpeg", "-v", "error", "-i", str(file), "-frames:v", "1",
+             "-f", "rawvideo", "-pix_fmt", "gray16le", "pipe:1"],
+            capture_output=True, check=True, timeout=30,
+        )
+        pixels = np.frombuffer(decoded.stdout, dtype="<u2")
+        assert pixels.size == 640 * 480 and np.count_nonzero(pixels) > 0
+        subprocess.run(["ffmpeg", "-v", "error", "-i", str(file), "-f", "null", "-"],
+                       capture_output=True, check=True, timeout=60)
+    return {"streams": len(files), "decoded": True, "encoding": "gray16le"}
 
 
 def run(out, kinex, node, renderer="mujoco"):
@@ -70,6 +115,8 @@ def run(out, kinex, node, renderer="mujoco"):
             execution_mode="stepped",
             recording=recording,
         ) as owner:
+            with roboenv.connect(owner.endpoint) as client:
+                report["checks"]["rgbd_stepped"] = check_rgbd(client, frozen=True)
             endpoint = owner.endpoint
             identity = {key: owner.record[key] for key in ("session", "generation")}
             for driver in (workspace / ".kinex/devices").glob("*/driver.py"):
@@ -98,7 +145,7 @@ def run(out, kinex, node, renderer="mujoco"):
                     assert after["time_s"] > before["time_s"]
                     assert after["budget"]["max_s"] is None
                     assert peer.endpoint != endpoint
-                    client.device("camera_top").read()
+                    report["checks"]["rgbd_realtime"] = check_rgbd(client, frozen=False)
                 report["checks"]["realtime_second_scene"] = True
             result = finalize(owner.path, out / "owner")
             report["task_success"] = result["verdict"]["completed"]
@@ -125,6 +172,7 @@ def run(out, kinex, node, renderer="mujoco"):
                 out,
             ],
         )
+        report["checks"]["depth_recording"] = check_depth_recordings(out)
         report["checks"].update(kinex=True, recording=True, replay=True)
         report["passed"] = True
     finally:

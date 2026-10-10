@@ -85,14 +85,15 @@ def test_blender_cameras_share_one_render_per_control_frame(monkeypatch):
     class Provider:
         def __init__(self, *args, **kwargs):
             assert kwargs["gpu_id"] is None  # Inherit the resolved CUDA mask.
+            assert kwargs["depth"] is True
             calls.append("open")
 
         def initial_frames(self):
-            return {"top": "initial", "left": "initial"}
+            return {name: ("initial-rgb", "initial-depth") for name in ("top", "left")}
 
         def frames_for_step(self, frame, timestamp):
             calls.append(frame)
-            return {"top": "next", "left": "next"}
+            return {"top": ("next-rgb", "next-depth"), "left": ("next-rgb", "next-depth")}
 
         def close(self):
             calls.append("close")
@@ -110,9 +111,9 @@ def test_blender_cameras_share_one_render_per_control_frame(monkeypatch):
         blender_settings={"gpu_id": None},
     )
     images = BlenderImages(world)
-    assert images.read()["top"] == images.read()["left"] == "initial"
+    assert images.read()["top"] == images.read()["left"] == ("initial-rgb", "initial-depth")
     world.control.frame = 1
-    assert images.read()["top"] == images.read()["left"] == "next"
+    assert images.read()["top"] == images.read()["left"] == ("next-rgb", "next-depth")
     images.close()
     assert calls == ["open", 1, "close"]
 
@@ -213,3 +214,131 @@ def test_observations_use_current_geometry_without_changing_native_evaluation(
     for key in state_names:
         np.testing.assert_array_equal(getattr(data, key), after_step[key])
     assert float(data.time) == after_step["time"]
+
+
+def test_mujoco_depth_invalid_pixels_and_mode_restoration():
+    import numpy as np
+    from roboenv_runtime.adapters.abc.rendering import mujoco_rgbd
+
+    class Renderer:
+        depth = False
+        fail = False
+
+        def disable_depth_rendering(self):
+            self.depth = False
+
+        def enable_depth_rendering(self):
+            self.depth = True
+
+        def update_scene(self, data, camera):
+            assert not self.depth
+
+        def render(self):
+            if self.depth:
+                if self.fail:
+                    raise RuntimeError("depth failed")
+                return np.array([[.001, .5, np.nan], [49.99, np.inf, -1]], np.float32)
+            return np.zeros((2, 3, 3), np.uint8)
+
+    renderer = Renderer()
+    model = SimpleNamespace(vis=SimpleNamespace(map=SimpleNamespace(znear=.01, zfar=50)),
+                            stat=SimpleNamespace(extent=1))
+    _, depth = mujoco_rgbd(renderer, model, None, "top")
+    np.testing.assert_array_equal(depth, [[0, .5, 0], [0, 0, 0]])
+    assert not renderer.depth
+    renderer.fail = True
+    with pytest.raises(RuntimeError, match="depth failed"):
+        mujoco_rgbd(renderer, model, None, "top")
+    assert not renderer.depth
+
+
+def test_mujoco_pair_cache_invalidates_after_control_frame(monkeypatch):
+    import numpy as np
+    from roboenv_runtime.adapters.abc import rendering
+
+    calls = []
+    monkeypatch.setattr(rendering, "mujoco_rgbd", lambda *args: calls.append(args[-1]) or (
+        np.zeros((2, 3, 3), np.uint8), np.ones((2, 3), np.float32)))
+    images = object.__new__(rendering.MujocoImages)
+    images.world = SimpleNamespace(control=SimpleNamespace(frame=0),
+                                   env=SimpleNamespace(model=None, data=None))
+    images.renderer, images.frame, images.images = None, None, {}
+    first = images.read("top")
+    assert images.read("top") is first
+    images.read("left")
+    images.world.control.frame += 1
+    assert images.read("top") is not first
+    assert calls == ["top", "left", "top"]
+
+
+def blender_definition(filename, name, namespace):
+    """Exercise source definitions without importing GPU-only dependencies."""
+    source = ROOT / "third_party/abc/abc_sim/rendering/blender" / filename
+    if not source.exists():
+        pytest.skip("ABC source is not initialized")
+    tree = ast.parse(source.read_text())
+    node = next(n for n in tree.body if getattr(n, "name", None) == name)
+    exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), "exec"), namespace)
+    return namespace[name]
+
+
+def test_blender_depth_preserves_optical_z_and_invalidates_background(tmp_path):
+    import numpy as np
+    from roboenv_runtime.bindings.backends.shared.depth import write_depth
+
+    convert = blender_definition("render_usd.py", "optical_depth", {"np": np})
+    depth = convert(np.array([[.5, .5, .5], [np.inf, 0, 100]], np.float32), .01, 100)
+    np.testing.assert_array_equal(depth, [[.5, .5, .5], [0, 0, 0]])
+    path = tmp_path / "depth.pgm"
+    write_depth(path, depth)
+    assert path.read_bytes() == b"P5\n3 2\n65535\n" + np.array(
+        [[500, 500, 500], [0, 0, 0]], dtype=">u2").tobytes()
+
+
+@pytest.mark.parametrize(
+    "invalid", [None, "missing", "shape", "nonfinite", "negative", "dtype", "truncated"],
+)
+def test_blender_pair_protocol_and_failure_cleanup(tmp_path, invalid):
+    import time
+
+    import numpy as np
+    from PIL import Image
+
+    provider_type = blender_definition("live.py", "BlenderCameraProvider", {
+        "CameraProvider": object, "np": np, "time": time, "Image": Image,
+    })
+    color = tmp_path / "rgb.bmp"
+    Image.fromarray(np.zeros((2, 3, 3), np.uint8)).save(color)
+    depth_file = tmp_path / "depth.npy"
+    depth = np.ones((3, 2) if invalid == "shape" else (2, 3), np.float32)
+    if invalid == "nonfinite":
+        depth[0, 0] = np.nan
+    elif invalid == "negative":
+        depth[0, 0] = -1
+    elif invalid == "dtype":
+        depth = depth.astype(np.float64)
+    np.save(depth_file, depth)
+    if invalid == "truncated":
+        depth_file.write_bytes(b"broken")
+    lines = iter([str(color).encode() + b"\n",
+                  b"" if invalid == "missing" else str(depth_file).encode() + b"\n"])
+    provider = object.__new__(provider_type)
+    provider._views = [{"name": "top", "width": 3, "height": 2, "matrix_pose": [0]*12}]
+    provider.camera_names = ("top",)
+    provider._depth, provider._geom_ids = True, []
+    provider._data = SimpleNamespace(geom_xpos=np.zeros((0, 3)), geom_xmat=np.zeros((0, 9)))
+    provider._io = SimpleNamespace(write=lambda _: None, flush=lambda: None,
+                                   readline=lambda: next(lines))
+    provider._calls, provider._render_s = 0, 0
+    closed = []
+    provider.close = lambda: closed.append(True)
+    provider._failure = lambda message: message
+    if invalid:
+        with pytest.raises(RuntimeError, match="Blender render failed"):
+            provider.frames_for_step(0, 0)
+        assert closed == [True]
+    else:
+        rgb, result = provider.frames_for_step(0, 0)["top"]
+        assert rgb.shape == (2, 3, 3)
+        np.testing.assert_array_equal(result, depth)
+        assert provider._calls == 1 and not closed

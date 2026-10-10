@@ -218,7 +218,7 @@
         },
         {
           "path": "third_party/patches/abc-blender-live.patch",
-          "sha256": "2fbcf9dc318031a7f6b3cd17cb7ad3955459754df10cc639cf205a3c17d39731"
+          "sha256": "f5a1fb66d8ec9106363e01a589703cf53437ff52348a49086d48681bf923a420"
         }
       ]
     }
