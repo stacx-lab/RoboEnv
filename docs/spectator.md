@@ -173,7 +173,7 @@ drops, completion status and errors; `encoder.log` contains FFmpeg diagnostics.
 
 Submit, stop and normal shutdown finish recording, with a five-second encoder
 drain deadline. Use Ctrl-C for a foreground launch, or `roboenv stop RUN_ID` after
-`--detach`. Reset or restore marks the recording `interrupted` and disables it for
+`--detach`. Reset marks the recording `interrupted` and disables it for
 that run; launch again for a new recording. Encoder or capture errors mark it
 `incomplete` without changing the native task verdict. Forced termination may leave
 partial videos and an incomplete manifest. Fragmented MP4 retains completed

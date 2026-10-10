@@ -44,8 +44,6 @@ ALLOWED_OPS = frozenset(
         "capture",
         "submit",
         "reset",
-        "checkpoint",
-        "restore",
         "shutdown",
     }
 )

@@ -1,15 +1,13 @@
-"""Explicit authoring-only lifecycle operations; never enabled by the ordinary SDK."""
+"""Explicit practice reset; never enabled by the ordinary SDK."""
 
 from roboenv.client import PUBLIC_OPS, Client
 
-CONTROL = frozenset({"reset", "checkpoint", "restore"})
-
 
 class PracticeClient(Client):
-    allowed_ops = PUBLIC_OPS | CONTROL
+    allowed_ops = PUBLIC_OPS | {"reset"}
 
     def request(self, op, args=None, **kwargs):
-        if op in CONTROL:
+        if op == "reset":
             health = super().request("health")
             if health.get("budget_mode") != "practice":
                 raise ValueError(

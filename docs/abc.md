@@ -41,9 +41,9 @@ Only the current native language instruction is public; scene truth, future
 instructions and evaluator details remain owner-only. For changing instructions,
 particularly multi-drawer search, call `env.refresh_task()` between stages.
 Copied Kinex workspaces expose the same instruction through `python task.py`.
-Practice reset starts a fresh native world. Checkpoint restoration reconstructs
-recorded native commands and verifies state, including task-runtime history;
-its cost grows with the elapsed episode.
+Practice reset starts a fresh native world. Intermediate-state checkpoint/restore
+is no longer supported; reset or start a fresh run to retry a task. Command
+recording and fresh-process replay verification remain available.
 
 ## Blender rendering
 
@@ -126,7 +126,7 @@ Add `--renderer blender` for the bounded Blender device/spectator/replay probe.
 It records named and custom spectator views at two simulation-time frames per
 second. `tests/abc_blender.py --out NEW_DIRECTORY`, run with the ABC interpreter,
 checks optical projection, moving cameras, renderer failure cleanup, state
-invariance, reset/restore and MuJoCo/Blender image comparisons.
+invariance, reset and MuJoCo/Blender image comparisons.
 
 It uses GPU 0 for EGL rendering and makes no model calls. Native fixtures,
 measured motion, stepped and realtime execution, recording and fresh-process replay are

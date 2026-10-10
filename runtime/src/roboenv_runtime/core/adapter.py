@@ -13,7 +13,6 @@ __all__ = [
     "BUILTIN_ADAPTERS",
     "AdapterBase",
     "EnvAdapter",
-    "SupportsCheckpoint",
     "list_adapters",
     "make_adapter",
     "register_adapter",
@@ -75,19 +74,6 @@ class EnvAdapter(Protocol):
 
     def capture(self) -> Any | None:
         """One current camera image (``None`` when unsupported)."""
-        ...
-
-
-@runtime_checkable
-class SupportsCheckpoint(Protocol):
-    """Adapters whose world can be rewound using an opaque checkpoint token."""
-
-    def checkpoint(self) -> Any:
-        """Snapshot the world; returns an opaque token."""
-        ...
-
-    def restore(self, token: Any) -> None:
-        """Rewind the world to a previous snapshot."""
         ...
 
 

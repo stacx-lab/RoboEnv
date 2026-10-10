@@ -130,6 +130,7 @@ def check():
     world = ABCEnv("put_plastic_bottles_in_bin")
     try:
         world.reset(seed=0)
+        initial = world.owner_state()
         assert world.frame_limit == 8823
         before = world.owner_state()
         for value in ([float("nan")] * 6, [0.0] * 5):
@@ -151,11 +152,11 @@ def check():
         world.device_write("left_gripper", [0.3])
         world.device_stop("left_gripper")
         assert world.control.targets["left_gripper"] == [0.3]
-        token = world.checkpoint()
-        for _ in range(5):
-            world.control.tick()
-        world.restore(token)
-        result.update(motion=True, checkpoint_restore=True, task_success=world.task_completed())
+        result.update(motion=True, task_success=world.task_completed())
+        world.reset(seed=0)
+        assert world.control.frame == 0
+        assert world.owner_state() == initial
+        result["reset"] = True
     finally:
         world.close()
     return result

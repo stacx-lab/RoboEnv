@@ -84,9 +84,11 @@ heavy packages only when starting the backend.
 
 The runtime no longer exports `Capability` or exposes adapter `capabilities`
 metadata. `AdapterBase.describe()` returns only `name` and `embodiment`; update
-consumers that imported those constants or read that field. Optional practice
-snapshots use `checkpoint()` and `restore(token)` methods (the
-`SupportsCheckpoint` protocol); the worker detects these methods directly.
+consumers that imported those constants or read that field. Practice lifecycle
+supports reset only. The `checkpoint`/`restore` operations and `SupportsCheckpoint`
+interface have been removed; callers must reset or start a fresh run. Old rewind
+operations are rejected before execution, including in practice mode. Journal
+verification also rejects rewind operations in historical practice records.
 Simulation-status capability fields are separate and unchanged.
 
 Use [RoboCasa's adapter](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py)
@@ -307,9 +309,9 @@ Exports always expose these defaults in the order shown above. Discovery, catalo
 generators and private launch snapshots use `Task.as_dict()` as their single
 serializer. Launch writes the resolved definition to `server/tasks/task.yaml`.
 
-`budget_mode: practice` permits the practice client's reset, checkpoint and restore
-operations when supported by the simulator. `official` disables those practice
-controls; the label alone does not certify benchmark eligibility. Existing catalog
+`budget_mode: practice` permits the practice client's reset operation when
+supported by the simulator. `official` disables practice reset;
+the label alone does not certify benchmark eligibility. Existing catalog
 protocol choices remain explicit. Neither value selects a horizon or clock.
 
 Backend-specific native inputs belong in `backend_kwargs`; robot profiles and

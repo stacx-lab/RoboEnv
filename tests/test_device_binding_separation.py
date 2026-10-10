@@ -116,7 +116,7 @@ def test_worker_binds_native_devices_without_executing_public_drivers(robot, tmp
         worker.close()
 
 
-def test_reset_and_restore_rebind_devices_but_preserve_sequence(robot, tmp_path):
+def test_reset_rebinds_devices_but_preserves_sequence(robot, tmp_path):
     worker = SimWorker(
         FakeShell(), task_id="test", seed=0, run_dir=tmp_path / "run", device_root=robot
     )
@@ -136,17 +136,9 @@ def test_reset_and_restore_rebind_devices_but_preserve_sequence(robot, tmp_path)
             first.call(command)
         assert worker.adapter.pos[0] == 0
         assert worker.devices.sequence == result["sequence"]
-        token = worker.dispatch("checkpoint", {})
-        worker.dispatch("devices.call", command)
-        before_restore = worker.devices
-        before_restore._devices["controller"]._on_close = lambda: closed_positions.append(
-            worker.adapter.pos[0]
-        )
-        worker.dispatch("restore", {"token": token})
-        assert closed_positions == [0.1, 0.1]
-        assert before_restore is not worker.devices
-        assert worker.adapter.pos[0] == 0
-        assert worker.devices.sequence == result["sequence"] + 1
+        continued = worker.dispatch("devices.call", command)
+        assert continued["sequence"] == result["sequence"] + 1
+        assert worker.adapter.pos[0] == 0.1
     finally:
         worker.close()
 

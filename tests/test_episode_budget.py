@@ -140,9 +140,27 @@ def history(error, *, op="devices.call"):
     return SimpleNamespace(events=events, verdict=verdict)
 
 
-def validate(history):
+def validate(history, *, practice=False):
     raw = "".join(json.dumps(event) + "\n" for event in history.events).encode()
-    return VERIFY["validate_journal"](raw, session="s", submit_id="s", verdict=history.verdict)
+    return VERIFY["validate_journal"](
+        raw, session="s", submit_id="s", verdict=history.verdict, practice=practice,
+    )
+
+
+@pytest.mark.parametrize("practice", [False, True])
+@pytest.mark.parametrize("op", ["reset", "checkpoint", "restore"])
+def test_historical_lifecycle_journals_allow_only_practice_reset(practice, op):
+    recorded = history({}, op=op)
+    recorded.events[0]["request"]["args"] = {}
+    response = recorded.events[1]["response"]
+    response.pop("error")
+    response.update(ok=True, result={})
+    recorded.events[1]["phase"] = "commit"
+    if practice and op == "reset":
+        assert validate(recorded, practice=True)
+    else:
+        with pytest.raises(ValueError, match="operation forbidden"):
+            validate(recorded, practice=practice)
 
 
 @pytest.mark.parametrize("effects", ["none", "partial"])
