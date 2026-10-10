@@ -118,7 +118,23 @@ def test_normal_worker_passes_only_typed_budget_arguments(monkeypatch, budget_mo
 def test_worker_output_isolation_and_explicit_run_id(monkeypatch, tmp_path, explicit):
     from roboenv_runtime.adapters.robodojo import backend
 
-    monkeypatch.setattr("roboenv_runtime.adapters.gpu.launch_isaaclab", lambda *a, **k: object())
+    native_args = (
+        "--/app/renderer/waitIdle=true --/app/updateOrder/checkForHydraRenderComplete=1000"
+    )
+    monkeypatch.setitem(
+        sys.modules, "env.camera_manager.capture.render_sync",
+        SimpleNamespace(zero_delay_kit_args=lambda: native_args),
+    )
+
+    def launch(backend, **kwargs):
+        assert backend == "robodojo"
+        assert "isaacsim.asset.gen.conveyor" not in kwargs["kit_args"]
+        assert "--enable isaacsim.replicator.behavior" in kwargs["kit_args"]
+        assert "--enable isaacsim.sensors.camera" in kwargs["kit_args"]
+        assert kwargs["kit_args"].endswith(native_args)
+        return SimpleNamespace(app=object())
+
+    monkeypatch.setattr("roboenv_runtime.adapters.gpu.launch_isaaclab", launch)
     monkeypatch.setattr(backend, "ROBODOJO_ROOT", str(tmp_path))
     monkeypatch.setattr(sys, "path", list(sys.path))
     ids = []
@@ -262,7 +278,7 @@ def test_image_uses_native_tiled_capture_and_owns_its_pixels(invalid):
 
     world = devices.RoboDojoDevices.__new__(devices.RoboDojoDevices)
     world._env = SimpleNamespace(
-        render=lambda: calls.append("render"),
+        obs_manager=SimpleNamespace(render_for_capture=lambda: calls.append("fence")),
         camera_manager=SimpleNamespace(
             cameras=[[object(), camera]], camera_names=[["cam_left_wrist", "cam_head"]]
         ),
@@ -277,7 +293,37 @@ def test_image_uses_native_tiled_capture_and_owns_its_pixels(invalid):
         assert depth is None
         buffer[:] = 0
         assert rgb.shape == (3, 4, 3) and np.all(rgb == 137)
-    assert calls == ["render", ([0], [1])]
+    assert calls == ["fence", ([0], [1])]
+
+
+def test_first_image_after_motion_waits_for_native_camera_delivery():
+    camera = object()
+    state = {"physics": 2, "queued": 1, "delivered": 0, "fences": 0}
+
+    def render():
+        state["delivered"], state["queued"] = state["queued"], state["physics"]
+
+    def fence():
+        state["fences"] += 1
+        render()
+        render()
+
+    world = devices.RoboDojoDevices.__new__(devices.RoboDojoDevices)
+    world._env = SimpleNamespace(
+        render=render,
+        obs_manager=SimpleNamespace(render_for_capture=fence),
+        camera_manager=SimpleNamespace(cameras=[[camera]], camera_names=[["cam_head"]]),
+        capture_manager=SimpleNamespace(step=lambda **kwargs: [{"rgb": [{
+            "data": np.full((2, 3, 3), state["delivered"], np.uint8),
+        }]}]),
+    )
+    world.device_facts = {"head_camera": {"intrinsics": {"color": {"width": 3, "height": 2}}}}
+    first, _ = world.device_image("head_camera")
+    assert np.all(first == 2)
+    state["physics"] = 3
+    second, _ = world.device_image("head_camera")
+    assert np.all(second == 3)
+    assert state["fences"] == 2
 
 
 @pytest.mark.parametrize("mode", ["transient", "unavailable", "mismatch"])

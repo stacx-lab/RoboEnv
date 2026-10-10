@@ -417,7 +417,7 @@ class RoboDojoDevices(RoboDojoEnv):
             annotator.detach(product)
 
     def device_image(self, name):
-        self._env.render()
+        self._env.obs_manager.render_for_capture()
         # RoboDojo owns tiled render products and their annotators. Its Camera
         # instances describe optics but do not attach individual RGB annotators.
         index = self._env.camera_manager.cameras[0].index(self._camera(name))

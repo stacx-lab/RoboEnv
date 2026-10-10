@@ -157,6 +157,10 @@ def test_behavior_capture_edits_usd_before_rendering(monkeypatch, fail_write):
         assert not editing
         calls.append("render")
 
+    monkeypatch.setattr(
+        "roboenv_runtime.adapters.behavior.rendering.render_for_capture", render,
+    )
+
     def tensor(value):
         return SimpleNamespace(cpu=lambda: SimpleNamespace(numpy=lambda: np.asarray(value)))
 
@@ -203,3 +207,31 @@ def test_mujoco_restores_owner_context_on_render_failure():
     with pytest.raises(RuntimeError, match="render failed"), engine._current():
         raise RuntimeError("render failed")
     assert calls == ["spectator", "owner"]
+
+
+def test_isaac_spectator_waits_for_native_camera_delivery(monkeypatch):
+    state = {"renders": 0, "pixels": np.empty((0, 0, 4), np.uint8)}
+
+    def render():
+        state["renders"] += 1
+        if state["renders"] == 2:
+            state["pixels"] = np.full((4, 4, 4), 42, np.uint8)
+
+    def render_for_capture():
+        render()
+        render()
+
+    monkeypatch.setitem(sys.modules, "pxr", SimpleNamespace(
+        Gf=SimpleNamespace(Matrix4d=lambda value: value),
+    ))
+    engine = IsaacEngine.__new__(IsaacEngine)
+    engine.backend = "robodojo"
+    engine.world = SimpleNamespace(_env=SimpleNamespace(
+        render=render, obs_manager=SimpleNamespace(render_for_capture=render_for_capture),
+    ))
+    engine.cameras = {"view": SimpleNamespace(Set=lambda value: None)}
+    engine.annotators = {"view": SimpleNamespace(get_data=lambda: state["pixels"])}
+    frames = engine.capture([ViewSpec("view", pose=(0, 0, 0, 0, 0, 0, 1),
+                                     width=4, height=4)])
+    assert frames["view"].shape == (4, 4, 3)
+    assert np.all(frames["view"] == 42)

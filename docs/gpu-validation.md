@@ -34,6 +34,7 @@ the backend and use its `--help` for task, rig, clock and output arguments:
 | `tools/accept_simple.py` | SIMPLE native/transport/Kinex checks and replay without model calls |
 | `tools/check_go2_d1_transport.py`, `tools/replay_go2_d1.py` | Go2–D1 transport checks and command replay |
 | `tools/check_native_robotwin.py`, `tools/check_native_robodojo.py`, `tools/check_native_behavior.py` | Backend-specific native device conformance |
+| `tools/check_behavior_cameras.py --out NEW_DIRECTORY` | BEHAVIOR first-read camera delivery after fixture movement, across three agent and three spectator cameras; unchanged owner state |
 | `tools/check_native_clock.py` | Worker clock progress, motion, terminal freeze and independent replay |
 | `tools/check_native_transport.py` | Concurrent episodes, deduplication, lost replies, public/owner separation and endpoint reuse |
 | `tools/replay_native_devices.py` | Fresh-process replay of matching RoboTwin, RoboDojo or BEHAVIOR owner records |

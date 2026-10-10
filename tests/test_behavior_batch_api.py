@@ -21,6 +21,8 @@ def test_boot_selects_the_only_scene_and_robot(monkeypatch, count):
     configs = []
     env = SimpleNamespace(num_envs=count, robots=[[robot]] * count)
     monkeypatch.setattr(backend, "fix_cache_env", lambda: None)
+    launcher = SimpleNamespace(DEFAULT_LAUNCHER_CONFIG={"extra_args": []})
+    monkeypatch.setitem(sys.modules, "isaacsim", SimpleNamespace(SimulationApp=launcher))
     monkeypatch.setitem(sys.modules, "omnigibson", SimpleNamespace(
         Environment=lambda configs: (configs_seen(configs) or env)
     ))
@@ -29,6 +31,7 @@ def test_boot_selects_the_only_scene_and_robot(monkeypatch, count):
         assert os.environ["OMNIGIBSON_GPU_ID"] == "0"
         assert os.environ["OMNIGIBSON_RENDER_GPU"] == "3"
         assert os.environ["OMNI_KIT_ACCEPT_EULA"] == "YES"
+        assert "--/app/hydraEngine/waitIdle=true" in launcher.DEFAULT_LAUNCHER_CONFIG["extra_args"]
         configs.append(config)
 
     if count == 1:
@@ -40,6 +43,7 @@ def test_boot_selects_the_only_scene_and_robot(monkeypatch, count):
             world.boot()
     assert len(configs) == 1
     assert configs[0]["env"]["num_envs"] == 1
+    assert launcher.DEFAULT_LAUNCHER_CONFIG == {"extra_args": []}
 
 
 @pytest.mark.parametrize("predicate", [True, False])

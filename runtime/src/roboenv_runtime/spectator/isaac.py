@@ -115,10 +115,11 @@ class Engine:
 
     def render(self):
         if self.backend == "robodojo":
-            self.world._env.render()
+            self.world._env.obs_manager.render_for_capture()
         else:
-            import omnigibson as og
-            og.sim.render()
+            from roboenv_runtime.adapters.behavior.rendering import render_for_capture
+
+            render_for_capture()
 
     def close(self):
         # The owner must close the world after this renderer. Never detach a
