@@ -277,9 +277,9 @@ class BehaviorDevices(BehaviorBackend):
         }
 
     def device_image(self, name):
-        import omnigibson as og
+        from .rendering import render_for_capture
 
-        og.sim.render()
+        render_for_capture()
         observation, _ = self.robot.sensors[self.cameras[name]].get_obs()
         color = array(observation["rgb"])[..., :3]
         depth = array(observation["depth_linear"])

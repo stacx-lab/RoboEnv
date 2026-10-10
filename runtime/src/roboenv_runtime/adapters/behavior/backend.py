@@ -157,9 +157,12 @@ class BehaviorBackend:
         os.environ["OMNIGIBSON_GPU_ID"] = "0"
         os.environ["OMNIGIBSON_RENDER_GPU"] = str(selection["vulkan_index"])
         fix_cache_env()
-        import omnigibson as og
+        from .rendering import capture_launch_settings
 
-        self.env = og.Environment(configs=self.build_config())
+        with capture_launch_settings():
+            import omnigibson as og
+
+            self.env = og.Environment(configs=self.build_config())
         if self.env.num_envs != 1 or len(self.env.robots[0]) != 1:
             raise ValueError("BEHAVIOR requires one scene with one robot")
         self.robot = self.env.robots[0][0]

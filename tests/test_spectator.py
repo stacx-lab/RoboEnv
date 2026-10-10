@@ -157,6 +157,10 @@ def test_behavior_capture_edits_usd_before_rendering(monkeypatch, fail_write):
         assert not editing
         calls.append("render")
 
+    monkeypatch.setattr(
+        "roboenv_runtime.adapters.behavior.rendering.render_for_capture", render,
+    )
+
     def tensor(value):
         return SimpleNamespace(cpu=lambda: SimpleNamespace(numpy=lambda: np.asarray(value)))
 
