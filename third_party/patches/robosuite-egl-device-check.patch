@@ -1,0 +1,18 @@
+--- a/robosuite/utils/binding_utils.py
++++ b/robosuite/utils/binding_utils.py
+@@ -29,9 +29,13 @@
+ CUDA_VISIBLE_DEVICES = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+ if CUDA_VISIBLE_DEVICES != "":
+     MUJOCO_EGL_DEVICE_ID = os.environ.get("MUJOCO_EGL_DEVICE_ID", None)
+-    if MUJOCO_EGL_DEVICE_ID is not None:
++    # The EGL device is checked against the CUDA mask only when the mask names devices by index: a mask of GPU UUIDs
++    # cannot be compared with an EGL enumeration index, and a substring test against it would pass or fail by the
++    # digits the UUID happens to contain.
++    CUDA_DEVICE_TOKENS = [token.strip() for token in CUDA_VISIBLE_DEVICES.split(",") if token.strip()]
++    if MUJOCO_EGL_DEVICE_ID is not None and all(token.isdigit() for token in CUDA_DEVICE_TOKENS):
+         assert MUJOCO_EGL_DEVICE_ID.isdigit() and (
+-            MUJOCO_EGL_DEVICE_ID in CUDA_VISIBLE_DEVICES
++            MUJOCO_EGL_DEVICE_ID in CUDA_DEVICE_TOKENS
+         ), "MUJOCO_EGL_DEVICE_ID needs to be set to one of the device id specified in CUDA_VISIBLE_DEVICES"
+ 
+ if macros.MUJOCO_GPU_RENDERING and os.environ.get("MUJOCO_GL", None) not in ["osmesa", "glx"]:

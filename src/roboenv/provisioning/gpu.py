@@ -183,6 +183,7 @@ def _probe(apis):
     for api in apis:
         candidates = _vulkan_devices() if api == "vulkan" else _egl_devices()
         device[api + "_index"] = match_graphics(device, candidates, api)
+        device[api + "_devices"] = len(candidates)
     return device
 
 
@@ -203,8 +204,19 @@ def resolve_gpu(apis):
         raise RuntimeError(f"GPU discovery failed before launch: {detail}") from exc
 
 
+def cuda_mask(selection):
+    """The CUDA mask the selection travels as.
+
+    The device's UUID names it on any host. When the process can reach one GPU only (one EGL
+    device: a container given a single GPU), the index 0 names the same device, and it is what
+    robosuite's import-time check accepts: that check compares MUJOCO_EGL_DEVICE_ID textually with
+    the mask, so a UUID passes or fails it by the digits it happens to contain.
+    """
+    return "0" if selection.get("egl_devices") == 1 else selection["uuid"]
+
+
 def gpu_environment(selection):
-    return {"CUDA_VISIBLE_DEVICES": selection["uuid"],
+    return {"CUDA_VISIBLE_DEVICES": cuda_mask(selection),
             "ROBOENV_GPU": json.dumps(selection, sort_keys=True),
             **({"MUJOCO_EGL_DEVICE_ID": str(selection["egl_index"])}
                if "egl_index" in selection else {}),
@@ -221,7 +233,7 @@ def configure_gpu(backend, options=None):
     inherited = os.environ.get("ROBOENV_GPU")
     if inherited:
         selection = json.loads(inherited)
-        if os.environ.get("CUDA_VISIBLE_DEVICES") != selection["uuid"]:
+        if os.environ.get("CUDA_VISIBLE_DEVICES") != cuda_mask(selection):
             raise ValueError("GPU configuration changed after launch")
         if any(api + "_index" not in selection for api in apis):
             raise ValueError("GPU configuration lacks required renderer identity")
