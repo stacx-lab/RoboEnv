@@ -230,11 +230,27 @@ def test_cuda_probe_queries_logical_zero_without_a_context(monkeypatch, mig):
     assert calls == [("init", 0), ("device", 0)]
 
 
+def test_single_reachable_gpu_travels_as_index_zero(monkeypatch):
+    # One EGL device: the process reaches one GPU, index 0 names it, and robosuite's textual check
+    # of MUJOCO_EGL_DEVICE_ID against the mask holds. Several devices, or a selection recorded
+    # before the count existed: the UUID names it. The worker's drift check follows the same rule.
+    single = {**SELECTION, "egl_devices": 1, "egl_index": 0}
+    assert gpu.gpu_environment(single)["CUDA_VISIBLE_DEVICES"] == "0"
+    assert gpu.gpu_environment(single)["MUJOCO_EGL_DEVICE_ID"] == "0"
+    several = gpu.gpu_environment({**SELECTION, "egl_devices": 2})
+    assert several["CUDA_VISIBLE_DEVICES"] == DEVICE["uuid"]
+    assert gpu.gpu_environment(SELECTION)["CUDA_VISIBLE_DEVICES"] == DEVICE["uuid"]
+    for key, value in gpu.gpu_environment(single).items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(gpu, "resolve_gpu", lambda *a: pytest.fail("unexpected rediscovery"))
+    assert gpu.configure_gpu("libero") == single
+
+
 def test_probe_loads_only_required_graphics_library(monkeypatch):
     monkeypatch.setattr(gpu, "_cuda_device", lambda: dict(DEVICE))
     monkeypatch.setattr(gpu, "_egl_devices", lambda: [{"index": 5, "uuid": DEVICE["uuid"]}])
     monkeypatch.setattr(gpu, "_vulkan_devices", lambda: pytest.fail("unexpected Vulkan load"))
-    assert gpu._probe(("egl",)) == {**DEVICE, "egl_index": 5}
+    assert gpu._probe(("egl",)) == {**DEVICE, "egl_index": 5, "egl_devices": 1}
 
 
 @pytest.mark.parametrize("selected", [None, "cuda:0"])

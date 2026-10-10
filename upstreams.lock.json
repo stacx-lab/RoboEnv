@@ -35,6 +35,12 @@
       "revision": "5ce6643f3092639d08f7b0f90ed1c6a84f50552c",
       "backends": [
         "robocasa"
+      ],
+      "patches": [
+        {
+          "path": "third_party/patches/robosuite-egl-device-check.patch",
+          "sha256": "e50ae5e6ebfab25da895c387b8ffdbf318a1a0db0e27403dab29247a92a62051"
+        }
       ]
     },
     "robodojo": {
