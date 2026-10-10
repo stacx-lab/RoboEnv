@@ -115,7 +115,7 @@ class Engine:
 
     def render(self):
         if self.backend == "robodojo":
-            self.world._env.render()
+            self.world._env.obs_manager.render_for_capture()
         else:
             import omnigibson as og
             og.sim.render()
