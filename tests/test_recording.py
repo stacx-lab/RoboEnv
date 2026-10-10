@@ -202,12 +202,11 @@ def test_encoder_failures_are_bounded_and_report_incomplete(tmp_path, renderer, 
         assert manifest(path)["error"]
 
 
-@pytest.mark.parametrize("boundary", ["submit", "reset", "restore", "close"])
+@pytest.mark.parametrize("boundary", ["submit", "reset", "close"])
 def test_worker_recording_lifecycle_keeps_verdict_and_budget(tmp_path, renderer, boundary):
     worker = SimWorker(FakeShell(), task_id="toy", seed=0, run_dir=tmp_path,
                        execution_mode="stepped", recording={})
     try:
-        checkpoint = worker.checkpoint()
         before = worker.adapter.budget().as_dict()
         worker.world.resolve(worker.world.wait(0.2))
         if boundary == "submit":
@@ -215,13 +214,11 @@ def test_worker_recording_lifecycle_keeps_verdict_and_budget(tmp_path, renderer,
             assert result["budget"] == before and result["completed"] is False
         elif boundary == "reset":
             worker.reset({})
-        elif boundary == "restore":
-            worker.restore({"token": checkpoint})
         else:
             worker.close()
         assert worker.world.failure is None
         result = manifest(tmp_path / "recording")
-        expected = "interrupted" if boundary in {"reset", "restore"} else "complete"
+        expected = "interrupted" if boundary == "reset" else "complete"
         assert result["status"] == expected
         assert result["encoded_frames"] == 3
         worker.world.after_advance()  # a reset cannot restart the old recording

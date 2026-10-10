@@ -80,7 +80,7 @@ def validate_journal(raw, *, session, submit_id, verdict, practice=False):
     count = 0
     forbidden = {"reset", "restore", "checkpoint", "shutdown"}
     if practice:
-        forbidden -= {"reset", "restore", "checkpoint"}
+        forbidden.remove("reset")
     for line in raw.splitlines():
         event = strict_json(line)
         request = event["request"]

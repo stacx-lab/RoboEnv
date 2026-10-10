@@ -5,7 +5,6 @@ from __future__ import annotations
 from roboenv_runtime.core.adapter import (
     AdapterBase,
     EnvAdapter,
-    SupportsCheckpoint,
     list_adapters,
     make_adapter,
     register_adapter,
@@ -17,7 +16,6 @@ __all__ = [
     "Budget",
     "EnvAdapter",
     "ScoreReport",
-    "SupportsCheckpoint",
     "list_adapters",
     "make_adapter",
     "register_adapter",

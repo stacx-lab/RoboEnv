@@ -123,6 +123,7 @@ def scene(task, out):
         world.reset(seed=0)
         startup = time.monotonic() - started
         before = state(world.env.model, world.env.data)
+        initial = before.copy()
         reference = mujoco.Renderer(world.env.model, height=480, width=640)
         for camera in world._camera_names:
             frame, _ = world.device_image("camera_" + camera)
@@ -146,19 +147,23 @@ def scene(task, out):
         world.device_image("camera_top")
         np.testing.assert_array_equal(state(world.env.model, world.env.data), before)
         assert world.renderer.provider._calls == 2
-        token = world.checkpoint()
         old_process = world.renderer.provider._proc
-        world.restore(token)
+        reference.close()
+        reference = None
+        world.reset(seed=0)
         assert old_process.poll() is not None
-        np.testing.assert_array_equal(state(world.env.model, world.env.data), before)
+        assert world.renderer is None and world.control.frame == 0
+        np.testing.assert_array_equal(state(world.env.model, world.env.data), initial)
         world.device_image("camera_left")
-        assert world.renderer.frame == 8
+        world.device_image("camera_top")
+        assert world.renderer.frame == 0 and world.renderer.provider._calls == 1
+        np.testing.assert_array_equal(state(world.env.model, world.env.data), initial)
         return {
             "startup_s": startup,
             "three_cameras_render_s": seconds,
             "physics_unchanged": True,
             "cache": True,
-            "restore": True,
+            "reset": True,
         }
     finally:
         if reference is not None:

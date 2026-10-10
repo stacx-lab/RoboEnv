@@ -16,7 +16,7 @@ if str(SOURCE) not in sys.path:
 import numpy as np
 
 from roboenv_runtime.adapters.device_control import DeviceControl
-from roboenv_runtime.adapters.native_record import compare, digest, initialize_record
+from roboenv_runtime.adapters.native_record import digest, initialize_record
 from .adapter import frame_budget
 from .rig import CAMERA_SIZE, aperture, describe, rig_id
 
@@ -275,32 +275,6 @@ class ABCEnv:
             "evaluation": copy.deepcopy(self.evaluation),
             "instruction": self.instruction,
         }
-
-    def checkpoint(self):
-        return {
-            "seed": self.seed,
-            "frame": self.control.frame,
-            "commands": copy.deepcopy(self.control.commands),
-            "state": self.owner_state(),
-        }
-
-    def restore(self, token):
-        # Deterministic command reconstruction also restores hidden native runtime,
-        # evaluator, RNG and model state without copying renderer/native handles.
-        self.reset(seed=token["seed"])
-        for event in token["commands"]:
-            while self.control.frame < event["frame"]:
-                self.control.tick()
-            if event["op"] == "write":
-                for name, target in event["commands"].items():
-                    self.device_write(name, target)
-            elif event["op"] == "stop":
-                self.device_stop(event["device"])
-            else:
-                raise ValueError("Unsupported checkpoint command")
-        while self.control.frame < token["frame"]:
-            self.control.tick()
-        compare(token["state"], self.owner_state(), atol=1e-8)
 
     def close(self):
         if self.renderer is not None:

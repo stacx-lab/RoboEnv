@@ -31,12 +31,6 @@ class ABCAdapter(NativeDeviceAdapter):
             detail=result,
         )
 
-    def checkpoint(self):
-        return self._env.checkpoint()
-
-    def restore(self, token):
-        self._env.restore(token)
-
 
 def frame_budget(interval):
     if not math.isfinite(interval) or interval <= 0:

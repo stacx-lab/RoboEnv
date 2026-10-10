@@ -165,7 +165,6 @@ class SimWorker:
         self.state = "starting"
         self.request_count = 0
         self.reset_count = 0
-        self._checkpoints = {}
         self._closed = False
         self._recorder = None
         self._final_result: dict[str, Any] | None = None
@@ -434,43 +433,6 @@ class SimWorker:
             "budget": self.adapter.budget().as_dict(),
         }
 
-    def checkpoint(self) -> Any:
-        """Snapshot the world when the adapter supports it."""
-        fn = getattr(self.adapter, "checkpoint", None)
-        if not callable(fn):
-            raise WorkerRPCError("unsupported_op", "this adapter has no checkpoint capability")
-        import secrets
-
-        token = secrets.token_hex(8)
-        self._checkpoints[token] = fn()
-        return token
-
-    def restore(self, args: Mapping[str, Any]) -> Any:
-        """Rewind the world to a snapshot."""
-        if self.scorer.submitted:
-            raise WorkerRPCError("already_submitted", "restore is frozen after submit")
-        fn = getattr(self.adapter, "restore", None)
-        if not callable(fn):
-            raise WorkerRPCError("unsupported_op", "this adapter has no checkpoint capability")
-        if "token" not in args:
-            raise WorkerRPCError("invalid_args", "restore requires args.token")
-        token = args["token"]
-        if token not in self._checkpoints:
-            raise WorkerRPCError("checkpoint_identity", "unknown checkpoint in this worker")
-        self._finish_recording("interrupted")
-        self._interrupt_devices()
-        self.state = "restoring"
-        try:
-            if self.devices is not None:
-                self.devices.close()
-            fn(self._checkpoints[token])
-            self._bind_devices()
-            self.state = "ready"
-        except Exception:
-            self.state = "failed"
-            raise
-        return {"restored": True}
-
     def dispatch(self, op: str, args: Mapping[str, Any]) -> Any:
         return self.world.resolve(self.dispatch_async(op, args))
 
@@ -597,10 +559,6 @@ class SimWorker:
             return self.submit()
         if op == "reset":
             return self.reset(args)
-        if op == "checkpoint":
-            return self.checkpoint()
-        if op == "restore":
-            return self.restore(args)
         if op == "shutdown":
             if args:
                 raise WorkerRPCError("invalid_args", "shutdown takes no arguments")

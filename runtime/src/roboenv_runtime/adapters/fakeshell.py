@@ -1,8 +1,7 @@
 """A toy world with the full adapter surface — for tests, demos and CI.
 
 One puck on a line.  Pushing it past ``x >= 0.3`` completes the task; every
-push costs 50 budget units.  Supports checkpoint/restore so the attempt loop
-and rehearsal rules can be exercised without a simulator.
+push costs 50 budget units. Reset starts a fresh practice episode.
 """
 
 from __future__ import annotations
@@ -46,7 +45,6 @@ class FakeShell(AdapterBase):
         self.pos = [0.0, 0.0, 0.0]
         self.used = 0
         self.seed = 0
-        self._snapshots: dict[int, tuple[list[float], int]] = {}
 
     # ------------------------------------------------------------ lifecycle
 
@@ -59,7 +57,6 @@ class FakeShell(AdapterBase):
         self.seed = seed
         self.pos = [0.0, 0.0, 0.0]
         self.used = 0
-        self._snapshots.clear()
 
     def score(self) -> ScoreReport:
         """Solved once the puck passed ``goal_x``."""
@@ -88,17 +85,6 @@ class FakeShell(AdapterBase):
             raise RuntimeError("terminated episode: budget exhausted")
         self.pos[0] += float(dx)
         self.used += self.PUSH_COST
-
-    def checkpoint(self) -> int:
-        """Snapshot the world; returns a token for ``restore``."""
-        token = len(self._snapshots) + 1
-        self._snapshots[token] = (list(self.pos), self.used)
-        return token
-
-    def restore(self, token: int) -> None:
-        """Rewind the world to a checkpoint."""
-        pos, used = self._snapshots[int(token)]
-        self.pos, self.used = list(pos), used
 
     # ------------------------------------------------------------ media
 
