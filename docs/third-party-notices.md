@@ -71,7 +71,8 @@ weights are not included in RoboEnv wheels. No policy weights are downloaded.
 The managed `abc-unified-arm-mounts.patch` raises both arm bases from 0.75 m to
 0.76 m in six task scenes so all supported tasks use one robot configuration.
 The managed `abc-blender-live.patch` adds calibrated live camera specifications,
-read-only state export, and bounded renderer lifecycle handling. Optional rendering
+read-only state export, aligned optical-axis RGB-D output, and bounded renderer
+lifecycle handling. Optional rendering
 downloads Blender 4.5.3 under its bundled GPL notices and the CC0 Photo Studio 01
 HDRI from Poly Haven. These downloads remain separate from RoboEnv packages.
 

@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def physical_profiles():
-    return {
+    profiles = {
         p.parent.name: {
             k: v
             for k, v in yaml.safe_load(p.read_text()).items()
@@ -36,6 +36,8 @@ def physical_profiles():
         }
         for p in (ROOT / "catalog/robots/abc/abc-yam/devices").glob("*/profile.yaml")
     }
+
+    return assets.rgb_profiles(profiles)
 
 
 @pytest.mark.parametrize("name", TASKS)
@@ -465,3 +467,13 @@ def test_yam_control_holds_clipped_targets_through_every_physics_substep(monkeyp
         assert calls.count((side, world.dt)) == 17
     assert calls.count(("step", False)) == calls.count(("contact", world.dt)) == 17
     assert world.steps == 1
+
+
+def test_isaac_yam_keeps_rgb_sensors_when_abc_adds_depth():
+    rgbd = {"camera_top": {"type": "rgbd", "intrinsics": {
+        "color": {"width": 640}, "depth": {"scale_m_per_unit": .001}}, "extrinsics": {}}}
+    original = copy.deepcopy(rgbd)
+    converted = assets.rgb_profiles(rgbd)
+    assert converted["camera_top"]["type"] == "rgb"
+    assert converted["camera_top"]["intrinsics"] == {"color": {"width": 640}}
+    assert rgbd == original

@@ -199,8 +199,9 @@ and consumers together; no old-field aliases are supported. Refresh exported/cop
 drivers and runtime resources, then reload devices and restart owned RoboEnv services.
 UUID-based IDs now use 16 random hexadecimal characters (with existing prefixes).
 
-ABC supports all 33 canonical tasks with bimanual YAM devices and native RGB
-cameras. Run `roboenv prepare abc` and `roboenv launch abc/put-plastic-bottles-in-bin`.
+ABC supports all 33 canonical tasks with bimanual YAM devices and aligned RGB-D
+cameras under both MuJoCo and Blender. Run `roboenv prepare abc` and
+`roboenv launch abc/put-plastic-bottles-in-bin`.
 See [ABC setup and scoring](docs/abc.md) for the 300-second stepped budget,
 changing instructions, and the four RoboEnv-defined evaluators.
 

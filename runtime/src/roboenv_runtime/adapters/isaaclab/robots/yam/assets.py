@@ -68,6 +68,16 @@ def split_model(source):
     return result
 
 
+def rgb_profiles(profiles):
+    """Reuse ABC geometry with the RGB-only sensors implemented by Isaac YAM."""
+    result = copy.deepcopy(profiles)
+    for profile in result.values():
+        if profile["type"] == "rgbd":
+            profile["type"] = "rgb"
+            profile["intrinsics"].pop("depth")
+    return result
+
+
 def prepare(source, profiles, out):
     """Copy meshes into a portable, checksummed owner-only bundle."""
     source, out = Path(source).resolve(), Path(out)
@@ -94,7 +104,7 @@ def prepare(source, profiles, out):
     facts = {
         "schema": "roboenv/yam-assets/1",
         "source_mjcf_sha256": sha256(source),
-        "physical_profiles": copy.deepcopy(profiles),
+        "physical_profiles": rgb_profiles(profiles),
         "files": {
             p.relative_to(out).as_posix(): sha256(p) for p in sorted(out.rglob("*")) if p.is_file()
         },
