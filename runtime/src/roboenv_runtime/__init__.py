@@ -16,7 +16,7 @@ from roboenv_runtime.core import (
     register_adapter,
 )
 
-__version__ = "0.10.5"
+__version__ = "1.0.0"
 
 __all__ = [
     "AdapterBase",

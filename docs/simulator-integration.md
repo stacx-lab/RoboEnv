@@ -1,8 +1,8 @@
 # Integrating a simulator
 
 Add a simulator by connecting its native devices to one RoboEnv world and shipping
-a reusable device catalog. Follow [DESIGN.md](../DESIGN.md); [RoboCasa](robocasa.md)
-is the reference implementation.
+a reusable device catalog. This guide defines the architecture and integration
+contracts; [RoboCasa](robocasa.md) is the reference implementation.
 
 Coding-agent workflows are defined in
 [integrate-simulator-kinex](../.agents/skills/integrate-simulator-kinex/SKILL.md)
@@ -49,6 +49,17 @@ and declared sensor readings. Keep scene truth and verdicts private. A benchmark
 requiring privileged observations needs an explicit, separately tested policy.
 Preserve native success rules and non-timeout terminations. Apply the shared clock
 policy: realtime has no episode step cap; stepped retains native/configured horizons.
+
+An arm exposes device operations, not task primitives such as `pick_object`.
+A camera supplies images, not detected objects. Native motor controllers stay in
+RoboEnv; perception, planning, and task programs belong to the harness. Loading a
+device attaches to the existing world and never resets a task or starts another world.
+
+The SDK separates public connection/lifecycle (`client.py`, `environment.py`),
+device contracts (`devices/`), task discovery/resolution (`tasks/`), isolated
+installation (`provisioning/`), CLI dispatch (`cli/`), and optional client control
+helpers (`control/`). Runtime adapters, workers, and scoring live in `runtime/`;
+robot variants reuse typed native bindings with embodiment-specific profiles.
 
 ## 2. Pin sources and prepare an interpreter
 
@@ -128,19 +139,59 @@ and output schemas and reject unsupported operations. A binding neither creates 
 second world nor calls its own locked worker through a socket. Closing it releases
 only binding resources.
 
-Joint writes submit `actions` with `duration_s` and return immediately.
-The executor samples buffers on native ticks. Planning and arrival checks belong
-to the harness. Reuse the [binding executor](../runtime/src/roboenv_runtime/bindings/motion.py)
-for validation, replacement and cancellation. Scalar and velocity writes use the
-same duration contract. World `read` returns `time_s` and an optional
-`budget: {used_s, max_s}` in seconds for native `action_frames` budgets. The shared
-binding multiplies native consumption and cap by the control interval; an uncapped
-budget has `max_s: null`. Counted initialization frames remain included, so budget
-elapsed time can differ from the world clock. This does not represent wall-clock
-time or orchestrator deadlines. Other units, including `sim_steps` and `api_calls`, omit
-the field because their duration is not established. `status` stays `{loaded: true}`;
-`wait(duration_s)` returns only `time_s` and the wait's `waited_s`.
-Realtime advances continuously; stepped advances during waits.
+### Execution and cancellation
+
+Reuse the [binding executor](../runtime/src/roboenv_runtime/bindings/motion.py)
+for validation, replacement, and cancellation.
+
+`write({actions, duration_s})` validates and replaces a device buffer.
+Gripper and suction accept flat numeric sequences; joint and dexterous-hand
+devices accept joint-vector sequences. End-effectors have no separate target write.
+It returns immediately with `execution_id` and measured `state`.
+The native executor consumes references at its fixed cadence; input frequency is
+`len(actions) / duration_s`. References may be resampled; the final reference is
+retained. Velocity commands expire to zero velocity while preserving posture.
+Replacement does not call stop. Explicit stop clears its declared scope.
+Scalar gripper stop retains the applied target and preload; see
+[gripper stop behavior](grippers.md) for direction, position, and reset semantics.
+
+`world.read()` returns `time_s` and, for native `action_frames` budgets, an optional
+`budget: {used_s, max_s}` in seconds. Both values use the native control interval;
+`max_s` is null when uncapped, including realtime mode. Consumption includes any
+counted initialization frames, so `used_s` can differ from `time_s`. This is
+native episode accounting, not wall-clock time or an orchestrator deadline. Other budget
+units (`sim_steps`, `api_calls`, and unknown units) omit the field because their
+duration is not established. `world.status()` remains `{loaded: true}`.
+
+`world.wait(duration_s)` waits in world time and
+returns `time_s` and actual `waited_s`. Concurrent waits overlap; they do not
+multiply physics steps. Tick rounding may extend elapsed time by less than one
+control interval. Reads never advance physics.
+
+Realtime defaults to continuous advancement. Stepped advances only while a
+world.wait is pending, even when buffers remain. Both modes share the device
+API and native control thread. Realtime has no step/time horizon; stepped retains
+episode limits. Both preserve non-timeout termination conditions. Goal planning
+and arrival checks belong to the harness.
+
+Background motion retains resource ownership after submission. Faults stop the
+affected motion and remain visible through reads. `devices.cancel` cancels only
+the named request's wait or owned motion; late cleanup cannot stop a replacement.
+Portable actuator drivers cancel their own request when accepted feedback is
+malformed, including when the returned execution identity is missing. Uncertain
+transport outcomes are cancelled by the outgoing request identity without retrying
+the write. Cleanup failures report `stop_failed` and block further driver writes
+until recovery.
+Reset, freeze and shutdown settle pending waits and motion before releasing resources.
+A new episode invalidates old identities. Drivers never terminate borrowed worlds.
+
+Independent devices accept concurrent writes; writes to the same bound entity
+remain ordered. The world lock protects individual native operations and snapshots.
+Reads and recording remain available during motion, and each command returns its
+own acquisition-time snapshot while preserving peer references. A validated
+replacement claims the same physical resources; observations bypass motion admission.
+
+### Native controllers and local kinematics
 
 Configure native controllers to implement the advertised action space. RoboCasa
 selects absolute `JOINT_POSITION` control for the arm and absolute lift goals;
@@ -187,6 +238,21 @@ Generators that emit bindings accept `--bindings-out DIR`, separate from `--out`
 (the public catalog). Omit it to generate only the public catalog and any explicitly
 requested facts or receipts. To maintain built-in defaults, pass
 `--bindings-out src/roboenv/devices/bindings/defaults`.
+
+| Data | Location and visibility |
+| --- | --- |
+| Joint geometry, units, sensor intrinsics, mounts | Static public profiles |
+| Native entity selectors and controller configuration | Private binding/runtime configuration |
+| Task instruction and permitted context | Public task snapshot |
+| Seed, sampled scene state, success predicate | Private task/world state |
+| Endpoint and optional episode pin | Deployment environment; never static catalog files |
+| Journals, privileged snapshots, verdict | Owner/verifier evidence |
+
+Binding defaults ship with the SDK and resolve without importing simulator engines.
+Keep source receipts in `docs/`, generators in `tools/`, and test-only profiles in
+fixtures. Do not copy simulator assets, private task/session files, or deployment
+paths into the public robot workspace. Unknown calibration stays unknown; an
+identity transform is not a substitute.
 
 | Profile field | Content |
 |---|---|
@@ -326,7 +392,7 @@ applies the selected mode before reset; configured horizons are retained separat
 from effective limits. Budget mode does not select the clock.
 
 The worker owns episode policy. Adapters expose native `score()` and `budget()`;
-all seven simulator adapters and FakeShell support top-level `stop_on_success`.
+all eight simulator adapters and FakeShell support top-level `stop_on_success`.
 Launch overrides take precedence over the task value, which defaults to false.
 Adapters consume and validate the policy without forwarding it to unsupported
 native constructors.
@@ -407,8 +473,10 @@ identities and validation evidence.
 
 ## 6. Preserve the public service boundary
 
-Agents using the SDK connect with `roboenv.connect(ENDPOINT)` and access immutable
-`env.task`, device profiles, and basic device operations. Returned values contain
+Agents using the SDK connect with `roboenv.connect(ENDPOINT)` and access an immutable
+`env.task` snapshot, device profiles, and basic device operations. Use
+`env.refresh_task()` for native instruction transitions; see the
+[public API](device-documentation.md#public-api). Returned values contain
 device data, not internal journal/budget receipts. The wire protocol is `roboenv/1`
 with `roboenv/devices/1` semantics: session, generation, request ID, deadline, operation,
 and object arguments. HTTP GET `/` discovers identity without initializing a world.

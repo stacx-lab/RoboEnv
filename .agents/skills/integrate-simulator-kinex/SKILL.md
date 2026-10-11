@@ -76,7 +76,7 @@ paths work. Track implementation, infrastructure and controller failures separat
 
 ## Trace the current integration and migration boundary
 
-Read RoboEnv README.md, DESIGN.md, docs/setup.md, docs/simulator-integration.md,
+Read RoboEnv README.md, docs/README.md, docs/setup.md, docs/simulator-integration.md,
 and the selected adapter/backend/bindings/generator. Inspect the RoboCasa and
 LIBERO implementations where their contracts apply. In Kinex, read
 packages/core/src/{calibration/,device/interface.ts,device/dispatch.ts,device/driver.ts},

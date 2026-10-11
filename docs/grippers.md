@@ -19,6 +19,7 @@ backends, including Go2–D1. They never replace that target with measured apert
 Direction stop freezes the accumulated finger target; position stop preserves the
 applied position reference. Pending actions are discarded, and explicit open is
 required to release. Reset initializes from measured posture independently of stop.
+Stopping before the first command must not initiate closure.
 This behavior also applies to cancellation and controller cleanup.
 
 Restart owned simulator services after upgrading; refresh copied Kinex gripper

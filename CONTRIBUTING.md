@@ -6,8 +6,8 @@ installation belong in their respective projects.
 
 ## Before proposing a change
 
-Read [the architecture boundary](README.md) and the
-[simulator integration guide](docs/simulator-integration.md). Open a design issue before
+Read the [documentation index](docs/README.md) and the
+[architecture and simulator integration guide](docs/simulator-integration.md). Open a design issue before
 changing a public protocol, adding an engine dependency to the SDK, or introducing
 a new execution authority. Small fixes can go directly to a pull request.
 
@@ -33,6 +33,15 @@ capabilities, invalid arguments, read-only calls, reset/rebind, exhausted budget
 timeouts, duplicate requests and an exception after a state-changing call.
 For exporters, test a clean directory and a locally modified existing export.
 Never weaken a safety check simply to make a fixture pass.
+
+The CPU suite uses shared fresh-worker fixtures for device, transport, and lifecycle
+checks. Replay/verifier tests exercise real workers; recipe checks live in
+`tests/test_setup.py`, and shared helpers live outside test modules. Both threading
+modes retain scheduling coverage; full Kinex recording/planning integration runs
+once in owner-thread mode. Catalog scans and fresh-process kitchen determinism
+checks retain exhaustive coverage. Bounded-write regressions use CPU state and
+the real control/dispatch code; native smoke runs are documented in
+[simulator validation](docs/gpu-validation.md#additional-libero-control-smoke).
 
 ## Simulator and task changes
 

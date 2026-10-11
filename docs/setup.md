@@ -1,8 +1,10 @@
 # Setup and local use
 
-Use Linux and uv. From a source checkout:
+Use Linux, Git, and uv. Clone the source, then bootstrap it:
 
 ```sh
+git clone https://github.com/stacx-lab/RoboEnv.git
+cd RoboEnv
 bash tools/bootstrap.sh
 source .venv/bin/activate
 ```
@@ -121,6 +123,24 @@ termination conditions still apply. No simulator
 installation or asset download occurs during launch. Local launch is intended
 for development; external orchestrators provide container boundaries for evaluation.
 
+Launch streams simulator stdout/stderr to the terminal's stderr and retains the
+run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready.
+Python callers can enable streaming with `log_stream=sys.stderr`.
+
+Startup validates live device interfaces and measurements against the selected
+configuration before reporting readiness. A mismatch must fail explicitly rather
+than silently changing units or calibration. Different worlds need different ports
+in the same network namespace; isolated container networks may reuse an internal
+port. GPU allocation remains a separate scheduling concern.
+
+All backends support top-level `stop_on_success` (default `false`). Launch flags
+`--stop-on-success` and `--no-stop-on-success` override it; Python launch accepts
+`stop_on_success=True` or `False`, while `None` preserves the task setting.
+At a stepped horizon or enabled success stop, physics freezes and unfinished
+buffers/waits end with `episode_finished`. Final reads remain available. See the
+[task policy](simulator-integration.md#task-format) and
+[terminal evidence](gpu-validation.md#terminal-evidence) for finalization details.
+
 ## Connect and use devices
 
 In another terminal with the development environment active:
@@ -172,6 +192,35 @@ stay outside Git. Agents connect through the SDK or CLI; use the
 [public device reference](device-documentation.md) to supply their documentation.
 See [simulator validation](gpu-validation.md) for native checks and
 [local Kinex use](kinex-local.md) for optional Kinex device setup.
+
+## LIBERO tasks
+
+Official LIBERO uses the same typed device path with complete scene-specific Panda
+catalogs in `catalog/robots/libero/libero-panda-{tabletop,floor,kitchen,living-room,study}/`.
+Task IDs use `simulator/lowercase-kebab-case`; the prefix selects the backend.
+Task YAML exposes `seed`, `budget_mode`, `execution_mode` and `stop_on_success`;
+native selectors and settings live in `backend_kwargs`. See the
+[task format](simulator-integration.md#task-format) for the shared template.
+
+Each task selects its robot by a relative catalog path, such as
+`robot: libero/libero-panda-kitchen`; each scene directory contains its full device
+profiles and native mounting geometry.
+Run `roboenv prepare libero` and `roboenv launch libero/bowl-onto-plate`.
+Its absolute joint control is explicitly a practice protocol, not the published OSC
+benchmark action space. `tools/accept_libero.py --out OUTPUT` runs native device,
+transport, Kinex recording and fresh-process replay gates without model calls;
+task scheduling belongs to the external agent harness.
+
+The checked-in LIBERO tasks are `bowl-onto-plate` (grasp/place),
+`close-top-drawer` (close drawer), `bowl-into-bottom-drawer` (place the bowl,
+then close), and `mug-into-microwave` (place the mug, then close).
+The latter two are multi-stage LIBERO-Long stress cases, selected for
+combined object and articulated-fixture manipulation, not an official per-task
+difficulty ranking. Discovery covers all 130 native tasks and selects each scene's
+robot catalog from the task's BDDL problem type. Each catalog includes portable
+copies of the shared device drivers.
+The additional `drawer-and-bowl` example maps to `libero_90` task 8: open the
+top drawer and put the bowl inside. It uses the kitchen Panda catalog.
 
 ## Standalone simulator images
 
