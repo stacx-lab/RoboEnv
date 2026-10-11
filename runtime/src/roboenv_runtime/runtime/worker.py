@@ -505,7 +505,7 @@ class SimWorker:
                         "task": {
                             "id": task.get("id", self.task_id),
                             "instruction": self.adapter.goal() or task.get("instruction", ""),
-                            "context": {},
+                            "context": self.adapter.task_context(),
                         },
                         "devices": description["devices"],
                         "device_contract": "roboenv/devices/1",

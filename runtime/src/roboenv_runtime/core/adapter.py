@@ -44,6 +44,10 @@ class EnvAdapter(Protocol):
         """The benchmark-provided language goal, or ``""`` when tasks carry none."""
         ...
 
+    def task_context(self) -> dict[str, Any]:
+        """Public sampled task assignments, excluding state and verifier details."""
+        ...
+
     def reset(self, seed: int) -> None:
         """Start a fresh episode."""
         ...
@@ -95,6 +99,10 @@ class AdapterBase(ABC):
     def goal(self) -> str:
         """Default: no benchmark-provided goal text."""
         return ""
+
+    def task_context(self) -> dict[str, Any]:
+        """Default: no sampled assignments beyond the language goal."""
+        return {}
 
     def configure_execution_mode(self, mode: str) -> None:
         """Realtime counts steps but does not enforce an episode step limit."""
