@@ -179,9 +179,11 @@ current instruction without exposing native task state.
 
 ## Refreshing copied Kinex workspaces
 
-Use `tools/prepare_kinex_workspace.py` and `ROBOENV_ENDPOINT` as described in
-[local Kinex setup](kinex-local.md). Copy profiles, typed drivers, shared transport,
-and runtime helpers together; preserve connection and calibration settings.
+From the agent workspace, use `roboenv setup ROBOT_ID --force` and
+`ROBOENV_ENDPOINT` as described in [local Kinex setup](kinex-local.md).
+This replaces `.kinex/workspace.yaml` and the entire `.kinex/devices/` collection,
+including profiles, typed drivers, and shared helpers. Save custom connection and
+calibration settings before replacement and reapply them afterward.
 Portable persistent drivers use correlated JSONL requests and may reply out of
 order. Reload Kinex devices after refreshing their files, and restart owned
 RoboEnv services to load runtime changes. Borrowed worlds stay under their owner's
