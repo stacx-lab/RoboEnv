@@ -5,6 +5,34 @@ import json
 from pathlib import Path
 
 
+def validate_scene_loading(scene):
+    """Require the selected native template's support floors before an episode."""
+    path = Path(scene.scene_file)
+    data = path.read_bytes()
+    template = json.loads(data)
+    expected = sorted(
+        name for name, info in template["objects_info"]["init_info"].items()
+        if info["args"].get("category") == "floors"
+    )
+    loaded = sorted(obj.name for obj in scene.objects if obj.category == "floors")
+    missing = sorted(set(expected) - set(loaded))
+    if scene.load_room_instances is not None or not expected or missing:
+        raise ValueError(
+            "BEHAVIOR requires the full native scene: "
+            f"room filter={scene.load_room_instances}, missing floors={missing}, "
+            f"expected floor count={len(expected)}"
+        )
+    return {
+        "schema": "roboenv/behavior-scene-loading/1",
+        "template_file": path.name,
+        "template_sha256": hashlib.sha256(data).hexdigest(),
+        "load_room_instances": scene.load_room_instances,
+        "expected_floor_names": expected,
+        "loaded_floor_names": loaded,
+        "missing_floor_names": missing,
+    }
+
+
 def restore_instance(env, robot, instance_id):
     """Follow the native evaluator's task-state, robot-pose and settling order.
 

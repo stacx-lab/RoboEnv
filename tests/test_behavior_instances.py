@@ -5,7 +5,37 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-from roboenv_runtime.adapters.behavior.instances import restore_instance
+from roboenv_runtime.adapters.behavior.instances import restore_instance, validate_scene_loading
+
+
+def test_scene_loading_requires_template_floors_including_connecting_rooms(tmp_path):
+    path = tmp_path / "native_template.json"
+    path.write_text(json.dumps({"objects_info": {"init_info": {
+        "kitchen_floor": {"args": {"category": "floors"}},
+        "corridor_floor": {"args": {"category": "floors"}},
+        "table": {"args": {"category": "breakfast_table"}},
+    }}}))
+    scene = SimpleNamespace(scene_file=str(path), load_room_instances=None, objects=[
+        SimpleNamespace(name="kitchen_floor", category="floors"),
+        SimpleNamespace(name="corridor_floor", category="floors"),
+        SimpleNamespace(name="table", category="breakfast_table"),
+    ])
+    report = validate_scene_loading(scene)
+    assert report["expected_floor_names"] == ["corridor_floor", "kitchen_floor"]
+    assert report["loaded_floor_names"] == report["expected_floor_names"]
+    assert report["missing_floor_names"] == []
+    assert report["template_file"] == path.name
+    assert len(report["template_sha256"]) == 64
+    scene.load_room_instances = ["kitchen_0"]
+    with pytest.raises(ValueError, match="room filter"):
+        validate_scene_loading(scene)
+    scene.load_room_instances = None
+    scene.objects.pop(1)
+    with pytest.raises(ValueError, match="missing floors=.*corridor_floor"):
+        validate_scene_loading(scene)
+    path.write_text(json.dumps({"objects_info": {"init_info": {}}}))
+    with pytest.raises(ValueError, match="expected floor count=0"):
+        validate_scene_loading(scene)
 
 
 def fixture(monkeypatch, tmp_path, *, generic=True):

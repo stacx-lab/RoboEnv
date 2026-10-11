@@ -13,7 +13,7 @@ from roboenv_runtime.adapters.device_control import DeviceControl
 from roboenv_runtime.adapters.urdf_geometry import matrix
 
 from .backend import BehaviorBackend, fix_cache_env
-from .instances import restore_instance
+from .instances import restore_instance, validate_scene_loading
 from .rig import array, describe
 
 
@@ -114,6 +114,7 @@ class BehaviorDevices(BehaviorBackend):
             if isinstance(sensor, VisionSensor):
                 sensor.camera_parameters
         instance = restore_instance(self.env, self.robot, self.activity_instance_id)
+        scene_loading = validate_scene_loading(self.env.scene)
         if not np.isclose(og.sim.get_physics_dt(), 1 / 120) or not np.isclose(
             og.sim.get_sim_step_dt(), self.control_interval
         ):
@@ -172,6 +173,7 @@ class BehaviorDevices(BehaviorBackend):
             "scene_model": self.scene_model,
             "activity_instance_id": self.activity_instance_id,
             "instance": instance,
+            "scene_loading": scene_loading,
             "seed_selects_instance": False,
             "wall_time_s": time.monotonic() - started,
             "rig": provenance,
