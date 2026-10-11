@@ -105,11 +105,12 @@ def test_isaac_eula_default_preserves_explicit_environment(
 
 
 @pytest.mark.parametrize(
-    "task_name,native_horizon",
-    [("xmove-pick", 800), ("transfer-between-tables", 1200), ("bend-pick", 800)],
+    "task_name,native_horizon,max_steps",
+    [("xmove-pick", 800, None), ("transfer-between-tables", 1200, None),
+     ("bend-pick", 800, None), ("xmove-pick", 800, 15_000)],
 )
-def test_simple_stepped_budget_is_10000_for_each_task(
-    monkeypatch, tmp_path, task_name, native_horizon
+def test_simple_stepped_budget_uses_configured_horizon(
+    monkeypatch, tmp_path, task_name, native_horizon, max_steps
 ):
     task = resolve_task("simple/" + task_name).task
     env_id = task.backend_kwargs["env_id"]
@@ -124,24 +125,41 @@ def test_simple_stepped_budget_is_10000_for_each_task(
     monkeypatch.setattr(backend, "verify_assets", lambda root: tmp_path)
     robot_sha256 = json.loads(FACTS.read_text())["robot_sha256"]
     monkeypatch.setattr(backend, "digest", lambda path: robot_sha256)
-    world = backend.SimpleEnv(env_id=env_id, sim_mode="mujoco")
+    kwargs = {} if max_steps is None else {"max_steps": max_steps}
+    maximum = 10_000 if max_steps is None else max_steps
+    adapter = SimpleAdapter(env_id=env_id, sim_mode="mujoco", **kwargs)
+    world = adapter._env
     assert world.execution_mode == "realtime" and world.max_steps is None
-    world.configure_execution_mode("stepped")
-    assert world.max_steps == 10_000
+    adapter.configure_execution_mode("stepped")
+    assert world.max_steps == adapter.budget().max == maximum
     monkeypatch.setattr(world, "_step", lambda targets: ({}, 0.0, False, False, {}))
     world.steps = native_horizon - 1
     world.advance({})
     assert not world.done
-    world.steps = 9998
+    if maximum > 10_000:
+        world.steps = 9999
+        world.advance({})
+        assert not world.done and world.steps == 10_000
+    world.steps = maximum - 2
     world.advance({})
     assert not world.done
     world.advance({})
-    assert world.done and world.steps == 10_000 and world.timestamp == 200.0
+    assert world.done and world.steps == maximum and world.timestamp == maximum / 50
+    assert adapter.budget().used == adapter.budget().max == maximum
     with pytest.raises(ValueError, match="terminated"):
         world.advance({})
-    assert world.steps == 10_000
-    world.configure_execution_mode("realtime")
-    assert world.max_steps is None
+    assert world.steps == maximum
+    adapter.configure_execution_mode("realtime")
+    assert world.max_steps is None and adapter.budget().max is None
+
+
+@pytest.mark.parametrize("max_steps", [0, -1, True, 1.5, None, "15000"])
+def test_simple_invalid_budget_fails_before_source_or_asset_access(monkeypatch, max_steps):
+    monkeypatch.setattr(
+        backend, "repo_root", lambda: pytest.fail("invalid budget accessed sources")
+    )
+    with pytest.raises(ValueError, match="max_steps"):
+        SimpleAdapter(max_steps=max_steps)
 
 
 def test_three_examples_and_twelve_native_teleop_registrations():

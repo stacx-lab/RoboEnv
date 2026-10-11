@@ -31,6 +31,7 @@ def replay(record):
         dr_level=metadata["dr_level"],
         initialization=json.loads(metadata["state_dict_json"]),
         stabilize_steps=metadata["stabilize_steps"],
+        **({"max_steps": record["budget"]["max"]} if mode == "stepped" else {}),
     )
     try:
         world.configure_execution_mode(mode)

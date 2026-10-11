@@ -53,8 +53,10 @@ to obtain the upstream instruction for the actual running scene.
 | `open-trash-can` | `G1WholebodyOpenTrashCanTeleop-v0` |
 
 These tasks default to **realtime**, without an episode step cap. Explicitly
-selecting `--execution-mode stepped` uses RoboEnv's existing practice budget of
-10,000 control intervals / 200 simulation seconds. This common practice budget
+selecting `--execution-mode stepped` defaults to 10,000 control intervals /
+200 simulation seconds. Set `backend_kwargs.max_steps` to a positive integer
+in the task YAML to choose another stepped budget; 15,000 intervals at 50 Hz
+provide 300 simulation seconds, excluding standing initialization. This practice budget
 is distinct from each upstream task's metadata horizon. Domain randomization defaults
 to native level 0; levels 1 and 2 remain selectable. Seed defaults to 0, rendering
 to `mujoco_isaac`, and arm gravity compensation to enabled.
@@ -317,8 +319,9 @@ Realtime advances continuously; stepped advances during world waits.
 Independent devices share each tick;
 new commands replace prior motion on the same device. Stop cancels that device's active and
 queued commands, zeroing base travel or holding measured joints. It retains peer
-targets and posture. Stepped has a 10,000-control-step budget (200 simulated
-seconds); realtime removes the step cap. Native non-timeout termination conditions
+targets and posture. Stepped uses the configured `max_steps` budget (default:
+10,000 control intervals / 200 simulated seconds); realtime removes the step cap.
+Native non-timeout termination conditions
 remain active in both modes.
 Reads, status, stop, recording and local FK/IK never advance physics.
 
