@@ -141,8 +141,9 @@ class BehaviorBackend:
         cfg["task"]["activity_instance_id"] = self.activity_instance_id
         cfg["task"]["termination_config"]["max_steps"] = self.max_steps
         cfg["scene"]["scene_model"] = self.scene_model
-        # loading only the task's rooms keeps boot time sane; whole scene when unknown
-        cfg["scene"]["load_room_types"] = self.challenge.get("rooms") or None
+        # Task room labels omit connecting spaces and their supporting floors.
+        # Preserve the native scene instead of using those labels as a load filter.
+        cfg["scene"]["load_room_types"] = None
         return cfg
 
     def boot(self) -> None:

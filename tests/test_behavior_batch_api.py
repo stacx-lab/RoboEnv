@@ -9,6 +9,21 @@ from roboenv_runtime.adapters.behavior import backend
 from roboenv_runtime.adapters.behavior.devices import BehaviorDevices
 
 
+@pytest.mark.parametrize("rooms", [["living_room", "garage"], ["kitchen"], []])
+def test_task_room_labels_do_not_filter_native_scene(monkeypatch, rooms):
+    monkeypatch.setattr(backend, "load_challenge_index", lambda: {
+        "activity": {"scene_model": "house", "rooms": rooms},
+    })
+    world = backend.BehaviorBackend("activity", activity_instance_id=2, max_steps=9000)
+    config = world.build_config()
+    assert config["scene"]["load_room_types"] is None
+    assert config["scene"]["load_room_instances"] is None
+    assert config["scene"]["scene_model"] == "house"
+    assert config["task"]["activity_name"] == "activity"
+    assert config["task"]["activity_instance_id"] == 2
+    assert config["task"]["termination_config"]["max_steps"] == 9000
+
+
 @pytest.mark.parametrize("count", [1, 2])
 def test_boot_selects_the_only_scene_and_robot(monkeypatch, count):
     monkeypatch.setattr(os, "environ", dict(os.environ))
