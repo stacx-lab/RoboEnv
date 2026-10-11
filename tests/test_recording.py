@@ -151,6 +151,7 @@ def test_video_uses_simulation_timestamps_and_holds_missing_frames(tmp_path, ren
     recorder.close(0.5, capture=False)
     result = manifest(path)
     assert result["status"] == "complete" and result["encoded_frames"] == 6
+    assert result["represented_samples"] == result["received_samples"] == 2
     frames = decode(path).mean(axis=(1, 2))
     assert np.all(frames[:3, 0] > 240) and np.all(frames[3:, 1] > 240)
     mapping = [json.loads(line) for line in (path / "frames.jsonl").read_text().splitlines()]
@@ -159,6 +160,33 @@ def test_video_uses_simulation_timestamps_and_holds_missing_frames(tmp_path, ren
         {"source_time_s": 0.3, "frame_start": 3, "frame_stop": 6},
     ]
     assert renderer.closed and not recorder.process.is_alive()
+
+
+@pytest.mark.parametrize("mode,end", [
+    ("stepped", 0.2), ("stepped", 4 / 30), ("stepped", 5 / 30),
+    ("realtime", 0.2), ("realtime", 4 / 30),
+])
+def test_terminal_capture_preserves_each_sample_in_the_final_bin(tmp_path, renderer, mode, end):
+    path = tmp_path / "video"
+    recorder = Recorder(SimpleNamespace(execution_mode=mode), path, {})
+    renderer.color = [0, 255, 0]
+    recorder.tick(0.1)
+    renderer.color = [0, 0, 255]
+    recorder.close(end)
+    result = manifest(path)
+    assert result["status"] == "complete" and result["error"] is None
+    assert result["dropped_samples"] == 0
+    assert result["captured_samples"] == result["accepted_samples"] == 3
+    assert result["received_samples"] == result["represented_samples"] == 3
+    assert result["encoded_frames"] == 3
+    assert result["end_time_s"] == end
+    pixels = decode(path).mean(axis=(1, 2))
+    np.testing.assert_allclose(pixels, np.eye(3) * 255, atol=3)
+    mapping = [json.loads(line) for line in (path / "frames.jsonl").read_text().splitlines()]
+    assert mapping == [
+        {"source_time_s": timestamp, "frame_start": index, "frame_stop": index + 1}
+        for index, timestamp in enumerate((0.0, 0.1, end))
+    ]
 
 
 def test_stalled_encoder_drops_without_blocking_and_preserves_duration(tmp_path, renderer):

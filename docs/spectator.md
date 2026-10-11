@@ -58,6 +58,14 @@ roboenv launch simple/xmove-pick --record
 ```
 
 Video dimensions must be even. Views and FPS stay fixed for the episode.
+
+Every sample received by the encoder is represented in the video, including an
+off-grid terminal capture that shares a frame interval with the previous sample.
+This can add one real sample frame to the constant-rate video; no artificial
+terminal hold is added. `frames.jsonl` records the authoritative simulation sample
+times and their encoded frame ranges. `represented_samples` counts distinct
+encoded samples, whereas `encoded_frames` also includes holds across sampling gaps.
+
 Unknown views, invalid settings and unavailable encoders fail requested recording
 startup before the service becomes ready.
 
