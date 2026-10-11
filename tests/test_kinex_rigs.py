@@ -13,7 +13,10 @@ from helpers import kinex_sources, load_tool
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize("task,count", [("simple/xmove-pick", 8), ("libero/bowl-onto-plate", 5)])
+@pytest.mark.parametrize("task,count", [
+    ("simple/xmove-pick", 8), ("libero/bowl-onto-plate", 5),
+    ("isaaclab/roboballet-eight-arm", 12),
+])
 def test_packaged_rig_validation_does_not_silently_drop_invalid_profiles(tmp_path, task, count):
     kinex, _ = kinex_sources()
     node = shutil.which(os.environ.get("NODE", "node"))
@@ -32,7 +35,7 @@ def test_packaged_rig_validation_does_not_silently_drop_invalid_profiles(tmp_pat
     checked = validate()
     assert checked.returncode == 0, checked.stdout + checked.stderr
     assert json.loads(checked.stdout)["results"][0]["profiles"] == count
-    arm = "left_arm" if task.startswith("simple") else "arm"
+    arm = {"simple": "left_arm", "isaaclab": "arm1"}.get(task.split("/")[0], "arm")
     profile = workspace / ".kinex/devices" / arm / "profile.yaml"
     value = yaml.safe_load(profile.read_text())
     value["type"] = "invalid-device-type"
