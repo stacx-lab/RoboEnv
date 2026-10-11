@@ -27,8 +27,15 @@ recording and owner-stop path passes in both clocks; neither establishes task su
 There is no browser preview or offline replay fallback.
 
 Defaults are **10 simulation-time FPS**, height **720**, and the source camera's
-aspect ratio. LIBERO and RoboCasa select `third_person` and `wrist`; RoboTwin,
-RoboDojo and BEHAVIOR select `third_person`, `left_wrist` and `right_wrist`.
+aspect ratio. LIBERO and RoboCasa select `third_person` and `wrist`; RoboTwin
+and RoboDojo select `third_person`, `left_wrist` and `right_wrist`. BEHAVIOR
+selects `left_wrist`, `right_wrist` and `overview`: an external 65-degree view
+following the base position with a world-upright horizon. Read-only scene rays
+shorten the camera distance at walls and ceilings and select another bearing
+when it offers at least 0.5 m more clearance. Clutter can still obscure objects;
+the wrist views retain manipulation detail. This replaces only BEHAVIOR's
+default trunk recording view. Explicit `source: "third_person"` still selects
+its trunk camera; agent devices and other backends retain their original views.
 These are separate spectator cameras; changing their resolution does not resize
 agent observations. SIMPLE instead records the existing `camera_head_left` and
 `camera_head_right` frames at their native 640×360 resolution in both
