@@ -25,7 +25,7 @@ def _encode(directory, views, fps, executable, frames, finished, accepted, end_t
     """No simulator imports or handles cross this process boundary."""
     parent = os.getppid()
     encoders = []
-    received = written = 0
+    received = written = represented = 0
     error = None
     try:
         with (directory / "encoder.log").open("wb") as diagnostics:
@@ -55,13 +55,14 @@ def _encode(directory, views, fps, executable, frames, finished, accepted, end_t
             with (directory / "frames.jsonl").open("w") as timeline:
 
                 def write_until(stop):
-                    nonlocal written
+                    nonlocal written, represented
                     start = written
                     while written < stop and previous is not None:
                         for view, encoder in zip(views, encoders, strict=True):
                             encoder.stdin.write(previous[view.name].tobytes())
                         written += 1
                     if written > start:
+                        represented += 1
                         timeline.write(json.dumps({
                             "source_time_s": source_time, "frame_start": start,
                             "frame_stop": written,
@@ -74,11 +75,13 @@ def _encode(directory, views, fps, executable, frames, finished, accepted, end_t
                         if os.getppid() != parent:
                             raise RuntimeError("recording owner exited") from None
                         continue
-                    write_until(math.floor(timestamp * fps + 1e-8))
+                    # An off-grid terminal capture can share the previous sample's
+                    # CFR bin. Write that sample before replacing it, even then.
+                    write_until(max(written + 1, math.floor(timestamp * fps + 1e-8)))
                     previous, source_time = images, timestamp
                     received += 1
                 # Include the endpoint and hold the latest image across dropped samples.
-                write_until(math.floor(end_time.value * fps + 1e-8) + 1)
+                write_until(max(written + 1, math.floor(end_time.value * fps + 1e-8) + 1))
             for encoder in encoders:
                 encoder.stdin.close()
             for encoder in encoders:
@@ -93,7 +96,8 @@ def _encode(directory, views, fps, executable, frames, finished, accepted, end_t
             encoder.wait()
             pids[index] = 0
         with contextlib.suppress(BrokenPipeError, EOFError):
-            reply.send({"encoded_frames": written, "received_samples": received, "error": error})
+            reply.send({"encoded_frames": written, "received_samples": received,
+                        "represented_samples": represented, "error": error})
         reply.close()
 
 
