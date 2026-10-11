@@ -43,7 +43,7 @@ For another task use another task ID. For parallel trials use different ports
 and separate Kinex processes with different `ROBOENV_ENDPOINT` values. Both
 can use byte-identical copies of the same robot configuration.
 
-## 2. Copy into a fresh Kinex workspace (terminal B, RoboEnv checkout)
+## 2. Set up a Kinex workspace (terminal B, RoboEnv checkout)
 
 The following variables resolve the sibling Kinex source checkout and create
 an isolated workspace for this run. Keep this terminal open for the later steps.
@@ -53,10 +53,27 @@ source .venv/bin/activate
 roboenv_repo="$PWD"
 kinex_repo="$(realpath ../kinex)"
 trial_workspace="$(mktemp -d "$roboenv_repo/.cache/kinex-local.XXXXXX")"
-cp -R catalog/robots/robocasa/robocasa-panda-omron "$trial_workspace/.kinex"
 cd "$trial_workspace"
+roboenv setup robocasa/robocasa-panda-omron
 export ROBOENV_ENDPOINT=http://127.0.0.1:8123
 ```
+
+For an existing agent workspace, change into that directory and run the same
+`roboenv setup` command. Setup creates `.kinex/` when missing, then exports the
+robot's `workspace.yaml` and complete portable `devices/` collection. It needs no
+running simulator and does not install dependencies or create task instructions.
+Use `roboenv setup --list` to see the available simulator/robot IDs. `--project`
+selects a RoboEnv checkout; `--catalog` selects a catalog containing `robots/`.
+Neither option changes the destination, which is always the current directory's
+`.kinex/`. A standalone wheel needs an explicit checkout or catalog. Add `--json`
+for machine-readable output.
+
+Existing `workspace.yaml` or `devices/` entries cause setup to fail without changes.
+Use `roboenv setup ROBOT_ID --force` to replace both entries, including custom
+profiles, connection files, and devices from a previous robot. Save any custom
+configuration you want to retain first. Other `.kinex/` content, such as Python
+environments, tools, and recordings, is preserved. Connect using `ROBOENV_ENDPOINT`
+as above, and reload the devices in Kinex after replacing their configuration.
 
 Use a working Kinex installation with its TUI dependencies already installed
 (see the sibling README). Exported profiles use Kinex's workspace Python. Remote device access

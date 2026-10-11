@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-COMMANDS = {"prepare", "doctor", "launch", "status", "stop"}
+COMMANDS = {"setup", "prepare", "doctor", "launch", "status", "stop"}
 
 
 def add_commands(commands):
@@ -12,6 +12,7 @@ def add_commands(commands):
         parser = commands.add_parser(
             name,
             help={
+                "setup": "Export a robot into the current workspace's .kinex directory",
                 "prepare": "Install or reuse one isolated simulator environment",
                 "doctor": "Explain simulator readiness and next steps",
                 "launch": "Start a task and wait for its devices",
@@ -21,6 +22,17 @@ def add_commands(commands):
         )
         parser.add_argument("--project", type=Path)
         parser.add_argument("--json", action="store_true", help="Machine-readable output")
+        if name == "setup":
+            selection = parser.add_mutually_exclusive_group(required=True)
+            selection.add_argument(
+                "robot", nargs="?", help="simulator/robot ID (see roboenv setup --list)"
+            )
+            selection.add_argument("--list", action="store_true", help="List available robot IDs")
+            parser.add_argument("--catalog", type=Path, help="Source catalog containing robots/")
+            parser.add_argument(
+                "--force", action="store_true",
+                help="Replace .kinex/workspace.yaml and the entire .kinex/devices directory",
+            )
         if name in {"prepare", "doctor"}:
             parser.add_argument("simulator")
         if name == "prepare":
@@ -139,6 +151,29 @@ def emit(value, *, machine=False):
 
 
 def execute(args):
+    if args.command == "setup":
+        from roboenv.devices.workspace import list_robots, setup_robot
+
+        if args.list:
+            if args.force:
+                raise ValueError("--force requires a robot ID, not --list")
+            result = {"robots": list_robots(project=args.project, catalog=args.catalog)}
+            if args.json:
+                emit(result, machine=True)
+            else:
+                print("\n".join(result["robots"]))
+        else:
+            result = setup_robot(
+                args.robot, project=args.project, catalog=args.catalog, force=args.force
+            )
+            if args.json:
+                emit(result, machine=True)
+            else:
+                print(
+                    f"Robot: {result['robot']}\nDestination: {result['destination']}\n"
+                    f"Devices: {', '.join(result['devices'])}"
+                )
+        return 0
     if args.command in {"prepare", "doctor"}:
         from roboenv.provisioning.setup import doctor, prepare
 

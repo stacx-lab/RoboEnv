@@ -76,7 +76,18 @@ Any coding agent can use the Python SDK or CLI. Export a
 frames, and camera conventions.
 
 [Kinex](https://github.com/stacx-lab/kinex) can also use the supplied device
-catalogs; follow [local Kinex setup](docs/kinex-local.md) to prepare a workspace.
+catalogs. From your agent workspace, use the activated RoboEnv CLI:
+
+```sh
+roboenv setup --list
+roboenv setup robocasa/robocasa-panda-omron
+export ROBOENV_ENDPOINT=http://127.0.0.1:8123
+```
+
+Setup creates `.kinex/` if needed and exports `workspace.yaml` and `devices/`.
+Existing robot configuration is protected; `--force` replaces both entries,
+including all existing devices, while preserving other workspace content.
+Follow [local Kinex setup](docs/kinex-local.md) for connection and dependency setup.
 RoboEnv owns simulation, device execution, budgets, and native verdicts.
 The harness owns reasoning, model configuration, permissions, and controller programs.
 
