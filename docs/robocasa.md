@@ -103,7 +103,7 @@ stepped advances during world waits.
 roboenv launch robocasa/pick-place-microwave
 ```
 
-See [the common execution contract](../DESIGN.md#one-world-one-execution-authority)
+See [the common execution contract](simulator-integration.md#execution-and-cancellation)
 for schemas, timing, cancellation and native controller support.
 
 ## Catalog and generation

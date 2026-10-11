@@ -1,4 +1,98 @@
-# Agent-neutral device documentation
+# Device access and agent-neutral documentation
+
+Any coding agent can connect through the SDK or CLI. RoboEnv exposes a task and
+its devices; the harness owns reasoning, programs, permissions, and scheduling.
+Kinex is optional, and the SDK/runtime do not depend on it.
+
+## Public API
+
+```python
+import roboenv
+
+with roboenv.connect("http://127.0.0.1:8123") as env:
+    print(env.task.instruction)
+    print(env.devices())
+    print(env.device("arm").read())
+```
+
+| API | Meaning |
+| --- | --- |
+| `env.task` | Immutable snapshot of public task ID, instruction, and permitted context |
+| `env.refresh_task()` | Refresh that snapshot for native instruction transitions |
+| `env.devices()` | Declared device profiles and supported operations |
+| `env.device(name)` | Handle for a declared device; unknown names fail |
+| `device.profile` | Configuration and capabilities for that device |
+| Device operation | Device data directly, or a structured failure |
+
+Closing an attached client releases its resources, including downloaded images,
+without stopping the world. Clients pin episode identity: reusing a port cannot
+redirect an established client's commands into a replacement episode. See
+[launch and ownership](setup.md#start-a-task).
+
+New integrations default to sensor-only observations. Robot state and declared
+measurements are public; object poses, scene seeds, scoring, journals, and owner
+snapshots stay private. Task context must follow the backend's explicit observation
+policy. A world device exposes its clock and static reference-frame profile, not
+an arbitrary simulator dispatcher or general scene-state API. See the
+[public service boundary](simulator-integration.md#6-preserve-the-public-service-boundary).
+
+## Device operations and frames
+
+Read the live descriptor for supported operations. Sensor reads never advance
+physics. Actuator writes require `duration_s` and return immediately with an
+execution identity and measured state. Joint/hand `actions` contain absolute joint
+vectors; gripper/suction `actions` are flat numeric sequences, including `[value]`
+for a single command. Velocity writes use named axes, for example:
+
+```python
+base.write(mode="drive", velocity={"vx": 0.05, "vy": 0, "wz": 0}, duration_s=0.5)
+```
+
+Consult the profile for units, bounds, supported modes, and stop scope. Use
+`env.device("world").read()` for `time_s` and `.wait(duration_s)` to wait in
+simulation time. In stepped mode, pending waits drive shared native ticks; reads
+and writes do not request ticks. Independent devices can write concurrently.
+Planning and measured arrival checks belong to the harness. See
+[execution and cancellation](simulator-integration.md#execution-and-cancellation)
+for buffers, clocks, budgets, replacement, and failure handling.
+
+Joint, hand, and scalar-gripper reads omit `frame_poses`. Velocity reads and
+write-result states omit global `pose`, and their profiles omit
+`feedback.pose_frame` and fixed world mounts. Available body measurements such as
+height and local frames remain public. World-relative transforms require explicit
+estimates; bases are unlocalized roots.
+
+Static frames use `{parent_frame, translation_m, rotation_xyzw}`. Null parent means
+the device base; null transform components mean unknown. Joint `kinematics.frame`
+and hand geometry define computed frames. `intrinsics.frames` contains additional
+references, including fixed descendants of computed frames. Moving transforms
+come from FK at measured joint positions, not a fabricated static transform.
+
+Exported Kinex joint drivers provide local `fk(joints, frame=..., reference_frame=...)`
+and `ik(pose, seed=..., frame=..., reference_frame=...)`. Defaults are the modeled
+endpoint and device base; results include both frame names. Fixed endpoint
+descendants and fixed base references are supported. FK accepts measured joint-limit
+overshoot without clamping. Omitting an IK seed needs only a joint-state read;
+solving does not mutate the simulator. Joint-only devices need no solver, and
+advertised FK/IK must work. Kinex's Python helpers and PyYAML support these drivers;
+the agent environment needs no simulator engine or RoboEnv SDK.
+
+Hand geometry may describe fingers, optional kinematic chains, and a weighted
+center. Moving links name model joints; fixed links contain an origin. Chains
+start at the device base with explicit tip offsets. Palm/grasp references are
+ordinary fixed frames. Description-only geometry does not advertise FK; a center
+requires fingers and predicts geometry, not contact or grasp success. See
+[scalar gripper geometry](grippers.md) for the separate gripper contract.
+
+Observations use a finite numeric `timestamp` in seconds in the device's clock;
+RoboEnv uses simulation time. Use acquisition time, or receipt time if unavailable.
+Combined observations use the latest component time, while cached readings retain
+the original time. A camera must work before the first motion, with files surviving
+one-shot driver exit. Image dimensions must match the profile. RGB-D requires
+registered metric depth and calibration. IDs are opaque; generated identifiers use
+16 random hexadecimal characters with any existing prefix.
+
+## Export a device reference
 
 `roboenv.devices.documentation` exports a language reference for coding agents
 that connect through the RoboEnv SDK or CLI. It does not depend on an agent framework.
@@ -38,6 +132,8 @@ Kinex-style file drivers remain a separate projection through
 create those resources. That projection places a single `_roboenv.py` in the
 shared `devices/` root, alongside the individual device directories.
 
+## Camera conventions
+
 Camera projection uses integer pixel centers: the top-left pixel is `(0, 0)`.
 For a centered image the principal point is `((width - 1) / 2, (height - 1) / 2)`.
 Registered depth is optical-axis Z in the profile's declared units, sampled at
@@ -74,7 +170,20 @@ supports artifacts larger than the existing in-memory response limit. Exported
 Kinex drivers accept the same option; arrays cross their JSON boundary as base64
 and are decoded in the calling Kinex Python runtime.
 
+## Changing task instructions
+
 For tasks with changing instructions, call `env.refresh_task()` between stages.
 It updates `env.task` through the existing public description endpoint.
 `roboenv describe` and copied Kinex workspaces' `python task.py` read the same
 current instruction without exposing native task state.
+
+## Refreshing copied Kinex workspaces
+
+Use `tools/prepare_kinex_workspace.py` and `ROBOENV_ENDPOINT` as described in
+[local Kinex setup](kinex-local.md). Copy profiles, typed drivers, shared transport,
+and runtime helpers together; preserve connection and calibration settings.
+Portable persistent drivers use correlated JSONL requests and may reply out of
+order. Reload Kinex devices after refreshing their files, and restart owned
+RoboEnv services to load runtime changes. Borrowed worlds stay under their owner's
+lifecycle control. Update custom consumers to numeric `timestamp`; old-field
+aliases are not supported.

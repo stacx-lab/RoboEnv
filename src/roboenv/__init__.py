@@ -1,6 +1,6 @@
 """Agent-independent environment access. No agent or simulator imports at startup."""
 
-__version__ = "0.10.5"
+__version__ = "1.0.0"
 
 
 def connect(*args, **kwargs):

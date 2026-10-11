@@ -2,7 +2,8 @@
 
 RoboEnv provides agent-independent robotics environments: simulator workers,
 device APIs, task discovery, budgets, and benchmark verification.
-Read README.md first; use docs/setup.md for installation and
+Read README.md first; docs/README.md indexes the design contracts.
+Use docs/setup.md for installation and
 docs/device-documentation.md for coding-agent integration.
 
 ## Layout
