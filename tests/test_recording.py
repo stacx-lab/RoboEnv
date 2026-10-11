@@ -6,6 +6,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 from types import SimpleNamespace
 
@@ -176,6 +177,50 @@ def test_stalled_encoder_drops_without_blocking_and_preserves_duration(tmp_path,
         recorder.close(2, capture=False)
     assert manifest(path)["encoded_frames"] == 21
     assert len(decode(path)) == 21
+
+
+def test_stepped_recording_retains_samples_during_temporary_encoder_stall(tmp_path, renderer):
+    path = tmp_path / "video"
+    recorder = Recorder(SimpleNamespace(execution_mode="stepped"), path, {})
+    os.kill(recorder.process.pid, signal.SIGSTOP)
+    resume = threading.Timer(0.3, os.kill, args=(recorder.process.pid, signal.SIGCONT))
+    resume.start()
+    try:
+        for index in range(1, 21):
+            renderer.color = [index * 10, 0, 0]
+            recorder.tick(index / 10)
+        recorder.close(2, capture=False)
+    finally:
+        resume.join()
+        if recorder.process.is_alive():
+            os.kill(recorder.process.pid, signal.SIGCONT)
+        recorder.close(2, capture=False)
+    result = manifest(path)
+    assert result["status"] == "complete" and result["dropped_samples"] == 0
+    assert result["overflow_policy"] == "bounded_backpressure"
+    assert result["captured_samples"] == result["received_samples"] == 21
+    pixels = decode(path).mean(axis=(1, 2))
+    assert len(pixels) == 21
+    np.testing.assert_allclose(pixels[1:, 0], np.arange(1, 21) * 10, atol=3)
+
+
+def test_stepped_encoder_stall_has_bounded_failure_without_failing_world(tmp_path, renderer):
+    worker = SimWorker(FakeShell(), task_id="toy", seed=0, run_dir=tmp_path,
+                       execution_mode="stepped", recording={})
+    recorder = worker._recorder
+    os.kill(recorder.process.pid, signal.SIGSTOP)
+    started = time.monotonic()
+    try:
+        worker.world.resolve(worker.world.wait(0.6))
+        assert time.monotonic() - started < 9
+        assert worker.world.time_s == pytest.approx(0.6)
+        assert worker.world.failure is None
+        result = manifest(tmp_path / "recording")
+        assert result["status"] == "incomplete"
+        assert "sample deadline" in result["error"]
+        assert not recorder.process.is_alive()
+    finally:
+        worker.close()
 
 
 @pytest.mark.parametrize("failure", ["death", "stall", "disk"])

@@ -116,11 +116,13 @@ class Recorder:
         self.closed = False
         self.next_sample = 0.0
         self.last_sample = None
+        self.lossless = getattr(adapter, "execution_mode", "realtime") == "stepped"
         self.summary = {
             "schema": "roboenv/recording/1", "experimental": True,
             "status": "incomplete", "state": "starting", "clock": "simulation",
             "fps": self.fps, "views": [asdict(v) for v in self.renderer.views],
             "captured_samples": 0, "dropped_samples": 0,
+            "overflow_policy": "bounded_backpressure" if self.lossless else "drop",
         }
         ctx = mp.get_context("spawn")
         self.frames = ctx.Queue(maxsize=2)
@@ -161,10 +163,18 @@ class Recorder:
         self.summary["captured_samples"] += 1
         self.last_sample = timestamp
         try:
-            self.frames.put_nowait((timestamp, images))
+            if self.lossless:
+                # Waiting changes wall time only: stepped physics stays frozen.
+                # Bound encoder failure so recording cannot indefinitely block
+                # the owner lane or alter the authoritative native verdict.
+                self.frames.put((timestamp, images), timeout=2)
+            else:
+                self.frames.put_nowait((timestamp, images))
             self.accepted.value += 1
         except queue.Full:
             self.summary["dropped_samples"] += 1
+            if self.lossless:
+                raise RuntimeError("Recording encoder exceeded the 2 second sample deadline") from None
         self.next_sample = (math.floor(timestamp * self.fps + 1e-8) + 1) / self.fps
 
     def tick(self, timestamp):

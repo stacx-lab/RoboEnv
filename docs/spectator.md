@@ -58,6 +58,12 @@ roboenv launch simple/xmove-pick --record
 ```
 
 Video dimensions must be even. Views and FPS stay fixed for the episode.
+
+In stepped mode, sampling applies up to two seconds of encoder backpressure:
+physics stays frozen while the bounded queue drains. An encoder that does not
+recover marks recording incomplete instead of silently losing a sample. Realtime
+sampling remains nonblocking and reports dropped samples in the manifest. Smooth
+video timestamps alone do not prove that every source sample was captured.
 Unknown views, invalid settings and unavailable encoders fail requested recording
 startup before the service becomes ready.
 
