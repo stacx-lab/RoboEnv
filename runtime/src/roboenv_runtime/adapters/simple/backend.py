@@ -34,7 +34,10 @@ class SimpleEnv:
         dr_level=0,
         initialization=None,
         stabilize_steps=300,
+        max_steps=10_000,
     ):
+        if type(max_steps) is not int or max_steps < 1:
+            raise ValueError("max_steps must be a positive control-interval count")
         if type(arm_gravity_compensation) is not bool:
             raise ValueError("arm_gravity_compensation must be a boolean")
         self.arm_gravity_compensation = arm_gravity_compensation
@@ -60,8 +63,7 @@ class SimpleEnv:
         self.env_id, self.sim_mode, self.dr_level = env_id, sim_mode, dr_level
         self.initial_state = copy.deepcopy(initialization)
         self.stabilize_steps = stabilize_steps
-        # RoboEnv's practice protocol uses a shared 200-second stepped budget.
-        self.configured_max_steps = 10_000
+        self.configured_max_steps = max_steps
         self.max_steps = None
         os.environ["SIMPLE_DATA_DIR"] = str(data)
         os.environ["SIMPLE_OFFLINE"] = "1"
