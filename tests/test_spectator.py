@@ -7,7 +7,13 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from roboenv_runtime.spectator import CameraSource, SpectatorRenderer, ViewSpec
+from roboenv_runtime.spectator import (
+    CameraSource,
+    SpectatorRenderer,
+    ViewSpec,
+    create_spectator_renderer,
+)
+from roboenv_runtime.spectator.behavior import Engine as BehaviorEngine
 from roboenv_runtime.spectator.isaac import Engine as IsaacEngine
 from roboenv_runtime.spectator.mujoco import Engine as MujocoEngine
 from roboenv_runtime.spectator.sapien import Engine as SapienEngine
@@ -127,6 +133,98 @@ def test_behavior_view_roles_follow_mounts_not_camera_numbers():
     assert engine.sources["left_wrist"].native is sensors["camera_2"]
     assert engine.sources["third_person"].native is sensors["camera_1"]
     assert engine.sources["right_wrist"].native is sensors["camera_0"]
+
+
+@pytest.mark.parametrize("backend", [
+    "abc", "libero", "robocasa", "robotwin", "robodojo", "behavior", "simple", "isaaclab",
+])
+def test_only_behavior_replaces_default_recording_view(monkeypatch, backend):
+    engine = Engine()
+    engine.sources = {name: CameraSource(None, 640, 480) for name in (
+        "left_wrist", "right_wrist", "third_person",
+    )}
+    if backend == "behavior":
+        engine.sources["overview"] = CameraSource(None, 640, 480, fov_y=65)
+    imported = []
+
+    def module(name):
+        imported.append(name)
+        return SimpleNamespace(Engine=lambda adapter: engine)
+
+    monkeypatch.setattr("roboenv_runtime.spectator.import_module", module)
+    adapter = SimpleNamespace(name=backend, _env=SimpleNamespace(camera_backend="mujoco"))
+    renderer = create_spectator_renderer(adapter)
+    expected = ["left_wrist", "right_wrist",
+                "overview" if backend == "behavior" else "third_person"]
+    assert [v.source for v in renderer.views] == expected
+    assert imported[0].endswith(".behavior") == (backend == "behavior")
+    assert [(v.width, v.height) for v in renderer.views] == (
+        [(640, 480)] * 3 if backend == "simple" else [(960, 720)] * 3
+    )
+    # An explicit request for the original trunk view remains supported.
+    custom = create_spectator_renderer(adapter, [ViewSpec("trunk", source="third_person")])
+    assert [(v.name, v.source) for v in custom.views] == [("trunk", "third_person")]
+
+
+def test_behavior_overview_follows_physical_base_with_upright_horizon(monkeypatch):
+    position = np.array([1., 2., 3.])
+    tensor = SimpleNamespace(cpu=lambda: SimpleNamespace(numpy=lambda: position.copy()))
+    robot = SimpleNamespace(base_footprint_link_name="base", links={
+        "base": SimpleNamespace(get_position_orientation=lambda: (tensor, None)),
+    })
+    engine = BehaviorEngine.__new__(BehaviorEngine)
+    engine.world = SimpleNamespace(robot=robot)
+    engine._overview_direction = 0
+    monkeypatch.setattr(engine, "_clearance", lambda target, direction, radius: radius)
+    view = ViewSpec("overview", source="overview")
+    first = engine.view_transform(view)
+    target = position + [0, 0, .9]
+    assert np.allclose(first[:3, :3].T @ first[:3, :3], np.eye(3))
+    assert np.linalg.det(first[:3, :3]) == pytest.approx(1)
+    assert np.allclose((target - first[:3, 3]) / np.linalg.norm(target - first[:3, 3]),
+                       -first[:3, 2])
+    assert first[2, 0] == 0 and first[2, 1] > 0
+    position[:] += [2, -1, .5]
+    second = engine.view_transform(view)
+    assert np.allclose(second[:3, :3], first[:3, :3])
+    assert np.allclose(second[:3, 3] - first[:3, 3], [2, -1, .5])
+
+
+def test_behavior_overview_avoids_occlusion_without_unnecessary_bearing_changes(monkeypatch):
+    tensor = SimpleNamespace(cpu=lambda: SimpleNamespace(numpy=lambda: np.zeros(3)))
+    engine = BehaviorEngine.__new__(BehaviorEngine)
+    engine.world = SimpleNamespace(robot=SimpleNamespace(base_footprint_link_name="base", links={
+        "base": SimpleNamespace(get_position_orientation=lambda: (tensor, None)),
+    }))
+    engine._overview_direction = 0
+    clearances = iter([.8, 2., 1., 1., 1., 1., 1., 1.])
+    monkeypatch.setattr(engine, "_clearance", lambda *args: next(clearances))
+    view = ViewSpec("overview", source="overview")
+    transform = engine.view_transform(view)
+    assert engine._overview_direction == 1
+    assert np.linalg.norm(transform[:3, 3] - [0, 0, .9]) == pytest.approx(2.)
+    clearances = iter([2.3, 2., 1., 1., 1., 1., 1., 1.])
+    assert np.allclose(engine.view_transform(view), transform)
+
+
+@pytest.mark.parametrize("hit, expected", [({"hit": False}, 3.),
+                                         ({"hit": True, "distance": 1.2}, 1.)])
+def test_behavior_overview_rays_exclude_robot_and_keep_wall_margin(monkeypatch, hit, expected):
+    engine = BehaviorEngine.__new__(BehaviorEngine)
+    engine.world = SimpleNamespace(robot=SimpleNamespace(links={
+        "base": SimpleNamespace(prim_path="/robot/base"),
+        "arm": SimpleNamespace(prim_path="/robot/arm"),
+    }))
+    calls = []
+
+    def raytest(start, end, **kwargs):
+        calls.append((start, end, kwargs))
+        return hit
+
+    monkeypatch.setitem(sys.modules, "omnigibson.utils.sampling_utils",
+                        SimpleNamespace(raytest=raytest))
+    assert engine._clearance(np.zeros(3), np.array([1, 0, 0]), 3.) == pytest.approx(expected)
+    assert calls == [([0., 0., 0.], [3., 0., 0.], {"ignore_bodies": ["/robot/base", "/robot/arm"]})]
 
 
 @pytest.mark.parametrize("fail_write", [False, True])
