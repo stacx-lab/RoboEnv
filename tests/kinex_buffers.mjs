@@ -25,13 +25,13 @@ try {
     access: { connection: { kind: 'url', url: endpoint, device: 'world' }, driver: { interpreter, persistent: true,
       actions: ['load', 'unload', 'read', 'wait', 'status'], timeout_s: 5 } } })
   await (await runtime.devices.load('world')).ready
-  const tool = path.join(directory, '.kinex/tool/buffer-probe')
+  const tool = path.join(directory, '.kinex/tools/buffer-probe')
   await mkdir(tool, { recursive: true })
   await writeFile(path.join(tool, 'tool.yaml'), `name: buffer_probe\nkind: controller\ndescription: Execute concurrent buffers.\ninterpreter: ${interpreter}\nparameters: {type: object, properties: {}}\n`)
   await writeFile(path.join(tool, 'tool.py'), `from kinex import device, devices, finish
-commands = [{'device': name, 'action': 'write', 'args': {'actions': values, 'duration_s': 1}} for name, values in {'left': [[.1], [.2], [.3]], 'right': [[-.1], [-.2], [-.3]]}.items()]
-results = devices(commands)
-device('world', 'wait', duration_s=1)
+commands = [{'deviceID': name, 'action': 'write', 'args': {'actions': values, 'duration_s': 1}} for name, values in {'left': [[.1], [.2], [.3]], 'right': [[-.1], [-.2], [-.3]]}.items()]
+results = devices(commands)["results"]
+device('world', 'wait', {'duration_s': 1})
 finish({'results': results})
 `)
   const result = await runtime.tools.call('buffer_probe', {}, { sessionID: 'buffers' })
@@ -44,11 +44,11 @@ finish({'results': results})
   const rounded = await runtime.devices.dispatch('left', 'write', { actions: [[.1], [.3]], duration_s: 2 / 3 })
   assert.ok(!('elapsed_s' in rounded.data))
   await runtime.devices.dispatch("world", "wait", { duration_s: 2 / 3 })
-  const fallback = path.join(directory, '.kinex/tool/fallback-probe')
+  const fallback = path.join(directory, '.kinex/tools/fallback-probe')
   await mkdir(fallback, { recursive: true })
   await writeFile(path.join(fallback, 'tool.yaml'), `name: fallback_probe\nkind: controller\ndescription: Exercise upper-layer goal planning.\ninterpreter: ${interpreter}\nparameters: {type: object}\n`)
   await writeFile(path.join(fallback, 'tool.py'), await readFile(path.join(kinex, 'packages/core/assets/builtin/tool/servo/tool.py')))
-  const reached = await runtime.tools.call('fallback_probe', { device: 'right', joints: [-.5] }, { sessionID: 'fallback' })
+  const reached = await runtime.tools.call('fallback_probe', { device: 'right', joints: [-.5], block: false }, { sessionID: 'fallback' })
   assert.ok(!reached.isError, reached.output)
   const goal = JSON.parse(reached.output)
   assert.deepEqual(goal.joints, [-.5])

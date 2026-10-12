@@ -10,7 +10,7 @@ results = {}
 for side in ("left", "right"):
     name, arm = side + "_hand", side + "_arm"
     hand = profile(name)
-    state = device(name)["data"]
+    state = device(name)
     predicted = forward(hand, state["positions"])
     assert "frame_poses" not in state
     for frame, pose in predicted.items():
@@ -20,7 +20,7 @@ for side in ("left", "right"):
     reference = frames.pose(name + ":grasp_reference", arm + ":flange")
     arm_profile = profile(arm)
     joint = JointDevice(arm_profile)
-    seed = joint.project(device(arm)["data"]["positions"])
+    seed = joint.project(device(arm)["positions"])
     wrist = joint.fk(seed)["pose"]
     desired_reference = compose_rt(xyzq_to_rt(wrist), pose_to_rt(reference))
     desired_wrist = flat(compose_rt(desired_reference, invert_rt(pose_to_rt(reference))))
