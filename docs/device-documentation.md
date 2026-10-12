@@ -177,6 +177,17 @@ It updates `env.task` through the existing public description endpoint.
 `roboenv describe` and copied Kinex workspaces' `python task.py` read the same
 current instruction without exposing native task state.
 
+The description's `task.native_instruction` is the simulator's own text (empty
+when unavailable); `task.instruction` falls back to the launch catalog when that
+text is absent. `task.context` exposes only declared public language facts, such
+as sampled object names, colors, target burner, or assigned arm. Reading these
+facts does not resample the scene or language. It does not expose object poses,
+seeds, or scoring state.
+
+A benchmark harness may own a separate catalog goal. It can bind that goal's
+declared fields from `task.context` after initialization, before starting an
+agent. RoboEnv does not rewrite that goal or combine it with native wording.
+
 ## Refreshing copied Kinex workspaces
 
 From the agent workspace, use `roboenv setup ROBOT_ID --force` and

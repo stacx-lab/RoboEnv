@@ -116,6 +116,30 @@ def test_worker_binds_native_devices_without_executing_public_drivers(robot, tmp
         worker.close()
 
 
+@pytest.mark.parametrize("native_goal", ["Move the cylinder left of the car.", "", None])
+def test_describe_keeps_catalog_fallback_and_sampled_context(
+    robot, tmp_path, monkeypatch, native_goal
+):
+    adapter = FakeShell()
+    monkeypatch.setattr(adapter, "goal", lambda: native_goal)
+    context = {"objects": {"A": {"description": "yellow cylinder"},
+                           "B": {"description": "teal car"}}}
+    monkeypatch.setattr(adapter, "task_context", lambda: context)
+    worker = SimWorker(adapter, task_id="test", seed=0, run_dir=tmp_path / "run", device_root=robot)
+    catalog_goal = "Place object A to the left of object B."
+    worker.devices.manifest["task"] = {"id": "test", "instruction": catalog_goal}
+    try:
+        for _ in range(2):
+            task = worker.dispatch("environment.describe", {})["task"]
+            assert task["instruction"] == (native_goal or catalog_goal)
+            assert task["native_instruction"] == (native_goal or "")
+            assert task["context"] == context
+        assert adapter.budget().used == 0
+        assert worker.devices.manifest["task"]["instruction"] == catalog_goal
+    finally:
+        worker.close()
+
+
 def test_reset_rebinds_devices_but_preserves_sequence(robot, tmp_path):
     worker = SimWorker(
         FakeShell(), task_id="test", seed=0, run_dir=tmp_path / "run", device_root=robot

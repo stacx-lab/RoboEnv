@@ -114,7 +114,21 @@ Camera stream recording requires `ffmpeg`: Kinex encodes each recorded camera to
 
 Confirm `devices/` exists and contains arm, base, torso, gripper, camera_left, camera_right,
 camera_wrist, and world for this example. There is no public composite robot device.
-The task instruction is available through `roboenv.connect(ROBOENV_ENDPOINT).task`.
+For standalone task solving, read the running episode before starting the agent:
+
+```sh
+roboenv describe --endpoint "$ROBOENV_ENDPOINT"
+```
+
+Give Kinex the returned `task.instruction` and `task.context`, or ask it to read
+them through this command in a shell with the RoboEnv CLI available. `instruction`
+uses the initialized native goal when present and otherwise the selected RoboEnv
+task catalog text; `native_instruction` preserves the native text separately.
+`context` includes sampled object roles and side assignments where needed.
+The Python SDK exposes the same instruction and context through
+`roboenv.connect(ROBOENV_ENDPOINT).task`; call `env.refresh_task()` when a task
+changes its goal during the episode. No RLE-Bench workspace is required.
+
 For these direct calls before starting Kinex, prepare its separate Python project
 explicitly. Kinex uses `.kinex/python/.venv`; ordinary shell environments remain
 independent. Existing environments need explicit dependency updates.

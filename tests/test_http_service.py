@@ -2,11 +2,14 @@
 
 import http.client
 import json
+import subprocess
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlsplit
 
 import pytest
+import roboenv
 from roboenv.client import Client, RemoteError, UncertainResult
 
 
@@ -42,6 +45,31 @@ def test_identity_discovery_is_read_only_and_checks_endpoint(http_client):
         finally:
             conn.close()
     assert unix.request("observe")["budget"]["used"] == 0
+
+
+@pytest.mark.parametrize("device_service", ["http"], indirect=True)
+def test_standalone_cli_and_sdk_receive_native_goal_without_benchmark(http_client, tmp_path):
+    client, unix, _ = http_client
+    result = subprocess.run(
+        [sys.executable, "-m", "roboenv.cli.main", "describe", "--endpoint", client.endpoint],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    task = json.loads(result.stdout)["task"]
+    assert task["id"] == "fakeshell/device-toy"
+    # The fixture catalog says only "Push the puck."; native supplies the target.
+    assert task["instruction"] == task["native_instruction"] == "Push the puck to x >= 0.3."
+    assert task["context"] == {}
+    with roboenv.connect(client.endpoint) as env:
+        assert env.task.id == task["id"]
+        assert env.task.instruction == task["instruction"]
+        assert env.refresh_task().instruction == task["instruction"]
+        assert unix.request("observe")["budget"]["used"] == 0
+        env.device("controller").write(target=[0.3])
+    assert unix.request("score.peek")["completed"]
 
 
 @pytest.mark.parametrize("device_service", ["http"], indirect=True)
