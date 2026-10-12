@@ -1,6 +1,6 @@
 id: robodojo/general-pickup
 robot: robodojo/robodojo-arx-x5
-instruction: Complete the episode's pickup instruction (read the scene)
+instruction: Pick up the <target> by 10 cm.
 seed: 0
 budget_mode: practice
 execution_mode: realtime

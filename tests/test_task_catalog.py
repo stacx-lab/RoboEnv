@@ -12,6 +12,56 @@ from roboenv.tasks.resolve import resolve_task
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_robodojo_discovery_reads_inherited_native_instruction(tmp_path):
+    from roboenv.tasks.catalog import _robodojo
+
+    base = tmp_path / "third_party/RoboDojo/task/RoboDojo"
+    (base / "config").mkdir(parents=True)
+    (base / "tasks").mkdir()
+    (base / "config/play.yml").write_text("{}")
+    source = base / "tasks/play.py"
+    source.write_text('''
+raise RuntimeError("Discovery must never execute simulator source")
+class Common:
+    def gen_instruction(self, env_idx):
+        return ["Pick up the mallet and strike all xylophone keys from left to right."]
+class play(Common):
+    """Internal simulator implementation, not a task instruction."""
+''')
+    task, _ = next(_robodojo(tmp_path, []))
+    assert task.instruction == (
+        "Pick up the mallet and strike all xylophone keys from left to right."
+    )
+    source.write_text("class play:\n    pass\n")
+    with pytest.raises(ValueError, match="lacks a native instruction"):
+        list(_robodojo(tmp_path, []))
+
+
+def test_native_dynamic_language_retains_wording_and_repeated_fields():
+    import ast
+
+    from roboenv.tasks.instructions import language_template
+
+    node = ast.parse('f"Put {cat0} in the left basket, then return to {cat0}."', mode="eval").body
+    assert language_template(node) == "Put {cat0} in the left basket, then return to {cat0}."
+
+
+def test_robocasa_missing_docstring_uses_inherited_episode_language():
+    import ast
+
+    from roboenv.tasks.instructions import robocasa_instruction
+
+    tree = ast.parse('''
+class Common:
+    def get_ep_meta(self):
+        ep_meta["lang"] = f"Open the {self.fxtr.nat_lang} door."
+class OpenDoor(Common):
+    pass
+''')
+    classes = {node.name: node for node in tree.body}
+    assert robocasa_instruction(classes, "OpenDoor") == "Open the {nat_lang} door."
+
+
 def test_discovery_emits_namespaced_catalog_with_explicit_clock(tmp_path, monkeypatch):
     from roboenv.tasks import catalog
 

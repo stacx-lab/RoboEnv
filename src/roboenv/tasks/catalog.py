@@ -14,6 +14,7 @@ import yaml
 from roboenv.project import project_root
 from roboenv.provisioning.sources import load_lock, status
 from roboenv.tasks.artifacts import Bundle
+from roboenv.tasks.instructions import robocasa_instruction, robodojo_instruction
 from roboenv.tasks.model import Task
 
 BACKENDS = ("abc", "libero", "robocasa", "robotwin", "robodojo", "behavior", "isaaclab", "simple")
@@ -110,10 +111,7 @@ def _robocasa(root, issues):
                 continue
             seen.add(alias.name)
             instruction = (ast.get_docstring(classes[alias.name]) or "").split("\n\n")[0].strip()
-            instruction = (
-                instruction
-                or f"Complete the benchmark task {alias.name}; inspect the live environment goal."
-            )
+            instruction = instruction or robocasa_instruction(classes, alias.name)
             yield (
                 _task("robocasa", alias.name, {"task_name": alias.name}, instruction),
                 path,
@@ -167,8 +165,7 @@ def _robodojo(root, issues):
         cls = next((n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == name), None)
         if cls is None:
             continue
-        description = (ast.get_docstring(cls) or "").split("\n\n")[0].strip()
-        description = description or "Complete the benchmark task: " + name.replace("_", " ") + "."
+        description = robodojo_instruction(tree, name)
         yield (
             _task(
                 "robodojo",
