@@ -1,7 +1,7 @@
 id: simple/pick-and-place-and-hug-container
 robot: simple/simple-g1
-instruction: pick up the apple from table1,hug the container,walk to table2,and place  on
-  table2.
+instruction: pick up the apple from table1,hug the container,walk to table2,and place
+  the container on table2.
 seed: 0
 budget_mode: practice
 execution_mode: realtime
