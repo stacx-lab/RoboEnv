@@ -10,7 +10,7 @@ def readings(results):
     """Collect successful device observations; timestamps remain per device."""
     if any(not result["ok"] for result in results):
         raise ValueError("A device read failed")
-    return {result["device"]: result["data"] for result in results}
+    return {result["deviceID"]: result["data"] for result in results}
 
 
 def main():
@@ -34,8 +34,8 @@ def main():
             },
         },
     )
-    reads = [{"device": name, "action": "read"} for name in names]
-    initial = readings(devices(reads))
+    reads = [{"deviceID": name, "action": "read"} for name in names]
+    initial = readings(devices(reads)["results"])
     retained = {
         name: JointDevice(profile(name)).project(initial[name]["positions"]) for name in names[1:]
     }
@@ -44,13 +44,13 @@ def main():
     elapsed = 0.0
 
     def stop():
-        results = devices([{"device": name, "action": "stop"} for name in names])
+        results = devices([{"deviceID": name, "action": "stop"} for name in names])["results"]
         if any(not result["ok"] for result in results):
             raise ValueError("A component stop failed")
 
     try:
         for _ in range(options.get("steps", 50)):
-            before = readings(devices(reads))
+            before = readings(devices(reads)["results"])
             if any(state.get("faults") for state in before.values()):
                 raise ValueError("Device fault")
             targets = {"base": body, **retained}
@@ -61,13 +61,13 @@ def main():
                 targets[arm] = device(
                     arm,
                     "ik",
-                    pose=desired,
-                    seed=JointDevice(profile(arm)).project(before[arm]["positions"]),
-                )["data"]["joints"]
+                    {"pose": desired,
+                     "seed": JointDevice(profile(arm)).project(before[arm]["positions"])},
+                )["joints"]
             results = devices(
                 [
                     {
-                        "device": name,
+                        "deviceID": name,
                         "action": "write",
                         "args": {
                             **(target if name == "base" else {"actions": [target]}),
@@ -76,10 +76,10 @@ def main():
                     }
                     for name, target in targets.items()
                 ],
-            )
+            )["results"]
             if any(not result["ok"] for result in results):
                 raise ValueError("A component write failed")
-            elapsed += device("world", "wait", duration_s=segment_s)["data"]["waited_s"]
+            elapsed += device("world", "wait", {"duration_s": segment_s})["waited_s"]
             # Errors describe the observations from this iteration, not write receipts.
             for arm, goal in goals.items():
                 actual = frames.pose(f"{arm}:flange", goal["frame"], readings=before)
