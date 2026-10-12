@@ -29,7 +29,7 @@ Realtime runs have no episode step cap, so leaving the service idle while starti
 Kinex does not exhaust a native action-frame budget. Frames are still counted;
 `budget.max` is null. Use `--execution-mode stepped` when you want idle physics
 paused and the task's configured/native step limit enforced. Restart the service
-to pick up runtime changes, then `/reload all` in Kinex to refresh its connections.
+to pick up runtime changes, then `/unload all` and `/load all` in Kinex to refresh its connections.
 
 World `read` exposes native `action_frames` budgets as `budget: {used_s, max_s}`
 in seconds; `max_s` is null in realtime. Counted initialization frames are included,
@@ -86,7 +86,9 @@ one transport module per device collection, outside the individual device folder
 Drivers resolve it relative to their own file, so the working directory is irrelevant.
 When copying selected devices, include the collection's `_roboenv.py` once.
 
-Kinex `servo` plans locally and submits the complete joint trajectory. It accepts
+Kinex `servo` plans locally, submits the complete joint trajectory, and waits on
+the loaded world clock by default. Use `block: false` to submit without waiting
+and advance the world separately. It accepts
 no `duration_s`, `ik` or `max_joint_delta` argument. Refresh copied servo tools and
 Python helpers together. Direct device IK retains its optional seed; numerical
 retries use nearby seeds only. Rename profile `intrinsics.kinematics.ik.search`
@@ -99,7 +101,7 @@ that submission; failed cancellation requires recovery before further writes.
 Joint endpoints and hand geometry frames are declared by their models; remove
 their old null placeholders from `intrinsics.frames` when migrating profiles.
 Drivers use `persistent: true`: Kinex starts `driver.py --serve` once and reuses
-its configuration, kinematics model, and HTTP connection. `/reload <device>`
+its configuration, kinematics model, and HTTP connection. `/unload <device>` followed by `/load <device>`
 restarts the process after driver/profile/connection edits. Session and generation
 stay fixed until reload; a pinned `connection.json` must be updated when switching
 episodes. HTTP idle connections are recreated before the next request; lost replies

@@ -22,7 +22,7 @@ try {
   const target = [...before.positions]
   target[0] += 0.04
   const started = performance.now()
-  const motion = await call('servo', { device: 'arm', joints: target, speedFraction: 0.2 })
+  const motion = await call('servo', { device: 'arm', joints: target, block: false, speedFraction: 0.2 })
   const waited = await call('device', { deviceID: 'world', action: 'wait', compact: true, args: { duration_s: Math.max(2, motion.duration_s + 0.2) } })
   const after = await call('device', { deviceID: 'arm', action: 'read', compact: true })
   const wall_s = (performance.now() - started) / 1000

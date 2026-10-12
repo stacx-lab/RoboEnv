@@ -10,7 +10,7 @@ const runtime = createKinexRuntime({ directory, enableRecording: true, host: { a
 const boots = async () => (await readFile(path.join(directory, '.kinex/devices/controller/boots'), 'utf8')).trim().split('\n')
 try {
   await runtime.profiles.writeManifest({ identity: { id: 'cpu', name: 'CPU', platform: 'sim', kind: 'arm' } })
-  const tool = path.join(directory, '.kinex/tool/probe')
+  const tool = path.join(directory, '.kinex/tools/probe')
   await mkdir(tool, { recursive: true })
   await writeFile(path.join(tool, 'tool.yaml'), `name: probe\nkind: perception\ndescription: CPU integration\ninterpreter: ${python}\ntimeout_s: 5\n`)
   await writeFile(path.join(tool, 'tool.py'), 'from kinex import device,finish\nfinish(device("controller"))\n')

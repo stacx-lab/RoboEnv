@@ -24,7 +24,7 @@ try {
   const started = await runtime.recording.start({ sessionID: invocation.sessionID,
     instruction: 'LIBERO device smoke; no task success claim',
     specs: { camera: { rate: 3 }, camera_wrist: { rate: 3 }, arm: { rate: 5 } } })
-  const motion = await call('servo', { device: 'arm', joints: target, speedFraction: 0.2 })
+  const motion = await call('servo', { device: 'arm', joints: target, block: false, speedFraction: 0.2 })
   await runtime.devices.dispatch('world', 'wait', { duration_s: Math.max(2, motion.duration_s + 0.2) })
   const measured = (await runtime.devices.dispatch('arm', 'read')).data
   assert.ok(Math.abs(measured.positions[0] - target[0]) < .01)

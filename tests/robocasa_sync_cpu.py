@@ -59,7 +59,7 @@ def check(root, temporary):
             **profile,
             "resolved_model": {"joints": profile["intrinsics"]["model"]["joints"]},
         }
-        tool.device = lambda name, action, **args: {"data": call(name, action, **args)}
+        tool.device = lambda name, action="read", args=None: call(name, action, **(args or {}))
         tool.read = lambda name: call(name, "read")
         tool.stop_all = lambda names: [call(name, "stop") for name in names]
         import kinex.control
@@ -68,7 +68,7 @@ def check(root, temporary):
         goal = call("arm", "read")["positions"]
         goal[0] += 0.1
         before = native._step_count
-        tool.control({"device": "arm", "joints": goal})
+        tool.control({"device": "arm", "joints": goal, "block": False})
         assert native._step_count == before
         call("world", "wait", duration_s=5)
         np.testing.assert_allclose(call("arm", "read")["positions"], goal, atol=0.01)

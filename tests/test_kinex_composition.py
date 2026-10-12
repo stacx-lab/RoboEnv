@@ -42,7 +42,7 @@ def test_composition(monkeypatch, waist, failure):
 
     def dispatch(commands):
         calls.append(commands)
-        assert [c["device"] for c in commands] == names
+        assert [c["deviceID"] for c in commands] == names
         action = commands[0]["action"]
         assert {c["action"] for c in commands} == {action}
         if action == "write":
@@ -55,9 +55,9 @@ def test_composition(monkeypatch, waist, failure):
             assert all(
                 c["args"] == {"actions": [[0, 0, 0]], "duration_s": 0.1} for c in commands[1:]
             )
-        return [
+        return {"results": [
             {
-                "device": name,
+                "deviceID": name,
                 "ok": not (action == failure and len(calls) > 1),
                 "data": {
                     "positions": [0, 0, 0],
@@ -67,13 +67,13 @@ def test_composition(monkeypatch, waist, failure):
                 },
             }
             for name in names
-        ]
+        ]}
 
     kinex = Mock()
     kinex.args.return_value = {"steps": 3}
     kinex.profile.side_effect = profile
     kinex.devices.side_effect = dispatch
-    kinex.device.return_value = {"data": {"waited_s": 0.1}}
+    kinex.device.return_value = {"waited_s": 0.1}
     joints = Mock()
     joints.JointDevice.return_value.project.side_effect = list
     for name, module in {
@@ -99,7 +99,7 @@ def test_composition(monkeypatch, waist, failure):
         "stop",
     ]
     assert kinex.device.call_count == 3
-    kinex.device.assert_called_with("world", "wait", duration_s=0.1)
+    kinex.device.assert_called_with("world", "wait", {"duration_s": 0.1})
     kinex.finish.assert_called_once_with(
         {"steps": 3, "elapsed_s": pytest.approx(0.3), "errors": {}, "grasp_confirmed": False}
     )
