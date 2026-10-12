@@ -36,9 +36,9 @@ def check(args):
     tool("prepare_kinex_workspace").prepare(task, workspace, project=ROOT)
     shutil.copytree(
         ROOT / "tests/fixtures/device-composition",
-        workspace / ".kinex/tool/device-composition",
+        workspace / ".kinex/tools/device-composition",
     )
-    hand_tool = workspace / ".kinex/tool/hand-geometry-probe"
+    hand_tool = workspace / ".kinex/tools/hand-geometry-probe"
     hand_tool.mkdir()
     shutil.copy2(ROOT / "tests/simple_hand_tool.py", hand_tool / "tool.py")
     (hand_tool / "tool.yaml").write_text(

@@ -23,7 +23,7 @@ try {
   for (const name of cameras) {
     const camera = devices.find(device => device.name === name)
     assert.equal(camera.type, 'rgbd')
-    const reading = await runtime.devices.dispatch(name, 'read')
+    const reading = await runtime.devices.dispatch(name, 'read', { output: 'file' })
     assert.ok(Number.isFinite(reading.data.timestamp))
     const depth = await readFile(reading.data.depth_file)
     const header = Buffer.from('P5\n640 480\n65535\n')
@@ -37,7 +37,7 @@ try {
   const started = await runtime.recording.start({ sessionID: invocation.sessionID,
     instruction: 'ABC integration probe; no task success claim',
     specs: { camera_top: { rate: 3 }, camera_left: { rate: 3 }, camera_right: { rate: 3 }, left_arm: { rate: 5 } } })
-  const motion = await call('servo', { device: 'left_arm', joints: target, speedFraction: .2 })
+  const motion = await call('servo', { device: 'left_arm', joints: target, block: false, speedFraction: .2 })
   await runtime.devices.dispatch('world', 'wait', { duration_s: Math.max(1, motion.duration_s + .3) })
   const after = (await runtime.devices.dispatch('left_arm', 'read')).data
   assert.ok(Math.abs(after.positions[0] - target[0]) < .01)

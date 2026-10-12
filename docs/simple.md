@@ -273,7 +273,7 @@ from kinex.hand import forward
 from kinex.joints import JointDevice
 
 hand = profile("left_hand")
-state = device("left_hand")["data"]
+state = device("left_hand")
 tips_now = forward(hand, state["positions"])
 candidate = list(state["positions"])
 candidate[0] += 0.05
@@ -297,7 +297,7 @@ from kinex.motion import flat
 offset = frames.pose("left_hand:grasp_reference", "left_arm:flange")
 flange_goal = flat(compose_rt(xyzq_to_rt(desired_reference), invert_rt(pose_to_rt(offset))))
 arm = JointDevice(profile("left_arm"))
-seed = arm.project(device("left_arm")["data"]["positions"])
+seed = arm.project(device("left_arm")["positions"])
 solution = arm.ik(flange_goal, seed)  # Still no motion or collision guarantee.
 ```
 
