@@ -42,6 +42,11 @@ class RoboCasaAdapter(AdapterBase):
     def goal(self):
         return self._env.goal_text()
 
+    def task_context(self):
+        from .instructions import task_context
+
+        return task_context(self._env.task_name, self._env.env)
+
     def score(self):
         completed = self._env.task_completed()
         return ScoreReport(reward=float(completed), raw_score=float(completed), completed=completed)

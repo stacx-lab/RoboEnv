@@ -501,10 +501,12 @@ class SimWorker:
                         return self.devices.inventory()
                     description = self.devices.environment()
                     task = description.get("task", {})
+                    native_instruction = self.adapter.goal() or ""
                     return {
                         "task": {
                             "id": task.get("id", self.task_id),
-                            "instruction": self.adapter.goal() or task.get("instruction", ""),
+                            "instruction": native_instruction or task.get("instruction", ""),
+                            "native_instruction": native_instruction,
                             "context": self.adapter.task_context(),
                         },
                         "devices": description["devices"],

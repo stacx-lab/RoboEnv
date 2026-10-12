@@ -34,6 +34,11 @@ class RoboDojoAdapter(NativeDeviceAdapter):
             raise ValueError("Expected one cached native RoboDojo instruction")
         return instructions[0]
 
+    def task_context(self):
+        from .instructions import task_context
+
+        return task_context(self._env.task_name, self._env._env)
+
     def score(self):
         success = self._env.task_completed()
         # A graded task keeps RoboDojo's native score here, on its 0..100 scale (its scorer requires

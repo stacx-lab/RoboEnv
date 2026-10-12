@@ -265,6 +265,7 @@ def test_catalog_worker_binds_go2_devices(
         assert call(worker.devices, "world")["time_s"] == 0
         description = worker.dispatch("environment.describe", {})
         assert description["task"]["instruction"] == instruction
+        assert description["task"]["native_instruction"] == ""
     finally:
         worker.close()
 
