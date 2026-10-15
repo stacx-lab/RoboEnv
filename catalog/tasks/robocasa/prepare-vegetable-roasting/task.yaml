@@ -1,0 +1,9 @@
+id: robocasa/prepare-vegetable-roasting
+robot: robocasa/robocasa-panda-omron
+instruction: "Pick the {vegetable} from the fridge and hold it under running water from the sink faucet to wash it. Then place it on the tray next to the sink to prepare for roasting. Release it and move the gripper clear."
+seed: 0
+budget_mode: official
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: PrepareVegetableRoasting

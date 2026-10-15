@@ -1,0 +1,11 @@
+id: libero/libero-goal-01
+robot: libero/libero-panda-tabletop
+instruction: "Fully open the middle layer of the drawer"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_goal
+  task_id: 0
+  init_state_index: 0

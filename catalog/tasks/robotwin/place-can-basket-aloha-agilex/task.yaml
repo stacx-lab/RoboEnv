@@ -1,0 +1,12 @@
+id: robotwin/place-can-basket-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "use one arm to put the can inside the basket, then use the other arm to lift the basket with the can inside. Keep the basket upright and both the can and basket clear of the table"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: place_can_basket
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

@@ -1,0 +1,12 @@
+id: robotwin/grab-roller-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "use both grippers to grasp the roller and lift it well clear of the table. Keep both grippers closed while holding it up"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: grab_roller
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

@@ -1,0 +1,10 @@
+id: robodojo/align-blocks
+robot: robodojo/robodojo-arx-x5
+instruction: "Use the set square to push the three blocks into a straight, aligned row. Keep all three blocks on the table, then return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: align_blocks
+  env_cfg_type: arx_x5

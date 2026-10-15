@@ -1,0 +1,12 @@
+id: robotwin/beat-block-hammer-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "pick up the hammer and hit the center of the block"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: beat_block_hammer
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

@@ -1,0 +1,11 @@
+id: libero/libero-goal-10
+robot: libero/libero-panda-tabletop
+instruction: "Put the wine bottle on the upper rack, with its base against the lower rail"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_goal
+  task_id: 9
+  init_state_index: 0

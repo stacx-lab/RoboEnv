@@ -1,0 +1,11 @@
+id: libero/libero-10-08
+robot: libero/libero-panda-living-room
+instruction: "put both the blue-and-yellow alphabet soup can and the white-and-blue cream cheese box in the basket"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_10
+  task_id: 7
+  init_state_index: 0

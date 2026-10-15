@@ -1,0 +1,11 @@
+id: libero/libero-spatial-01
+robot: libero/libero-panda-tabletop
+instruction: "Pick the akita black bowl between the plate and the ramekin and place it in the center of the plate"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_spatial
+  task_id: 0
+  init_state_index: 0

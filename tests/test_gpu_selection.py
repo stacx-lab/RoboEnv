@@ -117,7 +117,7 @@ def test_direct_native_startup_resolves_current_mask(monkeypatch):
     assert os.environ["CUDA_VISIBLE_DEVICES"] == DEVICE["uuid"]
 
 
-@pytest.mark.parametrize("task", ["simple/xmove-pick", "libero/bowl-onto-plate"])
+@pytest.mark.parametrize("task", ["simple/xmove-pick", "libero/libero-spatial-01"])
 @pytest.mark.parametrize("acceptance", [None, "NO"])
 def test_launch_passes_selection_and_acceptance_only_to_owned_process(
     tmp_path, monkeypatch, task, acceptance,

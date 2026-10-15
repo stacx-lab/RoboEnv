@@ -1,0 +1,12 @@
+id: robotwin/stack-blocks-three-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "build a three-block stack at the center by placing the red block first, the green block on red, and the blue block on green"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: stack_blocks_three
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

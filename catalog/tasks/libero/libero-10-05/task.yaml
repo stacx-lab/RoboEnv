@@ -1,0 +1,11 @@
+id: libero/libero-10-05
+robot: libero/libero-panda-living-room
+instruction: "put the white mug in the center of the left plate and put the yellow and white mug in the center of the right plate"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_10
+  task_id: 4
+  init_state_index: 0

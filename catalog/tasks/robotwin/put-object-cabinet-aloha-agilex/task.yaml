@@ -1,0 +1,12 @@
+id: robotwin/put-object-cabinet-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "use one arm to hold the object and the other arm to open the bottom cabinet drawer. Set the object down near the center of the drawer interior and release it"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: put_object_cabinet
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

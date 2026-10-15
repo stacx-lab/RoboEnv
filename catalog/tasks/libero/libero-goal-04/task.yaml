@@ -1,0 +1,11 @@
+id: libero/libero-goal-04
+robot: libero/libero-panda-tabletop
+instruction: "Open the top layer of the drawer and put the bowl inside"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_goal
+  task_id: 3
+  init_state_index: 0

@@ -1,0 +1,12 @@
+id: robotwin/turn-switch-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "press the switch fully down"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: turn_switch
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

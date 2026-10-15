@@ -1,0 +1,10 @@
+id: robodojo/classify-objects-by-language
+robot: robodojo/robodojo-arx-x5
+instruction: "Put {cat0} objects into the left basket, {cat1} objects into the middle basket, and {cat2} objects into the right basket, then reset the robot arm."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: classify_objects_by_language
+  env_cfg_type: arx_x5

@@ -10,7 +10,7 @@ After [preparing RoboCasa](setup.md), launch a catalog task:
 
 ```sh
 roboenv prepare robocasa
-roboenv launch robocasa/pick-place-microwave --port 8123
+roboenv launch robocasa/filter-microwavable-item --port 8123
 ```
 
 Use separate ports for concurrent worlds, `--port 0` for automatic assignment, or
@@ -41,8 +41,8 @@ automatically retried.
 For two independent worlds, run these commands in separate terminals:
 
 ```sh
-roboenv launch robocasa/pick-place-microwave --port 8123
-roboenv launch robocasa/arrange-vegetables --port 8124
+roboenv launch robocasa/filter-microwavable-item --port 8123
+roboenv launch robocasa/load-condiments-in-fridge --port 8124
 ```
 
 Copy the same robot directory into two harness workspaces and set each process's
@@ -100,7 +100,7 @@ include faults and acquisition timestamps. Realtime continues while idle;
 stepped advances during world waits.
 
 ```sh
-roboenv launch robocasa/pick-place-microwave
+roboenv launch robocasa/filter-microwavable-item
 ```
 
 See [the common execution contract](simulator-integration.md#execution-and-cancellation)

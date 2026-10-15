@@ -1,0 +1,10 @@
+id: robodojo/organize-table
+robot: robodojo/robodojo-arx-x5
+instruction: "Place the alarm clock upright on the drawer, put the figurine upright on the stand, place the mouse on the mouse pad facing the monitor, and push the keyboard into the frame facing the robot. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: organize_table
+  env_cfg_type: arx_x5

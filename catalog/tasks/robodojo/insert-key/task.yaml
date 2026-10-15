@@ -1,0 +1,10 @@
+id: robodojo/insert-key
+robot: robodojo/robodojo-arx-x5
+instruction: "Pick up the key, hand it over to the other hand, insert it fully into the keyhole, then turn it clockwise."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: insert_key
+  env_cfg_type: arx_x5

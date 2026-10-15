@@ -1,0 +1,10 @@
+id: robodojo/fasten-screws
+robot: robodojo/robodojo-arx-x5
+instruction: "Seat each nut upright on the bolt of the same color. Fully open both grippers and return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: fasten_screws
+  env_cfg_type: arx_x5

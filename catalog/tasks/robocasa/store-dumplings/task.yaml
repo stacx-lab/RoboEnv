@@ -1,0 +1,9 @@
+id: robocasa/store-dumplings
+robot: robocasa/robocasa-panda-omron
+instruction: "Place two dumplings into each of the tupperware containers and then place both containers on a shelf in the fridge. Release the dumplings and containers and move the gripper clear of them."
+seed: 0
+budget_mode: official
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: StoreDumplings

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.parametrize("task,count", [
-    ("simple/xmove-pick", 8), ("libero/bowl-onto-plate", 5),
+    ("simple/xmove-pick", 8), ("libero/libero-spatial-01", 5),
     ("isaaclab/roboballet-eight-arm", 12),
 ])
 def test_packaged_rig_validation_does_not_silently_drop_invalid_profiles(tmp_path, task, count):

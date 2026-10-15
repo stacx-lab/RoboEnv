@@ -1,0 +1,10 @@
+id: robodojo/put-bottles-into-dustbin
+robot: robodojo/robodojo-arx-x5
+instruction: "Pick up the bottles and throw them into the dustbin, using handover when needed. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: put_bottles_into_dustbin
+  env_cfg_type: arx_x5

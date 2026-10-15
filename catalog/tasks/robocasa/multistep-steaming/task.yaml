@@ -1,0 +1,9 @@
+id: robocasa/multistep-steaming
+robot: robocasa/robocasa-panda-omron
+instruction: "Turn on the sink faucet. Move the {vegetable} from the counter into the sink while the water is running. Turn off the faucet, move the vegetable into the pot next to the stove, and move the pot to the {burner} burner."
+seed: 0
+budget_mode: official
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: MultistepSteaming

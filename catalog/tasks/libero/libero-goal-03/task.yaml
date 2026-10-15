@@ -1,0 +1,11 @@
+id: libero/libero-goal-03
+robot: libero/libero-panda-tabletop
+instruction: "Put the wine bottle on the top of the drawer"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_goal
+  task_id: 2
+  init_state_index: 0

@@ -1,0 +1,9 @@
+id: robocasa/divide-buffet-trays
+robot: robocasa/robocasa-panda-omron
+instruction: "Gather the {vegetables} from the fridge and place them on a tray on the dining counter. Then gather the {meats} from the fridge and place them on the other tray. Release the food and move the gripper clear of the food and both trays."
+seed: 0
+budget_mode: official
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: DivideBuffetTrays

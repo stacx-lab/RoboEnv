@@ -1,0 +1,10 @@
+id: robodojo/pour-balls-into-vase
+robot: robodojo/robodojo-arx-x5
+instruction: "Pour all the balls from the cup into the vase. Leave the cup upright. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: pour_balls_into_vase
+  env_cfg_type: arx_x5

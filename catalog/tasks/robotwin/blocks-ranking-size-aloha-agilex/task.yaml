@@ -1,0 +1,12 @@
+id: robotwin/blocks-ranking-size-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "move the three randomly colored blocks to the center of the table and arrange them in a close, straight row from largest to smallest, from left to right. Release them with both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: blocks_ranking_size
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

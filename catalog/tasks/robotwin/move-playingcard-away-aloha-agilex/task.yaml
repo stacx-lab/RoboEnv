@@ -1,0 +1,12 @@
+id: robotwin/move-playingcard-away-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "pick up the playing-card box and move it farther outward on its starting side, leaving both grippers open."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: move_playingcard_away
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

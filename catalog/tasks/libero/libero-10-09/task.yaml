@@ -1,0 +1,11 @@
+id: libero/libero-10-09
+robot: libero/libero-panda-kitchen
+instruction: "put both moka pots on the stove and turn the stove on"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_10
+  task_id: 8
+  init_state_index: 0

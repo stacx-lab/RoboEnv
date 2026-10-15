@@ -1,32 +1,27 @@
 # RoboEnv
 
-[Getting Started](#getting-started) · [Simulators](#supported-simulators) ·
-[Coding Agents](#using-roboenv-with-coding-agents) ·
-[Development](#contributing--development) · [Documentation](docs/README.md)
+RoboEnv runs robotics simulators behind a shared device API. It owns simulation,
+execution, budgets, and native task verdicts; your agent supplies the reasoning
+and programs.
 
-RoboEnv provides robotics simulation environments for Kinex and other coding
-agents, with shared device interfaces and native task verification.
+## Quick start
 
-## Getting Started
-
-Use a source checkout on Linux with Git and uv installed:
+Use Linux, Git, uv, and a compatible NVIDIA GPU for simulator runs:
 
 ```sh
 git clone https://github.com/stacx-lab/RoboEnv.git
 cd RoboEnv
 bash tools/bootstrap.sh
 source .venv/bin/activate
-roboenv prepare robocasa
-roboenv launch robocasa/pick-place-microwave --port 8123
+roboenv prepare robotwin
+roboenv launch robotwin/handover-block-aloha-agilex --port 8123
 ```
 
-Bootstrap creates the Python development environment. Preparation sets up the
-selected simulator separately and downloads its assets; RoboCasa needs about
-10 GB of kitchen assets. See [setup](docs/setup.md) for GPU prerequisites,
-other simulators, and asset requirements. Keep launch running while you connect;
-Ctrl-C stops the environment.
+Preparation downloads the selected simulator's dependencies and assets into an
+isolated environment. Keep launch running; Ctrl-C closes it. Tasks run in realtime
+by default. See [setup](docs/setup.md) for installation options and GPU requirements.
 
-In another terminal, activate the same environment and connect from Python:
+In another terminal, activate `.venv` and connect:
 
 ```python
 import roboenv
@@ -34,87 +29,60 @@ import roboenv
 with roboenv.connect("http://127.0.0.1:8123") as env:
     print(env.task.instruction)
     print(env.devices())
-    print(env.device("arm").read())
+    print(env.device("left_arm").read())
 ```
 
-The CLI exposes the same service:
+The CLI accesses the same devices:
 
 ```sh
-roboenv tasks list --simulator robocasa
+roboenv tasks list --simulator robotwin
 roboenv devices --endpoint http://127.0.0.1:8123
-roboenv device arm read '{}' --endpoint http://127.0.0.1:8123
-roboenv status --port 8123 --json
-roboenv --help
+roboenv device left_arm read '{}' --endpoint http://127.0.0.1:8123
 ```
 
-Tasks default to realtime; use `--execution-mode stepped` at launch for explicit
-simulation-time waits. See [device access](docs/device-documentation.md) for
-control semantics and [spectator recording](docs/spectator.md) for `--record`.
+See [device access](docs/device-documentation.md) for control and camera APIs.
+Add `--record` to launch for [spectator videos](docs/spectator.md).
 
-## Supported Simulators
+## Simulators
 
-| Backend | Integration and documentation |
+| Simulator | Guide |
 | --- | --- |
+| RoboTwin | [Aloha AgileX setup](docs/setup.md) |
 | RoboCasa | [Panda–Omron kitchen tasks](docs/robocasa.md) |
 | LIBERO | [Panda tasks and scene catalogs](docs/setup.md#libero-tasks) |
-| RoboTwin | [Bimanual task setup](docs/setup.md#prepare-a-simulator) |
-| RoboDojo | [ARX X5 task setup](docs/setup.md#prepare-a-simulator) |
-| BEHAVIOR | [Household tasks and asset setup](docs/setup.md#prepare-a-simulator) |
-| Isaac Lab | [Setup](docs/isaaclab.md), [Go2–D1](docs/go2-d1.md), and [YAM calibration](docs/yam-calibration.md) |
-| SIMPLE | [G1 tasks, control, and validation](docs/simple.md) |
-| ABC | [Bimanual YAM tasks and scoring](docs/abc.md) |
+| RoboDojo | [ARX X5 setup](docs/setup.md#prepare-a-simulator) |
+| BEHAVIOR | [Household task setup](docs/setup.md#prepare-a-simulator) |
+| Isaac Lab | [Setup](docs/isaaclab.md), [Go2–D1](docs/go2-d1.md), [YAM calibration](docs/yam-calibration.md) |
+| SIMPLE | [G1 tasks](docs/simple.md) |
+| ABC | [Bimanual YAM tasks](docs/abc.md) |
 
-Integration coverage, native task success, and replay validation are separate.
-See the backend guides and [validation guide](docs/gpu-validation.md) for evidence
-and current limits. Some device control interfaces are practice protocols.
+Native success and replay coverage vary by backend; see [validation](docs/gpu-validation.md).
 
-## Using RoboEnv with Coding Agents
+## Coding agents
 
-Launch an environment, then give the agent its public endpoint and instruction.
-Any coding agent can use the Python SDK or CLI. Export a
-[device reference](docs/device-documentation.md) for operation schemas, units,
-frames, and camera conventions.
+Give your agent the public endpoint and task instruction. It can use the Python
+SDK, CLI, or an exported [device reference](docs/device-documentation.md).
 
-[Kinex](https://github.com/stacx-lab/kinex) can also use the supplied device
-catalogs. From your agent workspace, use the activated RoboEnv CLI:
+For [Kinex](https://github.com/stacx-lab/kinex), run this in the agent workspace
+with the RoboEnv CLI available:
 
 ```sh
-roboenv setup --list
-roboenv setup robocasa/robocasa-panda-omron
+roboenv setup robotwin/robotwin-aloha-agilex
 export ROBOENV_ENDPOINT=http://127.0.0.1:8123
 ```
 
-Setup creates `.kinex/` if needed and exports `workspace.yaml` and `devices/`.
-Existing robot configuration is protected; `--force` replaces both entries,
-including all existing devices, while preserving other workspace content.
-Follow [local Kinex setup](docs/kinex-local.md) for connection and dependency setup.
-RoboEnv owns simulation, device execution, budgets, and native verdicts.
-The harness owns reasoning, model configuration, permissions, and controller programs.
+Setup exports the robot into `.kinex/` and protects existing configuration.
+See [local Kinex use](docs/kinex-local.md) for connection and recording.
 
-## Contributing & Development
+## Development
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md), then use the
-[documentation index](docs/README.md) for architecture and integration contracts.
-From the bootstrapped source checkout:
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md), then run:
 
 ```sh
 bash tools/check.sh
 ```
 
-This runs the CPU suite, privacy audit, and wheel checks. Native simulator
-validation is separate. See [release engineering](docs/releasing.md) for version
-synchronization and packaging checks; routine development does not publish artifacts.
-
-## Acknowledgements
-
-Thanks to the maintainers of [RoboCasa](https://github.com/robocasa/robocasa),
-[robosuite](https://github.com/ARISE-Initiative/robosuite),
-[LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO),
-[RoboTwin](https://github.com/RoboTwin-Platform/RoboTwin),
-[RoboDojo](https://github.com/RoboDojo-Benchmark/RoboDojo),
-[BEHAVIOR](https://github.com/StanfordVL/BEHAVIOR-1K),
-[Isaac Lab](https://github.com/isaac-sim/IsaacLab),
-[SIMPLE](https://github.com/physical-superintelligence-lab/SIMPLE), and
-[ABC](https://github.com/amazon-far/abc) for the simulators, tasks, and robot assets
-that make these integrations possible. See [third-party notices](docs/third-party-notices.md)
-for source provenance and applicable terms.
+This checks CPU behavior, privacy, and wheels. GPU validation is separate.
+The [documentation index](docs/README.md) links architecture and release contracts.
+See [third-party notices](docs/third-party-notices.md) for upstream acknowledgements
+and applicable terms.

@@ -1,0 +1,12 @@
+id: robotwin/pick-diverse-bottles-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "simultaneously pick up the two different bottles, one with each arm, and hold them high near the front center of the table, each on its original side"
+seed: 1
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: pick_diverse_bottles
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

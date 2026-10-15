@@ -1,0 +1,9 @@
+id: robocasa/filter-microwavable-item
+robot: robocasa/robocasa-panda-omron
+instruction: "Remove the {fruit} from the bowl and place it on the small plate. Then place the bowl with only the {meat} in the microwave, close the door, and press the start button to microwave the meat. Release the bowl and move the gripper clear of it."
+seed: 0
+budget_mode: official
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: FilterMicrowavableItem

@@ -1,0 +1,12 @@
+id: robotwin/move-stapler-pad-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "place the stapler straight in the center of the colored mat, leaving both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: move_stapler_pad
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

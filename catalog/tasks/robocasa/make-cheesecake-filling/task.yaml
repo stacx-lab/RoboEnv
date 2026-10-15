@@ -1,0 +1,9 @@
+id: robocasa/make-cheesecake-filling
+robot: robocasa/robocasa-panda-omron
+instruction: "Add the butter stick, sugar cube, and cream cheese stick to the stand mixer bowl, lower the mixer head fully, and turn the speed knob to begin making cheesecake filling."
+seed: 0
+budget_mode: official
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: MakeCheesecakeFilling

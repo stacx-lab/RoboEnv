@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def check(out):
-    task = yaml.safe_load(resolve_task("libero/bowl-onto-plate").path.read_text())
+    task = yaml.safe_load(resolve_task("libero/libero-spatial-01").path.read_text())
     task_path = out / "task.yaml"
     task_path.write_text(yaml.safe_dump(task))
     launch_options = {"catalog": ROOT / "catalog", "port": 0, "interpreter": sys.executable}

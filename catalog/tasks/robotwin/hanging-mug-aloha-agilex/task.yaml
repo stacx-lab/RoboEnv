@@ -1,0 +1,12 @@
+id: robotwin/hanging-mug-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "Use left arm to pick the mug on the table, rotate the mug and put the mug down in the middle of the table, use the right arm to pick the mug and hang it onto the rack."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: hanging_mug
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

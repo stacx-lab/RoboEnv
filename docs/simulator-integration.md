@@ -2,7 +2,7 @@
 
 Add a simulator by connecting its native devices to one RoboEnv world and shipping
 a reusable device catalog. This guide defines the architecture and integration
-contracts; [RoboCasa](robocasa.md) is the reference implementation.
+contracts, using [RoboTwin](../runtime/src/roboenv_runtime/adapters/robotwin/) as the example.
 
 Coding-agent workflows are defined in
 [integrate-simulator-kinex](../.agents/skills/integrate-simulator-kinex/SKILL.md)
@@ -25,7 +25,8 @@ See [agent integration](device-documentation.md) for SDK/CLI consumers and
 A new task does not need a new adapter when the existing backend and rig already
 support it. Changing device boundaries can require frame-interface support, not
 just new directories: moving sensors need a declared live parent frame. See
-[RoboCasa's catalog and frames](robocasa.md#catalog-and-generation) for the concrete rig.
+[RoboTwin’s Aloha AgileX catalog](../catalog/robots/robotwin/robotwin-aloha-agilex/)
+for a concrete rig.
 
 ## 1. Define the boundary
 
@@ -93,37 +94,25 @@ support. Keep observations explicit and owner-only. Register the adapter
 with `@register_adapter` and add its lazy module path to `BUILTIN_ADAPTERS`; import
 heavy packages only when starting the backend.
 
-The runtime no longer exports `Capability` or exposes adapter `capabilities`
-metadata. `AdapterBase.describe()` returns only `name` and `embodiment`; update
-consumers that imported those constants or read that field. Practice lifecycle
-supports reset only. The `checkpoint`/`restore` operations and `SupportsCheckpoint`
-interface have been removed; callers must reset or start a fresh run. Old rewind
-operations are rejected before execution, including in practice mode. Journal
-verification also rejects rewind operations in historical practice records.
-Simulation-status capability fields are separate and unchanged.
+Practice lifecycle supports reset. Rewind operations are rejected before execution
+and by journal verification. `AdapterBase.describe()` exposes `name` and
+`embodiment`; simulator status is a separate contract.
 
-Use [RoboCasa's adapter](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py)
-and [native bindings](../runtime/src/roboenv_runtime/bindings/backends/robocasa/)
-as examples. Register a fixed binding ID in the
-[runtime registry](../runtime/src/roboenv_runtime/bindings/__init__.py). Configuration
-must not select arbitrary Python imports.
+RoboTwin separates the implementation into these layers:
 
-Keep simulator-specific lifecycle and stepping in a backend wrapper, with a thin
-adapter connecting it to RoboEnv. RoboCasa separates these concerns as follows:
+| Reference | Role |
+| --- | --- |
+| [adapter.py](../runtime/src/roboenv_runtime/adapters/robotwin/adapter.py) | Task instruction, native verdict, and adapter identity |
+| [backend.py](../runtime/src/roboenv_runtime/adapters/robotwin/backend.py) | Native task lifecycle and simulation |
+| [devices.py](../runtime/src/roboenv_runtime/adapters/robotwin/devices.py) | Typed control, measurements, cameras, and native timing |
+| [native_devices.py](../runtime/src/roboenv_runtime/bindings/native_devices.py) | Shared bindings for native device backends |
+| [world.py](../runtime/src/roboenv_runtime/runtime/world.py) | Execution lock, command scheduling, and terminal freeze |
+| [_roboenv.py](../src/roboenv/assets/_roboenv.py) | Portable device transport |
 
-| Reference implementation | Role |
-|---|---|
-| [adapter.py](../runtime/src/roboenv_runtime/adapters/robocasa/adapter.py) | Adapter identity, reset/close, instruction, native verdict, budget, owner observation, and native control hooks |
-| [backend.py](../runtime/src/roboenv_runtime/adapters/robocasa/backend.py) | One native environment, controller setup, persistent goals, native intervals, and rendering |
-| [bindings/backends/robocasa/](../runtime/src/roboenv_runtime/bindings/backends/robocasa/) | Per-type bindings (joint, velocity, gripper, camera, world): entity selection, command validation, measurements, and basic actions |
-| [world.py](../runtime/src/roboenv_runtime/runtime/world.py) | Shared execution lock, command scheduling, and terminal freeze |
-| Typed client assets and [_roboenv.py](../src/roboenv/assets/_roboenv.py) | Per-type validation/local utilities and shared portable transport |
-
-The backend's internal helpers are not an agent API. In particular, RoboCasa's
-owner observation includes object poses; never publish it as a device read or
-public task context. Bind to the initialized episode. Native reset can replace
-robot/controller/model objects, so rebuild bindings and invalidate old handles
-rather than retaining references across episodes.
+Register fixed binding IDs in the [runtime registry](../runtime/src/roboenv_runtime/bindings/__init__.py);
+configuration must not select arbitrary Python imports. Bindings attach to the
+initialized episode. Reset may replace native objects, so rebuild bindings and
+invalidate old handles. Owner observations remain private.
 
 The [binding model](../src/roboenv/devices/model.py) defines `DeviceDefinition`,
 `Action`, `BoundDevice`, and `ExecutionContext`. A factory takes `(spec, root, context)`:
@@ -193,13 +182,12 @@ replacement claims the same physical resources; observations bypass motion admis
 
 ### Native controllers and local kinematics
 
-Configure native controllers to implement the advertised action space. RoboCasa
-selects absolute `JOINT_POSITION` control for the arm and absolute lift goals;
-copying an upstream Cartesian policy action vector would not implement this contract.
-Retain the native physics, observables, and task hooks when adapting goal updates.
-Compose all active parts before one native interval; separately stepping each part
-would change time and task dynamics. RoboCasa exposes only typed component devices; its native composite controller is
-an internal implementation detail. Do not expose a whole-robot action-vector shortcut.
+Configure native controllers to implement the advertised action space. RoboTwin
+uses absolute joint-position targets at 25 Hz over native 250 Hz physics, with
+separate arm and gripper devices. This is an explicit practice protocol.
+Preserve native physics, observations, and task hooks. Apply all active device
+targets in one shared interval; separately stepping each arm changes task timing.
+Whole-robot action vectors remain internal to the simulator.
 
 Expose `control_interval_s` and `advance_control` on the adapter. Each pending
 command yields between intervals; the world advances once for all active devices.
@@ -303,7 +291,7 @@ Extract stable facts from pinned robot/controller/camera sources, using a standa
 CPU model if necessary. Home joints come from initialization defaults. Do not export
 random task placements or scene geometry as calibration. Support generation into a
 temporary directory and test deterministic output. The
-[RoboCasa generator](../tools/generate_robocasa_config.py) demonstrates this process.
+[native rig generator](../tools/generate_native_rigs.py) builds the RoboTwin catalogs.
 
 Mount poses use metres and quaternion xyzw. Cameras use OpenCV optical axes
 (+X right, +Y down, +Z forward); convert native conventions explicitly. A joint device
@@ -354,17 +342,18 @@ Local startup serializes that resolved definition unchanged into
 private worker configuration. There is no second runtime task schema.
 
 ```yaml
-id: libero/bowl-onto-plate
-robot: libero/libero-panda-tabletop
-instruction: Pick the akita black bowl between the plate and the ramekin and place it on the plate
+id: robotwin/handover-block-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "use the left arm to grasp the red block on the table, hand it over to the right arm, and set it down in the center of the blue pad. Release it with the right gripper open"
 seed: 0
 budget_mode: practice
 execution_mode: realtime
-stop_on_success: false
+stop_on_success: true
 backend_kwargs:
-  suite_name: libero_spatial
-  task_id: 0
-  init_state_index: 0
+  task_name: handover_block
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false
 ```
 
 The required fields are `id`, `robot`, and `instruction`. The simulator prefix in
@@ -415,14 +404,13 @@ A binding plan selects existing native entities; logical and native names may di
 
 ```yaml
 schema_version: roboenv/bindings/1
-backend: robocasa
-embodiment: panda_omron
+backend: robotwin
+embodiment: aloha_agilex
 devices:
-  base:
-    binding: robocasa.velocity/1
-    entity: base
-    config: {part: base}
-    profile: devices/base/profile.yaml
+  left_arm:
+    binding: robotwin.device/1
+    entity: left_arm
+    profile: devices/left_arm/profile.yaml
 ```
 
 Use `src/roboenv/devices/bindings/defaults/SIMULATOR/ROBOT.yaml` for defaults.
@@ -456,7 +444,7 @@ configuration; record exclusions. Tasks expose typed devices. Start with
 one small example before generating task collections, which stay outside Git.
 
 ```sh
-roboenv launch TASK_ID --port 8123
+roboenv launch robotwin/handover-block-aloha-agilex --port 8123
 ```
 
 SDK and CLI launch use the same resolver and service. Ready means the world

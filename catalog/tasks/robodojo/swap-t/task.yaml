@@ -1,0 +1,10 @@
+id: robodojo/swap-t
+robot: robodojo/robodojo-arx-x5
+instruction: "Swap the positions and orientations of the two T-shaped blocks. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: swap_T
+  env_cfg_type: arx_x5

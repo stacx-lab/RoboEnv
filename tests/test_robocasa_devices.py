@@ -106,7 +106,7 @@ def test_robocasa_reset_discards_cached_success(robocasa_history_owner):
 
 def test_task_selects_robot_with_custom_devices(tmp_path):
     task = yaml.safe_load(
-        (ROOT / "catalog/tasks/robocasa/arrange-vegetables/task.yaml").read_text()
+        (ROOT / "catalog/tasks/robocasa/load-condiments-in-fridge/task.yaml").read_text()
     )
     devices = {
         "overview": {

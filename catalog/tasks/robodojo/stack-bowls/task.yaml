@@ -1,9 +1,10 @@
 id: robodojo/stack-bowls
 robot: robodojo/robodojo-arx-x5
-instruction: Stack the three bowls into one pile
+instruction: "Stack the three bowls into one centered, nested stack with their openings facing up. Return both arms to their starting poses."
 seed: 0
 budget_mode: practice
 execution_mode: realtime
-stop_on_success: false
+stop_on_success: true
 backend_kwargs:
   task_name: stack_bowls
+  env_cfg_type: arx_x5

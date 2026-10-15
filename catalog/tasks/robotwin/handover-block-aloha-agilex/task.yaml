@@ -1,0 +1,12 @@
+id: robotwin/handover-block-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "use the left arm to grasp the red block on the table, hand it over to the right arm, and set it down in the center of the blue pad. Release it with the right gripper open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: handover_block
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

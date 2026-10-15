@@ -85,7 +85,7 @@ def test_yaml_alias_expansion_is_rejected_before_export():
 
 
 def test_task_and_profile_duplicate_yaml_keys_are_not_silently_accepted(tmp_path):
-    source = ROOT / "catalog/tasks/robocasa/arrange-vegetables/task.yaml"
+    source = ROOT / "catalog/tasks/robocasa/load-condiments-in-fridge/task.yaml"
     task = tmp_path / "task.yaml"
     task.write_text(source.read_text() + "\nseed: 0\nseed: 1\n")
     with pytest.raises(ValueError, match="unique string"):

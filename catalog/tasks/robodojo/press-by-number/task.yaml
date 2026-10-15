@@ -1,0 +1,10 @@
+id: robodojo/press-by-number
+robot: robodojo/robodojo-arx-x5
+instruction: "Press the red buttons from left to right the number of times shown on their cards, pressing the blue button to confirm each count. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: press_by_number
+  env_cfg_type: arx_x5

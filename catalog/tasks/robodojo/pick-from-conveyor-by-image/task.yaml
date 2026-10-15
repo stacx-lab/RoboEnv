@@ -1,0 +1,10 @@
+id: robodojo/pick-from-conveyor-by-image
+robot: robodojo/robodojo-arx-x5
+instruction: "Lift the basket more than 8 cm, identify the target object on the conveyor according to the image on the board, pick it up, and place it into the basket. Keep the basket raised with the object resting inside."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: pick_from_conveyor_by_image
+  env_cfg_type: arx_x5

@@ -1,5 +1,6 @@
 """One task schema and effective clock policy across every simulator."""
 
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -37,7 +38,7 @@ def test_catalog_resolution_preserves_task_and_clock(tmp_path, backend, mode):
 
 
 def test_task_rejects_unknown_fields():
-    task = resolve_task("libero/bowl-onto-plate", project=ROOT).task.as_dict()
+    task = resolve_task("libero/libero-spatial-01", project=ROOT).task.as_dict()
     with pytest.raises(ValueError, match="environment task fields"):
         Task.from_dict({**task, "agent_options": {"max_turns": 5}})
 
@@ -106,7 +107,10 @@ def test_sdk_buffered_writes_use_actions_for_every_actuator_type(kind, actions):
 
 def test_entire_catalog_uses_canonical_format_and_robot_bindings():
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 64
+    assert len(catalog) == 195
+    synced = {"robocasa": 10, "libero": 40, "robotwin": 50, "robodojo": 42}
+    counts = Counter(task.backend for task, _ in catalog.values())
+    assert {backend: counts[backend] for backend in synced} == synced
     assert {task.backend for task, _ in catalog.values()} == set(BACKENDS)
     fields = ["id", "robot", "instruction", "seed", "budget_mode", "execution_mode",
               "stop_on_success", "backend_kwargs"]
@@ -114,14 +118,30 @@ def test_entire_catalog_uses_canonical_format_and_robot_bindings():
         serialized = task.as_dict()
         assert list(serialized) == fields
         assert path.parent.relative_to(ROOT / "catalog/tasks").as_posix() == task.id
-        assert path.read_text() == yaml.safe_dump(serialized, sort_keys=False)
+        definition = yaml.safe_load(path.read_text())
+        assert list(definition) == fields
+        assert definition == serialized
         assert Task.from_dict(serialized) == task
-        assert task.stop_on_success is (task.id == "isaaclab/roboballet-eight-arm")
+        assert task.stop_on_success is (
+            task.backend in synced or task.id == "isaaclab/roboballet-eight-arm"
+        )
+        if task.backend in synced:
+            assert task.execution_mode == "realtime"
+            assert "max_steps" not in task.backend_kwargs
+        if task.backend == "robotwin":
+            assert task.robot == "robotwin/robotwin-aloha-agilex"
+            assert task.backend_kwargs["embodiment"] == "aloha_agilex"
         assert "stop_on_success" not in task.backend_kwargs
         resolved = resolve_task(path, project=ROOT)
         assert resolved.bindings.backend == task.backend
         assert resolved.bindings.devices
         assert Task.from_dict(resolved.task.as_dict()) == resolved.task
+
+
+@pytest.mark.parametrize("identifier", ["robotwin/handover-mic", "robotwin/stack-blocks-three"])
+def test_removed_piper_tasks_do_not_resolve(identifier):
+    with pytest.raises(ValueError, match="tasks list"):
+        resolve_task(identifier, project=ROOT)
 
 
 def test_minimal_task_exposes_defaults_and_serialization_is_independent():

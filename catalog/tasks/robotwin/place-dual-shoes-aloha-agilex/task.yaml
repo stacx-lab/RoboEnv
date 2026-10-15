@@ -1,0 +1,12 @@
+id: robotwin/place-dual-shoes-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "use both arms to pick up the two shoes on the table and put them flat in the shoebox, with the shoe tips pointing to the left and the shoe initially on the left nearer the robot. Leave both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: place_dual_shoes
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

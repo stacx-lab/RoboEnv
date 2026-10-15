@@ -1,0 +1,11 @@
+id: libero/libero-goal-06
+robot: libero/libero-panda-tabletop
+instruction: "Push the plate to the front of the stove, close to its front edge"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_goal
+  task_id: 5
+  init_state_index: 0

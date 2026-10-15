@@ -1,0 +1,9 @@
+id: robocasa/scrub-cutting-board
+robot: robocasa/robocasa-panda-omron
+instruction: "Pick up the sponge from the counter and scrub across a broad area of the cutting board, keeping the sponge grasped and in contact with the board throughout the scrubbing motion. Once finished, release the sponge and retract the gripper well away from it."
+seed: 0
+budget_mode: official
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: ScrubCuttingBoard

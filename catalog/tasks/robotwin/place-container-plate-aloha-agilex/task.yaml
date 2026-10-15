@@ -1,0 +1,12 @@
+id: robotwin/place-container-plate-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "place the container in the center of the plate, leaving both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: place_container_plate
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

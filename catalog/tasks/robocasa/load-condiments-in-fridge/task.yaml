@@ -1,0 +1,9 @@
+id: robocasa/load-condiments-in-fridge
+robot: robocasa/robocasa-panda-omron
+instruction: "Place the {condiment1} and {condiment2} from the counter on the top shelf of the fridge. Move any existing top-shelf items to other shelves. Release the items and move the gripper clear of the stored items."
+seed: 0
+budget_mode: official
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: LoadCondimentsInFridge

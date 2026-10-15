@@ -89,7 +89,7 @@ def test_discovery_emits_namespaced_catalog_with_explicit_clock(tmp_path, monkey
 
 
 def test_nested_catalog_duplicate_ids_are_rejected(tmp_path):
-    source = ROOT / "catalog/tasks/robocasa/arrange-vegetables/task.yaml"
+    source = ROOT / "catalog/tasks/robocasa/load-condiments-in-fridge/task.yaml"
     for name in ("one", "two"):
         directory = tmp_path / name / "nested"
         directory.mkdir(parents=True)

@@ -1,0 +1,10 @@
+id: robodojo/fill-pen-holder
+robot: robodojo/robodojo-arx-x5
+instruction: "Hold the pen holder with one hand, place all pens into it with the other hand, writing ends down, then put it back down upright. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: fill_pen_holder
+  env_cfg_type: arx_x5

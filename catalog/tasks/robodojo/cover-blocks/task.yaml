@@ -1,0 +1,10 @@
+id: robodojo/cover-blocks
+robot: robodojo/robodojo-arx-x5
+instruction: "Cover the blocks from left to right, remember their colors, then uncover them in the order: red, green, and blue. Keep the cups upside down and the blocks in place. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: cover_blocks
+  env_cfg_type: arx_x5

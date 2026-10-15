@@ -1,0 +1,12 @@
+id: robotwin/stack-bowls-three-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "nest the three bowls on the table, leaving both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: stack_bowls_three
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

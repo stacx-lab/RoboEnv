@@ -49,8 +49,8 @@ def test_invalid_gravity_rejected_before_native_start(tmp_path, value):
 
 def test_other_backends_reject_gravity_option(tmp_path):
     with pytest.raises(ValueError, match="only for SIMPLE"):
-        launch("libero/mug-into-microwave", project=ROOT, arm_gravity_compensation=False)
-    definition = yaml.safe_load(resolve_task("libero/mug-into-microwave").path.read_text())
+        launch("libero/libero-10-10", project=ROOT, arm_gravity_compensation=False)
+    definition = yaml.safe_load(resolve_task("libero/libero-10-10").path.read_text())
     definition["backend_kwargs"]["arm_gravity_compensation"] = True
     path = tmp_path / "task.yaml"
     path.write_text(yaml.safe_dump(definition))

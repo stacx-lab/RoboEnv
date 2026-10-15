@@ -1,0 +1,12 @@
+id: robotwin/lift-pot-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "grasp the round kitchenpot with handles and lift it well clear of the tabletop. Keep each gripper centered on its handle while holding the pot up"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: lift_pot
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

@@ -1,4 +1,4 @@
-# Device access and agent-neutral documentation
+# Device access
 
 Any coding agent can connect through the SDK or CLI. RoboEnv exposes a task and
 its devices; the harness owns reasoning, programs, permissions, and scheduling.
@@ -12,7 +12,7 @@ import roboenv
 with roboenv.connect("http://127.0.0.1:8123") as env:
     print(env.task.instruction)
     print(env.devices())
-    print(env.device("arm").read())
+    print(env.device("left_arm").read())
 ```
 
 | API | Meaning |
@@ -42,11 +42,17 @@ Read the live descriptor for supported operations. Sensor reads never advance
 physics. Actuator writes require `duration_s` and return immediately with an
 execution identity and measured state. Joint/hand `actions` contain absolute joint
 vectors; gripper/suction `actions` are flat numeric sequences, including `[value]`
-for a single command. Velocity writes use named axes, for example:
+for a single command. For example, hold RoboTwin's left arm at its measured position:
 
 ```python
-base.write(mode="drive", velocity={"vx": 0.05, "vy": 0, "wz": 0}, duration_s=0.5)
+arm = env.device("left_arm")
+target = arm.read()["positions"]
+arm.write(actions=[target], duration_s=0.5)
+env.device("world").wait(0.5)
+print(arm.read())
 ```
+
+Velocity devices use named axes and modes declared in their profiles.
 
 Consult the profile for units, bounds, supported modes, and stop scope. Use
 `env.device("world").read()` for `time_s` and `.wait(duration_s)` to wait in

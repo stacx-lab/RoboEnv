@@ -1,0 +1,12 @@
+id: robotwin/scan-object-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "pick up the scanner and the object simultaneously with separate arms. Hold the scanner’s scanning face close to and directly facing the object’s center, keeping both grippers closed around the items"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: scan_object
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

@@ -1,0 +1,12 @@
+id: robotwin/click-bell-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "click the bell's top center, keeping the gripper on the bell's side closed"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: click_bell
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

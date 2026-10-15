@@ -1,0 +1,10 @@
+id: robodojo/store-laptop-and-headphones
+robot: robodojo/robodojo-arx-x5
+instruction: "Hang the headphones on the headphone stand, close the laptop, then place it into the vertical laptop stand. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: store_laptop_and_headphones
+  env_cfg_type: arx_x5

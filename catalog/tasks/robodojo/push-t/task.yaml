@@ -1,0 +1,10 @@
+id: robodojo/push-t
+robot: robodojo/robodojo-arx-x5
+instruction: "Push the T-shaped block to align it precisely with the gray T-shaped pad. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: push_T
+  env_cfg_type: arx_x5

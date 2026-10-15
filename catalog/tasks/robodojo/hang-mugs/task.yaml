@@ -1,0 +1,10 @@
+id: robodojo/hang-mugs
+robot: robodojo/robodojo-arx-x5
+instruction: "Hang all three mugs by their handles on the mug rack, with the mug hanging clear of the table. Release all mugs and return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: hang_mugs
+  env_cfg_type: arx_x5

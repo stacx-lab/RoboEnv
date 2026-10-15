@@ -1,0 +1,10 @@
+id: robodojo/build-tower
+robot: robodojo/robodojo-arx-x5
+instruction: "Build a tower using all the wooden blocks and boards, with the green roof on top and its ridge perpendicular to the plank's long edges. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: build_tower
+  env_cfg_type: arx_x5

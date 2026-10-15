@@ -1,0 +1,12 @@
+id: robotwin/place-phone-stand-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "place the phone on the phone stand, centered against its support, leaving both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: place_phone_stand
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

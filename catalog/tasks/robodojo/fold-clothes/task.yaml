@@ -1,0 +1,10 @@
+id: robodojo/fold-clothes
+robot: robodojo/robodojo-arx-x5
+instruction: "Fold the clothes neatly into a compact rectangle, then release them and return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: fold_clothes
+  env_cfg_type: arx_x5

@@ -1,0 +1,10 @@
+id: robodojo/make-toast
+robot: robodojo/robodojo-arx-x5
+instruction: "Pick up two slices of bread, place them into the toaster, and press the lever down. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: make_toast
+  env_cfg_type: arx_x5

@@ -1,0 +1,10 @@
+id: robodojo/pack-objects-into-box
+robot: robodojo/robodojo-arx-x5
+instruction: "Place all the objects into the box with their front sides facing left. Keep the box upright with its long sides running left to right. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: pack_objects_into_box
+  env_cfg_type: arx_x5

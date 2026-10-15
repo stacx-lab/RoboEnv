@@ -1,9 +1,10 @@
 id: robodojo/general-pickup
 robot: robodojo/robodojo-arx-x5
-instruction: Pick up the {target} by 10 cm.
+instruction: "Pick up the {target} by 10 cm."
 seed: 0
 budget_mode: practice
 execution_mode: realtime
-stop_on_success: false
+stop_on_success: true
 backend_kwargs:
   task_name: general_pickup
+  env_cfg_type: arx_x5

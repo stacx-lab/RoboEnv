@@ -26,7 +26,7 @@ def launch_toy(**kwargs):
 
 
 def test_task_id_resolution_and_missing_task():
-    resolved = resolve_task("libero/mug-into-microwave", project=ROOT)
+    resolved = resolve_task("libero/libero-10-10", project=ROOT)
     assert resolved.task.backend == "libero"
     assert resolved.task.backend_kwargs == {
         "suite_name": "libero_10",
@@ -382,7 +382,7 @@ def test_grouped_catalog_ids_and_listing(capsys):
     from roboenv.tasks.catalog import load_catalog
 
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 64
+    assert len(catalog) == 195
     for identifier, (task, path) in catalog.items():
         assert path.relative_to(ROOT / "catalog/tasks").as_posix() == identifier + "/task.yaml"
         assert identifier.split("/")[0] == task.backend
@@ -407,7 +407,7 @@ def test_grouped_catalog_ids_and_listing(capsys):
     }
     assert main(["tasks", "list", "--simulator", "robocasa", "--project", str(ROOT)]) == 0
     result = json.loads(capsys.readouterr().out)
-    assert result["ids"] == ["robocasa/arrange-vegetables", "robocasa/pick-place-microwave"]
+    assert result["ids"] == sorted(key for key in catalog if key.startswith("robocasa/"))
     assert result["execution_modes"] == {key: "realtime" for key in result["ids"]}
     with pytest.raises(ValueError, match="tasks list"):
         resolve_task("robocasa-pick-place-microwave", project=ROOT)
@@ -417,14 +417,14 @@ def test_grouped_catalog_ids_and_listing(capsys):
     "value", ["robocasa/../escape", "robocasa/..", "robocasa/Bad_Name", "robocasa/"]
 )
 def test_task_rejects_invalid_namespaced_ids(value):
-    task = resolve_task("robocasa/pick-place-microwave", project=ROOT).task.as_dict()
+    task = resolve_task("robocasa/filter-microwavable-item", project=ROOT).task.as_dict()
     task["id"] = value
     with pytest.raises(ValueError, match="task id"):
         Task.from_dict(task)
 
 
 def test_clock_setting_must_be_at_task_level():
-    task = resolve_task("robocasa/pick-place-microwave", project=ROOT).task.as_dict()
+    task = resolve_task("robocasa/filter-microwavable-item", project=ROOT).task.as_dict()
     task["backend_kwargs"]["realtime"] = True
     with pytest.raises(ValueError, match="realtime is not supported"):
         Task.from_dict(task)

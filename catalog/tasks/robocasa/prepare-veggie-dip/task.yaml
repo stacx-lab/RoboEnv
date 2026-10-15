@@ -1,0 +1,9 @@
+id: robocasa/prepare-veggie-dip
+robot: robocasa/robocasa-panda-omron
+instruction: "Pick the {vegetable} and the cream cheese from the fridge, place both fully inside the blender, and turn it on."
+seed: 0
+budget_mode: official
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: PrepareVeggieDip

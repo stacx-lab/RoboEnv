@@ -20,7 +20,7 @@ def check(out, kinex, node):
         config = workspace / ".kinex"
         config.mkdir(parents=True)
         with roboenv.launch(
-            "libero/drawer-and-bowl", project=ROOT, port=0, execution_mode=mode
+            "libero/libero-10-04", project=ROOT, port=0, execution_mode=mode
         ) as run:
             run_directory = run.path.parent
             shutil.copytree(run_directory / "devices", config / "devices")

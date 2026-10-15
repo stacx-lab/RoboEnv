@@ -1,0 +1,11 @@
+id: libero/libero-goal-05
+robot: libero/libero-panda-tabletop
+instruction: "Put the bowl on the top of the drawer"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_goal
+  task_id: 4
+  init_state_index: 0

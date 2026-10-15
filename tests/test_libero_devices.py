@@ -72,20 +72,13 @@ def test_official_registry_and_assets_are_complete():
         sum(t["suite_name"] == suite for t in tasks)
         for suite in ("libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90")
     ] == [10, 10, 10, 10, 90]
-    assert {p.parent.name for p in (ROOT / "catalog/tasks/libero").glob("*/task.yaml")} == {
-        "bowl-onto-plate",
-        "close-top-drawer",
-        "bowl-into-bottom-drawer",
-        "mug-into-microwave",
-        "drawer-and-bowl",
+    expected = {
+        f"libero-{suite}-{index:02}"
+        for suite in ("10", "spatial", "object", "goal")
+        for index in range(1, 11)
     }
-    for task in (
-        "bowl-onto-plate",
-        "close-top-drawer",
-        "bowl-into-bottom-drawer",
-        "mug-into-microwave",
-        "drawer-and-bowl",
-    ):
+    assert {p.parent.name for p in (ROOT / "catalog/tasks/libero").glob("*/task.yaml")} == expected
+    for task in sorted(expected):
         resolved = resolve_task("libero/" + task, project=ROOT)
         assert resolved.task.backend == "libero"
         assert resolved.task.budget_mode == "practice"
@@ -192,7 +185,9 @@ def test_catalogs_are_complete_portable_and_use_the_shared_driver(tmp_path):
         "Kinex schema integration requires built Kinex and Node >=22.19",
     )
     workspace = tmp_path / "workspace"
-    load_tool("prepare_kinex_workspace").prepare("libero/bowl-onto-plate", workspace, project=ROOT)
+    load_tool("prepare_kinex_workspace").prepare(
+        "libero/libero-spatial-01", workspace, project=ROOT
+    )
     checked = subprocess.run(
         [node, str(ROOT / "tests/native_rigs_kinex.mjs"), str(kinex_root), str(workspace)],
         capture_output=True,

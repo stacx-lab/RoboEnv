@@ -1,0 +1,10 @@
+id: robodojo/store-tools-in-toolbox
+robot: robodojo/robodojo-arx-x5
+instruction: "Place each tool flat in its matching shaped recess, aligned with the outline and fully below the toolbox rim. Release all tools and return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: store_tools_in_toolbox
+  env_cfg_type: arx_x5

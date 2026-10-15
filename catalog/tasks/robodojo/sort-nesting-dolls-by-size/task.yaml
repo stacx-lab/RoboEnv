@@ -1,0 +1,10 @@
+id: robodojo/sort-nesting-dolls-by-size
+robot: robodojo/robodojo-arx-x5
+instruction: "Arrange the five nesting dolls upright in a row from left to right, from smallest to largest. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: sort_nesting_dolls_by_size
+  env_cfg_type: arx_x5

@@ -1,0 +1,10 @@
+id: robodojo/play-tic-tac-toe
+robot: robodojo/robodojo-arx-x5
+instruction: "Play tic-tac-toe as the first player and fill the board with the opponent. Return both arms to their starting poses after each move and wait there during the opponent's turn."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: play_tic_tac_toe
+  env_cfg_type: arx_x5

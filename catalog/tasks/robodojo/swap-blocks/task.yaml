@@ -1,0 +1,10 @@
+id: robodojo/swap-blocks
+robot: robodojo/robodojo-arx-x5
+instruction: "Swap the two blocks using the empty mat, pressing the button after each move. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: swap_blocks
+  env_cfg_type: arx_x5

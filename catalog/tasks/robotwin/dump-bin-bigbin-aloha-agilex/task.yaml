@@ -1,0 +1,12 @@
+id: robotwin/dump-bin-bigbin-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "Grab the small bin and pour the balls into the big bin, keeping the empty small bin held high"
+seed: 5
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: dump_bin_bigbin
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

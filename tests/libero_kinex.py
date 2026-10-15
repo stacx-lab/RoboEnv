@@ -23,13 +23,15 @@ def tool(name):
 def check(out, kinex, node):
     out.mkdir(parents=True, exist_ok=False)
     workspace = out / "workspace"
-    tool("prepare_kinex_workspace").prepare("libero/bowl-onto-plate", workspace, project=ROOT)
+    tool("prepare_kinex_workspace").prepare("libero/libero-spatial-01", workspace, project=ROOT)
     env = {
         **os.environ,
         "KINEX_DATA_DIR": str(out / "kinex-data"),
         "KINEX_CONFIG_DIR": str(out / "kinex-config"),
     }
-    with roboenv.launch("libero/bowl-onto-plate", project=ROOT, interpreter=sys.executable) as run:
+    with roboenv.launch(
+        "libero/libero-spatial-01", project=ROOT, interpreter=sys.executable
+    ) as run:
         identity = {k: run.record[k] for k in ("session", "generation")}
         for driver in (workspace / ".kinex/devices").glob("*/driver.py"):
             driver.with_name("connection.json").write_text(

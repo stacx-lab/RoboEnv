@@ -1,0 +1,12 @@
+id: robotwin/stack-blocks-two-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "move the red and green blocks to the center of the table and stack the green block centrally on the red block, leaving both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: stack_blocks_two
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

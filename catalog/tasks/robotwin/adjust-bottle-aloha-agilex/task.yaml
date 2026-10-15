@@ -1,0 +1,12 @@
+id: robotwin/adjust-bottle-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "Pick up the {bottle_description} head-up and hold it high toward the {side} edge of the table"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: adjust_bottle
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

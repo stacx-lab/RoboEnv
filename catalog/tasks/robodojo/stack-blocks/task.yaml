@@ -1,0 +1,10 @@
+id: robodojo/stack-blocks
+robot: robodojo/robodojo-arx-x5
+instruction: "Stack all three differently textured blocks in a single vertical tower. Center each block over the one below, release the completed stack, and return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: stack_blocks
+  env_cfg_type: arx_x5

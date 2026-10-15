@@ -1,257 +1,110 @@
-# Local RoboCasa and Kinex
+# Local RoboTwin and Kinex
 
-The checked-in `catalog/robots/robocasa/robocasa-panda-omron` directory is already ready
-to copy into Kinex. It contains a fixed robot manifest and eight devices:
-arm, base, torso, gripper, camera_left, camera_right, camera_wrist, and world. Configuration is independent
-of the task, seed, kitchen layout, service port, and episode identity. Launch
-never writes to the catalog. See [RoboCasa catalog design](robocasa.md#catalog-and-generation).
+Use the Aloha AgileX catalog with a prepared RoboTwin environment and a working
+[Kinex](https://github.com/stacx-lab/kinex) installation. RoboEnv owns the simulator;
+Kinex connects through exported device drivers.
 
-Robot-mounted camera calibration, controller scaling, joint limits, and rigid
-mounts are pre-generated. Object positions and fixture geometry must be perceived
-from camera images; no simulator scene ground truth is sent to the agent.
-The mobile `base` is an unlocalized root with no global pose feedback or static
-world mount. Robot-local transforms work directly; world-relative transforms
-require explicit frame estimates.
+## Launch RoboEnv
 
-## 1. Launch the service (terminal A, RoboEnv checkout)
+From the RoboEnv checkout:
 
 ```sh
 source .venv/bin/activate
-roboenv prepare robocasa
-roboenv launch robocasa/pick-place-microwave --port 8123
+roboenv prepare robotwin
+roboenv launch robotwin/handover-block-aloha-agilex --port 8123
 ```
 
-Preparation is needed only if the simulator is not already prepared. Wait for
-`Ready` and keep this process running. Launch initializes the kitchen and the
-simulation service; it neither generates nor updates the catalog configuration.
+Wait for `Ready` and keep the process running. Realtime physics continues while
+idle, with no episode step cap. Use `--execution-mode stepped` to advance through
+world waits and enforce the native horizon. The catalog stops on native success;
+final device reads remain available.
 
-Realtime runs have no episode step cap, so leaving the service idle while starting
-Kinex does not exhaust a native action-frame budget. Frames are still counted;
-`budget.max` is null. Use `--execution-mode stepped` when you want idle physics
-paused and the task's configured/native step limit enforced. Restart the service
-to pick up runtime changes, then `/unload all` and `/load all` in Kinex to refresh its connections.
+## Set up the agent workspace
 
-World `read` exposes native `action_frames` budgets as `budget: {used_s, max_s}`
-in seconds; `max_s` is null in realtime. Counted initialization frames are included,
-so budget consumption can differ from `time_s`. This is native episode accounting,
-not wall-clock time or an orchestrator deadline. Budgets with other units (`sim_steps`,
-`api_calls`, or unknown units) are omitted because their duration is not established.
-World `status` remains `{loaded: true}`; `wait` returns `time_s` and the wait's
-`waited_s`, without a budget.
-
-For another task use another task ID. For parallel trials use different ports
-and separate Kinex processes with different `ROBOENV_ENDPOINT` values. Both
-can use byte-identical copies of the same robot configuration.
-
-## 2. Set up a Kinex workspace (terminal B, RoboEnv checkout)
-
-The following variables resolve the sibling Kinex source checkout and create
-an isolated workspace for this run. Keep this terminal open for the later steps.
+In another terminal, activate the RoboEnv environment, then change to your agent
+workspace:
 
 ```sh
-source .venv/bin/activate
-roboenv_repo="$PWD"
-kinex_repo="$(realpath ../kinex)"
-trial_workspace="$(mktemp -d "$roboenv_repo/.cache/kinex-local.XXXXXX")"
-cd "$trial_workspace"
-roboenv setup robocasa/robocasa-panda-omron
+roboenv setup robotwin/robotwin-aloha-agilex
 export ROBOENV_ENDPOINT=http://127.0.0.1:8123
-```
-
-For an existing agent workspace, change into that directory and run the same
-`roboenv setup` command. Setup creates `.kinex/` when missing, then exports the
-robot's `workspace.yaml` and complete portable `devices/` collection. It needs no
-running simulator and does not install dependencies or create task instructions.
-Use `roboenv setup --list` to see the available simulator/robot IDs. `--project`
-selects a RoboEnv checkout; `--catalog` selects a catalog containing `robots/`.
-Neither option changes the destination, which is always the current directory's
-`.kinex/`. A standalone wheel needs an explicit checkout or catalog. Add `--json`
-for machine-readable output.
-
-Existing `workspace.yaml` or `devices/` entries cause setup to fail without changes.
-Use `roboenv setup ROBOT_ID --force` to replace both entries, including custom
-profiles, connection files, and devices from a previous robot. Save any custom
-configuration you want to retain first. Other `.kinex/` content, such as Python
-environments, tools, and recordings, is preserved. Connect using `ROBOENV_ENDPOINT`
-as above, and reload the devices in Kinex after replacing their configuration.
-
-Use a working Kinex installation with its TUI dependencies already installed
-(see the sibling README). Exported profiles use Kinex's workspace Python. Remote device access
-uses standard-library transport in the shared `devices/_roboenv.py`; profile loading needs
-PyYAML and typed actuator operations need Kinex’s Python helpers. Kinex supplies
-its Python library to drivers; for direct shell calls, set
-`export PYTHONPATH="$kinex_repo/packages/core/assets/python${PYTHONPATH:+:$PYTHONPATH}"`.
-The agent environment does not need RoboEnv or simulator dependencies. There is
-one transport module per device collection, outside the individual device folders.
-Drivers resolve it relative to their own file, so the working directory is irrelevant.
-When copying selected devices, include the collection's `_roboenv.py` once.
-
-Kinex `servo` plans locally, submits the complete joint trajectory, and waits on
-the loaded world clock by default. Use `block: false` to submit without waiting
-and advance the world separately. It accepts
-no `duration_s`, `ik` or `max_joint_delta` argument. Refresh copied servo tools and
-Python helpers together. Direct device IK retains its optional seed; numerical
-retries use nearby seeds only. Rename profile `intrinsics.kinematics.ik.search`
-to `ik.budget`; there is no per-call budget override.
-
-When upgrading an existing workspace, refresh actuator drivers and the shared
-`_roboenv.py` together, preserve workspace-specific connection/calibration facts,
-then reload the affected devices. Failed write-feedback validation cancels only
-that submission; failed cancellation requires recovery before further writes.
-Joint endpoints and hand geometry frames are declared by their models; remove
-their old null placeholders from `intrinsics.frames` when migrating profiles.
-Drivers use `persistent: true`: Kinex starts `driver.py --serve` once and reuses
-its configuration, kinematics model, and HTTP connection. `/unload <device>` followed by `/load <device>`
-restarts the process after driver/profile/connection edits. Session and generation
-stay fixed until reload; a pinned `connection.json` must be updated when switching
-episodes. HTTP idle connections are recreated before the next request; lost replies
-are reported without resending commands.
-
-`/unload` stops an actuator within its declared scope and releases its connection.
-On EOF or SIGTERM, a connected persistent actuator also attempts a bounded stop;
-a failed stop is logged, not treated as success. This does not stop the world.
-Direct single-call scripts retain their targets after exiting.
-
-Camera stream recording requires `ffmpeg`: Kinex encodes each recorded camera to MP4.
-
-Confirm `devices/` exists and contains arm, base, torso, gripper, camera_left, camera_right,
-camera_wrist, and world for this example. There is no public composite robot device.
-For standalone task solving, read the running episode before starting the agent:
-
-```sh
 roboenv describe --endpoint "$ROBOENV_ENDPOINT"
 ```
 
-Give Kinex the returned `task.instruction` and `task.context`, or ask it to read
-them through this command in a shell with the RoboEnv CLI available. `instruction`
-uses the initialized native goal when present and otherwise the selected RoboEnv
-task catalog text; `native_instruction` preserves the native text separately.
-`context` includes sampled object roles and side assignments where needed.
-The Python SDK exposes the same instruction and context through
-`roboenv.connect(ROBOENV_ENDPOINT).task`; call `env.refresh_task()` when a task
-changes its goal during the episode. No RLE-Bench workspace is required.
+Setup writes `.kinex/workspace.yaml` and `.kinex/devices/`. It works without a
+running simulator. The catalog contains eight devices: `left_arm`, `right_arm`,
+`left_gripper`, `right_gripper`, `head_camera`, `left_camera`, `right_camera`, and
+`world`. Give the agent the initialized `task.instruction` and `task.context`
+returned by `describe`. For changing goals, refresh them during the episode.
 
-For these direct calls before starting Kinex, prepare its separate Python project
-explicitly. Kinex uses `.kinex/python/.venv`; ordinary shell environments remain
-independent. Existing environments need explicit dependency updates.
+`roboenv setup --list` lists robot catalogs. Use `--project` for another RoboEnv
+checkout or `--catalog` for a standalone catalog. These select the source; the
+destination is always the current workspace's `.kinex/`.
 
-```sh
-uv init --bare .kinex/python
-uv add --project .kinex/python numpy scipy pillow pyyaml 'opencv-python-headless>=4.7,<5'
-export PYTHONPATH="$kinex_repo/packages/core/assets/python${PYTHONPATH:+:$PYTHONPATH}"
-```
-
-Check the driver without starting a model request:
+Existing workspace or device files block setup. To replace them, save custom
+configuration first, then run:
 
 ```sh
-uv run --project .kinex/python python .kinex/devices/arm/driver.py status '{}'
-uv run --project .kinex/python python .kinex/devices/camera_left/driver.py read '{}'
+roboenv setup robotwin/robotwin-aloha-agilex --force
 ```
 
-Expect `ok: true`; camera output must include an existing local RGB PNG `file`
-and aligned 16-bit PGM `depth_file`, with acquisition Unix timestamps. The profile declares
-`intrinsics.depth.scale_m_per_unit: 0.001`.
-Open that image to confirm that it depicts the initialized kitchen. Neither
-operation requests physics steps. A realtime world keeps running while idle;
-a stepped one advances only during world waits.
+This replaces the manifest and entire device collection, preserving other
+`.kinex/` content such as recordings and Python environments. Reload devices in
+Kinex after replacement. Persistent drivers pin episode identity; reload them
+when switching episodes, and update any episode-specific `connection.json`.
 
-## 3. TUI recording smoke test
+## Read and control devices
 
-```sh
-kinex
-```
+Start `kinex` from the workspace and run `/ping all`. Kinex supplies its Python
+helpers to the drivers; its workspace Python also needs PyYAML. Simulator
+packages are not needed in the agent environment. Keep the shared
+`devices/_roboenv.py` with the device collection when copying it.
 
-Run these built-in slash commands in the TUI:
+Read `left_arm` to obtain measured joint positions. A hold command writes those
+positions as one `actions` vector with `duration_s`, then waits through `world`
+and reads feedback. Joint targets are absolute radians in profile order. Write
+acceptance and elapsed time do not prove arrival; check measured positions.
+Device `stop` clears pending references within that device's scope. Gripper stop
+preserves its applied target; explicit open releases it. The world clock continues.
+
+Kinex `servo` plans and submits a joint trajectory, then waits on the loaded world
+clock. `block: false` submits without waiting. It has no `duration_s`, `ik`, or
+`max_joint_delta` argument. Direct device IK accepts an optional seed.
+See [device operations and frames](device-documentation.md#device-operations-and-frames)
+for units, frame conventions, and FK/IK.
+
+`/unload DEVICE` stops an actuator and releases its connection; `/load DEVICE`
+reloads it after edits. EOF or SIGTERM also attempts a bounded actuator stop.
+Lost replies are reported without resending commands. A failed cancellation
+requires recovery before further writes.
+
+## Record and inspect
+
+Install FFmpeg for camera videos. In the Kinex TUI:
 
 ```text
-/ping all
-/record snap camera_left camera_right camera_wrist initial kitchen
-/record start camera_left=2 camera_right=2 camera_wrist=2 arm=5 base=2 local device smoke test
+/record snap head_camera left_camera right_camera initial scene
+/record start head_camera=2 left_camera=2 right_camera=2 left_arm=5 right_arm=5 device smoke test
 /record status
 ```
 
-Recording continues between turns and while the user pauses until `/record stop`.
-The thin drivers do not implement native video streaming; Kinex samples camera
-reads and encodes the frames. Requested Hz is a target; inspect effective rates
-and skipped samples. Reads do not request physics steps. Realtime continues
-during recording; stepped advances only during world waits.
-
-With the recording running, use a separate terminal with the same copied workspace, `ROBOENV_ENDPOINT`, and
-`PYTHONPATH`. Read the current joint configuration and send it back as a hold target:
-
-```sh
-target=$(uv run --project .kinex/python python .kinex/devices/arm/driver.py read '{}' | uv run --project .kinex/python python -c \
-  'import json,sys; r=json.load(sys.stdin); assert r["ok"], r; print(json.dumps({"actions":[r["positions"]],"duration_s":0.5}))')
-uv run --project .kinex/python python .kinex/devices/arm/driver.py write "$target"
-uv run --project .kinex/python python .kinex/devices/world/driver.py wait '{"duration_s":0.5}'
-uv run --project .kinex/python python .kinex/devices/arm/driver.py read '{}'
-uv run --project .kinex/python python .kinex/devices/arm/driver.py stop '{}'
-```
-
-`write` submits an action buffer and returns immediately. The executor consumes
-the references over `duration_s` world seconds and retains the final reference.
-Each target contains seven absolute joint positions in radians, in the profile’s
-model joint order. `world.wait` allows execution time; compare the subsequent
-measured positions with the target to check arrival. Neither acceptance nor elapsed
-duration proves arrival. Small measured soft-limit overshoots can make a write fail;
-consult the joint-limit recovery notes before commanding another target. `stop`
-clears pending references and holds the arm; it does not stop the world's clock.
-
-Direct shell driver calls bypass Kinex's dispatch event log; the background
-samplers still record resulting images/state. To verify complete command
-tracing, perform a second test through Kinex's `device` tool: ask the agent to
-read arm state, issue one such write, wait through world, read feedback, and stop. That step
-requires your configured model and normal motion approval. Start a fresh
-simulation episode before attempting the full task.
-
-Finish the smoke recording in the TUI:
+Use Kinex's device tool for reads, writes, waits, and stop so commands enter its
+dispatch log. Direct shell driver calls bypass that log. Recording continues
+between turns until stopped:
 
 ```text
-/record snap camera_left camera_right camera_wrist final kitchen
+/record snap head_camera left_camera right_camera final scene
 /record stop partial device and recording smoke test only
 /record status
 ```
 
-`partial` is a recording annotation, not a benchmark verdict. Use the reported
-recording ID in the next step. `/load all` is available if the user previously
-unloaded devices; checked-in profiles default to loaded in Kinex.
+Open `.kinex/recordings/RECORDING_ID/recording.json` for the camera video paths;
+each camera has `devices/NAME/stream/video.mp4`. Requested sampling rates are
+targets; inspect effective rates and skipped samples. These videos show sampled
+observations, not a fresh-process command replay. `partial` is an annotation,
+not a benchmark verdict.
 
-## 4. Visualize the recording
-
-After leaving the TUI, in terminal B:
-
-```sh
-recording_dir="$trial_workspace/.kinex/recordings/RECORDING_ID"
-ls "$recording_dir"/devices/*/stream/video.mp4
-```
-
-Replace `RECORDING_ID` with the stream ID from `/record status` (not a separate
-snap ID). Kinex encoded one MP4 per recorded camera; `recording.json` lists each
-under `devices.<name>.stream.video`. Open `devices/camera_left/stream/video.mp4`, and
-likewise for camera_right and camera_wrist, with your desktop viewer.
-These show wall-clock samples, not a
-frame-perfect simulation replay. The TUI controls recording; these artifacts
-provide visual playback. No new visualization server is required.
-
-## Verification
-
-| Check | Required evidence |
-|---|---|
-| Kitchen boot | Ready service, actual kitchen image, unchanged catalog |
-| Configuration | Kinex sees the eight standard devices; driver status/read succeed |
-| Basic control | Write submission returns immediately; world wait allows execution and measured feedback checks the hold target; realtime physics continues after device stop |
-| Recording | Nonempty camera/state events, readable saved images, completed manifest |
-| Visualization | Playable per-camera MP4s show the captured kitchen |
-| Dispatch tracing | Kinex-issued read/write/stop appear in device events |
-| Episode isolation | Existing SDK clients reject replacement episodes; a fresh driver attaches without rewriting configs |
-| Task success | Separate full attempt with the original RoboEnv verifier verdict |
-| Replay | Separate fresh-process replay with the same task/seed and recorded actions |
-
-Finish terminal A with Ctrl-C. Preserve recordings and run evidence locally.
-A recording smoke test does not certify task success or reproducible replay.
-
-For observation-restricted evaluations, use an isolated agent process/container
-without access to simulator assets, owner sockets, or verifier evidence. A local
-TUI running as the simulator's Unix user is a functional test, not a filesystem
-security boundary. An external orchestrator must isolate the agent from owner data; private
-run evidence is owner-only.
+Stop RoboEnv with Ctrl-C and preserve recordings locally. Report boot, device
+behavior, recording, native task success, and fresh-process replay separately;
+see [validation](gpu-validation.md). Use different ports and workspaces for
+parallel episodes. Evaluation harnesses must isolate agents from owner sockets,
+assets, and verifier evidence; a local TUI is not that isolation boundary.

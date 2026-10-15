@@ -1,0 +1,12 @@
+id: robotwin/put-bottles-dustbin-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "use arms to grab the bottles and put them into the dustbin to the left of the table"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: put_bottles_dustbin
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

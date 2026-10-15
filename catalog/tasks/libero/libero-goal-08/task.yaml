@@ -1,0 +1,11 @@
+id: libero/libero-goal-08
+robot: libero/libero-panda-tabletop
+instruction: "Turn on the stove"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_goal
+  task_id: 7
+  init_state_index: 0

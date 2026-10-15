@@ -1,0 +1,10 @@
+id: robodojo/pour-by-language
+robot: robodojo/robodojo-arx-x5
+instruction: "Pour the liquid from the first {bottle_color_0} bottle into the first {bowl_color_3} bowl, from the second {bottle_color_1} bottle into the second {bowl_color_4} bowl, and from the third {bottle_color_2} bottle into the third {bowl_color_5} bowl. Then reset the robot arm."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: pour_by_language
+  env_cfg_type: arx_x5

@@ -19,7 +19,7 @@ CAMERAS = {"camera": "agentview", "camera_wrist": "robot0_eye_in_hand"}
 
 def check(out):
     out.mkdir(parents=True, exist_ok=True)
-    adapter = LiberoAdapter("libero_90", 8)
+    adapter = LiberoAdapter("libero_10", 3)
     try:
         adapter.reset(0)
         reference = {name: adapter._env.render(camera) for name, camera in CAMERAS.items()}
@@ -31,7 +31,7 @@ def check(out):
     errors = []
     with (
         roboenv.launch(
-            "libero/drawer-and-bowl",
+            "libero/libero-10-04",
             project=ROOT,
             interpreter=sys.executable,
             port=0,

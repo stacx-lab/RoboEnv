@@ -1,0 +1,12 @@
+id: robotwin/place-object-stand-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "set the target object on the center of the display stand, leaving both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: place_object_stand
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

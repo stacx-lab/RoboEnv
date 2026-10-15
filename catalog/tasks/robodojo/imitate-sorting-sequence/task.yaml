@@ -1,0 +1,10 @@
+id: robodojo/imitate-sorting-sequence
+robot: robodojo/robodojo-arx-x5
+instruction: "Observe the object placement order with both arms at their starting poses, then place the corresponding objects into the empty basket in the same order. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: imitate_sorting_sequence
+  env_cfg_type: arx_x5

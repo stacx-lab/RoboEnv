@@ -1,0 +1,11 @@
+id: libero/libero-object-09
+robot: libero/libero-panda-floor
+instruction: "Pick the chocolate pudding and place it in the basket"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  suite_name: libero_object
+  task_id: 8
+  init_state_index: 0

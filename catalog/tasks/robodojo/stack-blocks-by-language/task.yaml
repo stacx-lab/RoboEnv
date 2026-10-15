@@ -1,0 +1,10 @@
+id: robodojo/stack-blocks-by-language
+robot: robodojo/robodojo-arx-x5
+instruction: "stack the blocks from bottom to top in the order of {color_0}, {color_1}, and {color_2}, centering each block over the one below. Release the completed stack and return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: stack_blocks_by_language
+  env_cfg_type: arx_x5

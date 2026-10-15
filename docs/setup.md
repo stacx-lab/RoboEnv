@@ -1,6 +1,8 @@
 # Setup and local use
 
-Use Linux, Git, and uv. Clone the source, then bootstrap it:
+## Install the CLI
+
+Use Linux, Git, and uv:
 
 ```sh
 git clone https://github.com/stacx-lab/RoboEnv.git
@@ -9,14 +11,9 @@ bash tools/bootstrap.sh
 source .venv/bin/activate
 ```
 
-This installs the CLI into a Python 3.12 development environment. Activate it in
-each new shell, or use `.venv/bin/roboenv` directly. Simulator dependencies use
-separate interpreters defined in [runtime/environments.json](../runtime/environments.json).
-Isaac rendering also needs host graphics libraries outside those Python
-environments, including `libGLU.so.1` (`libglu1-mesa` on Ubuntu). Python dependency
-and import checks do not certify native renderer startup. Use a supported RTX GPU;
-NVIDIA lists GPUs without RT cores, including A100 and H100, as unsupported in its
-[Isaac Sim requirements](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/requirements.html).
+Bootstrap creates a Python 3.12 development environment. Activate it in each shell
+or use `.venv/bin/roboenv`. Each simulator gets a separate interpreter; see
+[runtime/environments.json](../runtime/environments.json).
 
 ## Prepare a simulator
 
@@ -24,203 +21,133 @@ NVIDIA lists GPUs without RT cores, including A100 and H100, as unsupported in i
 roboenv prepare robotwin
 ```
 
-This synchronizes pinned RoboTwin sources, installs its isolated interpreter,
-downloads and verifies its public embodiment/object assets, and reports setup
-checks. RoboTwin and RoboDojo run from their source checkouts directly.
-Substitute another simulator as needed.
-Progress is printed to stderr as each stage starts and finishes, with elapsed-time
-updates every 15 seconds during long stages. Installation output stays in the
-private log whose path is printed before installation; use `tail -f LOG_PATH`
-to follow its details. `--json` keeps stdout machine-readable.
-The SDK does not import simulator dependencies. Preparation may download many GB.
+Preparation synchronizes pinned sources, installs an isolated interpreter,
+acquires assets, and registers the environment for launch. Progress and the private
+log path appear on stderr. `--json` keeps stdout machine-readable.
 
-## Optional setup controls
+Repeat preparation to reuse a registered interpreter. It restores selected
+third-party sources to their locked commits and reapplies managed patches,
+discarding local source edits. Keep intended changes in checksum-locked patches.
+Assets, environments, caches, recordings, and nested checkouts are preserved.
+Source refresh alone does not revalidate reused dependencies.
+
+### Optional setup controls
 
 ```sh
 roboenv doctor robotwin
 roboenv prepare robotwin --prefix .venv-sim/robotwin-fresh
 ```
 
-`prepare` defaults to `.venv-sim/robotwin`, checks dependencies and import origins, and
-records the interpreter for launch. Every preparation discards local edits to the
-selected third-party sources, restores their locked upstream commits, and reapplies
-managed patches. Keep intended source changes in checksum-locked patch files;
-downloaded assets, environments, caches, recordings and nested checkouts are preserved.
-Repeating preparation reuses a registered interpreter if its executable still
-exists; refreshing source does not reinstall dependencies or certify that environment
-again. For RoboCasa, each preparation also verifies downloaded kitchen assets
-and downloads missing or damaged bundles, including with a reused interpreter.
-`doctor` provides read-only diagnostics. Existing environments are never
-overwritten. Failed installations
-retain their environment and private logs. Use `--prefix NEW_DIRECTORY`
-for a fresh installation or recovery after failure.
+`doctor` is read-only and does not certify GPU or task readiness. Existing
+environments are never overwritten. After a failed installation, inspect the
+printed log and use a new `--prefix` if a fresh environment is needed.
 
-If preparation reports an existing environment without a reusable interpreter,
-inspect `.cache/setup/SIMULATOR-*/install.private.log` for the original failure
-before retrying with a new prefix. New LIBERO installations configure robosuite
-for console logging, captured by RoboEnv's logs, to avoid its shared
-`/tmp/robosuite.log` file colliding with another user's permissions.
+Set `ROBOENV_ASSET_CACHE` before preparation to place supported assets on a larger
+filesystem. Keep that depot available: source checkouts link to it.
 
-For RoboCasa, `roboenv prepare robocasa` downloads the kitchen textures, fixtures,
-and objects listed by the pinned upstream (about 10 GB) automatically. Progress
-is reported on stderr; completed bundles have local content receipts and are
-reused after verification. If a download fails, rerun the same command; the
-interpreter and completed bundles are preserved. Asset verification does
-not certify simulator boot or GPU replay.
+| Backend | Preparation requirements |
+| --- | --- |
+| RoboTwin | Pinned embodiment and object archives; existing assets are preserved |
+| RoboCasa | About 10 GB of kitchen assets; verified bundles are reused and interrupted downloads can resume |
+| RoboDojo | About 41 GB of ARX X5 assets and Isaac Sim; existing conflicting files fail verification |
+| BEHAVIOR | Robot assets, encrypted scene/object data, challenge instances, and upstream agreement acceptance |
+| LIBERO | Isolated robosuite dependencies and scene assets |
 
-RoboTwin preparation verifies the pinned upstream archives and preserves existing
-asset directories. RoboDojo preparation downloads its pinned public `Assets` tree
-(about 41 GB) and verifies every file against its source hash. Missing
-files can be resumed; conflicting existing files produce an error without being
-overwritten. Set `ROBOENV_ASSET_CACHE=/path/to/data-depot` before preparation to
-place these assets on a larger filesystem. Source checkout links point into that
-depot, so it must remain available for launch.
-
-RoboDojo requires Isaac Sim and supports the upstream ARX X5 robot.
-
-BEHAVIOR preparation acquires the pinned robot assets, encrypted scene/object
-bundle and 2026 challenge instances. RoboEnv defaults Isaac Sim EULA and BEHAVIOR
-Data Bundle agreement acceptance to `YES`; explicit nonacceptance is preserved.
-The upstream OmniGibson key installer runs within its own interpreter; keys and
-native data remain in the private depot. Existing bundles are verified and preserved.
-Source availability alone does not grant access to these assets. Setup does not
-download model checkpoints. See [GPU and license defaults](#gpu-and-license-defaults).
-`doctor` reports recipe
-and source blockers and whether an interpreter has been registered; it does not
-certify GPU, asset, or task readiness. Add `--json` for automation.
+Isaac renderers need host graphics libraries, including `libGLU.so.1`, and a
+supported RTX GPU. See [Isaac Lab setup](isaaclab.md) and
+[GPU and license defaults](#gpu-and-license-defaults). Import checks alone do not
+establish renderer readiness.
 
 ## Start a task
 
 ```sh
 roboenv tasks list --simulator robotwin
-roboenv launch TASK_ID
+roboenv launch robotwin/handover-block-aloha-agilex --port 8123
 ```
 
-Choose a task ID from the list. With `.venv` activated, you can use `roboenv`
-instead of `.venv/bin/roboenv`. Startup uses the registered interpreter and waits
-for the live device registry.
-It assigns a free loopback HTTP port and prints an endpoint and directory
-containing profiles and thin drivers. Select a fixed port with `--port 8123`;
-an occupied port fails startup instead of attaching to another environment. Keep
-the command running; Ctrl-C closes the environment. Use `--detach` to leave it
-running and `roboenv stop RUN_ID --project PROJECT` to close that local run later.
-For HTTP clients, select the local service with `roboenv status --port 8123 --json`
-or `roboenv stop --port 8123 --json`. The port selects `127.0.0.1`; use
-`--endpoint http://HOST:PORT` for remote or container services. HTTP stop requires
-`--allow-stop` at launch. Explicit port and endpoint selections override
-`ROBOENV_ENDPOINT`, including when other simulations are listening on different
-ports. Combining a run reference, `--port`, or `--endpoint` is rejected.
-Without a selected run or endpoint,
-status rejects ambiguous discovery and stop requires an explicit selection.
+Launch uses the registered interpreter, validates live devices, and prints the
+endpoint and run directory. Keep it running; Ctrl-C closes the world. Omit
+`--port` for an automatically assigned port. An occupied port fails startup.
+Launch does not install dependencies or download assets.
 
-An existing prepared interpreter can be selected with `--interpreter ENV/bin/python`.
-Custom tasks accept a task.yaml path and `--catalog CATALOG`. Task files default to
-`execution_mode: realtime`; `execution_mode: stepped` opts into stepped runs.
-`--execution-mode` overrides
-that setting for a local launch. Realtime disables configured and native episode
-step caps and reports `budget.max: null`; stepped retains the caps. Non-timeout
-termination conditions still apply. No simulator
-installation or asset download occurs during launch. Local launch is intended
-for development; external orchestrators provide container boundaries for evaluation.
+| Option | Behavior |
+| --- | --- |
+| `--execution-mode stepped` | Physics advances through world waits; native or configured step caps apply |
+| `--execution-mode realtime` | Default; physics continues while idle and `budget.max` is null |
+| `--stop-on-success` / `--no-stop-on-success` | Override the task's success-stop policy |
+| `--record` | Save [spectator videos](spectator.md) |
+| `--interpreter ENV/bin/python` | Use a prepared interpreter explicitly |
+| `--detach` | Return after startup; close later with `roboenv stop RUN_ID` |
+| `--json` | Machine-readable stdout; simulator logs remain on stderr |
 
-Launch streams simulator stdout/stderr to the terminal's stderr and retains the
-run logs. `--json` keeps stdout machine-readable; `--detach` streams until ready.
-Python callers can enable streaming with `log_stream=sys.stderr`.
+The synced catalogs enable `stop_on_success`. At success or a stepped horizon,
+physics freezes and pending work ends with `episode_finished`; final reads remain
+available. Other native termination rules still apply. See the
+[task contract](simulator-integration.md#task-format).
 
-Startup validates live device interfaces and measurements against the selected
-configuration before reporting readiness. A mismatch must fail explicitly rather
-than silently changing units or calibration. Different worlds need different ports
-in the same network namespace; isolated container networks may reuse an internal
-port. GPU allocation remains a separate scheduling concern.
-
-All backends support top-level `stop_on_success` (default `false`). Launch flags
-`--stop-on-success` and `--no-stop-on-success` override it; Python launch accepts
-`stop_on_success=True` or `False`, while `None` preserves the task setting.
-At a stepped horizon or enabled success stop, physics freezes and unfinished
-buffers/waits end with `episode_finished`. Final reads remain available. See the
-[task policy](simulator-integration.md#task-format) and
-[terminal evidence](gpu-validation.md#terminal-evidence) for finalization details.
+Custom tasks accept a `task.yaml` path and `--catalog CATALOG`. For status, use
+`roboenv status --port 8123 --json`. HTTP stop requires `--allow-stop` at launch;
+then `roboenv stop --port 8123` closes that service. Port selection uses loopback;
+`--endpoint` selects a remote service. Run reference, port, and endpoint are
+mutually exclusive; explicit selections override `ROBOENV_ENDPOINT`.
 
 ## Connect and use devices
 
-In another terminal with the development environment active:
+In another terminal with `.venv` active:
 
 ```sh
+export ROBOENV_ENDPOINT=http://127.0.0.1:8123
 roboenv devices
 roboenv device left_arm read '{}'
-roboenv devices --endpoint http://127.0.0.1:8123
 ```
-
-With one ready local run, discovery selects it. With several, specify
-`--endpoint`. `ROBOENV_ENDPOINT` also selects an HTTP service; `ROBOENV_SOCKET`
-selects the owner-side Unix transport. HTTP binds to loopback by default; use
-`--host 0.0.0.0` for an isolated container network. Camera files are downloaded
-through episode-scoped HTTP artifact routes.
 
 ```python
 import roboenv
 
-env = roboenv.connect("http://127.0.0.1:8123")
-print(env.devices())
-print(env.device("left_arm").read())
+with roboenv.connect("http://127.0.0.1:8123") as env:
+    print(env.task.instruction)
+    print(env.device("left_arm").read())
 ```
 
-Python owners use `with roboenv.launch(task="TASK_ID", port=8123) as run:` and
-connect to `run.endpoint`. Context exit stops the world; closing an attached
-client only releases client resources. Devices expose the operations declared by
-their live descriptors and return device data directly. Budgets and execution
-receipts remain in owner evidence. Exported joint drivers provide local
-FK/IK; the service does not synthesize unsupported operations.
+Closing an attached client leaves the world running. Python owners can use
+`with roboenv.launch("robotwin/handover-block-aloha-agilex", port=8123) as run:`;
+exiting that context closes the world. See [device access](device-documentation.md)
+for action schemas, cameras, and frames, or [Kinex setup](kinex-local.md).
 
-Run definitions, device exports, and logs remain in the project's ignored cache.
-Exported local drivers carry a connection file. Copy complete device directories
-into the agent workspace; their dependencies are described in
-[local Kinex use](kinex-local.md). These episode-specific connection files are
-not reusable across episodes without refreshing their identity.
+Without an endpoint, the CLI selects a single ready local run and rejects
+ambiguous discovery. HTTP binds to loopback; `--host 0.0.0.0` exposes it to a
+container network. Parallel worlds need distinct ports in a shared network.
+Evaluation harnesses own agent isolation and GPU allocation.
 
 ## Discover tasks and connect an agent
 
+The built-in catalogs mirror RLE-Bench-inhouse task01 (10 RoboCasa tasks),
+task02 (40 LIBERO tasks), task03 (50 RoboTwin Aloha AgileX tasks), and task04
+(42 RoboDojo tasks). Their YAML is unchanged except that `max_steps` is omitted
+and `execution_mode` is `realtime`.
+
+For the larger upstream task collection:
+
 ```sh
-roboenv tasks discover --backends libero --out generated/libero-source
-roboenv tasks list --source generated/libero-source/tasks
-roboenv launch libero/mug-into-microwave --port 8123
+roboenv tasks discover --backends robotwin --out generated/robotwin-source
+roboenv tasks list --source generated/robotwin-source/tasks
 ```
 
-Task discovery reads pinned definitions without importing simulator engines.
-Generated catalogs retain source revisions, hashes, patches and exclusions, and
-stay outside Git. Agents connect through the SDK or CLI; use the
-[public device reference](device-documentation.md) to supply their documentation.
-See [simulator validation](gpu-validation.md) for native checks and
-[local Kinex use](kinex-local.md) for optional Kinex device setup.
+Discovery reads pinned definitions without starting simulators. Generated catalogs
+include source revisions, hashes, patches, and exclusions; keep them outside Git.
+Agent harnesses own task selection and scheduling. They connect through the
+public endpoint using the SDK, CLI, or exported device references.
 
 ## LIBERO tasks
 
-Official LIBERO uses the same typed device path with complete scene-specific Panda
-catalogs in `catalog/robots/libero/libero-panda-{tabletop,floor,kitchen,living-room,study}/`.
-Task IDs use `simulator/lowercase-kebab-case`; the prefix selects the backend.
-Task YAML exposes `seed`, `budget_mode`, `execution_mode` and `stop_on_success`;
-native selectors and settings live in `backend_kwargs`. See the
-[task format](simulator-integration.md#task-format) for the shared template.
+The built-in catalog has ten tasks each from `libero_10`, `libero_spatial`,
+`libero_object`, and `libero_goal`. IDs use `libero/libero-SUITE-NN`, numbered
+01–10. Discovery covers all 130 native tasks. Each task selects the Panda catalog
+for its tabletop, floor, kitchen, living-room, or study scene.
 
-Each task selects its robot by a relative catalog path, such as
-`robot: libero/libero-panda-kitchen`; each scene directory contains its full device
-profiles and native mounting geometry.
-Run `roboenv prepare libero` and `roboenv launch libero/bowl-onto-plate`.
-Its absolute joint control is explicitly a practice protocol, not the published OSC
-benchmark action space. `tools/accept_libero.py --out OUTPUT` runs native device,
-transport, Kinex recording and fresh-process replay gates without model calls;
-task scheduling belongs to the external agent harness.
-
-The checked-in LIBERO tasks are `bowl-onto-plate` (grasp/place),
-`close-top-drawer` (close drawer), `bowl-into-bottom-drawer` (place the bowl,
-then close), and `mug-into-microwave` (place the mug, then close).
-The latter two are multi-stage LIBERO-Long stress cases, selected for
-combined object and articulated-fixture manipulation, not an official per-task
-difficulty ranking. Discovery covers all 130 native tasks and selects each scene's
-robot catalog from the task's BDDL problem type. Each catalog includes portable
-copies of the shared device drivers.
-The additional `drawer-and-bowl` example maps to `libero_90` task 8: open the
-top drawer and put the bowl inside. It uses the kitchen Panda catalog.
+Absolute joint control is a practice protocol, distinct from the published OSC
+action space. `tools/accept_libero.py --out OUTPUT` checks native devices,
+transport, Kinex recording, and fresh-process replay without model calls.
 
 ## Standalone simulator images
 
@@ -265,19 +192,6 @@ network/port mapping, readiness deadlines and cleanup; no agent runner is bundle
 Agent containers receive only the public endpoint and intended sensor/configuration
 resources. A read-only mount does not hide private contents.
 
-## Removed orchestration
-
-Harbor support, `integrations/kinex`, and Kinex agent packaging/reporting were
-removed without compatibility stubs. `roboenv export` and `roboenv tasks generate`,
-`validate`, and `run`, the `harbor` dependency extra, and the unified Harbor GPU
-workflow are no longer available. Use task discovery, local or container launch,
-and an external coding-agent harness instead. Existing generated Harbor bundles
-and historical receipts are preserved artifacts, not supported execution inputs.
-Kinex device catalogs, local workspace setup and compatibility checks remain.
-The low-level socket client fallback session is now `roboenv`; use an explicit
-session or `ROBOENV_SESSION` for an existing owner. HTTP identity discovery and
-launch-generated episode identities are unchanged.
-
 ## Advanced installation and assets
 
 Sources and managed patches are pinned in [upstreams.lock.json](../upstreams.lock.json).
@@ -288,10 +202,10 @@ contents without changing the working tree. Recipes and dependency locks are in
 For explicit package inputs, use the low-level installer after source sync:
 
 ```sh
-roboenv sources sync --backends libero
-python -m roboenv.provisioning.setup libero
-python -m roboenv.provisioning.setup libero \
-  --install --prefix .venv-sim/libero-wheels --wheels build/wheels
+roboenv sources sync --backends robotwin
+python -m roboenv.provisioning.setup robotwin
+python -m roboenv.provisioning.setup robotwin \
+  --install --prefix .venv-sim/robotwin-wheels --wheels build/wheels
 ```
 
 Without `--install` this only inspects the recipe. Installation requires a new
@@ -359,7 +273,7 @@ All eight simulator backends use the first CUDA-visible GPU for compute and rend
 
 ```sh
 export CUDA_VISIBLE_DEVICES=6
-roboenv launch robodojo/general-pickup
+roboenv launch robotwin/handover-block-aloha-agilex
 ```
 
 An unset mask selects logical `cuda:0` according to the CUDA driver's default order.

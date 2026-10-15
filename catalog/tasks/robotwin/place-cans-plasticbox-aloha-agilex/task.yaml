@@ -1,0 +1,12 @@
+id: robotwin/place-cans-plasticbox-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "simultaneously pick up both cans with separate arms, then place them side by side in the plastic box, leaving both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: place_cans_plasticbox
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

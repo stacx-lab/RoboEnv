@@ -1,0 +1,10 @@
+id: robodojo/fill-egg-holder
+robot: robodojo/robodojo-arx-x5
+instruction: "Place the four eggs from the basket into the egg holder, then close the lid. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: fill_egg_holder
+  env_cfg_type: arx_x5

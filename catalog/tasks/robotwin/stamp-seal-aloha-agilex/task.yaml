@@ -1,0 +1,12 @@
+id: robotwin/stamp-seal-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "Grab the stamp and stamp onto the center of the colored mat, leaving the stamp there and both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: stamp_seal
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

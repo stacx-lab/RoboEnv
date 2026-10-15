@@ -1,0 +1,12 @@
+id: robotwin/place-burger-fries-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "simultaneously pick up the hamburger and fries with both arms, then place the hamburger in the left section of the tray and the fries in the right section, leaving both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: place_burger_fries
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

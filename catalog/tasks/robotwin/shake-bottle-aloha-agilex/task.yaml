@@ -1,0 +1,12 @@
+id: robotwin/shake-bottle-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "Shake the bottle with proper arm while holding it well clear of the table"
+seed: 2
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: shake_bottle
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

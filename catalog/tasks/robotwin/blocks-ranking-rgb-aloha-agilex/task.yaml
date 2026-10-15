@@ -1,0 +1,12 @@
+id: robotwin/blocks-ranking-rgb-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "Place the red, green, and blue blocks in a close horizontal row from left to right, then release them with both grippers open."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: blocks_ranking_rgb
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

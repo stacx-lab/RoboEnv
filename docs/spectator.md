@@ -1,13 +1,9 @@
 # Spectator recording (experimental)
 
-ABC uses MuJoCo by default. Setting its task `backend_kwargs.camera_backend` to
-`blender` also selects Blender for spectator recording, including named cameras
-and custom fixed-pose views. See [ABC rendering setup](abc.md#blender-rendering).
-
 ```sh
-roboenv launch libero/bowl-onto-plate --record
-roboenv launch libero/bowl-onto-plate --record ./recordings/episode-1
-roboenv launch libero/bowl-onto-plate --record --record-fps 5 --record-views views.json
+roboenv launch robotwin/handover-block-aloha-agilex --record
+roboenv launch robotwin/handover-block-aloha-agilex --record ./recordings/episode-1
+roboenv launch robotwin/handover-block-aloha-agilex --record --record-fps 5 --record-views views.json
 ```
 
 Recording saves one H.264 MP4 per view under the printed owner-only recording
@@ -43,12 +39,12 @@ agent observations. SIMPLE instead records the existing `camera_head_left` and
 the device cameras' positions, orientations and optical parameters. Explicit
 output sizes resample those frames on the CPU, without adding scene detail.
 SIMPLE does not support fixed-pose spectator views. For example, `views.json`
-for LIBERO can contain:
+for RoboTwin can contain:
 
 ```json
 [
   {"name": "overview", "source": "third_person", "height": 720},
-  {"name": "hand", "source": "wrist", "width": 480, "height": 480}
+  {"name": "hand", "source": "left_wrist", "width": 480, "height": 480}
 ]
 ```
 
@@ -75,6 +71,9 @@ encoded samples, whereas `encoded_frames` also includes holds across sampling ga
 
 Unknown views, invalid settings and unavailable encoders fail requested recording
 startup before the service becomes ready.
+
+ABC uses its selected camera backend for spectator recording; see
+[ABC rendering setup](abc.md#blender-rendering).
 
 ## Isaac Lab views
 
@@ -247,13 +246,13 @@ Use existing prepared environments and assets. Select a GPU and run each backend
 sequentially, in both clock modes, into fresh private output directories:
 
 ```sh
-.venv/bin/python tools/check_spectator.py libero/bowl-onto-plate \
+.venv/bin/python tools/check_spectator.py robotwin/handover-block-aloha-agilex \
   --clock stepped --seconds 2 --timeout 180 \
-  --out .cache/spectator/libero-stepped
+  --out .cache/spectator/robotwin-stepped
 ```
 
-Other initial cases are `robocasa/pick-place-microwave`,
-`robotwin/stack-blocks-three`, `robodojo/stack-bowls`, and
+Other initial cases are `robocasa/filter-microwavable-item`,
+`robotwin/stack-blocks-three-aloha-agilex`, `robodojo/stack-bowls`, and
 `behavior/turning-on-radio`. RoboDojo fluid and deformable scenes need additional
 explicit cases before their coverage can be claimed. `--interpreter` overrides
 the registered interpreter. `--views` accepts a JSON list of `ViewSpec` fields

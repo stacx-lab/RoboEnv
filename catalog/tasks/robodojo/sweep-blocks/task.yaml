@@ -1,0 +1,10 @@
+id: robodojo/sweep-blocks
+robot: robodojo/robodojo-arx-x5
+instruction: "Pick up the broom, hand it over to the right hand, and sweep all the objects into the dustpan. Leave the dustpan flat on the table to the left of the broom. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: sweep_blocks
+  env_cfg_type: arx_x5

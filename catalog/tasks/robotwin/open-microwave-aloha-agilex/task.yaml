@@ -1,0 +1,12 @@
+id: robotwin/open-microwave-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "Open the microwave door widely."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: open_microwave
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

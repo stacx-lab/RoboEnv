@@ -1,0 +1,12 @@
+id: robotwin/place-a2b-left-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "place the {movable_object_description} directly to the left of the {reference_object_description}, with a small gap between them and both grippers open"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: place_a2b_left
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false

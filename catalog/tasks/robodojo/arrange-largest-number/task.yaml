@@ -1,0 +1,10 @@
+id: robodojo/arrange-largest-number
+robot: robodojo/robodojo-arx-x5
+instruction: "Arrange the numbers on the pads from left to right to form the largest possible number, readable from the robot's side. Return both arms to their starting poses."
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: arrange_largest_number
+  env_cfg_type: arx_x5

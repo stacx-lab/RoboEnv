@@ -1,0 +1,9 @@
+id: robocasa/scale-portioning
+robot: robocasa/robocasa-panda-omron
+instruction: "Take the {meat} from the fridge and place it on the digital scale on the counter by the fridge. Release it and move the gripper clear while waiting a few seconds for a reading. Then move it to the plate on the dining counter, release it, and move the gripper clear."
+seed: 0
+budget_mode: official
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: ScalePortioning

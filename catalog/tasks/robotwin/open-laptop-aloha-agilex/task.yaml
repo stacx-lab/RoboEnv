@@ -1,0 +1,12 @@
+id: robotwin/open-laptop-aloha-agilex
+robot: robotwin/robotwin-aloha-agilex
+instruction: "open the laptop, keeping the gripper on its opening side near the lid"
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: open_laptop
+  embodiment: aloha_agilex
+  task_config: demo_clean
+  allow_seed_substitution: false
