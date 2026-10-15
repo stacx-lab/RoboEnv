@@ -194,10 +194,11 @@ class SimWorker:
             self._recorder.tick(self.world.time_s)
         self._check_terminal()
 
-    def _finish_recording(self, status="complete"):
+    def _finish_recording(self, status="complete", *, release_renderer=True):
         if self._recorder is not None:
             try:
-                self._recorder.close(self.world.time_s, status=status)
+                self._recorder.close(self.world.time_s, status=status,
+                                     release_renderer=release_renderer)
             except Exception:
                 log.exception("Recording finalization failed")
 
@@ -373,7 +374,10 @@ class SimWorker:
             finally:
                 self._finalizing = False
                 self.world._settle_waiters()
-            self._finish_recording()
+            # Native GL resource destruction can block inside the driver. Keep
+            # it out of terminal RPCs; release on reset or worker shutdown on
+            # this same owner thread, after media and verdicts are available.
+            self._finish_recording(release_renderer=False)
             return copy.deepcopy(self._final_result)
 
     def _budget_snapshot(self) -> dict[str, Any]:

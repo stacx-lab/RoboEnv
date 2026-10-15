@@ -255,12 +255,12 @@ class Supervisor:
             "TMPDIR": root / "tmp",
             "XDG_CACHE_HOME": root / "cache" / "xdg",
             "XDG_CONFIG_HOME": root / "config" / "xdg",
-            "XDG_DATA_HOME": root / "data" / "xdg",
+            "XDG_DATA_HOME": root / "cache" / "data" / "xdg",
             "OMNI_USER_CONFIG_PATH": root / "config" / "omniverse",
             "OMNI_LOG_ROOT": root / "logs" / "omniverse",
             "OMNI_CACHE_ROOT": root / "cache" / "omniverse",
             "OV_CACHE_ROOT": root / "cache" / "ov",
-            "OV_DATA_ROOT": root / "data" / "ov",
+            "OV_DATA_ROOT": root / "cache" / "data" / "ov",
             "OV_LOG_ROOT": root / "logs" / "ov",
         }
         for key, path in dirs.items():
