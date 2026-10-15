@@ -131,7 +131,7 @@ class RoboTwinEnv:
         self._base_args = _assemble_task_args(
             task_name=task_name,
             task_config=task_config,
-            embodiment=embodiment if embodiment is not None else ["piper", "piper", 0.6],
+            embodiment=embodiment if embodiment is not None else ["aloha-agilex"],
             planner=planner,
             collect_wrist_camera=collect_wrist_camera,
             save_freq=save_freq,

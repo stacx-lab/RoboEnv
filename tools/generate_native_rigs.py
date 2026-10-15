@@ -91,12 +91,13 @@ def write_rig(root, robot, backend, embodiment, facts, *, bindings_out=None):
 def generate_robotwin(project, catalog, *, assets=None, bindings_out=None):
     from roboenv_runtime.adapters.robotwin.rig import describe
 
-    for embodiment, robot in (
-        ("piper", "robotwin-dual-piper"),
-        ("aloha_agilex", "robotwin-aloha-agilex"),
-    ):
-        facts, _, _ = describe(Path(project) / "third_party/RoboTwin", embodiment, assets=assets)
-        write_rig(catalog, robot, "robotwin", embodiment, facts, bindings_out=bindings_out)
+    facts, _, _ = describe(
+        Path(project) / "third_party/RoboTwin", "aloha_agilex", assets=assets
+    )
+    write_rig(
+        catalog, "robotwin-aloha-agilex", "robotwin", "aloha_agilex", facts,
+        bindings_out=bindings_out,
+    )
 
 
 def generate_robodojo(project, catalog, *, assets=None, bindings_out=None):

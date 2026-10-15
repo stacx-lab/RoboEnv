@@ -22,7 +22,7 @@ ROBOTS = {
     "simple": "simple/simple-g1",
     "libero": "libero/libero-panda-tabletop",
     "robocasa": "robocasa/robocasa-panda-omron",
-    "robotwin": "robotwin/robotwin-dual-piper",
+    "robotwin": "robotwin/robotwin-aloha-agilex",
     "robodojo": "robodojo/robodojo-arx-x5",
     "behavior": "behavior/behavior-r1pro",
 }
@@ -138,20 +138,15 @@ def _robotwin(root, issues):
             )
             continue
         instruction = instruction.strip()
-        for suffix, robot, embodiment in (
-            ("", ROBOTS["robotwin"], "piper"),
-            ("-aloha-agilex", "robotwin/robotwin-aloha-agilex", "aloha_agilex"),
-        ):
-            yield (
-                _task(
-                    "robotwin",
-                    name + suffix,
-                    {"task_name": name, "embodiment": embodiment},
-                    instruction,
-                    robot=robot,
-                ),
-                source,
-            )
+        yield (
+            _task(
+                "robotwin",
+                name + "-aloha-agilex",
+                {"task_name": name, "embodiment": "aloha_agilex"},
+                instruction,
+            ),
+            source,
+        )
 
 
 def _robodojo(root, issues):

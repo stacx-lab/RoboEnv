@@ -64,3 +64,12 @@ def test_robot_listing_matches_setup_and_does_not_export(tmp_path, monkeypatch, 
 def test_missing_catalog_reports_error(kind, option, tmp_path, capsys):
     assert main([kind, "list", option, str(tmp_path / "missing")]) == 1
     assert "ValueError" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_robotwin_lists_only_aloha_and_cannot_export_piper(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert main(["robots", "list", "--simulator", "robotwin", "--project", str(ROOT)]) == 0
+    assert capsys.readouterr().out == "robotwin/robotwin-aloha-agilex\n"
+    assert main(["setup", "robotwin/robotwin-dual-piper", "--project", str(ROOT)]) == 1
+    assert "Unknown robot" in json.loads(capsys.readouterr().out)["error"]
+    assert not list(tmp_path.iterdir())

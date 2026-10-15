@@ -11,11 +11,14 @@ from roboenv_runtime.paths import robotwin_root
 @register_adapter
 class RoboTwinAdapter(NativeDeviceAdapter):
     name = "robotwin"
-    embodiment = "piper"
+    embodiment = "aloha_agilex"
 
     def __init__(
-        self, task_name="handover_block", embodiment="piper", *, stop_on_success=False, **kwargs
+        self, task_name="handover_block", embodiment="aloha_agilex", *, stop_on_success=False,
+        **kwargs
     ):
+        if embodiment != "aloha_agilex":
+            raise ValueError("RoboTwin supports only the ALOHA AgileX rig")
         self._set_stop_on_success(stop_on_success)
         from .devices import RoboTwinDevices
 

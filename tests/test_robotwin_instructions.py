@@ -1,11 +1,37 @@
 """Source discovery must retain public task semantics without starting a simulator."""
 
 import json
+import sys
 from types import SimpleNamespace
 
 import pytest
 from roboenv.tasks.catalog import _robotwin
 from roboenv_runtime.adapters.robotwin.adapter import RoboTwinAdapter
+
+
+def test_robotwin_defaults_to_aloha_without_starting_a_simulator(monkeypatch):
+    calls = []
+
+    def devices(task_name, embodiment, **kwargs):
+        calls.append((task_name, embodiment))
+
+    monkeypatch.setitem(
+        sys.modules, "roboenv_runtime.adapters.robotwin.devices",
+        SimpleNamespace(RoboTwinDevices=devices),
+    )
+    adapter = RoboTwinAdapter()
+    assert adapter.embodiment == "aloha_agilex"
+    assert calls == [("handover_block", "aloha_agilex")]
+
+
+def test_piper_is_rejected_before_loading_a_simulator(tmp_path, monkeypatch):
+    from roboenv_runtime.adapters.robotwin.rig import describe
+
+    monkeypatch.setitem(sys.modules, "roboenv_runtime.adapters.robotwin.devices", None)
+    with pytest.raises(ValueError, match="only the ALOHA AgileX"):
+        RoboTwinAdapter(embodiment="piper")
+    with pytest.raises(ValueError, match="only the ALOHA AgileX"):
+        describe(tmp_path, "piper")
 
 
 @pytest.mark.parametrize("description", [
@@ -33,10 +59,11 @@ def test_robotwin_discovery_uses_explicit_upstream_instruction(tmp_path, descrip
     entries = list(_robotwin(tmp_path, issues))
     text = (description or {}).get("full_description")
     if isinstance(text, str) and text.strip():
-        assert len(entries) == 2
-        assert {task.robot for task, _ in entries} == {
-            "robotwin/robotwin-dual-piper", "robotwin/robotwin-aloha-agilex",
-        }
+        assert len(entries) == 1
+        task, _ = entries[0]
+        assert task.robot == "robotwin/robotwin-aloha-agilex"
+        assert task.id == "robotwin/example-aloha-agilex"
+        assert task.backend_kwargs == {"task_name": "example", "embodiment": "aloha_agilex"}
         assert all(task.instruction == text.strip() for task, _ in entries)
         assert all(task.backend == "robotwin" for task, _ in entries)
         assert not issues

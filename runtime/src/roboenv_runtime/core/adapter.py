@@ -28,7 +28,7 @@ class EnvAdapter(Protocol):
     Attributes:
         name: Registry key (``"robodojo"``, ``"robotwin"``, ...).
         embodiment: Native robot embodiment (``"arx_x5"``,
-            ``"piper"``, ``"panda"``, ...).
+            ``"aloha_agilex"``, ``"panda"``, ...).
     """
 
     name: str

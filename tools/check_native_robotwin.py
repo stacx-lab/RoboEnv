@@ -361,7 +361,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kinex", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--embodiment", choices=["piper", "aloha_agilex"], required=True)
+    parser.add_argument("--embodiment", choices=["aloha_agilex"], required=True)
     parser.add_argument("--seed", type=int, required=True)
     args = parser.parse_args()
     out = args.out.resolve()

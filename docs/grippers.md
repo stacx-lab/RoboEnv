@@ -43,7 +43,7 @@ Panda keeps its native `grip_site` TCP and two opposing 16 × 16 mm inner pads.
 The driver calibrates aperture conversion from the compiled geometry at setup;
 reads use measured joint positions without computing finger poses.
 
-RoboTwin Piper and ALOHA AgileX use the position and orientation returned by the
+RoboTwin ALOHA AgileX use the position and orientation returned by the
 native robot's TCP convention. The rig derives this fixed transform from the
 end-effector joint anchor, embodiment rotation matrices and gripper bias.
 ARX X5 and R1Pro place the TCP at the midpoint of two source contact reference
@@ -61,7 +61,7 @@ calibration remain unspecified. Its aperture feedback is null.
 
 [`gripper_contacts.json`](../runtime/src/roboenv_runtime/adapters/gripper_contacts.json)
 records points and normals in each finger link's coordinates, with source
-revisions and checksums. Piper, ALOHA and X5 use their pinned collision STL
+revisions and checksums. ALOHA and X5 use their pinned collision STL
 surfaces.
 R1Pro uses the native USD convex collision surfaces; its old URDF collision
 mesh paths are not used to calibrate the contacts.

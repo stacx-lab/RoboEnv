@@ -23,7 +23,7 @@ class RoboTwinDevices(RoboTwinEnv):
     def __init__(
         self,
         task_name="handover_block",
-        embodiment="piper",
+        embodiment="aloha_agilex",
         *,
         max_steps=None,
         task_config="demo_clean",

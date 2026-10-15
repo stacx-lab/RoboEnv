@@ -32,8 +32,8 @@ def test_robodojo_public_instruction_uses_cached_native_description():
     assert adapter.goal() == "Pick up the blue cup by 10 cm."
 
 
-def service(tmp_path, *, embodiment="piper"):
-    root = ROOT / "catalog/robots/robotwin/robotwin-dual-piper"
+def service(tmp_path, *, embodiment="aloha_agilex"):
+    root = ROOT / "catalog/robots/robotwin/robotwin-aloha-agilex"
     plan = BindingPlan.load(root, backend="robotwin")
     facts = {}
     for spec in plan.devices:
@@ -77,7 +77,7 @@ def service(tmp_path, *, embodiment="piper"):
     owner._env, owner.run_dir = world, tmp_path
     world.control_interval, world.frame_limit = 0.04, 3
     session = WorldSession(owner, mode="stepped")
-    context = BindingContext("robotwin", "piper", owner, world=session)
+    context = BindingContext("robotwin", "aloha_agilex", owner, world=session)
     return (
         default_registry().assemble(
             plan, root, context, motion_scheduler=session.schedule, resolve=session.resolve
@@ -165,7 +165,7 @@ def test_independent_writes_and_read_stop_invariance(tmp_path):
 
 def test_native_aliases_are_allowed_and_rig_mismatches_fail_before_effects(tmp_path):
     with pytest.raises(ValueError, match="embodiment"):
-        service(tmp_path, embodiment="aloha_agilex")
+        service(tmp_path, embodiment="piper")
     wire, world, plan, root, context = service(tmp_path)
     try:
         alias = replace(next(s for s in plan.devices if s.entity == "left_arm"), name="alias")
@@ -176,7 +176,7 @@ def test_native_aliases_are_allowed_and_rig_mismatches_fail_before_effects(tmp_p
         finally:
             aliases.close()
         world.device_facts = copy.deepcopy(world.device_facts)
-        world.device_facts["left_arm"]["intrinsics"]["home"]["joint1"] = 0.123
+        world.device_facts["left_arm"]["intrinsics"]["home"]["fl_joint1"] = 0.123
         with pytest.raises(ValueError, match="Catalog intrinsics"):
             default_registry().assemble(plan, root, context)
         assert world.steps == 0

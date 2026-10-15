@@ -17,7 +17,6 @@ from roboenv_runtime.bindings.backends.libero.devices import same_facts
 ROOT = Path(__file__).resolve().parents[1]
 CASES = json.loads((ROOT / "tests/fixtures/gripper_contacts.json").read_text())
 RIGS = {
-    "piper": "robotwin/robotwin-dual-piper",
     "aloha": "robotwin/robotwin-aloha-agilex",
     "x5": "robodojo/robodojo-arx-x5",
     "r1pro": "behavior/behavior-r1pro",
@@ -98,13 +97,9 @@ def test_catalogs_match_source_geometry_on_both_arms(tmp_path, case):
             matrix(mount["translation_m"] + mount["rotation_xyzw"])
             @ matrix(tcp["translation_m"] + tcp["rotation_xyzw"]), geometry.tcp, atol=1e-9,
         )
-        if case["model"] in {"aloha", "piper"}:
+        if case["model"] == "aloha":
             native = np.eye(4)
-            if case["model"] == "aloha":
-                native[:3, 3] = [0.12, 0, 0]
-            else:
-                native[:3, :3] = [[0, 0, -1], [0, 1, 0], [1, 0, 0]]
-                native[:3, 3] = [0, 0, 0.12]
+            native[:3, 3] = [0.12, 0, 0]
             facts["intrinsics"]["frames"]["tcp"] = local_frame(
                 matrix_pose(np.linalg.inv(geometry.mount) @ native)
             )
@@ -162,7 +157,8 @@ def test_native_read_paths_publish_aperture_without_finger_poses(tmp_path, backe
         world.control, world.control_interval = SimpleNamespace(frame=30), 1 / 30
     reading = world.device_read("left_gripper")
     assert "frame_poses" not in reading
-    assert reading["aperture_m"] == pytest.approx(0.03, abs=1e-8)
+    # ALOHA's calibrated contact surfaces have a 0.000000165976 m zero-position gap.
+    assert reading["aperture_m"] == pytest.approx(0.030000165976, abs=1e-10)
     assert reading["timestamp"] == pytest.approx(1)
     assert "positions" not in reading and "velocities" not in reading
     assert not {"force_n", "pressure_pa", "object_detected"}.intersection(reading)

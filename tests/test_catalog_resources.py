@@ -108,6 +108,28 @@ def test_all_robot_variants_have_registered_bindings():
             assert spec.definition(robot).name == spec.name
 
 
+def test_robotwin_generator_emits_only_aloha(tmp_path, monkeypatch):
+    from roboenv_runtime.adapters.robotwin import rig
+
+    generator = load_tool("generate_native_rigs")
+    calls = []
+
+    def describe(root, embodiment, **kwargs):
+        calls.append(embodiment)
+        return {"world": {"type": "world", "intrinsics": {}}}, {}, {}
+
+    monkeypatch.setattr(rig, "describe", describe)
+    catalog, bindings = tmp_path / "catalog", tmp_path / "bindings"
+    generator.generate_robotwin(ROOT, catalog, bindings_out=bindings)
+    assert calls == ["aloha_agilex"]
+    assert {p.name for p in (catalog / "robots/robotwin").iterdir()} == {
+        "robotwin-aloha-agilex"
+    }
+    assert {p.name for p in (bindings / "robotwin").iterdir()} == {
+        "robotwin-aloha-agilex.yaml"
+    }
+
+
 def test_copied_go2_catalog_keeps_bindings_private_and_drivers_portable(tmp_path):
     from roboenv.tasks.catalog import load_catalog
 

@@ -1,4 +1,4 @@
-"""Complete source-derived Piper and ALOHA rigs, without scene or GPU creation."""
+"""Complete source-derived ALOHA AgileX rig, without scene or GPU creation."""
 
 
 import hashlib
@@ -20,7 +20,7 @@ from roboenv_runtime.adapters.urdf_geometry import (
 )
 from roboenv_runtime.bindings.backends.robocasa.camera import intrinsics as camera_intrinsics
 
-EMBODIMENTS = {"piper": ["piper", "piper", 0.6], "aloha_agilex": ["aloha-agilex"]}
+EMBODIMENTS = {"aloha_agilex": ["aloha-agilex"]}
 OPTICAL = np.array([[0, 0, 1, 0], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]])
 
 
@@ -52,7 +52,7 @@ def native_tcp(urdf, config, index, flange):
 def describe(root, embodiment, *, assets=None):
     root = Path(root)
     if embodiment not in EMBODIMENTS:
-        raise ValueError("Typed RoboTwin supports Piper and ALOHA-AgileX rigs")
+        raise ValueError("RoboTwin supports only the ALOHA AgileX rig")
     selected = EMBODIMENTS[embodiment]
     assets = Path(assets) if assets else root / "assets/embodiments"
     directory = assets / selected[0]
@@ -93,8 +93,6 @@ def describe(root, embodiment, *, assets=None):
             joint["max_velocity"] = joint["max_effort"] = None
         root_pose = config["robot_pose"][0]
         pose = [*root_pose[:3], *root_pose[4:7], root_pose[3]]
-        if len(selected) == 3:
-            pose[0] += (-1 if index == 0 else 1) * selected[2] / 2
         arm_mount = matrix(pose) @ fixed_transform(urdf, roots[0], base)
         facts[arm] = {
             "intrinsics": joint_intrinsics(model, config["homestate"][index], arm),
@@ -103,9 +101,7 @@ def describe(root, embodiment, *, assets=None):
         }
         grip_config = config["gripper_name"][index]
         grip_names = [grip_config["base"], *[entry[0] for entry in grip_config["mimic"]]]
-        geometry = ParallelGripper(
-            urdf, grip_names, flange, "piper" if embodiment == "piper" else "aloha"
-        )
+        geometry = ParallelGripper(urdf, grip_names, flange, "aloha")
         facts[gripper] = geometry.device(gripper, arm)
         facts[gripper]["intrinsics"]["frames"]["tcp"] = local_frame(matrix_pose(
             np.linalg.inv(geometry.mount) @ native_tcp(urdf, config, index, flange)

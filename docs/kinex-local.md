@@ -15,8 +15,8 @@ Each listing prints one ID per line; add `--json` for structured output.
 `launch` accepts a task ID, while `setup` accepts a robot ID. Read `robot:` in
 `catalog/tasks/<task-id>/task.yaml` to select the matching device collection.
 For this guide, `robotwin/handover-block-aloha-agilex` pairs with
-`robotwin/robotwin-aloha-agilex`. RoboTwin also has a Dual Piper catalog, so the
-simulator name alone does not identify the correct robot. See
+`robotwin/robotwin-aloha-agilex`, the supported RoboTwin robot. For simulators
+with multiple robots or scenes, use the task YAML to select the exact match. See
 [other pairs](setup.md#choose-a-paired-task-and-robot).
 
 ## Launch RoboEnv
