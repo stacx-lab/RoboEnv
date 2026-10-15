@@ -118,13 +118,16 @@ class Recorder:
         self.renderer = create_spectator_renderer(adapter, views)
         self.process = None
         self.closed = False
+        self._renderer_closed = False
         self.next_sample = 0.0
         self.last_sample = None
+        self.lossless = getattr(adapter, "execution_mode", "realtime") == "stepped"
         self.summary = {
             "schema": "roboenv/recording/1", "experimental": True,
             "status": "incomplete", "state": "starting", "clock": "simulation",
             "fps": self.fps, "views": [asdict(v) for v in self.renderer.views],
             "captured_samples": 0, "dropped_samples": 0,
+            "overflow_policy": "bounded_backpressure" if self.lossless else "drop",
         }
         ctx = mp.get_context("spawn")
         self.frames = ctx.Queue(maxsize=2)
@@ -165,10 +168,18 @@ class Recorder:
         self.summary["captured_samples"] += 1
         self.last_sample = timestamp
         try:
-            self.frames.put_nowait((timestamp, images))
+            if self.lossless:
+                # Waiting changes wall time only: stepped physics stays frozen.
+                # Bound encoder failure so recording cannot indefinitely block
+                # the owner lane or alter the authoritative native verdict.
+                self.frames.put((timestamp, images), timeout=2)
+            else:
+                self.frames.put_nowait((timestamp, images))
             self.accepted.value += 1
         except queue.Full:
             self.summary["dropped_samples"] += 1
+            if self.lossless:
+                raise RuntimeError("Recording encoder exceeded the 2 second sample deadline") from None
         self.next_sample = (math.floor(timestamp * self.fps + 1e-8) + 1) / self.fps
 
     def tick(self, timestamp):
@@ -182,8 +193,11 @@ class Recorder:
         except Exception as exc:
             self.close(timestamp, status="incomplete", error=str(exc), capture=False)
 
-    def close(self, timestamp, *, status="complete", error=None, capture=True):
+    def close(self, timestamp, *, status="complete", error=None, capture=True,
+              release_renderer=True):
         if self.closed:
+            if release_renderer:
+                self._close_renderer()
             return
         self.closed = True
         try:
@@ -224,10 +238,6 @@ class Recorder:
         self.frames.cancel_join_thread()
         self.frames.close()
         self.reply.close()
-        try:
-            self.renderer.close()
-        except Exception as exc:
-            error = error or str(exc)
         self.summary.update(state="closed", status="incomplete" if error else status,
                             error=error, end_time_s=timestamp, accepted_samples=self.accepted.value)
         try:
@@ -237,3 +247,16 @@ class Recorder:
             self.summary.update(status="incomplete", error=error)
         if error:
             log.warning("Recording incomplete: %s", error)
+        if release_renderer:
+            self._close_renderer()
+
+    def _close_renderer(self):
+        if self._renderer_closed:
+            return
+        self._renderer_closed = True
+        try:
+            self.renderer.close()
+        except Exception:
+            # Media completeness is already sealed. Driver resource cleanup is
+            # separate from the recording and the authoritative native verdict.
+            log.exception("Recording renderer cleanup failed")

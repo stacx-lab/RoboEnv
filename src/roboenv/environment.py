@@ -360,7 +360,7 @@ def launch(
         Path(run_dir).resolve()
         if run_dir
         else (root / ".cache/roboenv/runs" if runtime_root else _records(root))
-    )
+    ).resolve()
     directory = runs / run_id
     directory.mkdir(parents=True, mode=0o700)
     sockets = Path(tempfile.mkdtemp(prefix="roboenv-socket-", dir="/tmp"))

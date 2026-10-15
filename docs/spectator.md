@@ -69,6 +69,11 @@ terminal hold is added. `frames.jsonl` records the authoritative simulation samp
 times and their encoded frame ranges. `represented_samples` counts distinct
 encoded samples, whereas `encoded_frames` also includes holds across sampling gaps.
 
+In stepped mode, sampling applies up to two seconds of encoder backpressure:
+physics stays frozen while the bounded queue drains. An encoder that does not
+recover marks recording incomplete instead of silently losing a sample. Realtime
+sampling remains nonblocking and reports dropped samples in the manifest. Smooth
+video timestamps alone do not prove that every source sample was captured.
 Unknown views, invalid settings and unavailable encoders fail requested recording
 startup before the service becomes ready.
 
