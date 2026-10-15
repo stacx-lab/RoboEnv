@@ -194,10 +194,10 @@ class SimWorker:
             self._recorder.tick(self.world.time_s)
         self._check_terminal()
 
-    def _finish_recording(self, status="complete", *, release_renderer=True):
+    def _finish_recording(self, status="complete", *, capture=True, release_renderer=True):
         if self._recorder is not None:
             try:
-                self._recorder.close(self.world.time_s, status=status,
+                self._recorder.close(self.world.time_s, status=status, capture=capture,
                                      release_renderer=release_renderer)
             except Exception:
                 log.exception("Recording finalization failed")
@@ -370,6 +370,7 @@ class SimWorker:
                 # An incomplete final evaluation is not a retryable opportunity
                 # to take more actions or evaluate a different terminal state.
                 self.state = "failed"
+                self._finish_recording("incomplete", capture=False, release_renderer=False)
                 raise
             finally:
                 self._finalizing = False
