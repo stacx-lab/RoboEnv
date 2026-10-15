@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from roboenv.recording import recording_config
 from roboenv_runtime.adapters.fakeshell import FakeShell
-from roboenv_runtime.runtime.worker import SimWorker
+from roboenv_runtime.runtime.worker import SimWorker, WorkerRPCError
 from roboenv_runtime.spectator import ViewSpec
 from roboenv_runtime.spectator.recording import Recorder
 
@@ -141,6 +141,40 @@ def test_capture_failure_stops_recording_without_failing_world(tmp_path, rendere
         assert manifest(tmp_path / "recording")["status"] == "incomplete"
     finally:
         worker.close()
+
+
+def test_failed_terminal_snapshot_seals_partial_video_without_a_verdict(
+    tmp_path, renderer, monkeypatch,
+):
+    worker = SimWorker(FakeShell(), task_id="toy", seed=0, run_dir=tmp_path,
+                       execution_mode="stepped", recording={})
+    worker.world.resolve(worker.world.wait(0.2))
+
+    def invalid_state():
+        return json.dumps({"position": float("nan")}, allow_nan=False)
+
+    def failed_capture():
+        raise AssertionError("Failed native state must not be rendered again")
+
+    monkeypatch.setattr(worker, "observe", invalid_state)
+    monkeypatch.setattr(renderer, "capture", failed_capture)
+    try:
+        with pytest.raises(ValueError, match="Out of range float"):
+            worker.submit()
+        result = manifest(tmp_path / "recording")
+        assert result["state"] == "closed" and result["status"] == "incomplete"
+        assert result["error"] is None
+        assert result["end_time_s"] == pytest.approx(0.2)
+        assert len(decode(tmp_path / "recording")) == 3
+        assert not worker._recorder.process.is_alive() and not renderer.closed
+        assert worker.state == "failed" and worker._final_result is None
+        assert not worker.simulation_status(include_verdict=True)["terminal"]
+        assert not (tmp_path / "terminal.json").exists()
+        with pytest.raises(WorkerRPCError, match="owner recovery is required"):
+            worker.submit()
+    finally:
+        worker.close()
+    assert renderer.closed
 
 
 def test_video_uses_simulation_timestamps_and_holds_missing_frames(tmp_path, renderer):
