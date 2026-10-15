@@ -62,6 +62,14 @@ def main(argv=None):
     listing.add_argument("--project", type=Path)
     listing.add_argument("--source", type=Path)
     listing.add_argument("--simulator", help="Filter tasks by simulator")
+    listing.add_argument("--json", action="store_true", help="Machine-readable output")
+    robots = commands.add_parser("robots", help="Browse available robot/device configurations")
+    robots_commands = robots.add_subparsers(dest="robots_command", required=True)
+    robot_listing = robots_commands.add_parser("list", help="List robot IDs, one per line")
+    robot_listing.add_argument("--project", type=Path)
+    robot_listing.add_argument("--catalog", type=Path, help="Source catalog containing robots/")
+    robot_listing.add_argument("--simulator", help="Filter robots by simulator")
+    robot_listing.add_argument("--json", action="store_true", help="Machine-readable output")
     discovery = tasks_commands.add_parser("discover")
     discovery.add_argument("--project", type=Path)
     discovery.add_argument("--out", required=True, type=Path)
@@ -123,8 +131,23 @@ def main(argv=None):
                     }
                 else:
                     result = summary(args.project, args.source)
+                if not args.json:
+                    for task_id in result["ids"]:
+                        print(task_id)
+                    return 0
             elif args.tasks_command == "discover":
                 result = discover(args.project, args.out, args.backends or BACKENDS)
+        elif args.command == "robots":
+            from roboenv.devices.workspace import list_robots
+
+            ids = list_robots(project=args.project, catalog=args.catalog)
+            if args.simulator:
+                ids = [robot for robot in ids if robot.split("/", 1)[0] == args.simulator]
+            result = {"robots": ids}
+            if not args.json:
+                for robot_id in ids:
+                    print(robot_id)
+                return 0
         elif args.command == "describe":
             result = client.describe()
         elif args.command == "devices":

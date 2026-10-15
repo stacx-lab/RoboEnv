@@ -36,6 +36,7 @@ The CLI accesses the same devices:
 
 ```sh
 roboenv tasks list --simulator robotwin
+roboenv robots list --simulator robotwin
 roboenv devices --endpoint http://127.0.0.1:8123
 roboenv device left_arm read '{}' --endpoint http://127.0.0.1:8123
 ```
@@ -63,16 +64,26 @@ Native success and replay coverage vary by backend; see [validation](docs/gpu-va
 Give your agent the public endpoint and task instruction. It can use the Python
 SDK, CLI, or an exported [device reference](docs/device-documentation.md).
 
-For [Kinex](https://github.com/stacx-lab/kinex), run this in the agent workspace
-with the RoboEnv CLI available:
+For [Kinex](https://github.com/stacx-lab/kinex), keep the task running and open a
+second terminal. `launch` uses a task ID; `setup` uses its paired robot ID. The
+handover task above selects `robotwin/robotwin-aloha-agilex` in its task YAML's
+`robot:` field. Export that robot's devices and connect Kinex:
 
 ```sh
+source /path/to/RoboEnv/.venv/bin/activate
+mkdir -p kinex-sim-workspace
+cd kinex-sim-workspace
 roboenv setup robotwin/robotwin-aloha-agilex
 export ROBOENV_ENDPOINT=http://127.0.0.1:8123
+roboenv describe --endpoint "$ROBOENV_ENDPOINT"
+kinex
 ```
 
-Setup exports the robot into `.kinex/` and protects existing configuration.
-See [local Kinex use](docs/kinex-local.md) for connection and recording.
+Replace `/path/to/RoboEnv` with your checkout. Setup exports the robot into
+`.kinex/` and protects existing configuration. In Kinex, run `/load all` and
+`/ping all`, then supply the task instruction from `describe`.
+See [task/robot pairing](docs/setup.md#choose-a-paired-task-and-robot) to select
+another pair and [local Kinex use](docs/kinex-local.md) for connection and recording.
 
 ## Development
 

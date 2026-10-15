@@ -58,6 +58,34 @@ supported RTX GPU. See [Isaac Lab setup](isaaclab.md) and
 [GPU and license defaults](#gpu-and-license-defaults). Import checks alone do not
 establish renderer readiness.
 
+## Choose a paired task and robot
+
+List task IDs and robot/device configurations for the same simulator:
+
+```sh
+roboenv tasks list --simulator robotwin
+roboenv robots list --simulator robotwin
+```
+
+Both commands print one ID per line. Omit `--simulator` to list all simulators'
+entries, or add `--json` for structured output. `roboenv setup --list` also lists
+all robot IDs. Listing and exporting robot configurations do not require a running
+simulator.
+
+`launch` takes a **task ID**; `setup` takes the task's **robot ID**, which exports
+the full device collection for Kinex. Use the exact `robot:` value in
+`catalog/tasks/<task-id>/task.yaml`; matching the simulator alone is insufficient
+when it supports multiple robots or scenes. For example:
+
+| Task ID for `roboenv launch` | Robot ID for `roboenv setup` |
+| --- | --- |
+| `robotwin/handover-block-aloha-agilex` | `robotwin/robotwin-aloha-agilex` |
+| `robocasa/load-condiments-in-fridge` | `robocasa/robocasa-panda-omron` |
+| `abc/hang-mug-on-mug-rack` | `abc/abc-yam` |
+
+For a custom task, read its YAML's `robot:` field and use the matching catalog
+with `launch --catalog CATALOG` and `setup --catalog CATALOG`.
+
 ## Start a task
 
 ```sh
@@ -118,6 +146,32 @@ Without an endpoint, the CLI selects a single ready local run and rejects
 ambiguous discovery. HTTP binds to loopback; `--host 0.0.0.0` exposes it to a
 container network. Parallel worlds need distinct ports in a shared network.
 Evaluation harnesses own agent isolation and GPU allocation.
+
+### Connect the paired devices in Kinex
+
+Keep the launch terminal running. In a second terminal, activate the CLI and
+export the robot paired with the launched task into a new agent workspace:
+
+```sh
+source /path/to/RoboEnv/.venv/bin/activate
+mkdir -p kinex-sim-workspace
+cd kinex-sim-workspace
+roboenv setup robotwin/robotwin-aloha-agilex
+export ROBOENV_ENDPOINT=http://127.0.0.1:8123
+roboenv describe --endpoint "$ROBOENV_ENDPOINT"
+kinex
+```
+
+Replace `/path/to/RoboEnv` with the checkout path and use the endpoint printed by
+`launch`. `setup` writes `.kinex/workspace.yaml` and `.kinex/devices/`; it does not
+install or launch the simulator. Run `/devices`, `/load all`, and `/ping all`
+inside Kinex, then give it the task instruction returned by `describe`.
+
+Reuse the workspace for tasks with the same robot ID. When switching robot IDs,
+use a new workspace or save custom configuration before `setup ROBOT_ID --force`,
+which replaces the manifest and entire device collection. After each new episode,
+restart Kinex or use `/unload all` followed by `/load all` to reconnect. See the
+[Kinex walkthrough](kinex-local.md) for control and recording.
 
 ## Discover tasks and connect an agent
 

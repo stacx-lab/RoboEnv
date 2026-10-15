@@ -399,13 +399,13 @@ def test_grouped_catalog_ids_and_listing(capsys):
             })
         assert resolved.task == expected
         assert "realtime" not in task.backend_kwargs
-    assert main(["tasks", "list", "--project", str(ROOT)]) == 0
+    assert main(["tasks", "list", "--project", str(ROOT), "--json"]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["ids"] == sorted(catalog)
     assert result["execution_modes"] == {
         key: task.execution_mode for key, (task, _) in catalog.items()
     }
-    assert main(["tasks", "list", "--simulator", "robocasa", "--project", str(ROOT)]) == 0
+    assert main(["tasks", "list", "--simulator", "robocasa", "--project", str(ROOT), "--json"]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["ids"] == sorted(key for key in catalog if key.startswith("robocasa/"))
     assert result["execution_modes"] == {key: "realtime" for key in result["ids"]}
@@ -496,7 +496,7 @@ def test_task_commands_do_not_import_agent_frameworks(tmp_path, monkeypatch, cap
         return original_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", guarded_import)
-    assert main(["tasks", "list", "--project", str(ROOT)]) == 0
+    assert main(["tasks", "list", "--project", str(ROOT), "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["tasks"] > 0
     monkeypatch.setattr(catalog, "load_lock", lambda _: (ROOT, {"sources": {}}))
     monkeypatch.setattr(catalog, "status", lambda *a: {"ready": True, "sources": []})

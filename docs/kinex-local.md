@@ -4,6 +4,21 @@ Use the Aloha AgileX catalog with a prepared RoboTwin environment and a working
 [Kinex](https://github.com/stacx-lab/kinex) installation. RoboEnv owns the simulator;
 Kinex connects through exported device drivers.
 
+## Select the task and its paired devices
+
+```sh
+roboenv tasks list --simulator robotwin
+roboenv robots list --simulator robotwin
+```
+
+Each listing prints one ID per line; add `--json` for structured output.
+`launch` accepts a task ID, while `setup` accepts a robot ID. Read `robot:` in
+`catalog/tasks/<task-id>/task.yaml` to select the matching device collection.
+For this guide, `robotwin/handover-block-aloha-agilex` pairs with
+`robotwin/robotwin-aloha-agilex`. RoboTwin also has a Dual Piper catalog, so the
+simulator name alone does not identify the correct robot. See
+[other pairs](setup.md#choose-a-paired-task-and-robot).
+
 ## Launch RoboEnv
 
 From the RoboEnv checkout:
@@ -25,6 +40,9 @@ In another terminal, activate the RoboEnv environment, then change to your agent
 workspace:
 
 ```sh
+source /path/to/RoboEnv/.venv/bin/activate
+mkdir -p kinex-sim-workspace
+cd kinex-sim-workspace
 roboenv setup robotwin/robotwin-aloha-agilex
 export ROBOENV_ENDPOINT=http://127.0.0.1:8123
 roboenv describe --endpoint "$ROBOENV_ENDPOINT"
@@ -36,9 +54,9 @@ running simulator. The catalog contains eight devices: `left_arm`, `right_arm`,
 `world`. Give the agent the initialized `task.instruction` and `task.context`
 returned by `describe`. For changing goals, refresh them during the episode.
 
-`roboenv setup --list` lists robot catalogs. Use `--project` for another RoboEnv
-checkout or `--catalog` for a standalone catalog. These select the source; the
-destination is always the current workspace's `.kinex/`.
+`roboenv robots list` (or `roboenv setup --list`) lists robot catalogs. Use
+`--project` for another RoboEnv checkout or `--catalog` for a standalone catalog.
+These select the source; the destination is always the current workspace's `.kinex/`.
 
 Existing workspace or device files block setup. To replace them, save custom
 configuration first, then run:
@@ -54,8 +72,9 @@ when switching episodes, and update any episode-specific `connection.json`.
 
 ## Read and control devices
 
-Start `kinex` from the workspace and run `/ping all`. Kinex supplies its Python
-helpers to the drivers; its workspace Python also needs PyYAML. Simulator
+Start `kinex` from the workspace and run `/devices`, `/load all`, and `/ping all`.
+Kinex supplies its Python helpers to the drivers; its workspace Python also needs
+PyYAML. Simulator
 packages are not needed in the agent environment. Keep the shared
 `devices/_roboenv.py` with the device collection when copying it.
 
