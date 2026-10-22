@@ -1,0 +1,9 @@
+# A large furnished house around an open kitchen and dining room: kitchen island, dining table,
+# sideboards, kitchen counter, living room, bathrooms, garage. SIMPLE's scene6, the house of its
+# PickBetweenTables task. scripts/scenes/survey.py prints its map and reachable tops.
+hssd: "102344022"
+translation: [5.79, -4.12, 0.0]          # puts the kitchen and dining room at the world origin, m
+start: [0.0, 0.0, 1.5708]                # robot x m, y m, yaw rad: between island and table, facing the table
+surfaces:                                # furniture tops tasks put objects on, world frame, m
+  dining_table: {center: [-0.05, 1.47], size: [2.29, 0.96], height: 0.76}
+  kitchen_island: {center: [0.05, -1.47], size: [1.74, 0.84], height: 0.90}

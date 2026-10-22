@@ -18,6 +18,7 @@ Start with the [RoboTwin quick start](../README.md#quick-start), then choose a g
 - [RoboTwin, RoboDojo, and BEHAVIOR](setup.md#prepare-a-simulator)
 - [RoboCasa](robocasa.md), [LIBERO](setup.md#libero-tasks)
 - [Isaac Lab](isaaclab.md), [Go2–D1](go2-d1.md), and [YAM calibration](yam-calibration.md)
+- [Booster T2](booster-t2.md)
 - [SIMPLE](simple.md)
 - [ABC](abc.md)
 

@@ -24,6 +24,9 @@ def default_registry():
     from .backends.isaaclab.go2_d1 import bind as bind_go2
 
     registry.register("isaaclab.go2-d1/1", bind_go2)
+    from .backends.isaaclab.booster_t2 import bind as bind_t2
+
+    registry.register("isaaclab.booster-t2/1", bind_t2)
     from .backends.isaaclab.yam import bind as bind_yam
 
     registry.register("isaaclab.yam/1", bind_yam)

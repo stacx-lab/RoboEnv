@@ -1,0 +1,771 @@
+<robot name="T2_31dof">
+
+
+
+  <link name="trunk">
+    </link>
+  <link name="head_yaw_link">
+    </link>
+  <joint name="aa_head_yaw_joint" type="revolute">
+    <origin xyz="0.0537 0 0.2174" rpy="0 0 0" />
+    <parent link="trunk" />
+    <child link="head_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.099557429" upper="1.099557429" effort="22" velocity="18.53539666" />
+  </joint>
+  <link name="head_pitch_link">
+    </link>
+  <joint name="head_pitch_joint" type="revolute">
+    <origin xyz="0 0 0.08506" rpy="0 0 0" />
+    <parent link="head_yaw_link" />
+    <child link="head_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.314159265" upper="0.401425728" effort="22" velocity="18.53539666" />
+  </joint>
+  <link name="left_shoulder_pitch_link">
+    </link>
+  <joint name="left_shoulder_pitch_joint" type="revolute">
+    <origin xyz="0.0615 0.11422 0.16458" rpy="0.13963 0 0" />
+    <parent link="trunk" />
+    <child link="left_shoulder_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.019419606" upper="1.710422667" effort="74" velocity="23.45722515" />
+  </joint>
+  <link name="left_shoulder_roll_link">
+    </link>
+  <joint name="left_shoulder_roll_joint" type="revolute">
+    <origin xyz="0 0.04926 -0.0107" rpy="-0.13963 0 0" />
+    <parent link="left_shoulder_pitch_link" />
+    <child link="left_shoulder_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-1.518436449" upper="1.518436449" effort="60" velocity="23.77138441" />
+  </joint>
+  <link name="left_elbow_pitch_link">
+    </link>
+  <joint name="left_elbow_pitch_joint" type="revolute">
+    <origin xyz="0.00662 0.1084 0" rpy="0 0 0" />
+    <parent link="left_shoulder_roll_link" />
+    <child link="left_elbow_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.059488517" upper="2.059488517" effort="60" velocity="23.77138441" />
+  </joint>
+  <link name="left_elbow_yaw_link">
+    </link>
+  <joint name="left_elbow_yaw_joint" type="revolute">
+    <origin xyz="0.0059 0.109 0" rpy="0 0 0" />
+    <parent link="left_elbow_pitch_link" />
+    <child link="left_elbow_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-2.103121749" upper="0.0" effort="60" velocity="23.77138441" />
+  </joint>
+  <link name="left_wrist_pitch_link">
+    </link>
+  <joint name="left_wrist_pitch_joint" type="revolute">
+    <origin xyz="-0.00092228 0.094 0" rpy="0 0 0" />
+    <parent link="left_elbow_yaw_link" />
+    <child link="left_wrist_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.059488517" upper="2.059488517" effort="22" velocity="18.53539666" />
+  </joint>
+  <link name="left_wrist_yaw_link">
+    </link>
+  <joint name="left_wrist_yaw_joint" type="revolute">
+    <origin xyz="0 0.118 0" rpy="0 0 0" />
+    <parent link="left_wrist_pitch_link" />
+    <child link="left_wrist_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.748746249" upper="0.678933079" effort="22" velocity="18.53539666" />
+  </joint>
+  <link name="left_wrist_roll_link">
+    </link>
+  <joint name="left_wrist_roll_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="left_wrist_yaw_link" />
+    <child link="left_wrist_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-1.361356817" upper="0.925024504" effort="22" velocity="18.53539666" />
+  </joint>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <link name="right_shoulder_pitch_link">
+    </link>
+  <joint name="right_shoulder_pitch_joint" type="revolute">
+    <origin xyz="0.0615 -0.11422 0.16458" rpy="-0.13963 0 0" />
+    <parent link="trunk" />
+    <child link="right_shoulder_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-3.019419606" upper="1.710422667" effort="74" velocity="23.45722515" />
+  </joint>
+  <link name="right_shoulder_roll_link">
+    </link>
+  <joint name="right_shoulder_roll_joint" type="revolute">
+    <origin xyz="0 -0.04926 -0.0107" rpy="0.13963 0 0" />
+    <parent link="right_shoulder_pitch_link" />
+    <child link="right_shoulder_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-1.518436449" upper="1.518436449" effort="60" velocity="23.77138441" />
+  </joint>
+  <link name="right_elbow_pitch_link">
+    </link>
+  <joint name="right_elbow_pitch_joint" type="revolute">
+    <origin xyz="0.00662 -0.1084 0" rpy="0 0 0" />
+    <parent link="right_shoulder_roll_link" />
+    <child link="right_elbow_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.059488517" upper="2.059488517" effort="60" velocity="23.77138441" />
+  </joint>
+  <link name="right_elbow_yaw_link">
+    </link>
+  <joint name="right_elbow_yaw_joint" type="revolute">
+    <origin xyz="0.0059 -0.109 0" rpy="0 0 0" />
+    <parent link="right_elbow_pitch_link" />
+    <child link="right_elbow_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="0.0" upper="2.103121749" effort="60" velocity="23.77138441" />
+  </joint>
+  <link name="right_wrist_pitch_link">
+    </link>
+  <joint name="right_wrist_pitch_joint" type="revolute">
+    <origin xyz="-0.00092228 -0.094 0" rpy="0 0 0" />
+    <parent link="right_elbow_yaw_link" />
+    <child link="right_wrist_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.059488517" upper="2.059488517" effort="22" velocity="18.53539666" />
+  </joint>
+  <link name="right_wrist_yaw_link">
+    </link>
+  <joint name="right_wrist_yaw_joint" type="revolute">
+    <origin xyz="0 -0.118 0" rpy="0 0 0" />
+    <parent link="right_wrist_pitch_link" />
+    <child link="right_wrist_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-0.678933079" upper="0.748746249" effort="22" velocity="18.53539666" />
+  </joint>
+  <link name="right_wrist_roll_link">
+    </link>
+  <joint name="right_wrist_roll_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="right_wrist_yaw_link" />
+    <child link="right_wrist_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-0.925024504" upper="1.361356817" effort="22" velocity="18.53539666" />
+  </joint>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <link name="waist_pitch_link">
+    </link>
+  <joint name="waist_pitch_joint" type="revolute">
+    <origin xyz="0.0583 0 -0.0745" rpy="0 0 0" />
+    <parent link="trunk" />
+    <child link="waist_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.750491578" upper="0.558505361" effort="138" velocity="11.88569221" />
+  </joint>
+  <link name="waist_roll_link">
+    </link>
+  <joint name="waist_roll_joint" type="revolute">
+    <origin xyz="0.0027 0 -0.008" rpy="0 0 0" />
+    <parent link="waist_pitch_link" />
+    <child link="waist_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-0.357792497" upper="0.357792497" effort="144" velocity="9.50855376" />
+  </joint>
+  <link name="waist_yaw_link">
+    </link>
+  <joint name="waist_yaw_joint" type="revolute">
+    <origin xyz="0 0 -0.0832" rpy="0 0 0" />
+    <parent link="waist_roll_link" />
+    <child link="waist_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-2.408554368" upper="2.408554368" effort="135" velocity="20.94395102" />
+  </joint>
+  <link name="left_hip_pitch_link">
+    </link>
+  <joint name="left_hip_pitch_joint" type="revolute">
+    <origin xyz="0 0.076211 -0.090904" rpy="-0.2618 0 0" />
+    <parent link="waist_yaw_link" />
+    <child link="left_hip_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.932153143" upper="2.234021443" effort="135" velocity="20.94395102" />
+  </joint>
+  <link name="left_hip_roll_link">
+    </link>
+  <joint name="left_hip_roll_joint" type="revolute">
+    <origin xyz="0 0.040414 -0.058925" rpy="0.2618 0 0" />
+    <parent link="left_hip_pitch_link" />
+    <child link="left_hip_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-0.575958653" upper="1.535889742" effort="135" velocity="20.94395102" />
+  </joint>
+  <link name="left_hip_yaw_link">
+    </link>
+  <joint name="left_hip_yaw_joint" type="revolute">
+    <origin xyz="0.0052077 0 -0.069095" rpy="0 0 0" />
+    <parent link="left_hip_roll_link" />
+    <child link="left_hip_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-2.757620218" upper="2.757620218" effort="135" velocity="20.94395102" />
+  </joint>
+  <link name="left_knee_pitch_link">
+    </link>
+  <joint name="left_knee_pitch_joint" type="revolute">
+    <origin xyz="-0.0283 0 -0.20868" rpy="0 0 0" />
+    <parent link="left_hip_yaw_link" />
+    <child link="left_knee_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0.0" upper="2.583087293" effort="135" velocity="20.94395102" />
+  </joint>
+  <link name="left_ankle_pitch_link">
+    </link>
+  <joint name="left_ankle_pitch_joint" type="revolute">
+    <origin xyz="0.029576 0 -0.33515" rpy="0 0 0" />
+    <parent link="left_knee_pitch_link" />
+    <child link="left_ankle_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.837758041" upper="0.575958653" effort="132" velocity="16.63996909" />
+  </joint>
+  <link name="left_ankle_roll_link">
+    </link>
+  <joint name="left_ankle_roll_joint" type="revolute">
+    <origin xyz="0 0 -0.008" rpy="0 0 0" />
+    <parent link="left_ankle_pitch_link" />
+    <child link="left_ankle_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-0.314159265" upper="0.314159265" effort="72" velocity="23.77138441" />
+  </joint>
+  <link name="right_hip_pitch_link">
+    </link>
+  <joint name="right_hip_pitch_joint" type="revolute">
+    <origin xyz="0 -0.076211 -0.090904" rpy="0.2618 0 0" />
+    <parent link="waist_yaw_link" />
+    <child link="right_hip_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.932153143" upper="2.234021443" effort="135" velocity="20.94395102" />
+  </joint>
+  <link name="right_hip_roll_link">
+    </link>
+  <joint name="right_hip_roll_joint" type="revolute">
+    <origin xyz="0 -0.040414 -0.058925" rpy="-0.2618 0 0" />
+    <parent link="right_hip_pitch_link" />
+    <child link="right_hip_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-1.535889742" upper="0.575958653" effort="135" velocity="20.94395102" />
+  </joint>
+  <link name="right_hip_yaw_link">
+    </link>
+  <joint name="right_hip_yaw_joint" type="revolute">
+    <origin xyz="0.0052077 0 -0.069095" rpy="0 0 0" />
+    <parent link="right_hip_roll_link" />
+    <child link="right_hip_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="-2.757620218" upper="2.757620218" effort="135" velocity="20.94395102" />
+  </joint>
+  <link name="right_knee_pitch_link">
+    </link>
+  <joint name="right_knee_pitch_joint" type="revolute">
+    <origin xyz="-0.0283 0 -0.20868" rpy="0 0 0" />
+    <parent link="right_hip_yaw_link" />
+    <child link="right_knee_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0.0" upper="2.583087293" effort="135" velocity="20.94395102" />
+  </joint>
+  <link name="right_ankle_pitch_link">
+    </link>
+  <joint name="right_ankle_pitch_joint" type="revolute">
+    <origin xyz="0.029576 0 -0.33515" rpy="0 0 0" />
+    <parent link="right_knee_pitch_link" />
+    <child link="right_ankle_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.837758041" upper="0.575958653" effort="132" velocity="16.63996909" />
+  </joint>
+  <link name="right_ankle_roll_link">
+    </link>
+  <joint name="right_ankle_roll_joint" type="revolute">
+    <origin xyz="0 0 -0.008" rpy="0 0 0" />
+    <parent link="right_ankle_pitch_link" />
+    <child link="right_ankle_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="-0.314159265" upper="0.314159265" effort="72" velocity="23.77138441" />
+  </joint>
+  <link name="logo">
+    </link>
+  <joint name="logo" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="trunk" />
+    <child link="logo" />
+    <axis xyz="0 0 0" />
+  </joint>
+
+
+
+
+
+
+<link name="left_base_link">
+    </link>
+<joint name="left_base_joint" type="fixed">
+    <origin xyz="0 0.07 0" rpy="-1.5708 1.5708 0" />
+    <parent link="left_wrist_roll_link" />
+    <child link="left_base_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="left_palm" />
+  <joint name="left_palm_joint" type="fixed">
+    <origin xyz="0.0126 0 0.047" rpy="0 0 0" />
+    <parent link="left_base_link" />
+    <child link="left_palm" />
+    <axis xyz="0 0 0" />
+  </joint>
+
+  <link name="left_thumb_metacarpal_link">
+    </link>
+  <joint name="left_thumb_metacarpal_joint" type="revolute">
+    <origin xyz="0.0045 -0.019 0.027825" rpy="0 0 0.16787" />
+    <parent link="left_base_link" />
+    <child link="left_thumb_metacarpal_link" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="1.57" effort="0.5" velocity="2.6175" />
+  </joint>
+  <link name="left_thumb_proximal_link">
+    </link>
+  <joint name="left_thumb_proximal_joint" type="revolute">
+    <origin xyz="0 -0.014227 0" rpy="-0.17488 0.23736 -0.16787" />
+    <parent link="left_thumb_metacarpal_link" />
+    <child link="left_thumb_proximal_link" />
+    <axis xyz="-1 0 0" />
+    <limit lower="0" upper="1.03" effort="1.1" velocity="2.5303" />
+  </joint>
+  <link name="left_thumb_distal_link">
+    </link>
+  <joint name="left_thumb_distal_joint" type="revolute">
+    <origin xyz="0 -0.052 0" rpy="0 0 0" />
+    <parent link="left_thumb_proximal_link" />
+    <child link="left_thumb_distal_link" />
+    <axis xyz="-1 0 0" />
+    <limit lower="0" upper="1.03" effort="1.1" velocity="2.5303" />
+    <mimic joint="left_thumb_proximal_joint" multiplier="1" offset="0" />
+  </joint>
+  <link name="left_thumb_tip_link">
+    </link>
+  <joint name="left_thumb_tip_joint" type="fixed">
+    <origin xyz="0 -0.026529 -0.0017734" rpy="0.06675 0 0" />
+    <parent link="left_thumb_distal_link" />
+    <child link="left_thumb_tip_link" />
+    <axis xyz="0 0 0" />
+    </joint>
+  <link name="left_thumb_touch_link">
+    </link>
+  <joint name="left_thumb_touch_joint" type="fixed">
+    <origin xyz="0 -0.013836 0.0076686" rpy="0.17488 0 0" />
+    <parent link="left_thumb_distal_link" />
+    <child link="left_thumb_touch_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="left_index_proximal_link">
+    </link>
+  <joint name="left_index_proximal_joint" type="revolute">
+    <origin xyz="-0.0021349 -0.029578 0.080876" rpy="0.11819 0.14743 0.17422" />
+    <parent link="left_base_link" />
+    <child link="left_index_proximal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.41" effort="2" velocity="2.2685" />
+  </joint>
+  <link name="left_index_distal_link">
+    </link>
+  <joint name="left_index_distal_joint" type="revolute">
+    <origin xyz="0 0 0.032" rpy="0 0 0" />
+    <parent link="left_index_proximal_link" />
+    <child link="left_index_distal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.63" effort="2" velocity="2.2685" />
+    <mimic joint="left_index_proximal_joint" multiplier="1.155" offset="0" />
+  </joint>
+  <link name="left_index_tip_link">
+    </link>
+  <joint name="left_index_tip_joint" type="fixed">
+    <origin xyz="0.011097 0 0.035739" rpy="0 0.48723 0" />
+    <parent link="left_index_distal_link" />
+    <child link="left_index_tip_link" />
+    <axis xyz="0 0 0" />
+    </joint>
+  <link name="left_index_touch_link">
+    </link>
+  <joint name="left_index_touch_joint" type="fixed">
+    <origin xyz="0.014497 0 0.023303" rpy="0 0.4756 0" />
+    <parent link="left_index_distal_link" />
+    <child link="left_index_touch_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="left_middle_proximal_link">
+    </link>
+  <joint name="left_middle_proximal_joint" type="revolute">
+    <origin xyz="-0.0045935 -0.010061 0.084993" rpy="0.039468 0.1483 0.057975" />
+    <parent link="left_base_link" />
+    <child link="left_middle_proximal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.41" effort="2" velocity="2.2685" />
+  </joint>
+  <link name="left_middle_distal_link">
+    </link>
+  <joint name="left_middle_distal_joint" type="revolute">
+    <origin xyz="0 0 0.037" rpy="0 0.12654 0" />
+    <parent link="left_middle_proximal_link" />
+    <child link="left_middle_distal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.63" effort="2" velocity="2.2685" />
+    <mimic joint="left_middle_proximal_joint" multiplier="1.155" offset="0" />
+  </joint>
+  <link name="left_middle_tip_link">
+    </link>
+  <joint name="left_middle_tip_joint" type="fixed">
+    <origin xyz="0.0073534 0 0.041703" rpy="0 0.34907 0" />
+    <parent link="left_middle_distal_link" />
+    <child link="left_middle_tip_link" />
+    <axis xyz="0 0 0" />
+    </joint>
+  <link name="left_middle_touch_link">
+    </link>
+  <joint name="left_middle_touch_joint" type="fixed">
+    <origin xyz="0.012493 0 0.028393" rpy="0 0.34907 0" />
+    <parent link="left_middle_distal_link" />
+    <child link="left_middle_touch_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="left_ring_proximal_link">
+    </link>
+  <joint name="left_ring_proximal_joint" type="revolute">
+    <origin xyz="-0.0046877 0.010026 0.083982" rpy="-0.039462 0.14721 -0.057932" />
+    <parent link="left_base_link" />
+    <child link="left_ring_proximal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.41" effort="2" velocity="2.2685" />
+  </joint>
+  <link name="left_ring_distal_link">
+    </link>
+  <joint name="left_ring_distal_joint" type="revolute">
+    <origin xyz="0 0 0.035" rpy="0 0.12654 0" />
+    <parent link="left_ring_proximal_link" />
+    <child link="left_ring_distal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.63" effort="2" velocity="2.2685" />
+    <mimic joint="left_ring_proximal_joint" multiplier="1.155" offset="0" />
+  </joint>
+  <link name="left_ring_tip_link">
+    </link>
+  <joint name="left_ring_tip_joint" type="fixed">
+    <origin xyz="0.0071824 0 0.040734" rpy="0 0.34907 0" />
+    <parent link="left_ring_distal_link" />
+    <child link="left_ring_tip_link" />
+    <axis xyz="0 0 0" />
+    </joint>
+  <link name="left_ring_touch_link">
+    </link>
+  <joint name="left_ring_touch_joint" type="fixed">
+    <origin xyz="0.012028 0 0.027796" rpy="0 0.34907 0" />
+    <parent link="left_ring_distal_link" />
+    <child link="left_ring_touch_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="left_pinky_proximal_link">
+    </link>
+  <joint name="left_pinky_proximal_joint" type="revolute">
+    <origin xyz="-0.0023733 0.029356 0.078694" rpy="-0.11815 0.14491 -0.17392" />
+    <parent link="left_base_link" />
+    <child link="left_pinky_proximal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.41" effort="2" velocity="2.2685" />
+  </joint>
+  <link name="left_pinky_distal_link">
+    </link>
+  <joint name="left_pinky_distal_joint" type="revolute">
+    <origin xyz="0 0 0.029" rpy="0 0 0" />
+    <parent link="left_pinky_proximal_link" />
+    <child link="left_pinky_distal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.63" effort="2" velocity="2.2685" />
+    <mimic joint="left_pinky_proximal_joint" multiplier="1.155" offset="0" />
+  </joint>
+  <link name="left_pinky_tip_link">
+    </link>
+  <joint name="left_pinky_tip_joint" type="fixed">
+    <origin xyz="0.010221 0 0.032918" rpy="0 0.4756 0" />
+    <parent link="left_pinky_distal_link" />
+    <child link="left_pinky_tip_link" />
+    <axis xyz="0 0 0" />
+    </joint>
+  <link name="left_pinky_touch_link">
+    </link>
+  <joint name="left_pinky_touch_joint" type="fixed">
+    <origin xyz="0.01401 0 0.021124" rpy="0 0.4756 0" />
+    <parent link="left_pinky_distal_link" />
+    <child link="left_pinky_touch_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+
+
+
+
+
+
+
+
+
+<link name="right_base_link">
+    </link>
+<joint name="right_base_joint" type="fixed">
+    <origin xyz="0 -0.07 0" rpy="1.5708 1.5708 0" />
+    <parent link="right_wrist_roll_link" />
+    <child link="right_base_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="right_palm" />
+  <joint name="right_palm_joint" type="fixed">
+    <origin xyz="0.0126 0 0.047" rpy="0 0 0" />
+    <parent link="right_base_link" />
+    <child link="right_palm" />
+    <axis xyz="0 0 0" />
+  </joint>
+
+  <link name="right_thumb_metacarpal_link">
+    </link>
+  <joint name="right_thumb_metacarpal_joint" type="revolute">
+    <origin xyz="0.005619 0.019867 0.027825" rpy="0 0 -0.16787" />
+    <parent link="right_base_link" />
+    <child link="right_thumb_metacarpal_link" />
+    <axis xyz="0 0 -1" />
+    <limit lower="0" upper="1.57" effort="0.5" velocity="2.6175" />
+  </joint>
+  <link name="right_thumb_proximal_link">
+    </link>
+  <joint name="right_thumb_proximal_joint" type="revolute">
+    <origin xyz="0 0.014227 0" rpy="0.17488 0.23736 0.16787" />
+    <parent link="right_thumb_metacarpal_link" />
+    <child link="right_thumb_proximal_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="0" upper="1.03" effort="1.1" velocity="2.5303" />
+  </joint>
+  <link name="right_thumb_distal_link">
+    </link>
+  <joint name="right_thumb_distal_joint" type="revolute">
+    <origin xyz="0 0.052 0" rpy="0 0 0" />
+    <parent link="right_thumb_proximal_link" />
+    <child link="right_thumb_distal_link" />
+    <axis xyz="1 0 0" />
+    <limit lower="0" upper="1.03" effort="1.1" velocity="2.5303" />
+    <mimic joint="right_thumb_proximal_joint" multiplier="1" offset="0" />
+  </joint>
+  <link name="right_thumb_tip_link">
+    </link>
+  <joint name="right_thumb_tip_joint" type="fixed">
+    <origin xyz="0 0.0265287811635831 -0.00177344281307929" rpy="-0.0667504507189062 0 0" />
+    <parent link="right_thumb_distal_link" />
+    <child link="right_thumb_tip_link" />
+    <axis xyz="0 0 0" />
+    </joint>
+  <link name="right_thumb_touch_link">
+    </link>
+  <joint name="right_thumb_touch_joint" type="fixed">
+    <origin xyz="0 0.0137927522748974 0.00767659940411662" rpy="-0.0667504507189062 0 0" />
+    <parent link="right_thumb_distal_link" />
+    <child link="right_thumb_touch_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="right_index_proximal_link">
+    </link>
+  <joint name="right_index_proximal_joint" type="revolute">
+    <origin xyz="-0.0021181 0.029568 0.080876" rpy="-0.11819 0.14743 -0.17422" />
+    <parent link="right_base_link" />
+    <child link="right_index_proximal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.41" effort="2" velocity="2.2685" />
+  </joint>
+  <link name="right_index_distal_link">
+    </link>
+  <joint name="right_index_distal_joint" type="revolute">
+    <origin xyz="0 0 0.032" rpy="0 0 0" />
+    <parent link="right_index_proximal_link" />
+    <child link="right_index_distal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.63" effort="2" velocity="2.2685" />
+    <mimic joint="right_index_proximal_joint" multiplier="1.155" offset="0" />
+  </joint>
+  <link name="right_index_tip_link">
+    </link>
+  <joint name="right_index_tip_joint" type="fixed">
+    <origin xyz="0.011097 0 0.035739" rpy="0 0.4756 0" />
+    <parent link="right_index_distal_link" />
+    <child link="right_index_tip_link" />
+    <axis xyz="0 0 0" />
+    </joint>
+  <link name="right_index_touch_link">
+    </link>
+  <joint name="right_index_touch_joint" type="fixed">
+    <origin xyz="0.014497 0 0.023303" rpy="1.7145 0.4756 0" />
+    <parent link="right_index_distal_link" />
+    <child link="right_index_touch_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="right_middle_proximal_link">
+    </link>
+  <joint name="right_middle_proximal_joint" type="revolute">
+    <origin xyz="-0.0045767 0.010051 0.084993" rpy="-0.039468 0.1483 -0.057975" />
+    <parent link="right_base_link" />
+    <child link="right_middle_proximal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.41" effort="2" velocity="2.2685" />
+  </joint>
+  <link name="right_middle_distal_link">
+    </link>
+  <joint name="right_middle_distal_joint" type="revolute">
+    <origin xyz="0 0 0.037" rpy="0 0 0" />
+    <parent link="right_middle_proximal_link" />
+    <child link="right_middle_distal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.63" effort="2" velocity="2.2685" />
+    <mimic joint="right_middle_proximal_joint" multiplier="1.155" offset="0" />
+  </joint>
+  <link name="right_middle_tip_link">
+    </link>
+  <joint name="right_middle_tip_joint" type="fixed">
+    <origin xyz="0.012558 0 0.040442" rpy="0 0.4756 0" />
+    <parent link="right_middle_distal_link" />
+    <child link="right_middle_tip_link" />
+    <axis xyz="0 0 0" />
+    </joint>
+  <link name="right_middle_touch_link">
+    </link>
+  <joint name="right_middle_touch_joint" type="fixed">
+    <origin xyz="0.015975871997898 0 0.0265894268903603" rpy="0 0.475602221168456 0" />
+    <parent link="right_middle_distal_link" />
+    <child link="right_middle_touch_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="right_ring_proximal_link">
+    </link>
+  <joint name="right_ring_proximal_joint" type="revolute">
+    <origin xyz="-0.0046709 -0.010037 0.083982" rpy="0.039462 0.14721 0.057932" />
+    <parent link="right_base_link" />
+    <child link="right_ring_proximal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.41" effort="2" velocity="2.2685" />
+  </joint>
+  <link name="right_ring_distal_link">
+    </link>
+  <joint name="right_ring_distal_joint" type="revolute">
+    <origin xyz="0 0 0.035" rpy="0 0 0" />
+    <parent link="right_ring_proximal_link" />
+    <child link="right_ring_distal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.63" effort="2" velocity="2.2685" />
+    <mimic joint="right_ring_proximal_joint" multiplier="1.155" offset="0" />
+  </joint>
+  <link name="right_ring_tip_link">
+    </link>
+  <joint name="right_ring_tip_joint" type="fixed">
+    <origin xyz="0.012266 0 0.039501" rpy="0 0.4756 0" />
+    <parent link="right_ring_distal_link" />
+    <child link="right_ring_tip_link" />
+    <axis xyz="0 0 0" />
+    </joint>
+  <link name="right_ring_touch_link">
+    </link>
+  <joint name="right_ring_touch_joint" type="fixed">
+    <origin xyz="0.0154392324697935 0 0.0260561041381566" rpy="0 0.475602221168648 0" />
+    <parent link="right_ring_distal_link" />
+    <child link="right_ring_touch_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="right_pinky_proximal_link">
+    </link>
+  <joint name="right_pinky_proximal_joint" type="revolute">
+    <origin xyz="-0.0023566 -0.029366 0.078694" rpy="0.11815 0.14491 0.17392" />
+    <parent link="right_base_link" />
+    <child link="right_pinky_proximal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.41" effort="2" velocity="2.2685" />
+  </joint>
+  <link name="right_pinky_distal_link">
+    </link>
+  <joint name="right_pinky_distal_joint" type="revolute">
+    <origin xyz="0 0 0.029" rpy="0 0 0" />
+    <parent link="right_pinky_proximal_link" />
+    <child link="right_pinky_distal_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="1.63" effort="2" velocity="2.2685" />
+    <mimic joint="right_pinky_proximal_joint" multiplier="1.155" offset="0" />
+  </joint>
+  <link name="right_pinky_tip_link">
+    </link>
+  <joint name="right_pinky_tip_joint" type="fixed">
+    <origin xyz="0.010221 0 0.032918" rpy="0 0.4756 0" />
+    <parent link="right_pinky_distal_link" />
+    <child link="right_pinky_tip_link" />
+    <axis xyz="0 0 0" />
+    </joint>
+  <link name="right_pinky_touch_link">
+    </link>
+  <joint name="right_pinky_touch_joint" type="fixed">
+    <origin xyz="0.01401 0 0.021124" rpy="0 0.4756 0" />
+    <parent link="right_pinky_distal_link" />
+    <child link="right_pinky_touch_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+
+
+  <link name="head_booster_stereo_rgb_link" />
+  <joint name="head_booster_stereo_rgb_joint" type="fixed">
+    <origin xyz="0.08684 0.0349 0.08245" rpy="-2.1792181  0.0 -1.57079633" />
+    <parent link="head_pitch_link" />
+    <child link="head_booster_stereo_rgb_link" />
+  </joint>
+
+  <link name="waist_booster_stereo_rgb_link" />
+  <joint name="waist_booster_stereo_rgb_joint" type="fixed">
+    <origin xyz="0.12037 0.035 -0.04486" rpy="-2.32128791 0 -1.570796" />
+    <parent link="trunk" />
+    <child link="waist_booster_stereo_rgb_link" />
+  </joint>
+
+</robot>

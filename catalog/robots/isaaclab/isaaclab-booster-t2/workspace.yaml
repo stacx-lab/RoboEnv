@@ -1,0 +1,26 @@
+identity:
+  source: introspected
+  id: isaaclab-booster-t2
+  name: Booster T2 (simulated)
+  platform: sim
+  kind: humanoid
+  model: Booster T2 with BrainCo Revo2 hands
+sim:
+  source: introspected
+  simulator: isaaclab
+  notes: Isaac Lab / PhysX. A fixed whole-body controller tracks base velocity and
+    arm palm targets; head and fingers are position driven. Arm joint writes are converted
+    to palm targets and the controller chooses its joint configuration. Judge arrival
+    using palm FK of measured joints. Finger stop retains grip preload. In realtime,
+    physics continues during reasoning; in stepped mode, world.wait advances it. Device
+    writes never advance physics themselves.
+devices:
+  source: introspected
+safety:
+  source: introspected
+  max_cartesian_velocity: null
+  max_joint_velocity: null
+  keep_out_zones: []
+meta:
+  created_at: '2026-10-20T00:00:00Z'
+  updated_at: '2026-10-20T00:00:00Z'

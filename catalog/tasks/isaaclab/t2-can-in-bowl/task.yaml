@@ -1,0 +1,39 @@
+id: isaaclab/t2-can-in-bowl
+robot: isaaclab/isaaclab-booster-t2
+instruction: Pick up the tomato soup can from the dining table and put it inside the bowl. Release it
+  and leave it resting there for half a second.
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: t2-household
+  max_steps: 18000
+  task_spec:
+    version: 1
+    scene: kitchen
+    start:
+    - 0.0
+    - 0.45
+    - 1.5708
+    items:
+      can:
+        model: 2
+        xy:
+        - 0.3
+        - 1.12
+        surface: dining_table
+        yaw: 0.0
+      bowl:
+        model: 6
+        xy:
+        - 0.1
+        - 1.15
+        surface: dining_table
+        yaw: 0.0
+    boxes: []
+    stages:
+    - - kind: contain
+        item: can
+        container: bowl
+    hold_s: 0.5

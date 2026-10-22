@@ -38,6 +38,23 @@ def reject(call, code=None):
     raise ValueError("Public transport accepted a prohibited request")
 
 
+def duplicate_write(client, goal):
+    """Recover an in-flight duplicate through the existing operation journal."""
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            return client.device("left_arm").write(
+                duration_s=0.02, request_id="dedup-motion", actions=[goal]
+            )
+        except RemoteError as error:
+            if error.code != "request_in_progress":
+                raise
+        while client.operation("dedup-motion")["state"] not in {"succeeded", "failed"}:
+            require(time.monotonic() < deadline, "Duplicate operation never settled")
+            time.sleep(0.02)
+        require(time.monotonic() < deadline, "Duplicate operation recovery expired")
+
+
 def target(client, name, offset):
     values = client.device(name).read()["data"]["positions"]
     joints = client.device(name).describe()["intrinsics"]["model"]["joints"]
@@ -94,6 +111,8 @@ def select_cases(task, seeds=(0, 1), instances=None):
 def exercise(owner, *, camera=None):
     public, private = owner.client, owner_client(owner)
     baseline = private.request("observe")
+    t2 = baseline.get("schema") == "roboenv/booster-t2-record/1"
+    state_key = "final" if t2 else "state"
     camera = camera_name(public, camera)
     description = public.describe()
     require(
@@ -112,27 +131,26 @@ def exercise(owner, *, camera=None):
         public.operation("owner-lookup")["state"] == "unknown",
         "Public operation lookup leaked owner result",
     )
-    for op in ("observe", "score.peek", "call"):
-        reject(lambda op=op: public.request(op))
     privileged = Client(owner.endpoint, session=public.session, generation=public.generation)
-    privileged.allowed_ops |= {"submit", "shutdown", "reset", "restore"}
-    for op in ("submit", "shutdown", "reset", "restore"):
+    # Bypass the SDK allowlist only in this probe so rejection is tested at HTTP.
+    prohibited = {"observe", "score.peek", "call", "submit", "shutdown", "reset", "restore"}
+    privileged.allowed_ops |= prohibited
+    for op in sorted(prohibited):
         reject(lambda op=op: privileged.request(op))
     for name in ("left_arm", "right_arm", camera):
         public.device(name).call("load")
         public.device(name).read()
         public.device(name).call("status")
     require(
-        private.request("observe")["state"] == baseline["state"], "Discovery/reads advanced physics"
+        private.request("observe")[state_key] == baseline[state_key],
+        "Discovery/reads advanced physics",
     )
     goal = target(public, "left_arm", 0.1)
     # Duplicate concurrent requests share one native operation across both transports.
     with ThreadPoolExecutor(max_workers=3) as pool:
         replies = list(
             pool.map(
-                lambda client: client.device("left_arm").write(
-                    duration_s=len([goal]) / 50, request_id="dedup-motion", actions=[goal]
-                ),
+                lambda client: duplicate_write(client, goal),
                 [public, private, public],
             )
         )
@@ -217,7 +235,7 @@ def exercise(owner, *, camera=None):
     return {
         "passed": True,
         "initial_state": baseline["initial_state"],
-        "implementation": baseline["implementation"],
+        "implementation": baseline["sources" if t2 else "implementation"],
         "camera": camera,
         "budget": private.request("observe")["budget"],
         "checks": {
@@ -296,6 +314,7 @@ def main():
             interpreter=args.python,
             timeout=args.timeout,
             port=urlsplit(old_endpoint).port,
+            execution_mode="stepped",
         )
         owners.append(fresh)
         reject(lambda: stale.device("left_arm").read(), "session_mismatch")
