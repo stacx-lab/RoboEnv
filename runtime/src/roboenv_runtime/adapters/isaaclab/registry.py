@@ -17,6 +17,7 @@ class TaskFactory(Protocol):
 # Catalog backend_kwargs.task_name selects one of these implementations.
 # Multiple catalog entries may use the same implementation with different task_spec.
 TASKS = {
+    "chemlab-instruments": "roboenv_runtime.adapters.isaaclab.tasks.chemlab.task",
     "roboballet-eight-arm":
         "roboenv_runtime.adapters.isaaclab.tasks.roboballet_eight_arm.task",
     "yam-calibrate-overhead-camera":

@@ -88,3 +88,18 @@ mesh assets are not embedded in RoboEnv wheels. The checked-in scene records
 its source file hashes and the shared target/workpiece translation. Panda/tool
 geometry retains the archive's component notices. No policy weights or reference
 solutions are included.
+
+## ChemLab
+
+ChemLab instrument hosts are loaded from the separately acquired
+[MBZUAI/ChemLab-Assets dataset](https://huggingface.co/datasets/MBZUAI/ChemLab-Assets),
+revision `a6c006f921c9bee62f5585dd7f769163a7f51573`. The release's `LICENSE` covers
+code under MIT; `LICENSE-ASSETS.md` covers models, contracts, catalogs, instrument
+data and previews under CC BY-NC 4.0. Copyright is retained by Zirui Song,
+Jiadong Zhang, Jiahao Zhang, Xiaosong Ma, Xiaojun Chang and Xiuying Chen (2026).
+Embedded third-party data retains the additional terms and attributions in
+`NOTICE.md` and `LICENSES/`. Preparation preserves these files and `CITATION.cff`.
+RoboEnv wheels contain integration code and a factory registry, not upstream
+assets or instrument source. The four practice tasks and the Isaac visual bridge
+are RoboEnv additions, not an official ChemLab benchmark or robot manipulation
+validation.

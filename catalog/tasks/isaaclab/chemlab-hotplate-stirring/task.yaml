@@ -1,0 +1,31 @@
+id: isaaclab/chemlab-hotplate-stirring
+robot: isaaclab/isaaclab-chemlab-instruments
+instruction: Power on stirring at 600 rpm (62.831853 rad/s). Wait until the displayed
+  speed is within 10 rpm for one simulation second.
+seed: 0
+budget_mode: practice
+execution_mode: stepped
+stop_on_success: true
+backend_kwargs:
+  task_name: chemlab-instruments
+  max_steps: 6000
+  task_spec:
+    instruments:
+      instrument:
+        asset: instrument.ika_plate_rctdigital
+        initialize:
+        - capability: plant.configure
+          arguments:
+            ambient_k: 295.15
+            pressure_pa: 101325.0
+            mains_v: 230.0
+            noise_seed: 1
+        - capability: power.set
+          arguments:
+            'on': true
+    goals:
+    - instrument: instrument
+      state: display.speed
+      min: 590
+      max: 610
+    dwell_s: 1.0

@@ -230,7 +230,10 @@ def native_identity(task):
         "libero": ("suite_name", "task_id"),
         "behavior": ("activity_name",),
     }.get(task.backend, ("task_name",))
-    return (task.backend, task.robot, *(task.backend_kwargs[key] for key in selectors))
+    identity = (task.backend, task.robot, *(task.backend_kwargs[key] for key in selectors))
+    if task.backend == "isaaclab" and "task_spec" in task.backend_kwargs:
+        identity += (json.dumps(task.backend_kwargs["task_spec"], sort_keys=True),)
+    return identity
 
 
 def discover(project, destination, backends=BACKENDS):

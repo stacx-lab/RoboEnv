@@ -1,0 +1,25 @@
+identity:
+  source: user
+  id: isaaclab-chemlab-instruments
+  name: ChemLab instrument workstation
+  platform: sim
+  kind: other
+  model: No robot; instrument command interface
+sim:
+  source: user
+  simulator: isaaclab
+  notes: Use read for sensor observations and declared instrument commands for operations.
+    World wait advances all instruments. No owner state, reset, or evaluator commands
+    are public.
+devices:
+  source: user
+safety:
+  source: user
+  max_cartesian_velocity: null
+  max_joint_velocity: null
+  keep_out_zones: []
+  notes: Instrument-specific preconditions and errors are enforced by the upstream
+    runtime.
+meta:
+  created_at: '2026-10-02T07:16:00Z'
+  updated_at: '2026-10-02T07:16:00Z'

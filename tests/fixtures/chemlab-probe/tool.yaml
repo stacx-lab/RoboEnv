@@ -1,0 +1,9 @@
+name: chemlab_device_probe
+kind: controller
+description: Test instrument commands, measured feedback and the shared world clock.
+parameters:
+  type: object
+  properties: {}
+  additionalProperties: false
+devices: [other, world]
+timeout_s: 110

@@ -1,0 +1,10 @@
+schema_version: roboenv/bindings/1
+backend: isaaclab
+embodiment: chemlab_instruments
+devices:
+  world:
+    binding: isaaclab.chemlab/1
+    entity: world
+  instrument:
+    binding: isaaclab.chemlab/1
+    entity: instrument

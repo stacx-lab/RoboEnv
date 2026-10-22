@@ -1,0 +1,34 @@
+id: isaaclab/chemlab-hood-light-sash
+robot: isaaclab/isaaclab-chemlab-instruments
+instruction: Turn on the hood light and set sash height to 0.457 m. Hold both conditions
+  for one simulation second.
+seed: 0
+budget_mode: practice
+execution_mode: stepped
+stop_on_success: true
+backend_kwargs:
+  task_name: chemlab-instruments
+  max_steps: 6000
+  task_spec:
+    instruments:
+      instrument:
+        asset: instrument.esco_efa5uduvw
+        initialize:
+        - capability: plant.configure
+          arguments:
+            ambient_k: 295.15
+            pressure_pa: 101325.0
+            noise_seed: 1
+        - capability: exhaust.configure
+          arguments:
+            mode: blower
+            blower_speed: 0.9
+    goals:
+    - instrument: instrument
+      state: light.on
+      equals: true
+    - instrument: instrument
+      state: sash.height_m
+      min: 0.456
+      max: 0.458
+    dwell_s: 1.0
