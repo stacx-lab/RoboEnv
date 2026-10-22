@@ -324,13 +324,9 @@ class T2Env:
                 "final": self.snapshot()}
 
     def spectator_sources(self):
-        from ...common.spectator import SpectatorSource, look_at
+        from .spectator import sources
 
-        def pose():
-            pos = self.native.root_pose()[0]
-            return look_at(pos + [2.5, -3.0, 1.6], pos + [0, 0, -0.2])
-
-        return {"third_person": SpectatorSource(pose)}
+        return sources(self)
 
     def close(self):
         error = sys.exc_info()[1]

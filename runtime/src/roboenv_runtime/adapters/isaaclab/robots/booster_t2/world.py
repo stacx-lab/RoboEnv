@@ -394,6 +394,23 @@ class IsaacWorld:
         return pos + positions, quats
 
 
+    def head_pose(self) -> np.ndarray:
+        """Native head link world transform, without rendering or stepping."""
+        link = self._robot.data.body_link_pose_w.torch[0, self._head].detach().cpu().numpy()
+        head = np.eye(4)
+        x, y, z, w = link[3:].astype(float)
+        head[:3, :3] = quat_to_matrix(np.array([w, x, y, z]))
+        head[:3, 3] = link[:3]
+        return head
+
+    def head_camera_pose(self) -> np.ndarray:
+        """Head optical frame in world coordinates, including the fixed mount."""
+        config = self.robot.camera
+        mount = np.eye(4)
+        mount[:3, :3] = rpy_matrix(config.rpy)
+        mount[:3, 3] = config.pos
+        return self.head_pose() @ mount
+
     def capture_camera(self) -> tuple[np.ndarray, np.ndarray]:
         """The head camera now: RGB and depth, as `IsaacCamera.capture`.
 
@@ -402,12 +419,7 @@ class IsaacWorld:
         """
         if self.camera is None:
             raise RuntimeError("this world simulates no camera")
-        link = self._robot.data.body_link_pose_w.torch[0, self._head].detach().cpu().numpy()
-        head = np.eye(4)
-        x, y, z, w = link[3:].astype(float)
-        head[:3, :3] = quat_to_matrix(np.array([w, x, y, z]))
-        head[:3, 3] = link[:3]
-        return self.camera.capture(self.sim, head)
+        return self.camera.capture(self.sim, self.head_pose())
 
     def item_pose(self, name: str) -> tuple[np.ndarray, np.ndarray]:
         """World pose of item `name`'s model origin, simulator truth: position (3,) m and

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from roboenv_runtime.adapters.isaaclab.common.spectator import fit_view, look_at
+from roboenv_runtime.adapters.isaaclab.robots.booster_t2.spectator import sources as t2_sources
 from roboenv_runtime.adapters.isaaclab.robots.go2_d1.spectator import sources as go2_sources
 from roboenv_runtime.adapters.isaaclab.robots.yam.spectator import sources as yam_sources
 from roboenv_runtime.adapters.urdf_geometry import matrix
@@ -96,3 +97,65 @@ def test_registered_engine_uses_dedicated_source_and_only_render(monkeypatch):
 def test_second_renderer_fails_explicitly():
     with pytest.raises(ValueError, match="only one"):
         Engine(SimpleNamespace(environment=SimpleNamespace(_spectator_opened=True)))
+
+
+def test_t2_views_follow_native_head_and_frame_both_hands_without_mutation():
+    head = np.eye(4)
+    head[:3, 3] = [1, 2, 1.5]
+    mount = np.eye(4)
+    mount[:3, 3] = [0.1, 0, 0.02]
+    palms = np.array([[1.2, 2.6, 1.1], [1.2, 1.4, 0.9]])
+    config = SimpleNamespace(pos=[0.1, 0, 0.02], rpy=[0, 0, 0], width=640, height=480,
+                             intrinsics=lambda: np.diag([500, 480, 1]))
+    world = SimpleNamespace(
+        robot=SimpleNamespace(camera=config),
+        native=SimpleNamespace(head_camera_pose=lambda: head @ mount,
+                               root_pose=lambda: (head[:3, 3], [1, 0, 0, 0]),
+                               link_poses=lambda names: (palms, None)),
+    )
+    sources = t2_sources(world)
+    assert list(sources) == ["third_person", "head", "hand"]
+    assert (sources["head"].width, sources["head"].height) == (960, 720)
+    assert sources["head"].fov_y == pytest.approx(np.rad2deg(2 * np.arctan(0.5)))
+    original_head, original_palms = head.copy(), palms.copy()
+    before = {name: matrix(source.pose()) for name, source in sources.items()}
+    np.testing.assert_allclose(before["head"][:3, 3], [1.1, 2, 1.52])
+    local = (palms - before["hand"][:3, 3]) @ before["hand"][:3, :3]
+    ndc = local[:, :2] / local[:, 2, None] / (np.tan(np.deg2rad(25)) * np.array([16 / 9, 1]))
+    assert np.all(np.abs(ndc) < 0.8)
+    np.testing.assert_array_equal(head, original_head)
+    np.testing.assert_array_equal(palms, original_palms)
+    head[:3, 3] += [3, -2, 0]
+    palms += [3, -2, 0]
+    for name, source in sources.items():
+        after = matrix(source.pose())
+        np.testing.assert_allclose(after[:3, 3] - before[name][:3, 3], [3, -2, 0], atol=1e-12)
+        np.testing.assert_allclose(after[:3, :3], before[name][:3, :3], atol=1e-12)
+
+
+def test_t2_default_renderer_selects_all_three_owner_views(monkeypatch):
+    config = SimpleNamespace(pos=[0, 0, 0], rpy=[0, 0, 0], width=640, height=480,
+                             intrinsics=lambda: np.eye(3))
+    world = SimpleNamespace(robot=SimpleNamespace(camera=config))
+    world.spectator_sources = lambda: t2_sources(world)
+    monkeypatch.setattr(Engine, "open", lambda self, views: None)
+    renderer = create_spectator_renderer(SimpleNamespace(name="isaaclab", environment=world))
+    assert [(v.name, v.width, v.height) for v in renderer.views] == [
+        ("third_person", 1280, 720), ("head", 960, 720), ("hand", 1280, 720),
+    ]
+    renderer.close()
+
+
+def test_t2_head_view_accepts_native_rotation_roundoff_without_mutation():
+    transform = np.eye(4)
+    transform[:3, :3] *= 1.000002
+    transform[:3, 3] = [1, 2, 1.5]
+    original = transform.copy()
+    config = SimpleNamespace(width=640, height=480, intrinsics=lambda: np.diag([480, 480, 1]))
+    world = SimpleNamespace(robot=SimpleNamespace(camera=config),
+                            native=SimpleNamespace(head_camera_pose=lambda: transform))
+    pose = matrix(t2_sources(world)["head"].pose())
+    np.testing.assert_allclose(pose[:3, :3].T @ pose[:3, :3], np.eye(3), atol=1e-12)
+    assert np.linalg.det(pose[:3, :3]) == pytest.approx(1)
+    np.testing.assert_array_equal(pose[:3, 3], transform[:3, 3])
+    np.testing.assert_array_equal(transform, original)
