@@ -21,6 +21,20 @@ def household_eye(root, eye):
     return np.clip(eye, low, high)
 
 
+def hssd_eye(root, eye):
+    """Keep spectator optics inside the occupied HSSD room and below its ceiling."""
+    x, y = root[:2]
+    if y < -5.7:
+        low, high = (-3.5, -6.8, .4), (3.0, -5.8, 2.65)
+    elif x > 3.25 and y < -1.7:
+        low, high = (3.5, -4.65, .4), (7.4, -1.95, 2.65)
+    elif y < -3.0:
+        low, high = (2.3, -5.65, .4), (3.05, -3.05, 2.65)
+    else:
+        low, high = (-2.1, -2.8, .4), (7.4, 8.1, 2.65)
+    return np.clip(eye, low, high)
+
+
 def sources(world):
     config = world.robot.camera
 
@@ -29,6 +43,13 @@ def sources(world):
         eye = pos + [2.5, -3.0, 1.6]
         if world.definition["version"] in (3, 4):
             eye = household_eye(pos, eye)
+        elif world.definition["version"] == 5:
+            w, x, y, z = world.native.root_pose()[1]
+            yaw = np.arctan2(2 * (w*z+x*y), 1-2*(y*y+z*z))
+            forward = np.array([np.cos(yaw), np.sin(yaw), 0.])
+            right = np.cross(forward, [0, 0, 1])
+            eye = hssd_eye(pos, pos - 1.8*forward + 1.8*right + [0, 0, 1.45])
+            return look_at(eye, pos + .65*forward + [0, 0, -.05])
         return look_at(eye, pos + [0, 0, -0.2])
 
     def head():
@@ -50,6 +71,8 @@ def sources(world):
         eye = target + 0.62 * forward + 0.65 * right + [0, 0, 0.42]
         if world.definition["version"] in (3, 4):
             eye = household_eye(world.native.root_pose()[0], eye)
+        elif world.definition["version"] == 5:
+            eye = hssd_eye(world.native.root_pose()[0], eye)
         # Include fingers and nearby objects; widen only when the hands separate.
         bounds = (palms[:, None, :] + np.array(list(product((-0.16, 0.16), repeat=3))))
         return fit_view(eye, target, bounds.reshape(-1, 3))

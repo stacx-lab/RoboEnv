@@ -25,7 +25,7 @@ DEFAULT_CACHE_DIR = assets.directory() / "scenes"
 
 @dataclass(frozen=True)
 class Surface:
-    """A furniture top, axis aligned, world frame."""
+    """A furniture top with a semantic contact identity, in the world frame."""
 
     center: tuple[float, float]
     """Center of the top, x y, m."""
@@ -33,11 +33,17 @@ class Surface:
     """Extent along x and y, m."""
     height: float
     """Height of the top above the floor, m."""
+    yaw: float = 0.0
+    entity: str = ""
+
+    def local(self, xy):
+        c, s = np.cos(self.yaw), np.sin(self.yaw)
+        return (np.asarray(xy) - self.center) @ np.array([[c, -s], [s, c]])
 
     def contains(self, xy, margin: float = 0.0) -> bool:
         """Whether world point `xy` (m) lies over the top, at least `margin` (m) inside its
         edges."""
-        return all(abs(p - c) <= s / 2 - margin for p, c, s in zip(xy, self.center, self.size))
+        return bool(np.all(np.abs(self.local(xy)) <= np.asarray(self.size) / 2 - margin))
 
 
 class Scene:
@@ -61,10 +67,25 @@ class Scene:
         self.start: tuple[float, float, float] = tuple(spec["start"])
         """Default robot start: x m, y m, yaw rad, world frame."""
         self.surfaces: dict[str, Surface] = {
-            k: Surface(tuple(v["center"]), tuple(v["size"]), v["height"])
+            k: Surface(tuple(v["center"]), tuple(v["size"]), v["height"],
+                       v.get("yaw", 0.0), v.get("entity", k))
             for k, v in spec.get("surfaces", {}).items()
         }
         """Named furniture tops tasks put objects on."""
+        self.collider_bindings = dict(spec.get("collider_bindings", {}))
+        self.cart_bay = spec.get("cart_bay")
+        self.portal = spec.get("portal")
+        self.camera_bounds = spec.get("camera_bounds")
+        self.excluded_prims = tuple(spec.get("excluded_prims", ()))
+        self.replacements = spec.get("replacements", {})
+
+    def collider_entity(self, path):
+        """Resolve a full-house collider without confusing furniture with floor."""
+        relative = str(path).removeprefix("/World/Scene/")
+        for prefix, entity in self.collider_bindings.items():
+            if relative == prefix or relative.startswith(prefix + "/"):
+                return entity
+        return "scene:" + "/".join(relative.split("/")[:2])
 
     @property
     def directory(self) -> Path:

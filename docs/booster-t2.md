@@ -47,16 +47,28 @@ and grasp/release. The complete benchmark definitions live in RLE-Bench-inhouse
 `backend_kwargs.task_spec`. RoboEnv owns scene construction, specification validation
 and native predicates; RLE owns benchmark definitions, instructions and selection.
 
-New household task specifications use version 4 and `scene: simple_household`.
-`simple_household.py` binds four GraspNet scans (tomato soup can, bowl, apple,
-cracker box) and five HSSD furniture assets from the pinned SIMPLE depot.
-`simple_household_usd.py` places the furniture in the accepted task layout,
-preserving named support surfaces, instructions, routes and portal coordinates.
-This is a recomposed household, not the original HSSD house floor plan. Seven
-surfaces and the sofa use imported triangle-mesh colliders; there are no hidden
-authored tabletops underneath. The open bookcase and task-specific mechanisms
-retain their functional source geometry with HSSD diffuse textures.
+Version 5 uses `scene: hssd_household`, the complete pinned HSSD 102344022
+residence used by the SIMPLE integration scenes. The original architecture,
+furniture proportions, textures and 2000-intensity dome are retained. The task
+catalog remaps the stations and routes onto measured furniture tops. Scene YAML
+binds actual USD colliders to semantic surfaces, including an activity-table
+alias for the dining table. Unknown house colliders retain distinct identities;
+only the two measured floor meshes count as floor support.
 
+The office chair and office door leaf are removed for task access. One static
+sideboard is replaced when a task uses the functional drawer. A detailed open
+bookcase, two unscaled original HSSD consoles, low docking rails and a doorway
+between the existing entrance-corridor walls supply additional task fixtures.
+The door panel is sized to that aperture. These are documented adaptations to
+the house. The native mechanisms keep their joints and collision part names;
+render geometry adds bounded edge rounding, continuous vessel rims and a swept
+mug handle. No scanned shell is laid over an incompatible articulated mechanism.
+Desk fitting, cart parking and doorway passage use the scene geometry, including
+its local frames, instead of the old room's world coordinates.
+
+Version 4 `scene: simple_household` remains the earlier composition of five HSSD
+furniture assets in the authored household floor plan. Its coordinates and
+physical contract remain available for historical inputs.
 Scans are normalized to the accepted physical dimensions. The cracker box's
 front remains local `-Y`. Imported visuals have no rigid bodies or extra collision
 hulls. The bowl uses an open compound shell calibrated from scan cross-sections,

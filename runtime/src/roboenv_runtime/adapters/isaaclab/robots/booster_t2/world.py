@@ -78,6 +78,8 @@ def _spawn_scene(scene: Scene, material: sim_utils.RigidBodyMaterialCfg) -> None
         for prim in instances:
             prim.SetInstanceable(False)
     sim_utils.set_prim_visibility(stage.GetPrimAtPath(f"{SCENE_PRIM}/ceilings"), False)
+    for relative in scene.excluded_prims:
+        stage.GetPrimAtPath(f"{SCENE_PRIM}/{relative}").SetActive(False)
     material_path = f"{SCENE_PRIM}/physics_material"
     material.func(material_path, material)
     for group in SCENE_SOLIDS:
@@ -86,6 +88,10 @@ def _spawn_scene(scene: Scene, material: sim_utils.RigidBodyMaterialCfg) -> None
                 UsdPhysics.CollisionAPI.Apply(prim)
                 UsdPhysics.MeshCollisionAPI.Apply(prim).CreateApproximationAttr("none")
                 sim_utils.bind_physics_material(prim.GetPath(), material_path)
+    if scene.name == "hssd_household":
+        from .hssd_household_usd import fixtures
+
+        fixtures(stage, scene)
 
 
 def _item_usd(model: int, asset_directory: Path) -> Path:
@@ -244,7 +250,7 @@ class IsaacWorld:
         )
         self.sim = sim_utils.SimulationContext(
             sim_utils.SimulationCfg(dt=robot.timestep, device=device, physics_material=material,
-                                    enable_scene_query_support=task.spec["version"] in (3, 4))
+                                    enable_scene_query_support=task.spec["version"] in (3, 4, 5))
         )
         """The Isaac simulation context."""
         # Author the same static Z-up collision plane locally: the default grid USD
@@ -254,13 +260,13 @@ class IsaacWorld:
         ground.CreateWidthAttr(100.0)
         ground.CreateLengthAttr(100.0)
         ground.CreateDisplayColorAttr([(0.4, 0.4, 0.4)])
-        self.household = task.spec["version"] in (3, 4)
+        self.household = task.spec["version"] in (3, 4, 5)
         if not self.household:
             UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
         material.func("/World/GroundMaterial", material)
         if not self.household:
             sim_utils.bind_physics_material("/World/Ground", "/World/GroundMaterial")
-        light = sim_utils.DomeLightCfg(intensity=450.0 if self.household else 2000.0)
+        light = sim_utils.DomeLightCfg(intensity=450.0 if task.spec["version"] in (3, 4) else 2000.0)
         light.func("/World/Light", light)
         if task.scene:
             _spawn_scene(task.scene, material)
@@ -288,9 +294,9 @@ class IsaacWorld:
         for obj in task.articulated:
             art = self._articulated[obj.name]
             if self.household:
-                from .household_models import model
+                from .household_models import versioned_model
 
-                floating = not model(obj.model).fixed
+                floating = not versioned_model(obj.model, task.spec["version"]).fixed
             else:
                 floating = articulated_model(obj.model, task.asset_directory).floating
             if floating:
@@ -310,8 +316,10 @@ class IsaacWorld:
         if self.household:
             from .household_usd import make_asset
 
-            if self.task.spec["version"] == 4:
+            if self.task.spec["version"] in (4, 5):
                 from .simple_household_usd import make_asset as make_simple_asset
+                if self.task.spec["version"] == 5:
+                    from .hssd_household_usd import make_asset as make_simple_asset
 
                 usd = make_simple_asset(item.model, self.task.asset_directory)
             else:
@@ -341,12 +349,14 @@ class IsaacWorld:
 
     def _spawn_articulated(self, obj: Articulated) -> None:
         if self.household:
-            from .household_models import model as definition
+            from .household_models import versioned_model
             from .household_usd import make_asset
 
-            definition = definition(obj.model)
-            if self.task.spec["version"] == 4:
+            definition = versioned_model(obj.model, self.task.spec["version"])
+            if self.task.spec["version"] in (4, 5):
                 from .simple_household_usd import make_asset as make_simple_asset
+                if self.task.spec["version"] == 5:
+                    from .hssd_household_usd import make_asset as make_simple_asset
 
                 usd = make_simple_asset(obj.model, self.task.asset_directory)
             else:

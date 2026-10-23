@@ -710,6 +710,19 @@ def model(name):
     raise ValueError(f"Unknown household asset: {name}")
 
 
+def versioned_model(name, version):
+    """One model dispatch for validation, native bodies and measurements."""
+    if version == 5:
+        from .hssd_household import model as definition
+    elif version == 4:
+        from .simple_household import model as definition
+    elif version == 3:
+        definition = model
+    else:
+        raise ValueError(f"Unsupported household model version: {version}")
+    return definition(name)
+
+
 MODEL_NAMES = frozenset(
     (
         "can_tomato",
