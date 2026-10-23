@@ -88,7 +88,7 @@ class Scene:
 
 def scene_names() -> list[str]:
     """Names of the scenes in `SCENE_DIR`, sorted."""
-    return sorted(p.name for p in SCENE_DIR.iterdir() if (p / "scene.yaml").is_file())
+    return sorted(["household", *(p.name for p in SCENE_DIR.iterdir() if (p / "scene.yaml").is_file())])
 
 
 def load_scene(name: str) -> Scene:
@@ -97,6 +97,13 @@ def load_scene(name: str) -> Scene:
     Raises:
         ValueError: No such scene.
     """
+    if name == "household":
+        from .household_models import SURFACES
+
+        return Scene(name, {"hssd": "authored-household-v1", "translation": [0., 0., 0.],
+            "start": [-2., .7, float(np.pi / 2)], "surfaces": {
+                k: {"center": list(xy), "size": list(size), "height": height}
+                for k, (xy, size, height) in SURFACES.items()}})
     if name not in scene_names():
         raise ValueError(f"no scene {name!r}; scenes: {', '.join(scene_names())}")
     return Scene(name, yaml.safe_load((SCENE_DIR / name / "scene.yaml").read_text()))

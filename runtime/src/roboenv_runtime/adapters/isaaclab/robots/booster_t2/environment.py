@@ -54,8 +54,10 @@ class T2Env:
         self.definition = task.definition(task_spec)
         self.task_name = task_name
         self.asset_directory = Path(asset_directory or asset_root(repo_root())).resolve()
-        self.asset_identity = verify_assets(self.asset_directory, scenes=bool(self.definition["scene"]),
-                                            articulated=bool(self.definition["articulated"]))
+        authored = self.definition["version"] == 3
+        self.asset_identity = verify_assets(self.asset_directory,
+            scenes=bool(self.definition["scene"]) and not authored,
+            articulated=bool(self.definition["articulated"]) and not authored)
         self.policy_config = PolicyConfig(asset_directory=self.asset_directory)
         self.robot = RobotConfig(asset_directory=self.asset_directory)
         self.policy = LocoManipController(self.policy_config, self.robot,
@@ -119,7 +121,7 @@ class T2Env:
             start += rng.uniform([-0.015, -0.015, -0.02], [0.015, 0.015, 0.02])
         self.task.start = tuple(start)
         self.native._item_start = copy.deepcopy(self._item_start)
-        if seed:
+        if seed and self.definition["version"] != 3:
             for pose in self.native._item_start.values():
                 pose[:2] = (np.asarray(pose[:2]) + rng.uniform(-0.015, 0.015, 2)).tolist()
         self.native.reset()
@@ -250,7 +252,7 @@ class T2Env:
         self.steps += 1
         self.images = {}
         self.fallen = self._fallen()
-        if not self.fallen:
+        if not self.fallen and self.definition["version"] != 3:
             self.task.evaluate(self.native)
 
     def read_device(self, name):

@@ -108,6 +108,7 @@ def test_t2_views_follow_native_head_and_frame_both_hands_without_mutation():
     config = SimpleNamespace(pos=[0.1, 0, 0.02], rpy=[0, 0, 0], width=640, height=480,
                              intrinsics=lambda: np.diag([500, 480, 1]))
     world = SimpleNamespace(
+        definition={"version": 2},
         robot=SimpleNamespace(camera=config),
         native=SimpleNamespace(head_camera_pose=lambda: head @ mount,
                                root_pose=lambda: (head[:3, 3], [1, 0, 0, 0]),
@@ -159,3 +160,15 @@ def test_t2_head_view_accepts_native_rotation_roundoff_without_mutation():
     assert np.linalg.det(pose[:3, :3]) == pytest.approx(1)
     np.testing.assert_array_equal(pose[:3, 3], transform[:3, 3])
     np.testing.assert_array_equal(transform, original)
+
+
+@pytest.mark.parametrize("root", [[3.5, -.65, 1.], [2., -3.55, 1.], [6.8, .9, 1.]])
+def test_household_overview_stays_inside_robot_room(root):
+    from roboenv_runtime.adapters.isaaclab.robots.booster_t2.spectator import household_eye
+
+    root = np.asarray(root)
+    eye = household_eye(root, root + [2.5, -3., 1.6])
+    assert -4.9 <= eye[0] <= 7.3
+    assert -4.2 <= eye[1] <= 4.2
+    # The old parcel view was across the opaque dividing wall.
+    assert (root[0] < 5.) == (eye[0] < 5.)

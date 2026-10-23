@@ -33,6 +33,7 @@ class Item:
     xy: tuple
     support: float
     yaw: float = 0.0
+    fixed: bool = False
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,8 @@ class SceneTask:
     def __init__(self, name, spec, asset_directory):
         from ...tasks.t2_household.scoring import State, validate
 
+        if spec.get("version") == 3:
+            from ...tasks.t2_household.release import State, validate
         validate(spec)
         self.asset_directory = Path(asset_directory)
         self.name, self.spec = name, copy.deepcopy(spec)
@@ -58,6 +61,13 @@ class SceneTask:
         self.start = tuple(spec["start"])
         self.boxes = [Box(b["name"], tuple(b["size"]), tuple(b["pos"]), tuple(b["color"]))
                       for b in spec["boxes"]]
+        if spec["version"] == 3:
+            self.items = [Item(name, item["model"], tuple(item["pos"][:2]), item["pos"][2],
+                               item["yaw"], item["fixed"]) for name, item in spec["items"].items()]
+            self.articulated = [Articulated(name, obj["model"], tuple(obj["pos"][:2]), obj["pos"][2],
+                                            obj["yaw"], dict(obj["joints"])) for name, obj in spec["articulated"].items()]
+            self.state = State(spec)
+            return
         self.items = [Item(name, item["model"], tuple(item["xy"]),
                            self.scene.surfaces[item["surface"]].height, item["yaw"])
                       for name, item in spec["items"].items()]

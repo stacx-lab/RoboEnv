@@ -82,7 +82,9 @@ def test_nonfinite_and_out_of_range_base_commands_are_rejected_before_effects():
 
 
 def test_placement_requires_lift_release_and_continuous_dwell():
-    spec = task("t2-can-in-bowl")["backend_kwargs"]["task_spec"]
+    # Preserve the version-2 predicate contract for historical replay inputs.
+    spec = task("t2-reach-table")["backend_kwargs"]["task_spec"]
+    spec.update(scene="kitchen", hold_s=0.5)
     spec["items"] = {"box": {"model": 12, "xy": [-0.3, -1.15],
                              "surface": "kitchen_island", "yaw": 0.0}}
     spec["boxes"] = [{"name": "zone", "pos": [-.3, 1.26, .761],
@@ -169,7 +171,7 @@ def test_replay_retains_task_actor_order_and_rejects_substitution(tmp_path):
     with pytest.raises(ValueError, match="differs"):
         replay.load_definition(record, source)
     changed = copy.deepcopy(original)
-    changed["backend_kwargs"]["task_spec"]["items"]["can"]["xy"][0] += 0.1
+    changed["backend_kwargs"]["task_spec"]["items"]["can"]["pos"][0] += 0.1
     source.write_text(yaml.safe_dump(changed, sort_keys=False))
     with pytest.raises(ValueError, match="differs"):
         replay.load_definition(record, source)

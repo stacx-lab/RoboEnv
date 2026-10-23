@@ -11,6 +11,11 @@ class Task:
 
     @staticmethod
     def definition(task_spec):
+        if isinstance(task_spec, dict) and task_spec.get("version") == 3:
+            from .release import validate as validate_household
+
+            validate_household(task_spec)
+            return copy.deepcopy(task_spec)
         validate(task_spec)
         return copy.deepcopy(task_spec)
 

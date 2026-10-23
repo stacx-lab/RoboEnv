@@ -16,7 +16,7 @@ import torch
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.sensors import Camera, CameraCfg
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.actuator import booster_pd_torque
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.controller import RobotState
@@ -81,6 +81,11 @@ def _house_usd(scene: Scene) -> Path:
 def _spawn_scene(scene: Scene, material: sim_utils.RigidBodyMaterialCfg) -> None:
     """Put the house at `SCENE_PRIM`, turned Z up, ceilings hidden, its instances expanded, and
     make the meshes of `SCENE_SOLIDS` static triangle-mesh colliders with `material`."""
+    if scene.name == "household":
+        from .household_usd import room
+
+        room(sim_utils.get_current_stage())
+        return
     cfg = sim_utils.UsdFileCfg(usd_path=str(_house_usd(scene)))
     half = math.sqrt(0.5)
     cfg.func(SCENE_PRIM, cfg, translation=scene.translation, orientation=(half, 0.0, 0.0, half))
@@ -259,7 +264,8 @@ class IsaacWorld:
             restitution=0.0,
         )
         self.sim = sim_utils.SimulationContext(
-            sim_utils.SimulationCfg(dt=robot.timestep, device=device, physics_material=material)
+            sim_utils.SimulationCfg(dt=robot.timestep, device=device, physics_material=material,
+                                    enable_scene_query_support=task.spec["version"] == 3)
         )
         """The Isaac simulation context."""
         # Author the same static Z-up collision plane locally: the default grid USD
@@ -269,10 +275,13 @@ class IsaacWorld:
         ground.CreateWidthAttr(100.0)
         ground.CreateLengthAttr(100.0)
         ground.CreateDisplayColorAttr([(0.4, 0.4, 0.4)])
-        UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
+        self.household = task.spec["version"] == 3
+        if not self.household:
+            UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
         material.func("/World/GroundMaterial", material)
-        sim_utils.bind_physics_material("/World/Ground", "/World/GroundMaterial")
-        light = sim_utils.DomeLightCfg(intensity=2000.0)
+        if not self.household:
+            sim_utils.bind_physics_material("/World/Ground", "/World/GroundMaterial")
+        light = sim_utils.DomeLightCfg(intensity=450.0 if self.household else 2000.0)
         light.func("/World/Light", light)
         if task.scene:
             _spawn_scene(task.scene, material)
@@ -291,10 +300,21 @@ class IsaacWorld:
             self._spawn_articulated(obj)
         self._robot = Articulation(t2_articulation_cfg(robot, self.joint_names))
         self.camera = IsaacCamera(robot) if camera else None
+        self.measurements = None
+        if self.household:
+            from .household_physics import Measurements
+
+            self.measurements = Measurements(self)
         self.sim.reset()
         for obj in task.articulated:
             art = self._articulated[obj.name]
-            if articulated_model(obj.model, task.asset_directory).floating:
+            if self.household:
+                from .household_models import model
+
+                floating = not model(obj.model).fixed
+            else:
+                floating = articulated_model(obj.model, task.asset_directory).floating
+            if floating:
                 self._articulated_start[obj.name] = art.data.root_link_pose_w.torch.clone()
         isaac_names = list(self._robot.joint_names)
         fingers = robot.fingers.joints
@@ -308,9 +328,14 @@ class IsaacWorld:
         self._time = 0.0
 
     def _spawn_item(self, item: Item) -> None:
-        usd = _item_usd(item.model, self.task.asset_directory)
+        if self.household:
+            from .household_usd import make_asset
+
+            usd = make_asset(item.model)
+        else:
+            usd = _item_usd(item.model, self.task.asset_directory)
         bounds = _model_bounds(usd)
-        pos = (*item.xy, item.support - bounds[0, 2] + ITEM_CLEARANCE)
+        pos = (*item.xy, item.support + (0. if item.fixed else ITEM_CLEARANCE) if self.household else item.support - bounds[0, 2] + ITEM_CLEARANCE)
         quat = (0.0, 0.0, math.sin(item.yaw / 2), math.cos(item.yaw / 2))
         path = f"{TASK_PRIM}/{item.name}"
         self._items[item.name] = RigidObject(
@@ -321,12 +346,32 @@ class IsaacWorld:
             )
         )
         for prim in Usd.PrimRange(sim_utils.get_current_stage().GetPrimAtPath(path)):
-            if prim.HasAPI(UsdPhysics.CollisionAPI):
+            if self.household and prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                if item.fixed:
+                    PhysxSchema.PhysxRigidBodyAPI(prim).CreateEnableCCDAttr(False)
+                UsdPhysics.RigidBodyAPI(prim).CreateKinematicEnabledAttr(item.fixed)
+            if not self.household and prim.HasAPI(UsdPhysics.CollisionAPI):
                 sim_utils.bind_physics_material(prim.GetPath(), f"{TASK_PRIM}/physics_material")
         self._item_start[item.name] = [*pos, *quat]
         self._item_bounds[item.name] = bounds
 
     def _spawn_articulated(self, obj: Articulated) -> None:
+        if self.household:
+            from .household_models import model as definition
+            from .household_usd import make_asset
+
+            definition = definition(obj.model)
+            self._articulated[obj.name] = Articulation(ArticulationCfg(
+                prim_path=f"{TASK_PRIM}/{obj.name}",
+                spawn=sim_utils.UsdFileCfg(usd_path=str(make_asset(obj.model))),
+                init_state=ArticulationCfg.InitialStateCfg(pos=(*obj.xy,obj.support),
+                    rot=(0.,0.,math.sin(obj.yaw/2),math.cos(obj.yaw/2)), joint_pos=dict(obj.joints)),
+                actuators={"passive": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.,
+                    damping={j.name:j.damping for j in definition.joints},
+                    friction={j.name:j.friction for j in definition.joints},
+                    dynamic_friction={j.name:j.friction for j in definition.joints},
+                    armature=.0001)}))
+            return
         model = articulated_model(obj.model, self.task.asset_directory)
         # Places the model's frame, not its base link.
         pos = (*obj.xy, obj.support - model.bounds[0, 2] + ITEM_CLEARANCE)
@@ -391,6 +436,12 @@ class IsaacWorld:
         for item in (*self._items.values(), *self._articulated.values()):
             item.update(self.physics_dt)
         self._time += self.physics_dt
+        if self.measurements is not None:
+            self.measurements.refresh()
+            for name, obj in self.task.spec["articulated"].items():
+                if obj["model"] == "lamp":
+                    self.measurements.lamp_light(name)
+            self.task.evaluate(self)
 
     def set_finger_targets(self, positions: np.ndarray) -> None:
         """Position targets of the finger joints, `robot.fingers.joints` order, rad; they hold
@@ -537,7 +588,8 @@ class IsaacWorld:
         self._robot.update(0.0)
         for name, item in self._items.items():
             item.write_root_pose_to_sim_index(root_pose=torch.tensor([self._item_start[name]], **f))
-            item.write_root_velocity_to_sim_index(root_velocity=torch.zeros(1, 6, **f))
+            if not self.household or not self.task.spec["items"][name]["fixed"]:
+                item.write_root_velocity_to_sim_index(root_velocity=torch.zeros(1, 6, **f))
             item.reset()
             item.update(0.0)
         for obj in self.task.articulated:
@@ -552,4 +604,6 @@ class IsaacWorld:
             art.reset()
             art.update(0.0)
         self._time = 0.0
+        if self.measurements is not None:
+            self.measurements.reset()
         self.task.reset()

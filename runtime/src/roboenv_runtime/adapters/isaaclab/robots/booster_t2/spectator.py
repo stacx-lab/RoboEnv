@@ -7,6 +7,18 @@ import numpy as np
 from roboenv_runtime.adapters.urdf_geometry import matrix_pose
 
 from ...common.spectator import SpectatorSource, fit_view, look_at
+from .household_models import PORTAL_X, ROOM_BOUNDS
+
+
+def household_eye(root, eye):
+    """Keep an overview inside the occupied room instead of behind its walls."""
+    low = np.array([*ROOM_BOUNDS[0], 0.1]) + [0.3, 0.3, 0]
+    high = np.array([*ROOM_BOUNDS[1], 3.2]) - [0.3, 0.3, 0]
+    if root[0] < PORTAL_X:
+        high[0] = PORTAL_X - 0.30
+    else:
+        low[0] = PORTAL_X + 0.30
+    return np.clip(eye, low, high)
 
 
 def sources(world):
@@ -14,7 +26,10 @@ def sources(world):
 
     def overview():
         pos = world.native.root_pose()[0]
-        return look_at(pos + [2.5, -3.0, 1.6], pos + [0, 0, -0.2])
+        eye = pos + [2.5, -3.0, 1.6]
+        if world.definition["version"] == 3:
+            eye = household_eye(pos, eye)
+        return look_at(eye, pos + [0, 0, -0.2])
 
     def head():
         transform = world.native.head_camera_pose().copy()
@@ -33,6 +48,8 @@ def sources(world):
         forward = np.array([np.cos(yaw), np.sin(yaw), 0.0])
         right = np.cross(forward, [0, 0, 1])
         eye = target + 0.62 * forward + 0.65 * right + [0, 0, 0.42]
+        if world.definition["version"] == 3:
+            eye = household_eye(world.native.root_pose()[0], eye)
         # Include fingers and nearby objects; widen only when the hands separate.
         bounds = (palms[:, None, :] + np.array(list(product((-0.16, 0.16), repeat=3))))
         return fit_view(eye, target, bounds.reshape(-1, 3))

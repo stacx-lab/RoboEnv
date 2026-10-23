@@ -22,7 +22,8 @@ upstream repository; set `GITHUB_TOKEN` (or `GH_TOKEN`) when authentication is
 required. The token is used only for GitHub API requests. To reuse an offline depot, pass
 `--source /path/to/portable-t2-depot` instead of `--download`. Preparation preserves differing existing files
 and fails on checksum mismatch. It honors `ROBOENV_ASSET_CACHE`; use the same
-setting at launch. `--robot-only` prepares flat-ground touch tasks. Generated
+setting at launch. `--robot-only` prepares the robot/controller for flat-ground examples and
+version-3 authored household tasks. Generated
 USD conversions live in process-local temporary storage, leaving the depot intact.
 
 `realtime` continuously advances physics on the shared owner scheduler;
@@ -40,22 +41,35 @@ hand grasp-center FK without simulator access. Hand stop preserves preload;
 opening requires an explicit command. No world pose or object truth is exported.
 
 RoboEnv includes two standalone examples: `isaaclab/t2-reach-table` for
-flat-ground locomotion and touch, and `isaaclab/t2-can-in-bowl` for kitchen objects
+flat-ground locomotion and touch, and `isaaclab/t2-can-in-bowl` for authored household objects
 and grasp/release. The complete benchmark definitions live in RLE-Bench-inhouse
 `tasks/task11/catalog/`. All use the single `t2-household` factory with an explicit
 `backend_kwargs.task_spec`. RoboEnv owns scene construction, specification validation
 and native predicates; RLE owns benchmark definitions, instructions and selection.
 
-Task specifications use version 2. Supported goals include touch, lift, placement,
-containment, direct handover, sliding, rotation, stacking, level or loaded carrying,
-articulated-joint operation and chair pushing. Ordered touch goals require a new
-contact after the preceding stage. Placement tests every object-bound corner
-against the visible rectangular zone, with release, low-speed and support checks.
-Pick-and-place requires a prior 8 cm lift near a hand sustained for 0.15 s.
-Carry goals monitor tilt and retained contents throughout the lift; sliding and
-rotation require continuous support. Each stage has its specified dwell time.
-These are geometric predicates, not force-contact classifiers. Task definitions
-and short physics checks do not establish agent performance or solvability.
+New household task specifications use version 3 and `scene: household`. The
+runtime builds a furnished room and reusable physical models from
+`household_models.py` and `household_usd.py`. Native dimensions also define
+receiver regions: bowls, trays, shape-sorter apertures, drawer cavities, hooks
+and parking furniture are actual collision geometry. Passive mechanisms include
+a balance scale, cart casters, lamp switch/head, pounding pegs and doors.
+
+`household_physics.py` reads each PhysX contact report after the native 200 Hz
+step, retaining sleeping contacts until a lost event. `release.py` evaluates
+physical support, containment, load-bearing hand contact, brief ordered touches,
+tool contact and the task's stated sequence. It records per-condition diagnostics
+and history only in owner evidence. Pickups have no hidden minimum lift height;
+placement uses physical receiver-relative centers, release and settling. Numeric
+implementation tolerances define visible relations, not unobservable commanded
+travel distances. Valid retries are supported; process requirements stated in
+the instruction cannot be replaced by a final-pose check.
+
+Version 2 remains available for retained records and the standalone flat-ground
+reach example. Its original geometry-based predicates and historical thresholds
+are preserved for replay. It is not the replacement benchmark definition.
+Task definitions and short physics checks do not establish agent performance
+or solvability. All new tasks require native positive/negative examples,
+public-control feasibility checks and actual camera inspection before release.
 
 Owner evidence retains reset state, source/asset/controller identities, task
 definition, commands at control-frame boundaries and final physical/controller
