@@ -30,6 +30,8 @@ def check(args):
     )
     task = out / "task.yaml"
     task.write_text(yaml.safe_dump(definition, sort_keys=False))
+    screen = "terminal" if args.task == "balance-power" else "lcd"
+    views = ["third_person", f"instrument_{screen}"]
     with launch(
         task,
         project=ROOT,
@@ -37,7 +39,9 @@ def check(args):
         timeout=300,
         run_dir=out / "runs",
         python_path=[ROOT / "src", ROOT / "runtime/src", *args.python_path],
-        recording={} if args.render else None,
+        recording={"views": [{"name": name, "source": name} for name in views]}
+        if args.render
+        else None,
     ) as run:
         public = Client(endpoint=run.endpoint)
         world, instrument = public.device("world"), public.device("instrument")
@@ -85,11 +89,11 @@ def check(args):
             shutil.copytree(
                 ROOT / "tests/fixtures/chemlab-probe", workspace / ".kinex/tools/chemlab-probe"
             )
-            # Isolate a slow host interpreter cold start from controller behavior.
-            # This uses the existing Kinex driver setting, not a driver fork.
+            # Cover the 180-second world wait plus transport overhead using
+            # the existing Kinex per-call setting; cold starts also fit this cap.
             for profile in (workspace / ".kinex/devices").glob("*/profile.yaml"):
                 value = yaml.safe_load(profile.read_text())
-                value["access"]["driver"]["timeout_s"] = 120
+                value["access"]["driver"]["timeout_s"] = 240
                 profile.write_text(yaml.safe_dump(value, sort_keys=False))
             inputs = out / "probe-input.json"
             inputs.write_text(json.dumps({"commands": commands, "wait_s": 180.0}))
