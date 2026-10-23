@@ -30,4 +30,7 @@ def default_registry():
     from .backends.isaaclab.roboballet_eight_panda import bind as bind_roboballet_eight_panda
 
     registry.register("isaaclab.roboballet-eight-panda/1", bind_roboballet_eight_panda)
+    from .backends.isaaclab.chemlab import bind as bind_chemlab
+
+    registry.register("isaaclab.chemlab/1", bind_chemlab)
     return registry

@@ -1,0 +1,26 @@
+id: isaaclab/chemlab-balance-power
+robot: isaaclab/isaaclab-chemlab-instruments
+instruction: Power on the analytical balance and obtain a stable reading for one simulation
+  second.
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: true
+backend_kwargs:
+  task_name: chemlab-instruments
+  task_spec:
+    instruments:
+      instrument:
+        asset: instrument.mt_xpr204e
+        initialize:
+        - capability: power.set
+          arguments:
+            enabled: false
+    goals:
+    - instrument: instrument
+      state: power.enabled
+      equals: true
+    - instrument: instrument
+      state: balance.stable
+      equals: true
+    dwell_s: 1.0

@@ -8,11 +8,13 @@ from importlib.resources import files
 from pathlib import Path
 
 import yaml
-from roboenv.devices.export import driver_resources, shared_driver_resources
+from roboenv.client import Client
+from roboenv.devices.documentation import render_documentation
+from roboenv.devices.export import driver_resources, export_devices, shared_driver_resources
 from roboenv.tasks.resolve import resolve_task
 
 
-def prepare(task, destination, *, project=None, catalog=None):
+def prepare(task, destination, *, project=None, catalog=None, endpoint=None):
     resolved = resolve_task(task, project=project, catalog=catalog)
     destination = Path(destination).expanduser().resolve()
     if destination.exists():
@@ -41,6 +43,22 @@ def prepare(task, destination, *, project=None, catalog=None):
                     target = device / support
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(source / support, target)
+        if endpoint is not None:
+            client = Client(endpoint=endpoint)
+            description = client.describe()
+            if description['task']['id'] != resolved.task.id:
+                raise ValueError('Endpoint task differs from the selected task')
+            devices = client.devices()['devices']
+            if {item['name'] for item in devices} != {s.name for s in resolved.bindings.devices}:
+                raise ValueError('Endpoint device collection differs from the selected task')
+            export_devices(devices, config / 'devices', {
+                'endpoint': client.endpoint, 'session': client.session,
+                'generation': client.generation,
+            })
+            (staging / 'devices.md').write_text(render_documentation(
+                yaml.safe_load((config / 'workspace.yaml').read_text()), devices,
+                {'endpoint': client.endpoint},
+            ))
         (staging / "task.py").write_text(
             files("roboenv").joinpath("assets/task-client.py").read_text()
         )
@@ -49,6 +67,7 @@ def prepare(task, destination, *, project=None, catalog=None):
             "# Robot workspace\n\nRead instruction.md for the task outline. "
             "Run `python task.py` after connecting and between stages to read "
             "the current public instruction.\n\n"
+            "When devices.md is present, read it for the live command schemas.\n\n"
             "Use the declared device interfaces and camera observations. JointDevice writes "
             "accept absolute joint positions; acceptance does not imply arrival. "
             "Stop holds a device. The environment owner controls the episode lifecycle.\n"
@@ -68,5 +87,6 @@ if __name__ == "__main__":
     parser.add_argument("task")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--catalog", type=Path)
+    parser.add_argument("--endpoint", help="Export the live command set and pin episode identity")
     args = parser.parse_args()
-    print(json.dumps(prepare(args.task, args.out, catalog=args.catalog)))
+    print(json.dumps(prepare(args.task, args.out, catalog=args.catalog, endpoint=args.endpoint)))

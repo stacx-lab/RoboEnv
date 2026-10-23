@@ -123,3 +123,31 @@ def test_hand_description_and_optional_fk_export(tmp_path, fingers):
     exported = yaml.safe_load((tmp_path / "hand/profile.yaml").read_text())
     assert ("fk" in exported["access"]["driver"]["actions"]) is fingers
     assert exported["intrinsics"]["geometry"] == geometry
+
+
+def test_other_device_exports_extension_facts_outside_strict_profile(tmp_path):
+    from roboenv.devices.export import export_devices
+
+    intrinsics = {
+        "source": "user",
+        "frames": {},
+        "instrument": {"asset_id": "instrument.example", "size_m": [1, 2, 3]},
+    }
+    device = {
+        "name": "instrument",
+        "type": "other",
+        "intrinsics": intrinsics,
+        "extrinsics": {},
+        "actions": {"read": {"supported": True}},
+    }
+    export_devices([device], tmp_path, {"endpoint": "http://sim:8123"})
+    profile = yaml.safe_load((tmp_path / "instrument/profile.yaml").read_text())
+    assert profile["intrinsics"] == {"source": "user", "frames": {}}
+    assert json.loads((tmp_path / "instrument/intrinsics.json").read_text()) == intrinsics
+    assert "instrument.example" in render_documentation(
+        {}, [device], {"endpoint": "http://sim:8123"}
+    )
+    assert device["intrinsics"] == intrinsics
+    device["intrinsics"] = {"source": "user"}
+    export_devices([device], tmp_path, {"endpoint": "http://sim:8123"})
+    assert json.loads((tmp_path / "instrument/intrinsics.json").read_text()) == {"source": "user"}

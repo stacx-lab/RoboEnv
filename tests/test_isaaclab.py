@@ -19,6 +19,8 @@ def test_isaaclab_keeps_installation_recipe_without_g1():
         "isaaclab/go2-d1-control", "isaaclab/go2-d1-reach", "isaaclab/go2-d1-pick-place",
         "isaaclab/yam-calibrate-overhead-camera", "isaaclab/yam-calibrate-wrist-cameras",
         "isaaclab/yam-calibrate-dual-arm", "isaaclab/roboballet-eight-arm",
+        "isaaclab/chemlab-hood-light-sash", "isaaclab/chemlab-hotplate-stirring",
+        "isaaclab/chemlab-water-activity-temperature", "isaaclab/chemlab-balance-power",
     }
     assert "isaaclab" in BUILTIN_ADAPTERS
     with pytest.raises((ValueError, FileNotFoundError)):

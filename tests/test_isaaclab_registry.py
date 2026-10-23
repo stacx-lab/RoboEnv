@@ -89,7 +89,9 @@ def test_unknown_task_is_rejected_before_import_or_native_start(monkeypatch, nam
 
 def test_builtin_registration_is_cpu_importable_and_selects_distinct_scenes():
     tasks = [registry.get_task(name) for name in registry.TASKS]
-    assert {task.embodiment for task in tasks} == {"go2_d1", "yam", "roboballet_eight_panda"}
+    assert {task.embodiment for task in tasks} == {
+        "go2_d1", "yam", "roboballet_eight_panda", "chemlab_instruments",
+    }
     assert len({task.scene_type for task in tasks if task.embodiment == "go2_d1"}) == 3
 
 
