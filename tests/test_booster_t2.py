@@ -14,6 +14,7 @@ from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.isaaclab.registry import get_task
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.environment import T2Env
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.scenes import load_scene
+from roboenv_runtime.adapters.isaaclab.robots.booster_t2.task import Box
 from roboenv_runtime.adapters.isaaclab.tasks.t2_household.scoring import State
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,15 +85,17 @@ def test_placement_requires_lift_release_and_continuous_dwell():
     spec = task("t2-can-in-bowl")["backend_kwargs"]["task_spec"]
     spec["items"] = {"box": {"model": 12, "xy": [-0.3, -1.15],
                              "surface": "kitchen_island", "yaw": 0.0}}
+    spec["boxes"] = [{"name": "zone", "pos": [-.3, 1.26, .761],
+                      "size": [.36, .36, .002], "color": [0, 1, 0]}]
     spec["stages"] = [[{"kind": "place", "item": "box", "surface": "dining_table",
-                        "xy": [-0.3, 1.26], "radius": 0.18, "upright": False}]]
+                        "zone": "zone", "upright": False}]]
     state = State(spec)
     pos = np.array([-0.30, -1.15, 1.0])
     gap = [0.0]
     corners = np.array([[-0.32, 1.24, 0.761], [-0.28, 1.28, 0.95]])
     world = SimpleNamespace(
         time=0.0,
-        task=SimpleNamespace(scene=load_scene("kitchen")),
+        task=SimpleNamespace(scene=load_scene("kitchen"), boxes=[Box(**spec["boxes"][0])]),
         item_pose=lambda name: (pos.copy(), np.array([1, 0, 0, 0])),
         item_speed=lambda name: 0.0,
         item_velocity=lambda name: np.zeros(6),
@@ -136,6 +139,10 @@ def test_replay_comparison_rejects_state_and_outcome_tampering():
     ):
         assert not replay.compare(bad, original)
     assert not replay.compare(json.loads('{"value": NaN}'), {"value": 0.0})
+    native = {"joints": {"hinge": np.float64(0.7)}, "velocity": np.float64(0.0)}
+    assert replay.compare(native, json.loads(json.dumps(native)))
+    assert not replay.compare(native, {"joints": {"hinge": 0.70002}, "velocity": 0.0})
+    assert not replay.compare(True, 1)
 
 
 def test_replay_retains_task_actor_order_and_rejects_substitution(tmp_path):

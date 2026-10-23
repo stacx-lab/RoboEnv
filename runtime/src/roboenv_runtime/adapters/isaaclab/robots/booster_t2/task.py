@@ -35,6 +35,16 @@ class Item:
     yaw: float = 0.0
 
 
+@dataclass(frozen=True)
+class Articulated:
+    name: str
+    model: int
+    xy: tuple
+    support: float
+    yaw: float
+    joints: dict
+
+
 class SceneTask:
     def __init__(self, name, spec, asset_directory):
         from ...tasks.t2_household.scoring import State, validate
@@ -51,6 +61,9 @@ class SceneTask:
         self.items = [Item(name, item["model"], tuple(item["xy"]),
                            self.scene.surfaces[item["surface"]].height, item["yaw"])
                       for name, item in spec["items"].items()]
+        self.articulated = [Articulated(name, obj["model"], tuple(obj["xy"]),
+                                       obj["support"], obj["yaw"], dict(obj["joints"]))
+                            for name, obj in spec["articulated"].items()]
         self.state = State(spec)
 
     def reset(self):

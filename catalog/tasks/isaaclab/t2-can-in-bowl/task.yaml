@@ -8,9 +8,9 @@ execution_mode: realtime
 stop_on_success: false
 backend_kwargs:
   task_name: t2-household
-  max_steps: 18000
+  max_steps: null
   task_spec:
-    version: 1
+    version: 2
     scene: kitchen
     start:
     - 0.0
@@ -37,3 +37,4 @@ backend_kwargs:
         item: can
         container: bowl
     hold_s: 0.5
+    articulated: {}

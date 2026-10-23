@@ -1,23 +1,26 @@
 # Booster T2
 
-The existing Isaac Lab backend exposes the Booster T2 with Revo2 hands through
+The Isaac Lab backend exposes the Booster T2 with Revo2 hands through
 `base`, `head`, `left_arm`, `right_arm`, `left_hand`, `right_hand`, `head_camera`
 and `world`. The native owner runs a pinned ONNX whole-body controller at 50 Hz
 and PhysX at 200 Hz. Agent reasoning, training, benchmarks and Kinex sessions
 remain outside RoboEnv. The original locomanip project is not a runtime or
 image-build dependency.
 
-Prepare the existing Isaac runtime and a separately retained, verified asset depot:
+Prepare the Isaac runtime and download the pinned robot, controller and scene assets:
 
 ```sh
 roboenv prepare isaaclab
-python tools/prepare_booster_t2.py --source /path/to/portable-t2-depot
+python tools/prepare_booster_t2.py --download
 roboenv launch isaaclab/t2-reach-table --record
 ```
 
 The depot contains the T2 URDF/meshes, fixed controller, and selected SIMPLE
-house/GraspNet assets. `src/roboenv/assets/booster-t2-assets.json` pins every file
-and the upstream scene revision. Preparation preserves differing existing files
+house, GraspNet objects and articulated assets. `src/roboenv/assets/booster-t2-assets.json` pins every file
+and the upstream scene revision. Downloads require read access to the pinned
+upstream repository; set `GITHUB_TOKEN` (or `GH_TOKEN`) when authentication is
+required. The token is used only for GitHub API requests. To reuse an offline depot, pass
+`--source /path/to/portable-t2-depot` instead of `--download`. Preparation preserves differing existing files
 and fails on checksum mismatch. It honors `ROBOENV_ASSET_CACHE`; use the same
 setting at launch. `--robot-only` prepares flat-ground touch tasks. Generated
 USD conversions live in process-local temporary storage, leaving the depot intact.
@@ -36,19 +39,23 @@ as palm arrival. Public geometry supports local head/arm FK, arm IK, and coupled
 hand grasp-center FK without simulator access. Hand stop preserves preload;
 opening requires an explicit command. No world pose or object truth is exported.
 
-RoboEnv includes two standalone debug examples: `isaaclab/t2-reach-table` for
+RoboEnv includes two standalone examples: `isaaclab/t2-reach-table` for
 flat-ground locomotion and touch, and `isaaclab/t2-can-in-bowl` for kitchen objects
 and grasp/release. The complete benchmark definitions live in RLE-Bench-inhouse
 `tasks/task11/catalog/`. All use the single `t2-household` factory with an explicit
-`backend_kwargs.task_spec`; new layouts and goal sequences need no registry entry
-or provider catalog copy. RoboEnv owns scene construction, specification validation
+`backend_kwargs.task_spec`. RoboEnv owns scene construction, specification validation
 and native predicates; RLE owns benchmark definitions, instructions and selection.
 
-Placement requires a prior 8 cm lift near a hand sustained for 0.15 s,
-release clearance, low speed, support geometry and a 0.5 s dwell. Container goals
-use conservative object bounds inside an upright, nearly stationary bowl.
-This is a geometric grasp/containment predicate, not a force-contact classifier.
-New task definitions do not establish task solvability or model performance.
+Task specifications use version 2. Supported goals include touch, lift, placement,
+containment, direct handover, sliding, rotation, stacking, level or loaded carrying,
+articulated-joint operation and chair pushing. Ordered touch goals require a new
+contact after the preceding stage. Placement tests every object-bound corner
+against the visible rectangular zone, with release, low-speed and support checks.
+Pick-and-place requires a prior 8 cm lift near a hand sustained for 0.15 s.
+Carry goals monitor tilt and retained contents throughout the lift; sliding and
+rotation require continuous support. Each stage has its specified dwell time.
+These are geometric predicates, not force-contact classifiers. Task definitions
+and short physics checks do not establish agent performance or solvability.
 
 Owner evidence retains reset state, source/asset/controller identities, task
 definition, commands at control-frame boundaries and final physical/controller

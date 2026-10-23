@@ -54,7 +54,8 @@ class T2Env:
         self.definition = task.definition(task_spec)
         self.task_name = task_name
         self.asset_directory = Path(asset_directory or asset_root(repo_root())).resolve()
-        self.asset_identity = verify_assets(self.asset_directory, scenes=bool(self.definition["scene"]))
+        self.asset_identity = verify_assets(self.asset_directory, scenes=bool(self.definition["scene"]),
+                                            articulated=bool(self.definition["articulated"]))
         self.policy_config = PolicyConfig(asset_directory=self.asset_directory)
         self.robot = RobotConfig(asset_directory=self.asset_directory)
         self.policy = LocoManipController(self.policy_config, self.robot,
@@ -299,6 +300,8 @@ class T2Env:
                 "objects": {n: {"pose": np.concatenate(self.native.item_pose(n)).tolist(),
                                   "velocity": self.native.item_velocity(n).tolist()}
                             for n in self.definition["items"]},
+                "articulated": {n: self.native.articulated_state(n)
+                                for n in self.definition["articulated"]},
                 "controller": {"last_action": self.policy._last_action.tolist(),
                     "steps": self.policy._steps,
                     "history": {n: [v.tolist() for v in h] for n, h in self.policy._history.items()},

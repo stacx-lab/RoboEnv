@@ -23,7 +23,9 @@ def compare(actual, expected):
             and len(actual) == len(expected)
             and all(compare(a, b) for a, b in zip(actual, expected, strict=True))
         )
-    if type(expected) in (float, int) and type(actual) in (float, int):
+    if type(expected) in (float, int) and (
+        type(actual) in (float, int) or isinstance(actual, (np.floating, np.integer))
+    ):
         return bool(np.isclose(actual, expected, rtol=0, atol=1e-5))
     return type(actual) is type(expected) and actual == expected
 
@@ -32,7 +34,7 @@ def load_definition(record, task_file=None):
     """Preserve actor creation order, which sorted evidence JSON cannot retain."""
     definition = record["task_definition"]
     if task_file is None:
-        if len(definition["items"]) > 1:
+        if len(definition["items"]) + len(definition.get("articulated", {})) > 1:
             raise ValueError("Multi-object replay requires --task-file with the original task YAML")
         return definition
     task = yaml.safe_load(Path(task_file).read_text())
@@ -71,7 +73,8 @@ def replay(path, assets, out, task_file=None):
         max_steps=record["max_steps"],
         execution_mode=record["execution_mode"],
         stop_on_success=record["stop_on_success"],
-        cameras=False,
+        # Match the owner's scene construction, including camera prims.
+        cameras=True,
         device_profiles=record["device_profiles"],
     )
     try:

@@ -3,7 +3,7 @@ put in it.
 
 Each scene is a folder here with a `scene.yaml`: which of SIMPLE's HSSD houses it is, where it
 sits in the world, the robot's default start and the furniture tops tasks put objects on. The
-houses and the objects are downloaded into `CACHE_DIR` by `tools/prepare_booster_t2.py`.
+houses and objects are prepared by `tools/prepare_booster_t2.py --download`.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+import numpy as np
 
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2 import assets
 
@@ -80,7 +81,7 @@ class Scene:
         path = self.directory / f"{self.hssd_id}.usd"
         if not path.is_file():
             raise FileNotFoundError(
-                f"scene {self.name}: {path} is missing; run tools/prepare_booster_t2.py {self.name}"
+                f"scene {self.name}: {path} is missing; run tools/prepare_booster_t2.py --download"
             )
         return path
 
@@ -111,3 +112,69 @@ def graspnet_usd(model: int, asset_directory: Path) -> Path:
     if not path.is_file():
         raise FileNotFoundError(f"{path} is missing; run tools/prepare_booster_t2.py")
     return path
+
+@dataclass(frozen=True)
+class JointDynamics:
+    """Passive dynamics of one joint of an articulated object, from SIMPLE's MJCF."""
+
+    damping: float
+    """Viscous damping, N·m·s/rad (hinge) or N·s/m (slide)."""
+    friction: float
+    """Friction loss, N·m (hinge) or N (slide)."""
+    armature: float
+    """Armature, kg·m² (hinge) or kg (slide)."""
+
+
+@dataclass(frozen=True)
+class ArticulatedModel:
+    """One of SIMPLE's articulated objects (`articulated:<id>`), as downloaded."""
+
+    mjcf: Path
+    """The MJCF SIMPLE simulates it with."""
+    floating: bool
+    """Whether it has a free base; otherwise its base is fixed in the world."""
+    joints: dict[str, JointDynamics]
+    """Hinge and slide joints by name."""
+    bounds: np.ndarray
+    """Bounding box of its geometry at rest in its model's frame (the MJCF's world frame): rows
+    min, max. Shape (2, 3), m."""
+
+
+def articulated_model(model: int, asset_directory: Path) -> ArticulatedModel:
+    """SIMPLE's articulated object `model`, from the MJCF SIMPLE simulates it with.
+
+    Raises:
+        FileNotFoundError: It has not been downloaded.
+    """
+    import mujoco
+    import numpy as np
+
+    mjcf = asset_directory / "scenes" / "articulated" / f"{model:03d}" / "output_mjcf" / f"{model:03d}.xml"
+    if not mjcf.is_file():
+        raise FileNotFoundError(f"{mjcf} is missing; run tools/prepare_booster_t2.py --download")
+    m = mujoco.MjModel.from_xml_path(str(mjcf))
+    d = mujoco.MjData(m)
+    mujoco.mj_kinematics(m, d)
+    kinds = [int(k) for k in m.jnt_type]
+    joints = {}
+    for j, kind in enumerate(kinds):
+        if kind in (mujoco.mjtJoint.mjJNT_HINGE.value, mujoco.mjtJoint.mjJNT_SLIDE.value):
+            dof = m.jnt_dofadr[j]
+            joints[m.joint(j).name] = JointDynamics(
+                float(m.dof_damping[dof]),
+                float(m.dof_frictionloss[dof]),
+                float(m.dof_armature[dof]),
+            )
+    points = []
+    for g in range(m.ngeom):
+        if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH.value:
+            k = m.geom_dataid[g]
+            v = m.mesh_vert[m.mesh_vertadr[k] : m.mesh_vertadr[k] + m.mesh_vertnum[k]]
+            points.append(v @ d.geom_xmat[g].reshape(3, 3).T + d.geom_xpos[g])
+    points = np.concatenate(points)
+    return ArticulatedModel(
+        mjcf,
+        mujoco.mjtJoint.mjJNT_FREE.value in kinds,
+        joints,
+        np.array([points.min(0), points.max(0)]),
+    )

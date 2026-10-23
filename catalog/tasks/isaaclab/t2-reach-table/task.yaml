@@ -7,9 +7,9 @@ execution_mode: realtime
 stop_on_success: false
 backend_kwargs:
   task_name: t2-household
-  max_steps: 18000
+  max_steps: null
   task_spec:
-    version: 1
+    version: 2
     scene: null
     start:
     - 0.0
@@ -48,3 +48,4 @@ backend_kwargs:
         box: red_block
         side: either
     hold_s: 1.0
+    articulated: {}

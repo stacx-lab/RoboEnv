@@ -13,7 +13,8 @@ from pathlib import Path
 import isaaclab.sim as sim_utils
 import numpy as np
 import torch
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
+from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.sensors import Camera, CameraCfg
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
@@ -22,9 +23,9 @@ from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.controller i
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.kinematics import RobotKinematics
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.robot import RobotConfig
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.rotations import matrix_to_quat, quat_to_matrix, rpy_matrix
-from roboenv_runtime.adapters.isaaclab.robots.booster_t2.scenes import Scene, graspnet_usd
+from roboenv_runtime.adapters.isaaclab.robots.booster_t2.scenes import Scene, graspnet_usd, articulated_model
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.articulation import t2_articulation_cfg
-from roboenv_runtime.adapters.isaaclab.robots.booster_t2.task import Box, Item, SceneTask
+from roboenv_runtime.adapters.isaaclab.robots.booster_t2.task import Box, Item, SceneTask, Articulated
 
 RENDER_PASSES = 3
 """Renders before reading a camera, so that it shows the robot where it is now: a single pass
@@ -284,9 +285,17 @@ class IsaacWorld:
             material.func(f"{TASK_PRIM}/physics_material", material)
         for item in task.items:
             self._spawn_item(item)
+        self._articulated = {}
+        self._articulated_start = {}
+        for obj in task.articulated:
+            self._spawn_articulated(obj)
         self._robot = Articulation(t2_articulation_cfg(robot, self.joint_names))
         self.camera = IsaacCamera(robot) if camera else None
         self.sim.reset()
+        for obj in task.articulated:
+            art = self._articulated[obj.name]
+            if articulated_model(obj.model, task.asset_directory).floating:
+                self._articulated_start[obj.name] = art.data.root_link_pose_w.torch.clone()
         isaac_names = list(self._robot.joint_names)
         fingers = robot.fingers.joints
         if sorted(isaac_names) != sorted(self.joint_names + fingers):
@@ -317,6 +326,45 @@ class IsaacWorld:
         self._item_start[item.name] = [*pos, *quat]
         self._item_bounds[item.name] = bounds
 
+    def _spawn_articulated(self, obj: Articulated) -> None:
+        model = articulated_model(obj.model, self.task.asset_directory)
+        # Places the model's frame, not its base link.
+        pos = (*obj.xy, obj.support - model.bounds[0, 2] + ITEM_CLEARANCE)
+        quat = (0.0, 0.0, math.sin(obj.yaw / 2), math.cos(obj.yaw / 2))
+        dynamics = model.joints
+        self._articulated[obj.name] = Articulation(
+            ArticulationCfg(
+                prim_path=f"{TASK_PRIM}/{obj.name}",
+                spawn=sim_utils.MjcfFileCfg(
+                    asset_path=str(model.mjcf),
+                    usd_dir=str(generated_directory() / f"articulated-{obj.model:03d}"),
+                    fix_base=not model.floating,
+                    self_collision=False,
+                ),
+                init_state=ArticulationCfg.InitialStateCfg(pos=pos, rot=quat, joint_pos=obj.joints),
+                actuators={
+                    "joints": ImplicitActuatorCfg(
+                        joint_names_expr=[".*"],
+                        stiffness=0.0,
+                        damping={n: d.damping for n, d in dynamics.items()},
+                        friction={n: d.friction for n, d in dynamics.items()},
+                        dynamic_friction={n: d.friction for n, d in dynamics.items()},
+                        armature={
+                            n: max(d.armature, 1e-4)
+                            for n, d in dynamics.items()
+                        },
+                    )
+                },
+            )
+        )
+        # MJCF conversion does not retain SIMPLE's USD materials. Give the fixture
+        # a visible matte finish so its silhouette does not disappear into the ground.
+        path = f"{TASK_PRIM}/{obj.name}"
+        material_path = f"{path}/task_material"
+        material = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.24, 0.38, 0.52), roughness=0.6)
+        material.func(material_path, material)
+        sim_utils.bind_visual_material(path, material_path, stronger_than_descendants=True)
+
     @property
     def physics_dt(self) -> float:
         """Physics timestep, s."""
@@ -340,7 +388,7 @@ class IsaacWorld:
         self._robot.write_data_to_sim()
         self.sim.step(render=False)
         self._robot.update(self.physics_dt)
-        for item in self._items.values():
+        for item in (*self._items.values(), *self._articulated.values()):
             item.update(self.physics_dt)
         self._time += self.physics_dt
 
@@ -427,6 +475,22 @@ class IsaacWorld:
         d = self._items[name].data
         return _np(d.root_link_pos_w), _wxyz(_np(d.root_link_quat_w))
 
+    def articulated_pose(self, name):
+        data = self._articulated[name].data
+        return _np(data.root_link_pos_w), _wxyz(_np(data.root_link_quat_w))
+
+    def articulated_joints(self, name):
+        obj = self._articulated[name]
+        return dict(zip(obj.joint_names, _np(obj.data.joint_pos)))
+
+    def articulated_state(self, name):
+        obj = self._articulated[name]
+        data = obj.data
+        return {"pose": np.concatenate(self.articulated_pose(name)).tolist(),
+                "velocity": np.r_[_np(data.root_link_lin_vel_w), _np(data.root_link_ang_vel_w)].tolist(),
+                "joints": self.articulated_joints(name),
+                "joint_velocities": dict(zip(obj.joint_names, _np(data.joint_vel)))}
+
     def item_velocity(self, name: str) -> np.ndarray:
         data = self._items[name].data
         return np.r_[_np(data.root_link_lin_vel_w), _np(data.root_link_ang_vel_w)]
@@ -476,5 +540,16 @@ class IsaacWorld:
             item.write_root_velocity_to_sim_index(root_velocity=torch.zeros(1, 6, **f))
             item.reset()
             item.update(0.0)
+        for obj in self.task.articulated:
+            art = self._articulated[obj.name]
+            # A fixed base's pose must remain at the world joint's authored transform.
+            if obj.name in self._articulated_start:
+                art.write_root_pose_to_sim_index(root_pose=self._articulated_start[obj.name])
+                art.write_root_velocity_to_sim_index(root_velocity=torch.zeros(1, 6, **f))
+            q = [obj.joints.get(n, 0.0) for n in art.joint_names]
+            art.write_joint_state_to_sim_index(
+                position=torch.tensor([q], **f), velocity=torch.zeros(1, len(q), **f))
+            art.reset()
+            art.update(0.0)
         self._time = 0.0
         self.task.reset()
