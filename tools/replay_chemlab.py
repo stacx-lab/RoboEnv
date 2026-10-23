@@ -8,7 +8,7 @@ from pathlib import Path
 from roboenv_runtime.adapters.isaaclab.tasks.chemlab.environment import ChemLabEnvironment
 
 
-def replay(record, *, asset_directory=None, render=False):
+def replay(record, *, asset_directory=None, render=False, out=None, record_sha256=None):
     if record.get("schema") != "roboenv/chemlab-record/1":
         raise ValueError("Unsupported ChemLab record")
     environment = ChemLabEnvironment(
@@ -53,7 +53,30 @@ def replay(record, *, asset_directory=None, render=False):
             raise ValueError("Replay command exceeds its final frame")
         final = environment.record()
         matched = all(final[key] == record[key] for key in ("state", "budget", "native_success"))
-        return {"passed": matched, "frames": frames, "native_success": final["native_success"]}
+        scene_matched = None
+        if render:
+            scene_matched = all(
+                final[key] == record[key] for key in ("scene_mappings", "scene_evidence")
+            )
+            matched = matched and scene_matched
+        result = {
+            "passed": matched,
+            "frames": frames,
+            "native_success": final["native_success"],
+            "rendered": render,
+            "scene_matched": scene_matched,
+        }
+        if record_sha256:
+            result["record_sha256"] = record_sha256
+        # Isaac's application close exits the process. Seal evidence before
+        # teardown, and never turn an exception into a zero-exit success.
+        if out is not None:
+            with Path(out).open("x") as stream:
+                stream.write(json.dumps(result, indent=2) + "\n")
+            print(json.dumps(result), flush=True)
+        if not matched and render:
+            raise ValueError("Rendered replay differs from recorded episode")
+        return result
     finally:
         environment.close()
 
@@ -66,11 +89,13 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     raw = args.record.read_bytes()
-    result = replay(json.loads(raw), asset_directory=args.directory, render=args.render)
-    result["record_sha256"] = hashlib.sha256(raw).hexdigest()
-    with args.out.open("x") as stream:
-        stream.write(json.dumps(result, indent=2) + "\n")
-    print(json.dumps(result))
+    result = replay(
+        json.loads(raw),
+        asset_directory=args.directory,
+        render=args.render,
+        out=args.out,
+        record_sha256=hashlib.sha256(raw).hexdigest(),
+    )
     if not result["passed"]:
         raise SystemExit(1)
 

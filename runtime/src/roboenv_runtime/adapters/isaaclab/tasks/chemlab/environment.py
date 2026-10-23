@@ -59,7 +59,7 @@ class ChemLabEnvironment:
         asset_directory=None,
         device_profiles=None,
         max_steps=3000,
-        execution_mode="stepped",
+        execution_mode="realtime",
         render=True,
     ):
         json_value(task_spec)
@@ -147,10 +147,10 @@ class ChemLabEnvironment:
         self.configure_execution_mode(execution_mode)
 
     def configure_execution_mode(self, mode):
-        if mode not in {"stepped", "realtime"}:
-            raise ValueError("Unknown execution mode")
+        if mode != "realtime":
+            raise ValueError("ChemLab instrument environments require realtime execution")
         self.execution_mode = mode
-        self.max_steps = self.configured_max if mode == "stepped" else None
+        self.max_steps = None
 
     def reset(self, seed):
         if type(seed) is not int or seed < 0:
@@ -255,12 +255,20 @@ class ChemLabEnvironment:
             "max_steps": self.configured_max,
             "stop_on_success": self.stop_on_success,
             "scene_mappings": self.native.mapping_report if self.native else {},
+            "scene_evidence": copy.deepcopy(self.native.visual_evidence) if self.native else {},
         }
 
     def spectator_sources(self):
         if self.native is None:
             return {}
-        return {"third_person": SpectatorSource(self.native.spectator_pose)}
+        sources = {"third_person": SpectatorSource(self.native.spectator_pose)}
+        for name, panels in self.native.panels.items():
+            for display, panel in panels.items():
+                if panel["kind"] != "led":
+                    sources[f"{name}_{display}"] = SpectatorSource(
+                        lambda name=name, display=display: self.native.panel_pose(name, display)
+                    )
+        return sources
 
     def close(self):
         for instrument in self.instruments.values():

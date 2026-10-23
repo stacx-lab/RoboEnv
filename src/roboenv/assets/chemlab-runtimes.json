@@ -1192,18 +1192,7 @@
     "module": "asset_runtime.esco_efa5uduvw",
     "cls": "EscoEfa5uduvwRuntime",
     "instance_in_ctor": true,
-    "advance": "step_dt",
-    "joint_transforms": {
-      "sash_joint": {
-        "scale": 1.00382
-      },
-      "knob_water_joint": {
-        "scale": 1.5707963267948966
-      },
-      "knob_gas_joint": {
-        "scale": 1.5707963267948966
-      }
-    }
+    "advance": "step_dt"
   },
   "instrument.inert_puresolvmd": {
     "module": "asset_runtime.inert_puresolvmd",

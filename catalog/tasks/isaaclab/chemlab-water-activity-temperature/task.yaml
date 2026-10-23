@@ -4,11 +4,10 @@ instruction: Power on the water activity meter and bring the indicated temperatu
   to 303.15 K, within 0.5 K, for one simulation second.
 seed: 0
 budget_mode: practice
-execution_mode: stepped
+execution_mode: realtime
 stop_on_success: true
 backend_kwargs:
   task_name: chemlab-instruments
-  max_steps: 6000
   task_spec:
     instruments:
       instrument:

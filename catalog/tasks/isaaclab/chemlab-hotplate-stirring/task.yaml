@@ -4,11 +4,10 @@ instruction: Power on stirring at 600 rpm (62.831853 rad/s). Wait until the disp
   speed is within 10 rpm for one simulation second.
 seed: 0
 budget_mode: practice
-execution_mode: stepped
+execution_mode: realtime
 stop_on_success: true
 backend_kwargs:
   task_name: chemlab-instruments
-  max_steps: 6000
   task_spec:
     instruments:
       instrument:
@@ -22,7 +21,7 @@ backend_kwargs:
             noise_seed: 1
         - capability: power.set
           arguments:
-            'on': true
+            'on': false
     goals:
     - instrument: instrument
       state: display.speed

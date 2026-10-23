@@ -26,7 +26,11 @@ def test_native_capability_names_use_valid_portable_driver_verbs():
 
 
 SOLUTIONS = {
-    "hood-light-sash": [("light.set", {"on": True}), ("sash.set", {"height_m": 0.457})],
+    "hood-light-sash": [
+        ("light.set", {"on": True}),
+        ("sash.set", {"height_m": 0.457}),
+        ("fan.set", {"on": True}),
+    ],
     "water-activity-temperature": [
         ("power.set", {"enabled": True}),
         ("thermal.set_temperature", {"temperature_k": 303.15}),
@@ -89,7 +93,9 @@ def test_real_task_requires_commands_dwell_and_replays(assets, name):
         initial = environment.read_device("instrument")
         assert environment.read_device("instrument") == initial
         assert environment.frame == 0
-        for _ in range(20):
+        # Cover the entire old practice horizon: a powered balance used to solve
+        # itself after 5.9 s, beyond the former two-second negative check.
+        for _ in range(6000):
             environment.tick()
         assert not environment.completed
         for capability, arguments in SOLUTIONS[name]:
@@ -131,11 +137,12 @@ def test_real_instances_share_clock_without_sharing_state_or_owner_commands(asse
         assert not environment.read_device("second")["observations"]["light.on"]["value"]
         for _ in range(5):
             environment.tick()
-        assert environment.frame == 3
+        assert environment.frame == 5
         assert environment.instruments["instrument"].time == environment.instruments["second"].time
         environment.reset(0)
         assert environment.owner_state() == initial
-        environment.configure_execution_mode("realtime")
+        with pytest.raises(ValueError, match="realtime"):
+            environment.configure_execution_mode("stepped")
         assert environment.budget().max is None
         # Actual panel bytes cross the transport, never the host's temporary path.
         instrument = environment.instruments["instrument"]

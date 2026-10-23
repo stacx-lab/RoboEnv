@@ -34,26 +34,27 @@ class Instrument:
         if "clock" in params:
             kwargs["clock"] = lambda: self.time
         if "scene_adapter" in params:
-            kwargs["scene_adapter"] = lambda instance, updates: None
+            kwargs["scene_adapter"] = None
         if self.config.get("instance_kw"):
             kwargs[self.config["instance_kw"]] = instance
         self.host = (
             cls(instance, **kwargs) if self.config.get("instance_in_ctor") else cls(**kwargs)
         )
         self.capture_directory = TemporaryDirectory(prefix="chemlab-panel-")
-        if hasattr(self.host, "panel_capture_dir"):
-            self.host.panel_capture_dir = self.capture_directory.name
         create = self.config.get("create")
         if create == "type":
             self.host.create_instance(instance, row["id"])
         elif create == "plain":
             self.host.create_instance(instance)
         elif create == "scene":
-            self.host.create_instance(instance, lambda instance, updates: None)
+            self.host.create_instance(instance, None)
+        # Hosts may initialize/reset this attribute in create_instance, or use
+        # getattr/__dict__ lazily. Set it after creation and before first capture.
+        self.host.panel_capture_dir = self.capture_directory.name
         self.agent = self._session("roboenv_agent", "agent")
         self.owner = self._session("roboenv_owner", "evaluator")
         self.capabilities = {
-            key: value
+            key: ({**value, "availability": "unsupported"} if key.startswith("scene.") else value)
             for key, value in self.contract["capabilities"].items()
             if value.get("visibility") == "agent"
             and value.get("kind") != "simulation"
@@ -91,6 +92,8 @@ class Instrument:
     def invoke(self, capability, arguments, *, owner=False):
         if not owner and capability not in self.capabilities:
             raise DeviceError("permission_denied", "Capability is not exposed to agents")
+        if capability.startswith("scene."):
+            raise DeviceError("unsupported_action", "Native scene callbacks are not integrated")
         self.sequence += 1
         session = self.owner if owner else self.agent
         result = session.invoke(

@@ -4,10 +4,15 @@ This instrument-command mode has no robot or contact dynamics. Unsupported
 state-to-joint mappings are recorded explicitly rather than guessed from prose.
 """
 
+import hashlib
+import sys
+import traceback
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import numpy as np
+
+from .geometry import binding_report, component_links, joint_bindings, panel_spec, screen_quad
 
 
 def material(stage, shape, mesh, directory, index):
@@ -23,26 +28,36 @@ def material(stage, shape, mesh, directory, index):
     if image is None:
         image = getattr(native, "baseColorTexture", None)
     uv = getattr(visual, "uv", None)
+    base = str(shape.GetPath()) + "/material"
+    mat = UsdShade.Material.Define(stage, base)
+    surface = UsdShade.Shader.Define(stage, base + "/surface")
+    surface.CreateIdAttr("UsdPreviewSurface")
+    properties = getattr(native, "kwargs", {})
+
+    def scalar(name, default):
+        value = properties.get(name, default)
+        return float(value[0] if isinstance(value, (list, tuple)) else value)
+
+    opacity = scalar("d", 1.0)
+    factor = getattr(native, "baseColorFactor", None)
+    if factor is not None:
+        opacity *= float(factor[3]) / 255.0
+    surface.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(opacity)
+    shape.CreateDisplayOpacityAttr([opacity])
+    surface.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(scalar("pr", 0.6))
+    surface.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(scalar("pm", 0.0))
+    surface.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(*color))
+    surface.CreateInput("emissiveColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(0.0))
+    surface.CreateOutput("surface", Sdf.ValueTypeNames.Token)
+    mat.CreateSurfaceOutput().ConnectToSource(surface.ConnectableAPI(), "surface")
+    UsdShade.MaterialBindingAPI.Apply(shape.GetPrim()).Bind(mat)
     if image is None or uv is None:
-        if visual.kind in {"vertex", "face"}:
-            colors = visual.vertex_colors if visual.kind == "vertex" else visual.face_colors
-            shape.CreateDisplayColorAttr(
-                Vt.Vec3fArray.FromNumpy(np.asarray(colors[:, :3] / 255.0, dtype=np.float32))
-            )
-            shape.GetDisplayColorPrimvar().SetInterpolation(
-                "vertex" if visual.kind == "vertex" else "uniform"
-            )
-        return
+        return surface
     path = Path(directory) / f"{index}.png"
     image.save(path)
     UsdGeom.PrimvarsAPI(shape).CreatePrimvar(
         "st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex
     ).Set(Vt.Vec2fArray.FromNumpy(np.asarray(uv, dtype=np.float32)))
-    base = str(shape.GetPath()) + "/material"
-    mat = UsdShade.Material.Define(stage, base)
-    surface = UsdShade.Shader.Define(stage, base + "/surface")
-    surface.CreateIdAttr("UsdPreviewSurface")
-    surface.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.6)
     reader = UsdShade.Shader.Define(stage, base + "/uv")
     reader.CreateIdAttr("UsdPrimvarReader_float2")
     reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
@@ -57,9 +72,7 @@ def material(stage, shape, mesh, directory, index):
     surface.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(
         texture.ConnectableAPI(), "rgb"
     )
-    surface.CreateOutput("surface", Sdf.ValueTypeNames.Token)
-    mat.CreateSurfaceOutput().ConnectToSource(surface.ConnectableAPI(), "surface")
-    UsdShade.MaterialBindingAPI.Apply(shape.GetPrim()).Bind(mat)
+    return surface
 
 
 class InstrumentScene:
@@ -68,16 +81,18 @@ class InstrumentScene:
 
         self.app = launch_isaaclab("isaaclab", headless=True, enable_cameras=True)
         import isaaclab.sim as sim_utils
-        from pxr import Gf, UsdGeom, Vt
+        from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdShade, Vt
         from scipy.spatial.transform import Rotation
         from yourdfpy import URDF
 
         self.env, self.Gf, self.models = environment, Gf, {}
+        self.panels, self.lamps, self.visible, self.joints = {}, {}, {}, {}
+        self.panel_failures, self.visual_evidence = {}, {}
         self.textures = TemporaryDirectory(prefix="chemlab-textures-")
         self.sim = sim_utils.SimulationContext(
             sim_utils.SimulationCfg(dt=environment.control_interval, device="cuda:0")
         )
-        light = sim_utils.DomeLightCfg(intensity=200.0)
+        light = sim_utils.DomeLightCfg(intensity=500.0)
         light.func("/World/Light", light)
         floor = UsdGeom.Mesh.Define(self.sim.stage, "/World/Floor")
         floor.CreatePointsAttr(
@@ -90,7 +105,7 @@ class InstrumentScene:
         self.mapping_report = {}
         for i, (name, instrument) in enumerate(environment.instruments.items()):
             model = URDF.load(str(environment.depot / instrument.row["urdf"]))
-            operations = {}
+            operations, shapes, surfaces, nodes_by_link = {}, {}, {}, {}
             for j, node in enumerate(model.scene.graph.nodes_geometry):
                 _, geometry = model.scene.graph[node]
                 mesh = model.scene.geometry[geometry]
@@ -103,8 +118,13 @@ class InstrumentScene:
                 shape.CreateFaceVertexCountsAttr([3] * len(mesh.faces))
                 shape.CreateFaceVertexIndicesAttr(mesh.faces.ravel().tolist())
                 shape.CreateSubdivisionSchemeAttr("none")
-                material(self.sim.stage, shape, mesh, self.textures.name, f"{i}-{j}")
+                surfaces[node] = material(
+                    self.sim.stage, shape, mesh, self.textures.name, f"{i}-{j}"
+                )
                 operations[node] = operation
+                shapes[node] = shape
+                link = model.scene.graph.transforms.parents[node]
+                nodes_by_link.setdefault(link, []).append(node)
             mount = environment.profiles.get(name, {}).get("extrinsics", {}).get("mount", {})
             if (
                 mount.get("parent", "world") != "world"
@@ -117,7 +137,103 @@ class InstrumentScene:
                 mount.get("rotation_xyzw", [0.0, 0.0, 0.0, 1.0])
             ).as_matrix()
             self.models[name] = (model, operations, pose)
-            self.mapping_report[name] = {"synchronized": [], "unsupported": [], "unbound": []}
+            self.joints[name] = joint_bindings(instrument, model)
+            self.panels[name], self.lamps[name], self.visible[name] = {}, {}, {}
+            self.panel_failures[name] = {}
+            self.visual_evidence[name] = {"panels": {}, "joints": {}, "lamps": {}}
+
+            def component_nodes(component, instrument=instrument, nodes_by_link=nodes_by_link):
+                return [
+                    node
+                    for link in component_links(instrument.contract, component)
+                    for node in nodes_by_link.get(link, [])
+                ]
+
+            for display, spec in panel_spec(instrument).get("displays", {}).items():
+                component = spec.get("component_id")
+                candidates = component_nodes(component)
+                if not candidates:
+                    self.panel_failures[name][display] = "No URDF display component"
+                    continue
+                # A component may contain a screen and decorative text meshes.
+                node = max(
+                    candidates, key=lambda n: model.scene.geometry[model.scene.graph[n][1]].area
+                )
+                mesh = model.scene.geometry[model.scene.graph[node][1]]
+                try:
+                    corners, normal = screen_quad(mesh)
+                except ValueError as error:
+                    self.panel_failures[name][display] = str(error)
+                    continue
+                parent = str(shapes[node].GetPath()).rsplit("/", 1)[0]
+                quad = UsdGeom.Mesh.Define(self.sim.stage, parent + f"/screen_{display}")
+                quad.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(corners.astype(np.float32)))
+                quad.CreateFaceVertexCountsAttr([4])
+                quad.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+                quad.CreateSubdivisionSchemeAttr("none")
+                quad.CreateDoubleSidedAttr(True)
+                UsdGeom.PrimvarsAPI(quad).CreatePrimvar(
+                    "st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex
+                ).Set([(0, 0), (1, 0), (1, 1), (0, 1)])
+                base = parent + f"/panel_material_{display}"
+                mat = UsdShade.Material.Define(self.sim.stage, base)
+                shader = UsdShade.Shader.Define(self.sim.stage, base + "/surface")
+                shader.CreateIdAttr("UsdPreviewSurface")
+                shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(0))
+                shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(1.0)
+                reader = UsdShade.Shader.Define(self.sim.stage, base + "/uv")
+                reader.CreateIdAttr("UsdPrimvarReader_float2")
+                reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
+                texture = UsdShade.Shader.Define(self.sim.stage, base + "/texture")
+                texture.CreateIdAttr("UsdUVTexture")
+                texture.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
+                    reader.ConnectableAPI(), "result"
+                )
+                texture.CreateInput("sourceColorSpace", Sdf.ValueTypeNames.Token).Set("sRGB")
+                texture.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
+                shader.CreateInput("emissiveColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(
+                    texture.ConnectableAPI(), "rgb"
+                )
+                shader.CreateOutput("surface", Sdf.ValueTypeNames.Token)
+                mat.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+                UsdShade.MaterialBindingAPI.Apply(quad.GetPrim()).Bind(mat)
+                self.panels[name][display] = {
+                    "texture": texture.CreateInput("file", Sdf.ValueTypeNames.Asset),
+                    "node": node,
+                    "corners": corners,
+                    "normal": normal,
+                    "component": component,
+                    "kind": spec["kind"],
+                }
+
+            panel_components = {panel["component"] for panel in self.panels[name].values()}
+            for key, binding in instrument.contract.get("model_bindings", {}).items():
+                slot, channel = binding.get("state_id"), binding.get("channel")
+                component = binding.get("component_id")
+                nodes = component_nodes(component)
+                if (
+                    channel == "display"
+                    and binding.get("attribute") == "displayColor lamp on/off"
+                    and nodes
+                    and component not in panel_components
+                ):
+                    lamps = []
+                    for node in nodes:
+                        lamp = UsdLux.SphereLight.Define(
+                            self.sim.stage, str(shapes[node].GetPath()).rsplit("/", 1)[0] + "/lamp"
+                        )
+                        mesh = model.scene.geometry[model.scene.graph[node][1]]
+                        position = mesh.centroid.copy()
+                        # Place the emitter outside the underside, rather than
+                        # inside the opaque luminous component that occludes it.
+                        position[2] = mesh.bounds[0, 2] - 0.01
+                        lamp.AddTranslateOp().Set(Gf.Vec3d(*position))
+                        lamp.CreateRadiusAttr(0.025)
+                        lamp.CreateIntensityAttr(0.0)
+                        lamps.append((surfaces[node], lamp))
+                    self.lamps[name][key] = (slot, lamps)
+                if channel == "visibility" and nodes and slot:
+                    self.visible[name][key] = (slot, [shapes[n] for n in nodes])
         self.sim.reset()
         self.sync()
 
@@ -135,47 +251,96 @@ class InstrumentScene:
         lower, upper = bounds[:, 0].min(axis=0), bounds[:, 1].max(axis=0)
         center = (lower + upper) * 0.5
         extent = max(float(np.max(upper - lower)), 0.1)
-        return look_at((center + extent * np.array([1.4, -1.8, 1.1])).tolist(), center.tolist())
+        return look_at((center + extent * np.array([0.55, -1.5, 0.75])).tolist(), center.tolist())
+
+    def panel_pose(self, name, display):
+        from ...common.spectator import fit_view
+
+        model, _, pose = self.models[name]
+        panel = self.panels[name][display]
+        transform = pose @ model.scene.graph[panel["node"]][0]
+        corners = panel["corners"] @ transform[:3, :3].T + transform[:3, 3]
+        normal = transform[:3, :3] @ panel["normal"]
+        center = corners.mean(axis=0)
+        # Avoid a vertical optical axis so the shared look_at has a defined up.
+        normal = normal + np.array([0.0, -0.03, 0.0])
+        extent = max(float(np.linalg.norm(corners[1] - corners[0])), 0.05)
+        return fit_view(center + normal * extent, center, corners, margin=0.08)
 
     def sync(self):
+        from pxr import UsdGeom
+
         for name, (model, operations, pose) in self.models.items():
             instrument = self.env.instruments[name]
             state = instrument.read(owner=True)
             config = {}
-            report = {"synchronized": [], "unsupported": [], "unbound": []}
-            for key, binding in instrument.contract.get("model_bindings", {}).items():
-                if binding.get("channel") != "joint":
-                    continue
-                slot, target = binding.get("state_id"), binding.get("target")
-                if slot is None:
-                    report["unbound"].append(key)
-                    continue
-                value = state.get(slot, {}).get("value")
-                unit = instrument.contract["state_slots"].get(slot, {}).get("unit")
-                transform = instrument.config.get("joint_transforms", {}).get(target)
-                if (
-                    target not in model.joint_map
-                    or type(value) not in (int, float)
-                    or not np.isfinite(value)
-                    or (
-                        transform is None
-                        and (unit != binding.get("unit") or unit not in {"m", "rad"})
-                    )
-                ):
-                    report["unsupported"].append(key)
-                    continue
-                transform = transform or {}
-                config[target] = value * transform.get("scale", 1.0) + transform.get("offset", 0.0)
-                report["synchronized"].append(key)
+            active = []
+            for key, mapping in self.joints[name].items():
+                value = state.get(mapping["state"], {}).get("value")
+                if type(value) in (float, int) and np.isfinite(value):
+                    config[mapping["target"]] = value * mapping["scale"] + mapping["offset"]
+                    active.append(key)
             model.update_cfg(config)
             for node, operation in operations.items():
                 transform = pose @ model.scene.graph[node][0]
                 operation.Set(self.Gf.Matrix4d(transform.T.tolist()))
+                if not np.allclose(np.array(operation.Get()).T, transform, atol=1e-9):
+                    raise RuntimeError("Isaac instrument transform readback differs")
+            self.visual_evidence[name]["joints"] = config
+            for display, panel in self.panels[name].items():
+                response = instrument.invoke("panel.capture", {"display_id": display}, owner=True)
+                if response.get("status") != "succeeded":
+                    raise RuntimeError(f"Native panel capture failed: {display}")
+                captured = response["result"]["image"]
+                path = Path(captured["path"]).resolve()
+                if not path.is_relative_to(instrument.capture_directory.name):
+                    raise RuntimeError("Unowned native panel texture")
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                if digest != captured["sha256"]:
+                    raise RuntimeError("Native panel texture checksum differs")
+                panel["texture"].Set(str(path))
+                if panel["texture"].Get().path != str(path):
+                    raise RuntimeError("Isaac texture readback differs")
+                self.visual_evidence[name]["panels"][display] = {
+                    "sha256": digest,
+                    "width": captured["width"],
+                    "height": captured["height"],
+                    "bound": True,
+                }
+            lamps, visible = [], []
+            for key, (slot, bindings) in self.lamps[name].items():
+                value = state.get(slot, {}).get("value")
+                if type(value) is bool:
+                    for surface, light in bindings:
+                        surface.GetInput("emissiveColor").Set(self.Gf.Vec3f(2.0 if value else 0.0))
+                        light.GetIntensityAttr().Set(2000.0 if value else 0.0)
+                    lamps.append(key)
+                    self.visual_evidence[name]["lamps"][key] = value
+            for key, (slot, shapes) in self.visible[name].items():
+                value = state.get(slot, {}).get("value")
+                if type(value) is bool:
+                    for shape in shapes:
+                        shape.CreateVisibilityAttr().Set(
+                            UsdGeom.Tokens.inherited if value else UsdGeom.Tokens.invisible
+                        )
+                    visible.append(key)
+            report = binding_report(
+                instrument,
+                active,
+                {p["component"] for p in self.panels[name].values()},
+                lamps,
+                visible,
+            )
+            report["panels"] = sorted(self.panels[name])
+            report["panel_failures"] = self.panel_failures[name]
             self.mapping_report[name] = report
         self.sim.render()
 
     def close(self):
         self.textures.cleanup()
         if self.app is not None:
-            self.app.close()
+            error = sys.exc_info()[1]
+            if error is not None:
+                traceback.print_exc()
+            self.app.close(exit_code=1 if error is not None else 0)
             self.app = None

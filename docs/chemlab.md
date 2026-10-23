@@ -7,6 +7,10 @@ An agent selects instrument commands, reads agent-visible measurements and uses
 initialization, evaluator-only state, scoring, episode limits and evidence.
 Benchmark scheduling and Kinex policy evaluation belong outside RoboEnv.
 
+This is a partial instrument-interface integration, not a complete ChemLab scene
+or a Matterix replacement. Full asset acquisition and host initialization do not
+certify every instrument command, coupling, material transfer or scene binding.
+
 ## Prepare
 
 The complete `MBZUAI/ChemLab-Assets` dataset release is pinned to
@@ -57,6 +61,7 @@ from kinex import RPCError, device, finish
 
 device("instrument", "light_set", {"on": True})
 device("instrument", "sash_set", {"height_m": 0.457})
+device("instrument", "fan_set", {"on": True})
 try:
     device("world", "wait", {"duration_s": 1.0})
 except RPCError as error:
@@ -78,22 +83,25 @@ PNG bytes as base64 with dimensions and checksum, never private host filenames.
 
 There is one world clock with a 0.1-second interval. Commands change process
 targets; they do not independently advance time. Reads do not request ticks.
-`world.wait` advances all instruments together in stepped mode. Realtime mode uses
-the existing owner-thread scheduler and has no step cap, following RoboEnv policy.
+Only realtime execution is accepted. The existing owner-thread scheduler advances
+all instruments together; `world.wait` waits for that clock and there is no step cap.
+Offline command replay reconstructs recorded frames deterministically without
+exposing a stepped execution mode to agents.
 These are instrument process simulations, not contact-driven robot manipulation.
 
 ## Practice tasks
 
 | Task ID under `isaaclab/` | Instrument | Goal |
 | --- | --- | --- |
-| `chemlab-hood-light-sash` | Esco fume hood | Light on, sash at 0.457 m |
+| `chemlab-hood-light-sash` | Esco fume hood | Light and fan on, sash at 0.457 m, safe airflow |
 | `chemlab-water-activity-temperature` | AQUALAB water activity meter | Indicated temperature near 303.15 K |
 | `chemlab-hotplate-stirring` | IKA hotplate/stirrer | Indicated speed near 600 rpm |
 | `chemlab-balance-power` | METTLER TOLEDO balance | Powered on with stable reading |
 
-Each condition must hold for one simulation second. Tasks use seed 0, a 6000-frame
-practice budget and stop-on-success. An unchanged initial state does not solve
-these tasks. They are integration exercises, not an upstream ChemLab benchmark.
+Each condition must hold for one simulation second. Tasks use seed 0, realtime
+practice mode and stop-on-success. The balance and hotplate start powered off.
+The negative test waits 600 simulation seconds without commands; none may succeed.
+These are integration exercises, not an upstream ChemLab benchmark.
 
 To add an instrument or combine instruments, reuse `task_name: chemlab-instruments`
 and name each instance in `task_spec.instruments`, selecting its catalog `asset`.
@@ -108,13 +116,28 @@ No new adapter, transport or driver implementation is required.
 
 ## Geometry and validation boundaries
 
-The scene imports URDF visual geometry, mesh colors and UV textures. Process state
-drives joint bindings with compatible scalar units and explicitly audited transforms.
-Unbound controls and unsupported state-to-geometry mappings are listed in the private
-`scene_mappings` record. Prose-only Matterix bindings, contact/button dynamics,
-material/chemical transfers and dynamic screen textures are not automatically
-inferred from the contracts. The upstream panel API remains available independently
-of the 3D display. This mode does not run a second physics clock.
+The scene imports URDF visual geometry, UV textures and material opacity. Typed
+joint mappings reuse the contract's affine Matterix knob definitions; direct maps
+require compatible scalar units. Dynamic screens reuse upstream `panel.capture`
+pixels on geometry fitted to declared display components. Native panel close-ups
+and the overview use the existing spectator recorder. Lamps and Boolean visibility
+are mapped where their contract semantics are explicit. Stage transform and texture
+readback are recorded separately from runtime task success.
+
+Every model-binding channel is accounted for in `scene_mappings`, including
+unsupported pose/material/display mappings and controls marked unbound upstream.
+Missing panel components and native capture preconditions are explicit failures,
+not silently ignored geometry. The audit's binding plan is CPU coverage, not proof
+that all 203 instruments have rendered correctly. Full capability execution and
+scientific accuracy are not certified by the audit.
+
+Native `scene.*` commands are explicitly unavailable: this adapter does not provide
+the upstream synchronous scene callbacks. Previously supplying a no-op callback
+incorrectly let these commands appear supported. Contact dynamics, collision-based
+weighing, container/material transfers, inter-instrument coupling and unsupported
+pose/material channels remain incomplete. The released contracts reference Matterix
+scripts that are absent from the pinned release. This mode imports visual geometry;
+it does not import the complete PhysX articulation/contact model or run Matterix.
 
 Every host has a pinned factory entry in `src/roboenv/assets/chemlab-runtimes.json`.
 Updating the release requires auditing this table and rerunning native checks;
@@ -130,7 +153,7 @@ python tools/finalize_episode.py /path/to/run.json --out /path/to/new/owner
 python tools/replay_chemlab.py /path/to/new/owner/owner-record.json \
   --out /path/to/new/replay.json
 python tests/chemlab_probe.py --assets /path/to/verified/depot --render \
-  --kinex /path/to/kinex --out /path/to/new/native-probe
+  --task hood-light-sash --kinex /path/to/kinex --out /path/to/new/native-probe
 ```
 
 Run the audit/replay tools in the prepared runtime interpreter. They record exact
@@ -139,3 +162,8 @@ chemical model. Replay checks implementation and asset identities, reconstructs
 the initial state, reissues recorded commands at their original frames, and compares
 terminal state, budget and native outcome. Keep owner evidence outside the agent
 workspace. Model evaluation and benchmark publication are separate work.
+
+The probe accepts each of the four task suffixes. Rendered probes record an overview
+and native screen close-up, then reconstruct the episode in a fresh Isaac process
+and compare runtime state, budget, outcome, binding coverage and final texture hashes.
+These checks establish delivery for the selected task only.
