@@ -10,8 +10,8 @@ backend_kwargs:
   task_name: t2-household
   max_steps: null
   task_spec:
-    version: 3
-    scene: household
+    version: 4
+    scene: simple_household
     start:
     - 2
     - 0.75

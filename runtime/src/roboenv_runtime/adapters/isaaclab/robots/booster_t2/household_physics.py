@@ -95,8 +95,11 @@ class Measurements:
         self.world = world
         carb.settings.get_settings().set_bool("/physics/disableContactProcessing", False)
         self.contacts = ContactPairs()
+        definition = model
+        if world.task.spec["version"] == 4:
+            from .simple_household import model as definition
         self.models = {
-            n: model(d["model"])
+            n: definition(d["model"])
             for collection in (world.task.spec["items"], world.task.spec["articulated"])
             for n, d in collection.items()
         }
@@ -199,6 +202,8 @@ class Measurements:
                             for z in (-1, 1)
                         ]
                     )
+                elif p.shape == "hull":
+                    local = np.asarray(p.size)
                 else:
                     local = np.array(
                         [

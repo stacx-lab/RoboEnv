@@ -27,7 +27,7 @@ def sources(world):
     def overview():
         pos = world.native.root_pose()[0]
         eye = pos + [2.5, -3.0, 1.6]
-        if world.definition["version"] == 3:
+        if world.definition["version"] in (3, 4):
             eye = household_eye(pos, eye)
         return look_at(eye, pos + [0, 0, -0.2])
 
@@ -48,7 +48,7 @@ def sources(world):
         forward = np.array([np.cos(yaw), np.sin(yaw), 0.0])
         right = np.cross(forward, [0, 0, 1])
         eye = target + 0.62 * forward + 0.65 * right + [0, 0, 0.42]
-        if world.definition["version"] == 3:
+        if world.definition["version"] in (3, 4):
             eye = household_eye(world.native.root_pose()[0], eye)
         # Include fingers and nearby objects; widen only when the hands separate.
         bounds = (palms[:, None, :] + np.array(list(product((-0.16, 0.16), repeat=3))))

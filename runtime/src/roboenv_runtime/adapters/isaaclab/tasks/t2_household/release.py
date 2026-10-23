@@ -1,4 +1,4 @@
-"""Version 3 household contracts, evaluated from native physical evidence.
+"""Version 3/4 household contracts, evaluated from native physical evidence.
 
 All event transitions run at the physics rate, including brief hand contacts
 and tool impacts. Tolerances implement visible relationships rather than
@@ -65,8 +65,8 @@ def validate(spec):
         "hold_s",
     }:
         raise ValueError("Invalid household task fields")
-    if type(spec["version"]) is not int or spec["version"] != 3 or spec["scene"] != "household":
-        raise ValueError("Expected a version 3 household scene")
+    if type(spec["version"]) is not int or (spec["version"], spec["scene"]) not in {(3, "household"), (4, "simple_household")}:
+        raise ValueError("Expected a version 3 household or version 4 simple_household scene")
     vector(spec["start"], 3, "start")
     if spec["boxes"] != []:
         raise ValueError("Household tasks use physical receivers, not marker boxes")
@@ -632,7 +632,7 @@ class State:
 
     def record(self):
         return {
-            "version": 3,
+            "version": self.spec["version"],
             "stage": self.stage,
             "completed": self.completed,
             "since": self.since,

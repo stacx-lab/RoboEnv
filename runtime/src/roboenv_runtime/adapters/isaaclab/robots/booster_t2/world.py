@@ -16,14 +16,14 @@ import torch
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.sensors import Camera, CameraCfg
-from pxr import PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
+from pxr import PhysxSchema, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.actuator import booster_pd_torque
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.controller import RobotState
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.kinematics import RobotKinematics
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.robot import RobotConfig
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.controller.rotations import matrix_to_quat, quat_to_matrix, rpy_matrix
-from roboenv_runtime.adapters.isaaclab.robots.booster_t2.scenes import Scene, graspnet_usd, articulated_model
+from roboenv_runtime.adapters.isaaclab.robots.booster_t2.scenes import Scene, graspnet_usd, articulated_model, house_usd
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.articulation import t2_articulation_cfg
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.task import Box, Item, SceneTask, Articulated
 
@@ -52,41 +52,20 @@ def _wxyz(xyzw: np.ndarray) -> np.ndarray:
     return np.r_[xyzw[3], xyzw[:3]]
 
 
-def _house_usd(scene: Scene) -> Path:
-    """The house's USD with its material and texture paths pointing into its own folder, matching
-    file names regardless of case; written to the process-local conversion directory."""
-    folder = generated_directory() / hashlib.sha256(str(scene.directory).encode()).hexdigest()[:16]
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / "scene.usd"
-    if path.is_file():
-        return path
-    files = {
-        f.relative_to(scene.directory).as_posix().lower(): f for f in scene.directory.rglob("*")
-    }
-
-    def repair(asset: str) -> str:
-        for folder in ("props/", "textures/"):
-            if folder in asset:
-                local = asset[asset.index(folder) :]
-                match = files.get(local.lower())
-                return str(match or (scene.directory / local))
-        return asset
-
-    layer = Sdf.Layer.FindOrOpen(str(scene.source))
-    UsdUtils.ModifyAssetPaths(layer, repair)
-    layer.Export(str(path))
-    return path
-
-
 def _spawn_scene(scene: Scene, material: sim_utils.RigidBodyMaterialCfg) -> None:
     """Put the house at `SCENE_PRIM`, turned Z up, ceilings hidden, its instances expanded, and
     make the meshes of `SCENE_SOLIDS` static triangle-mesh colliders with `material`."""
+    if scene.name == "simple_household":
+        from .simple_household_usd import room
+
+        room(sim_utils.get_current_stage(), scene.asset_directory.parent)
+        return
     if scene.name == "household":
         from .household_usd import room
 
         room(sim_utils.get_current_stage())
         return
-    cfg = sim_utils.UsdFileCfg(usd_path=str(_house_usd(scene)))
+    cfg = sim_utils.UsdFileCfg(usd_path=str(house_usd(scene)))
     half = math.sqrt(0.5)
     cfg.func(SCENE_PRIM, cfg, translation=scene.translation, orientation=(half, 0.0, 0.0, half))
     stage = sim_utils.get_current_stage()
@@ -265,7 +244,7 @@ class IsaacWorld:
         )
         self.sim = sim_utils.SimulationContext(
             sim_utils.SimulationCfg(dt=robot.timestep, device=device, physics_material=material,
-                                    enable_scene_query_support=task.spec["version"] == 3)
+                                    enable_scene_query_support=task.spec["version"] in (3, 4))
         )
         """The Isaac simulation context."""
         # Author the same static Z-up collision plane locally: the default grid USD
@@ -275,7 +254,7 @@ class IsaacWorld:
         ground.CreateWidthAttr(100.0)
         ground.CreateLengthAttr(100.0)
         ground.CreateDisplayColorAttr([(0.4, 0.4, 0.4)])
-        self.household = task.spec["version"] == 3
+        self.household = task.spec["version"] in (3, 4)
         if not self.household:
             UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
         material.func("/World/GroundMaterial", material)
@@ -331,7 +310,12 @@ class IsaacWorld:
         if self.household:
             from .household_usd import make_asset
 
-            usd = make_asset(item.model)
+            if self.task.spec["version"] == 4:
+                from .simple_household_usd import make_asset as make_simple_asset
+
+                usd = make_simple_asset(item.model, self.task.asset_directory)
+            else:
+                usd = make_asset(item.model)
         else:
             usd = _item_usd(item.model, self.task.asset_directory)
         bounds = _model_bounds(usd)
@@ -361,9 +345,15 @@ class IsaacWorld:
             from .household_usd import make_asset
 
             definition = definition(obj.model)
+            if self.task.spec["version"] == 4:
+                from .simple_household_usd import make_asset as make_simple_asset
+
+                usd = make_simple_asset(obj.model, self.task.asset_directory)
+            else:
+                usd = make_asset(obj.model)
             self._articulated[obj.name] = Articulation(ArticulationCfg(
                 prim_path=f"{TASK_PRIM}/{obj.name}",
-                spawn=sim_utils.UsdFileCfg(usd_path=str(make_asset(obj.model))),
+                spawn=sim_utils.UsdFileCfg(usd_path=str(usd)),
                 init_state=ArticulationCfg.InitialStateCfg(pos=(*obj.xy,obj.support),
                     rot=(0.,0.,math.sin(obj.yaw/2),math.cos(obj.yaw/2)), joint_pos=dict(obj.joints)),
                 actuators={"passive": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.,

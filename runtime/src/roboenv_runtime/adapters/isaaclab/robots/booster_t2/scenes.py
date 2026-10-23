@@ -88,7 +88,7 @@ class Scene:
 
 def scene_names() -> list[str]:
     """Names of the scenes in `SCENE_DIR`, sorted."""
-    return sorted(["household", *(p.name for p in SCENE_DIR.iterdir() if (p / "scene.yaml").is_file())])
+    return sorted(["household", "simple_household", *(p.name for p in SCENE_DIR.iterdir() if (p / "scene.yaml").is_file())])
 
 
 def load_scene(name: str) -> Scene:
@@ -97,10 +97,10 @@ def load_scene(name: str) -> Scene:
     Raises:
         ValueError: No such scene.
     """
-    if name == "household":
+    if name in ("household", "simple_household"):
         from .household_models import SURFACES
 
-        return Scene(name, {"hssd": "authored-household-v1", "translation": [0., 0., 0.],
+        return Scene(name, {"hssd": "102344022" if name == "simple_household" else "authored-household-v1", "translation": [0., 0., 0.],
             "start": [-2., .7, float(np.pi / 2)], "surfaces": {
                 k: {"center": list(xy), "size": list(size), "height": height}
                 for k, (xy, size, height) in SURFACES.items()}})
@@ -185,3 +185,33 @@ def articulated_model(model: int, asset_directory: Path) -> ArticulatedModel:
         joints,
         np.array([points.min(0), points.max(0)]),
     )
+
+
+def house_usd(scene: Scene) -> Path:
+    """The house's USD with its material and texture paths pointing into its own folder, matching
+    file names regardless of case; written to the process-local conversion directory."""
+    import hashlib
+    from pxr import Sdf, UsdUtils
+    from .assets import generated_directory
+
+    folder = generated_directory() / hashlib.sha256(str(scene.directory).encode()).hexdigest()[:16]
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "scene.usd"
+    if path.is_file():
+        return path
+    files = {
+        f.relative_to(scene.directory).as_posix().lower(): f for f in scene.directory.rglob("*")
+    }
+
+    def repair(asset: str) -> str:
+        for folder in ("props/", "textures/"):
+            if folder in asset:
+                local = asset[asset.index(folder) :]
+                match = files.get(local.lower())
+                return str(match or (scene.directory / local))
+        return asset
+
+    layer = Sdf.Layer.OpenAsAnonymous(str(scene.source))
+    UsdUtils.ModifyAssetPaths(layer, repair)
+    layer.Export(str(path))
+    return path

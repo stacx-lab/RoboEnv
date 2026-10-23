@@ -464,3 +464,47 @@ def test_airborne_cart_motion_does_not_count_as_pulling_on_its_wheels():
     facts.support('cart', 'floor')
     state.events = {'distance': 0.0, 'pulled': 0.0}
     assert all(state._evaluate(m).values())
+
+
+@pytest.mark.parametrize("version,scene", [(3, "household"), (4, "simple_household")])
+def test_asset_version_selects_its_scene_and_preserves_goal_contract(version, scene):
+    spec = touch_spec()
+    spec.update(version=version, scene=scene)
+    validate(spec)
+    assert State(spec).record()["version"] == version
+    spec["scene"] = "household" if version == 4 else "simple_household"
+    with pytest.raises(ValueError, match="scene"):
+        validate(spec)
+
+
+def test_imported_furniture_contacts_keep_named_support_not_ground():
+    path = "/World/Household/dining_table/furniture/Geometry/Mesh/mesh/mesh_0"
+    assert collider_identity(path) == ("dining_table", "body", "mesh_0")
+    contacts = ContactPairs()
+    contacts.feed("support", ("can", "body", "bottom"), collider_identity(path),
+                  [(np.zeros(3), np.array([0., 0., 1.]), 1.2)])
+    assert contacts.upward_force("can", "dining_table") == pytest.approx(1.2)
+    assert contacts.upward_force("can", "ground") == 0
+
+
+def test_scanned_bowl_has_open_sloped_shell_and_load_bearing_bottom():
+    from roboenv_runtime.adapters.isaaclab.robots.booster_t2.simple_household import (
+        model as scan_model,
+    )
+
+    original = model("bowl")
+    bowl = scan_model("bowl")
+    assert bowl.links[0].mass == original.links[0].mass
+    floor, *walls = bowl.links[0].parts
+    assert floor.name == "floor" and floor.shape == "cylinder"
+    assert floor.pos[2] + floor.size[1] / 2 < .01
+    assert all(p.shape == "hull" for p in walls)
+    vertices = np.concatenate([np.asarray(p.size) for p in walls])
+    radial = np.linalg.norm(vertices[:, :2], axis=1)
+    # A centred 69 mm can fits all heights. No collision wedge crosses the
+    # cavity, and the visible scan's 260 mm rim is the physical outer diameter.
+    assert radial.min() > .035
+    assert radial.max() == pytest.approx(.13)
+    assert vertices[:, 2].max() == pytest.approx(.09)
+    assert radial[vertices[:, 2] > .085].min() > radial[vertices[:, 2] < .005].max()
+    assert {p.shape for p in model("bowl").links[0].parts} == {"cylinder", "box"}

@@ -41,18 +41,36 @@ hand grasp-center FK without simulator access. Hand stop preserves preload;
 opening requires an explicit command. No world pose or object truth is exported.
 
 RoboEnv includes two standalone examples: `isaaclab/t2-reach-table` for
-flat-ground locomotion and touch, and `isaaclab/t2-can-in-bowl` for authored household objects
+flat-ground locomotion and touch, and `isaaclab/t2-can-in-bowl` for SIMPLE household objects
 and grasp/release. The complete benchmark definitions live in RLE-Bench-inhouse
 `tasks/task11/catalog/`. All use the single `t2-household` factory with an explicit
 `backend_kwargs.task_spec`. RoboEnv owns scene construction, specification validation
 and native predicates; RLE owns benchmark definitions, instructions and selection.
 
-New household task specifications use version 3 and `scene: household`. The
-runtime builds a furnished room and reusable physical models from
-`household_models.py` and `household_usd.py`. Native dimensions also define
-receiver regions: bowls, trays, shape-sorter apertures, drawer cavities, hooks
-and parking furniture are actual collision geometry. Passive mechanisms include
-a balance scale, cart casters, lamp switch/head, pounding pegs and doors.
+New household task specifications use version 4 and `scene: simple_household`.
+`simple_household.py` binds four GraspNet scans (tomato soup can, bowl, apple,
+cracker box) and five HSSD furniture assets from the pinned SIMPLE depot.
+`simple_household_usd.py` places the furniture in the accepted task layout,
+preserving named support surfaces, instructions, routes and portal coordinates.
+This is a recomposed household, not the original HSSD house floor plan. Seven
+surfaces and the sofa use imported triangle-mesh colliders; there are no hidden
+authored tabletops underneath. The open bookcase and task-specific mechanisms
+retain their functional source geometry with HSSD diffuse textures.
+
+Scans are normalized to the accepted physical dimensions. The cracker box's
+front remains local `-Y`. Imported visuals have no rigid bodies or extra collision
+hulls. The bowl uses an open compound shell calibrated from scan cross-sections,
+with a separately identified load-bearing bottom; its irregular rolled rim is
+an approximation and cannot satisfy the containment floor-contact condition.
+Other props retain their calibrated primitive collision approximations. Plates,
+trays, shape-sorter apertures, drawer cavities, hooks and parking furniture remain
+actual collision geometry. Passive mechanisms include the balance scale, cart
+casters, lamp switch/head, pounding pegs and door. Imported asset coverage is
+explicit; this does not claim that all 39 logical models are scanned assets.
+
+Version 3 `scene: household` retains its authored room and model definitions.
+Historical records must be replayed with their original frozen source, asset
+identity and task YAML: replay intentionally rejects different source hashes.
 
 `household_physics.py` reads each PhysX contact report after the native 200 Hz
 step, retaining sleeping contacts until a lost event. `release.py` evaluates

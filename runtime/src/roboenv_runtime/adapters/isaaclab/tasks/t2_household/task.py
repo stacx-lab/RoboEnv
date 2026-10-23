@@ -11,7 +11,7 @@ class Task:
 
     @staticmethod
     def definition(task_spec):
-        if isinstance(task_spec, dict) and task_spec.get("version") == 3:
+        if isinstance(task_spec, dict) and task_spec.get("version") in (3, 4):
             from .release import validate as validate_household
 
             validate_household(task_spec)
