@@ -1,6 +1,7 @@
 """Export live device facts and thin Kinex drivers, without a harness dependency."""
 
 import json
+import shutil
 from datetime import datetime, timezone
 from importlib.resources import files
 from pathlib import Path
@@ -150,9 +151,17 @@ def write_driver(directory, kind):
     (directory / "_roboenv.py").unlink(missing_ok=True)
 
 
-def export_devices(profiles, directory, connection):
+def export_devices(profiles, directory, connection, *, resources=None):
+    """Export live facts, retaining explicitly portable catalog geometry and hooks."""
+    profiles = list(profiles)
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
+    if resources is not None:
+        resources = Path(resources)
+        names = {profile["name"] for profile in profiles}
+        if any(path.parent.name not in names
+               for path in resources.glob("*/driver-resources.json")):
+            raise ValueError("Portable resources reference an undeclared device")
     for descriptor in profiles:
         name = descriptor["name"]
         destination = directory / name
@@ -187,3 +196,9 @@ def export_devices(profiles, directory, connection):
             write_driver(destination, descriptor["type"])
             (destination / "connection.json").write_text(json.dumps(connection) + "\n")
         (destination / "profile.yaml").write_text(yaml.safe_dump(profile, sort_keys=False))
+        source = resources / name if resources is not None else None
+        if source is not None and (source / "driver-resources.json").exists():
+            for relative in driver_resources(source):
+                target = destination / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source / relative, target)

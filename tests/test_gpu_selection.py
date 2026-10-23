@@ -128,6 +128,7 @@ def test_launch_passes_selection_and_acceptance_only_to_owned_process(
     monkeypatch.setattr("roboenv.provisioning.sources.status", lambda *a: {"ready": True})
     monkeypatch.delenv("OMNI_KIT_ACCEPT_EULA", raising=False)
     monkeypatch.delenv("ROBOENV_BEHAVIOR_ACCEPT_LICENSE", raising=False)
+    monkeypatch.setenv("ROBOENV_ASSET_CACHE", str(tmp_path / "assets"))
     if acceptance is not None:
         monkeypatch.setenv("OMNI_KIT_ACCEPT_EULA", acceptance)
         monkeypatch.setenv("ROBOENV_BEHAVIOR_ACCEPT_LICENSE", acceptance)
@@ -146,6 +147,7 @@ def test_launch_passes_selection_and_acceptance_only_to_owned_process(
     assert all(seen[0][key] == value for key, value in gpu.gpu_environment(SELECTION).items())
     expected = "YES" if acceptance is None else acceptance
     assert seen[0]["OMNI_KIT_ACCEPT_EULA"] == seen[0]["ROBOENV_BEHAVIOR_ACCEPT_LICENSE"] == expected
+    assert seen[0]["ROBOENV_ASSET_CACHE"] == str(tmp_path / "assets")
     record = json.loads(next(tmp_path.glob("*/run.json")).read_text())
     assert record["gpu"] == SELECTION
     assert record["state"] == "failed"

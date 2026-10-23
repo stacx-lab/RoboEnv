@@ -111,7 +111,9 @@
       ],
       "known_blockers": [],
       "import_probes": [
-        "isaaclab"
+        "isaaclab",
+        "onnxruntime",
+        "pinocchio"
       ],
       "asset_instructions": "docs/isaaclab.md",
       "index_strategy": "unsafe-best-match"

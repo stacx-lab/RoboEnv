@@ -1,0 +1,141 @@
+name: left_hand
+type: dexterous_hand
+loaded: false
+access:
+  source: user
+  method: unknown
+  calibrated_at: null
+  connection:
+    kind: url
+    url: http://127.0.0.1:8765
+    device: left_hand
+  driver:
+    entry: driver.py
+    persistent: true
+    actions:
+    - read
+    - write
+    - stop
+    - load
+    - unload
+    - status
+    - fk
+    timeout_s: 60
+intrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  model:
+    format: joints
+    joints:
+    - name: left_thumb_metacarpal_joint
+      type: revolute
+      limits:
+        min: 0.0
+        max: 1.57
+      max_velocity: 2.6175
+      max_effort: 0.5
+    - name: left_thumb_proximal_joint
+      type: revolute
+      limits:
+        min: 0.0
+        max: 1.03
+      max_velocity: 2.5303
+      max_effort: 1.1
+    - name: left_index_proximal_joint
+      type: revolute
+      limits:
+        min: 0.0
+        max: 1.41
+      max_velocity: 2.2685
+      max_effort: 2.0
+    - name: left_middle_proximal_joint
+      type: revolute
+      limits:
+        min: 0.0
+        max: 1.41
+      max_velocity: 2.2685
+      max_effort: 2.0
+    - name: left_ring_proximal_joint
+      type: revolute
+      limits:
+        min: 0.0
+        max: 1.41
+      max_velocity: 2.2685
+      max_effort: 2.0
+    - name: left_pinky_proximal_joint
+      type: revolute
+      limits:
+        min: 0.0
+        max: 1.41
+      max_velocity: 2.2685
+      max_effort: 2.0
+  kinematics:
+    frame: grasp_center
+    fk: driver
+    ik: null
+    frame_to_reported:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+  home:
+    left_thumb_metacarpal_joint: 0.0
+    left_thumb_proximal_joint: 0.0
+    left_index_proximal_joint: 0.0
+    left_middle_proximal_joint: 0.0
+    left_ring_proximal_joint: 0.0
+    left_pinky_proximal_joint: 0.0
+  control:
+    mode: position
+    limit_handling: native
+  feedback:
+    velocities: true
+    efforts: false
+  stop:
+    behavior: hold
+    affected_devices:
+    - left_hand
+  geometry:
+    description: "BrainCo Revo2, five fingers. Canonical frame: the center of the\
+      \ palm surface, x out of the palm, z toward the fingertips, y toward the pinky.\
+      \ The thumb metacarpal (0 to 1.57 rad) swings the thumb from beside the palm,\
+      \ pointing along y, to straight out of the palm along x; the thumb proximal\
+      \ (0 to 1.03 rad) curls it toward the fingertips. Each finger's proximal joint\
+      \ (0 to 1.41 rad) curls it; the distal joints are not actuated and follow their\
+      \ proximal joint. Open fingertips lie 8 to 10 cm along z; curled ones stay within\
+      \ 3.3 cm of the palm surface. Each joint is position driven with stiffness 3\
+      \ N\xB7m/rad, its torque capped at 0.5 N\xB7m for the thumb metacarpal, 1.1\
+      \ N\xB7m for the thumb proximal and 2 N\xB7m for each finger: a joint stopped\
+      \ by an object presses with stiffness times the remaining target angle, so fingers\
+      \ targeted well past contact press the object toward the thumb harder than the\
+      \ thumb can hold it, pushing it out of the hand. Points in the canonical frame,\
+      \ m, hand open: thumb root (-0.008, -0.019, -0.019); thumb tip (-0.001, -0.097,\
+      \ -0.001); index knuckle (-0.015, -0.030, 0.034); pinky knuckle (-0.015, 0.029,\
+      \ 0.032); index tip (0.008, -0.032, 0.086); middle tip (0.008, -0.011, 0.098);\
+      \ pinky tip (0.007, 0.032, 0.079); with the thumb metacarpal at its upper limit\
+      \ the thumb tip is at (0.069, -0.012, -0.001). grasp_center (driver FK) weights\
+      \ the fingertip pads as SIMPLE does: thumb tip 0.5, index tip 0.25, middle tip\
+      \ 0.25; a geometric reference, not a contact measurement."
+extrinsics:
+  source: introspected
+  method: introspection
+  calibrated_at: null
+  mount:
+    parent: left_arm
+    parent_frame: palm
+    translation_m:
+    - 0.0
+    - 0.0
+    - 0.0
+    rotation_xyzw:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+meta:
+  created_at: '2026-10-20T00:00:00Z'
+  updated_at: '2026-10-20T00:00:00Z'

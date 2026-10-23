@@ -63,6 +63,7 @@ def robocasa_history_owner():
     )
     owner = RoboCasaEnv.__new__(RoboCasaEnv)
     owner.env, owner._max_steps = native, None
+    owner.diagnostics, owner.predicate_diagnostics = None, False
     owner.stop_on_success = True
     owner.reset()
     adapter = RoboCasaAdapter.__new__(RoboCasaAdapter)

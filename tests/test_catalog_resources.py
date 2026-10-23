@@ -15,8 +15,25 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog"
 
 
+def expected_driver(path, profile):
+    source = (
+        ROOT / "src/roboenv/assets" / DRIVERS.get(profile["type"], "device-client.py")
+    ).read_text()
+    if path.parent.parent.parent.name == "isaaclab-booster-t2" and path.parent.name.endswith(
+        "_hand"
+    ):
+        # Revo2's coupled distal joints require the existing driver-FK hook.
+        source = source.replace(
+            "return JointDevice(settings(), transport.directory)",
+            "from hand_fk import grasp_center\n\n    profile = settings()\n"
+            "    return JointDevice(profile, transport.directory,\n"
+            "                       native_fk=lambda joints: "
+            "grasp_center(profile, transport.directory, joints))",
+        )
+    return source.encode()
+
+
 def test_joint_catalogs_use_model_frames_and_shared_driver(catalog_profiles):
-    driver = (ROOT / "src/roboenv/assets/joint-client.py").read_bytes()
     for path, profile in catalog_profiles:
         if profile["type"] not in {"joint", "dexterous_hand"}:
             continue
@@ -28,15 +45,13 @@ def test_joint_catalogs_use_model_frames_and_shared_driver(catalog_profiles):
             if geometry.get("center"):
                 computed.append(geometry["center"]["frame"])
         assert not set(computed).intersection(facts.get("frames", {})), path
-        assert path.with_name("driver.py").read_bytes() == driver, path
+        assert path.with_name("driver.py").read_bytes() == expected_driver(path, profile), path
 
 
 def test_all_catalog_drivers_match_exported_resources(catalog_profiles):
     assets = ROOT / "src/roboenv/assets"
     for path, profile in catalog_profiles:
-        assert path.with_name("driver.py").read_bytes() == (
-            assets / DRIVERS.get(profile["type"], "device-client.py")
-        ).read_bytes(), path
+        assert path.with_name("driver.py").read_bytes() == expected_driver(path, profile), path
     for collection in {path.parent.parent for path, _ in catalog_profiles}:
         for name in ("_roboenv.py", "_camera.py"):
             source = collection / name
@@ -122,12 +137,8 @@ def test_robotwin_generator_emits_only_aloha(tmp_path, monkeypatch):
     catalog, bindings = tmp_path / "catalog", tmp_path / "bindings"
     generator.generate_robotwin(ROOT, catalog, bindings_out=bindings)
     assert calls == ["aloha_agilex"]
-    assert {p.name for p in (catalog / "robots/robotwin").iterdir()} == {
-        "robotwin-aloha-agilex"
-    }
-    assert {p.name for p in (bindings / "robotwin").iterdir()} == {
-        "robotwin-aloha-agilex.yaml"
-    }
+    assert {p.name for p in (catalog / "robots/robotwin").iterdir()} == {"robotwin-aloha-agilex"}
+    assert {p.name for p in (bindings / "robotwin").iterdir()} == {"robotwin-aloha-agilex.yaml"}
 
 
 def test_copied_go2_catalog_keeps_bindings_private_and_drivers_portable(tmp_path):

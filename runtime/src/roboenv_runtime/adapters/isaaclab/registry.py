@@ -29,6 +29,7 @@ TASKS = {
     "go2-d1-control": "roboenv_runtime.adapters.isaaclab.tasks.go2_d1_control.task",
     "go2-d1-reach": "roboenv_runtime.adapters.isaaclab.tasks.go2_d1_reach.task",
     "go2-d1-pick-place": "roboenv_runtime.adapters.isaaclab.tasks.go2_d1_pick_place.task",
+    "t2-household": "roboenv_runtime.adapters.isaaclab.tasks.t2_household.task",
 }
 
 

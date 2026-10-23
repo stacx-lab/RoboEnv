@@ -1,0 +1,67 @@
+# Interface of the loco-manipulation policy. Read by agent.controller.policy.
+# Lengths m, angles rad, times s.
+
+onnx: checkpoints/t2_locomapi.onnx      # relative to the repository root
+robot: t2_revo2.yaml                    # robot config in this directory
+decimation: 4                           # physics steps per policy step
+
+# Joints the policy observes and drives, in its order. The head is held at its default pose.
+joints:
+  - left_shoulder_pitch_joint
+  - left_shoulder_roll_joint
+  - left_elbow_pitch_joint
+  - left_elbow_yaw_joint
+  - left_wrist_pitch_joint
+  - left_wrist_yaw_joint
+  - left_wrist_roll_joint
+  - right_shoulder_pitch_joint
+  - right_shoulder_roll_joint
+  - right_elbow_pitch_joint
+  - right_elbow_yaw_joint
+  - right_wrist_pitch_joint
+  - right_wrist_yaw_joint
+  - right_wrist_roll_joint
+  - waist_pitch_joint
+  - waist_roll_joint
+  - waist_yaw_joint
+  - left_hip_pitch_joint
+  - left_hip_roll_joint
+  - left_hip_yaw_joint
+  - left_knee_pitch_joint
+  - left_ankle_pitch_joint
+  - left_ankle_roll_joint
+  - right_hip_pitch_joint
+  - right_hip_roll_joint
+  - right_hip_yaw_joint
+  - right_knee_pitch_joint
+  - right_ankle_pitch_joint
+  - right_ankle_roll_joint
+
+palm_frames: {left: left_palm, right: right_palm}    # URDF links of the palms
+
+gait_period: 0.6                        # phase observation clock
+standing_threshold: 0.1                 # |velocity command| below which the phase reads 0
+
+# Trained velocity command range, trunk heading frame: m/s, m/s, rad/s.
+command_range:
+  lin_vel_x: [-0.5, 1.0]
+  lin_vel_y: [-0.5, 0.5]
+  ang_vel_z: [-0.5, 0.5]
+
+# Palm targets in the command frame (trunk origin, trunk heading, z up): low in front of the
+# body, the palm IK dataset sample nearest the default arm pose. Quaternions wxyz.
+rest_palm_targets:
+  left: {pos: [0.38, 0.225, -0.23], quat: [0.3536, -0.6124, 0.6124, -0.3535]}
+  right: {pos: [0.38, -0.225, -0.23], quat: [0.3536, 0.6124, 0.6124, 0.3535]}
+
+# Arm joint positions of that dataset sample, `joint_groups` order of the robot config: the rest
+# palm targets are their forward kinematics.
+rest_arm_pos:
+  left: [-0.158, -1.3931, -0.0789, -0.7728, -0.1004, -0.1007, -0.1658]
+  right: [-0.158, 1.3931, -0.0788, 0.7728, -0.1004, 0.1007, 0.1657]
+
+# Box enclosing the trained palm targets (1st to 99th percentile of the palm IK dataset), command
+# frame. Not every point inside it is reachable.
+palm_workspace:
+  left: {min: [0.08, 0.05, -0.23], max: [0.55, 0.61, 0.345]}
+  right: {min: [0.08, -0.61, -0.23], max: [0.55, -0.05, 0.345]}

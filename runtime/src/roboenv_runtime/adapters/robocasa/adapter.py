@@ -19,6 +19,13 @@ class RoboCasaAdapter(AdapterBase):
         from .backend import RoboCasaEnv
 
         self._env = RoboCasaEnv(task_name, **kwargs)
+        if self._env.predicate_diagnostics:
+            self.final_diagnostics = self._predicate_diagnostics
+
+    def _predicate_diagnostics(self):
+        if self._env.diagnostics is None:
+            return {"complete": False, "error": "Native diagnostics were not initialized"}
+        return self._env.diagnostics.snapshot()
 
     @property
     def control_interval_s(self):

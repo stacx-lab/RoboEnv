@@ -12,6 +12,21 @@ from roboenv.tasks.resolve import resolve_task
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_native_identity_distinguishes_definitions_of_one_isaac_factory():
+    from dataclasses import replace
+
+    from roboenv.tasks.catalog import native_identity
+    from roboenv.tasks.model import Task
+
+    first = Task.load(ROOT / "catalog/tasks/isaaclab/t2-reach-table/task.yaml")
+    second = Task.load(ROOT / "catalog/tasks/isaaclab/t2-can-in-bowl/task.yaml")
+    assert first.backend_kwargs["task_name"] == second.backend_kwargs["task_name"]
+    assert native_identity(first) != native_identity(second)
+    renamed = replace(first, id="isaaclab/renamed", execution_mode="stepped",
+                      backend_kwargs={**first.backend_kwargs, "max_steps": 100})
+    assert native_identity(first) == native_identity(renamed)
+
+
 def test_robodojo_discovery_reads_inherited_native_instruction(tmp_path):
     from roboenv.tasks.catalog import _robodojo
 

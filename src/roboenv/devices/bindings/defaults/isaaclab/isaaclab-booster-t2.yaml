@@ -1,0 +1,28 @@
+schema_version: roboenv/bindings/1
+backend: isaaclab
+embodiment: booster_t2
+devices:
+  base:
+    binding: isaaclab.booster-t2/1
+    entity: base
+  head:
+    binding: isaaclab.booster-t2/1
+    entity: head
+  head_camera:
+    binding: isaaclab.booster-t2/1
+    entity: head_camera
+  left_arm:
+    binding: isaaclab.booster-t2/1
+    entity: left_arm
+  left_hand:
+    binding: isaaclab.booster-t2/1
+    entity: left_hand
+  right_arm:
+    binding: isaaclab.booster-t2/1
+    entity: right_arm
+  right_hand:
+    binding: isaaclab.booster-t2/1
+    entity: right_hand
+  world:
+    binding: isaaclab.booster-t2/1
+    entity: world

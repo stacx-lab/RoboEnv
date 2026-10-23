@@ -1,0 +1,105 @@
+# Booster T2 with BrainCo Revo2 hands, as the loco-manipulation policy drives it. Read by
+# agent.controller.robot. Lengths m, angles rad, masses kg, torques N·m.
+
+urdf: robots/T2/T2_31dof_Revo2Hand/T2_31dof_Revo2Hand.urdf   # relative to assets.ASSET_DIR
+root_body: trunk
+
+# Joints commanded together, each as one device, in device order. The policy drives the arms: an
+# arm's joint target reaches it as the palm pose of their forward kinematics. The head and the
+# hands are position-driven outside the policy.
+joint_groups:
+  head: [aa_head_yaw_joint, head_pitch_joint]
+  left_arm: [left_shoulder_pitch_joint, left_shoulder_roll_joint, left_elbow_pitch_joint,
+             left_elbow_yaw_joint, left_wrist_pitch_joint, left_wrist_yaw_joint, left_wrist_roll_joint]
+  right_arm: [right_shoulder_pitch_joint, right_shoulder_roll_joint, right_elbow_pitch_joint,
+              right_elbow_yaw_joint, right_wrist_pitch_joint, right_wrist_yaw_joint,
+              right_wrist_roll_joint]
+  left_hand: [left_thumb_metacarpal_joint, left_thumb_proximal_joint, left_index_proximal_joint,
+              left_middle_proximal_joint, left_ring_proximal_joint, left_pinky_proximal_joint]
+  right_hand: [right_thumb_metacarpal_joint, right_thumb_proximal_joint, right_index_proximal_joint,
+               right_middle_proximal_joint, right_ring_proximal_joint, right_pinky_proximal_joint]
+
+# Revo2 fingers: the URDF joints whose name contains one of `tokens`. Each distal joint follows its
+# proximal joint by the URDF's mimic factor. In simulation every finger joint is a PhysX position
+# drive with these gains; its effort and speed limits are the URDF's.
+fingers:
+  tokens: [thumb, index, middle, ring, pinky]
+  stiffness: 3.0                             # N·m/rad
+  damping: 0.03                              # N·m·s/rad
+  armature: 0.0001                           # kg·m²
+
+# Head camera: the left eye of the head binocular camera, rendered as RGB and depth. `pos` and
+# `rpy` (URDF roll-pitch-yaw, rad) place its optical frame (x right, y down, z forward) in `body`,
+# copied from the URDF joint head_booster_stereo_rgb_joint; it looks 35° below the head's x axis.
+camera:
+  name: head_camera
+  body: head_pitch_link
+  pos: [0.08684, 0.0349, 0.08245]
+  rpy: [-2.1792181, 0.0, -1.57079633]
+  width: 640
+  height: 480
+  horizontal_fov_deg: 69.0
+  near: 0.02                                 # m; depth beyond `far` is reported as missing
+  far: 15.0
+  rate_hz: 30.0
+
+# Booster joint motors: peak torque, torque speed curve (full torque up to the knee point, zero
+# at the velocity limit), reflected rotor inertia.
+motors:
+  B4522-35: {effort_limit: 22.0, velocity_limit_rpm: 177, knee_point_rpm: 122, armature: 0.007209}
+  B6030-24: {effort_limit: 74.0, velocity_limit_rpm: 224, knee_point_rpm: 110, armature: 0.017}
+  B6025-24: {effort_limit: 60.0, velocity_limit_rpm: 227, knee_point_rpm: 123, armature: 0.0137}
+  B7629-22: {effort_limit: 135.0, velocity_limit_rpm: 200, knee_point_rpm: 59, armature: 0.0281}
+
+# Motor of each joint. Joints of a parallel linkage are serial joints whose motor specs are scaled.
+actuators:
+  - joints: [aa_head_yaw_joint, head_pitch_joint, ".*_wrist_pitch_joint", ".*_wrist_yaw_joint", ".*_wrist_roll_joint"]
+    motor: B4522-35
+  - joints: [".*_shoulder_pitch_joint"]
+    motor: B6030-24
+  - joints: [".*_shoulder_roll_joint", ".*_elbow_pitch_joint", ".*_elbow_yaw_joint"]
+    motor: B6025-24
+  - joints: [waist_yaw_joint, ".*_hip_pitch_joint", ".*_hip_roll_joint", ".*_hip_yaw_joint", ".*_knee_pitch_joint"]
+    motor: B7629-22
+  - joints: [waist_pitch_joint]
+    motor: B6025-24
+    scale: {effort: 2.3, velocity: 0.5, armature: 2.884254}
+  - joints: [waist_roll_joint]
+    motor: B6025-24
+    scale: {effort: 2.4, velocity: 0.4, armature: 3.825669}
+  - joints: [".*_ankle_pitch_joint"]
+    motor: B6025-24
+    scale: {effort: 2.2, velocity: 0.7, armature: 2.620008}
+  - joints: [".*_ankle_roll_joint"]
+    motor: B6025-24
+    scale: {effort: 1.2, velocity: 1.0, armature: 0.9734019}
+
+# Joint PD: kp = armature · (2π f)², kd = 2 ζ · armature · (2π f).
+pd:
+  natural_frequency_hz: 8.0
+  damping_ratio: 2.0
+
+# Standing start: root position (identity orientation) and joint positions by regex; joints not
+# listed are at 0. The feet start 7 cm above the floor.
+keyframe:
+  root_pos: [0.0, 0.0, 1.05]
+  joint_pos:
+    ".*_hip_pitch_joint": -0.1
+    ".*_knee_pitch_joint": 0.3
+    ".*_ankle_pitch_joint": -0.2
+    ".*_shoulder_pitch_joint": 0.2
+    left_shoulder_roll_joint: -1.3
+    right_shoulder_roll_joint: 1.3
+    left_elbow_yaw_joint: -0.5
+    right_elbow_yaw_joint: 0.5
+
+# Isaac Lab (PhysX) simulation of this robot. The feet collide as the boxes the policy was trained
+# with, not as the URDF meshes.
+simulation:
+  timestep: 0.005                            # s
+  friction: 1.0                              # static and dynamic, robot and ground
+  self_collision: true
+  solver_iterations: [8, 4]                  # PhysX position, velocity
+  collision_boxes:                           # full extents and center in the link frame
+    left_ankle_roll_link: {size: [0.21582, 0.081772, 0.075232], pos: [0.042485, 0.0, 0.00511]}
+    right_ankle_roll_link: {size: [0.21582, 0.081772, 0.075232], pos: [0.042485, 0.0, 0.00511]}
