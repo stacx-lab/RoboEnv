@@ -40,6 +40,9 @@ an explicit `backend_kwargs.asset_directory` selects a depot instead.
 environments through the existing conflict-safe catalog writer. Each profile
 includes instrument identity, dimensions, public state schemas and declared command
 schemas. These environments use realtime execution and have no scored goals.
+Instrument facts and schemas are retained in each catalog's `instrument.json`.
+Live Kinex export preserves public extension facts in `intrinsics.json` and
+`devices.md`, keeping its strict `other` device profile schema compatible.
 They are separate from the four integration tasks checked into `catalog/`.
 Use the generated task file or `--catalog generated/chemlab` with normal task
 resolution. Generated asset catalogs stay outside Git.

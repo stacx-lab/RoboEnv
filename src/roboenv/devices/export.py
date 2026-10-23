@@ -158,6 +158,17 @@ def export_devices(profiles, directory, connection):
         destination = directory / name
         destination.mkdir(exist_ok=True)
         profile = {key: descriptor[key] for key in ("name", "type", "intrinsics", "extrinsics")}
+        if descriptor["type"] == "other":
+            # Preserve public extension facts without adding unsupported fields
+            # to Kinex's strict other-device profile. Live docs retain them too.
+            profile["intrinsics"] = {
+                key: value
+                for key, value in descriptor["intrinsics"].items()
+                if key in {"source", "needs_calibration", "frames"}
+            }
+            (destination / "intrinsics.json").write_text(
+                json.dumps(descriptor["intrinsics"], indent=2) + "\n"
+            )
         timestamp = datetime.now(timezone.utc).isoformat()
         profile["meta"] = {"created_at": timestamp, "updated_at": timestamp}
         if descriptor["type"] == "world":

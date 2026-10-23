@@ -110,7 +110,10 @@ def test_release_catalog_resolves_every_instrument_without_scored_goals(assets, 
         assert resolved.task.execution_mode == "realtime"
         assert resolved.task.backend_kwargs["task_spec"]["goals"] == []
         profile = resolved.bindings.devices[0].resolved_profile(resolved.robot)
-        assert profile["intrinsics"]["instrument"]["asset_id"].startswith("instrument.")
+        assert profile["intrinsics"] == {"source": "user"}
+        facts = json.loads((resolved.robot / "instrument.json").read_text())
+        assert facts["asset_id"].startswith("instrument.")
+        assert facts["state_slots"] and facts["capabilities"]
         assert "plant_configure" not in profile["access"]["driver"]["actions"]
     # Regeneration uses the existing content-conflict policy.
     generate(tmp_path, assets, project=ROOT)

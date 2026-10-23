@@ -60,7 +60,9 @@ def generate(destination, directory=None, *, project=None):
         facts = instrument_facts(row, contract)
         capabilities = public_capabilities(contract)
         item = copy.deepcopy(profile)
-        item["intrinsics"] = {"source": "user", "instrument": facts}
+        # Kinex's other-device intrinsics are strict. Full public instrument
+        # facts and schemas live in the adjacent instrument.json catalog entry.
+        item["intrinsics"] = {"source": "user"}
         item["access"]["driver"]["actions"] = [
             "read",
             "load",
