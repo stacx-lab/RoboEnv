@@ -234,6 +234,18 @@ def test_released_rack_formats_and_sampler_frames_follow_runtime_state(assets):
 
     rows = catalog(assets)
     projection = InstrumentProjection(assets, rows["instrument.ziath_dp5_mirage_2023"], "rack")
+    scene = projection.model.scene
+    indicator_nodes = [
+        node
+        for node in scene.graph.nodes_geometry
+        if scene.graph.transforms.parents[node] == "status_indicator"
+    ]
+    assert indicator_nodes
+    assert scene.graph.transforms.parents["status_indicator"] == "base_link"
+    assert scene.graph.transforms.parents["housing"] == "base_link"
+    for enabled, color in ((False, [0.03, 0.065, 0.058]), (True, [0.03, 0.85, 0.27])):
+        projection.update({"power.enabled": enabled})
+        assert np.allclose(projection.colors()["indicator_power"], color)
     for size in (24, 48, 96, 240):
         projection.update({"scene.rack_format": size, "scene.rack_lift_m": 0.04})
         shown = [

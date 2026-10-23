@@ -69,40 +69,45 @@ def supplement(root, row, contract, model):
         }
     if row["id"] == "instrument.ziath_dp5_mirage_2023":
         # The URDF flattens only the default 96-well pair into the carriage.
-        # All four released OBJ variants use the same carriage frame.
+        # All four released OBJ variants use the same carriage frame. Restore
+        # named base components too, including the process-controlled power LED.
         scene.delete_geometry(
             [
                 scene.graph[node][1]
                 for node in scene.graph.nodes_geometry
-                if scene.graph.transforms.parents[node] == "rack_carriage"
+                if scene.graph.transforms.parents[node] in {"base_link", "rack_carriage"}
             ]
         )
-        for size in (24, 48, 96, 240):
-            for kind in ("rack", "tubes"):
-                component = f"{kind}_{size}"
-                spec = components[component]
-                mesh_path = resource(root, (directory / spec["path"]).relative_to(root).as_posix())
-                mesh = trimesh.load(mesh_path, force="scene")
-                expected = np.asarray([spec["bbox"][f"{axis}_m"] for axis in ("min", "max")])
-                if not np.allclose(mesh.bounds, expected, atol=1e-5):
-                    raise ValueError(f"Released rack component bounds disagree: {component}")
-                scene.graph.update(frame_to=component, frame_from="rack_carriage", matrix=np.eye(4))
-                for index, node in enumerate(mesh.graph.nodes_geometry):
-                    transform, geometry = mesh.graph[node]
-                    target = f"supplement_{component}_{index}"
-                    scene.add_geometry(
-                        mesh.geometry[geometry],
-                        node_name=target,
-                        geom_name=target,
-                        parent_node_name=component,
-                        transform=transform,
-                    )
-                evidence[component] = {
-                    "status": "loaded",
-                    "source": mesh_path.relative_to(root).as_posix(),
-                    "default_visible": size == 96,
-                    "collision": "released URDF default-format proxy remains unchanged",
-                }
+        variants = [(v.name, "base_link", True) for v in model.link_map["base_link"].visuals]
+        variants += [
+            (f"{kind}_{size}", "rack_carriage", size == 96)
+            for size in (24, 48, 96, 240)
+            for kind in ("rack", "tubes")
+        ]
+        for component, parent, default_visible in variants:
+            spec = components[component]
+            mesh_path = resource(root, (directory / spec["path"]).relative_to(root).as_posix())
+            mesh = trimesh.load(mesh_path, force="scene")
+            expected = np.asarray([spec["bbox"][f"{axis}_m"] for axis in ("min", "max")])
+            if not np.allclose(mesh.bounds, expected, atol=1e-5):
+                raise ValueError(f"Released rack component bounds disagree: {component}")
+            scene.graph.update(frame_to=component, frame_from=parent, matrix=np.eye(4))
+            for index, node in enumerate(mesh.graph.nodes_geometry):
+                transform, geometry = mesh.graph[node]
+                target = f"supplement_{component}_{index}"
+                scene.add_geometry(
+                    mesh.geometry[geometry],
+                    node_name=target,
+                    geom_name=target,
+                    parent_node_name=component,
+                    transform=transform,
+                )
+            evidence[component] = {
+                "status": "loaded",
+                "source": mesh_path.relative_to(root).as_posix(),
+                "default_visible": default_visible,
+                "collision": "released URDF default-format proxy remains unchanged",
+            }
     if row["id"] == "instrument.eppendorf_5910ri":
         # Reuse named objects from the release OBJ files. The public Blender
         # adapter selects the same large/fixed rotor and sample-carrier groups.
