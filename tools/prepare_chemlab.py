@@ -10,8 +10,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory")
     parser.add_argument("--verify", action="store_true")
+    parser.add_argument("--catalog-out", help="Generate all 203 instrument workstations")
     args = parser.parse_args()
     receipt = (verify_assets if args.verify else prepare)(args.directory)
+    if args.catalog_out:
+        from roboenv.provisioning.chemlab_catalog import generate
+
+        generate(args.catalog_out, args.directory)
     print(
         json.dumps(
             {

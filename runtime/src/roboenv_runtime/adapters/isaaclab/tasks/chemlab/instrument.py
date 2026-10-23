@@ -11,10 +11,11 @@ from tempfile import TemporaryDirectory
 
 from roboenv.devices.model import DeviceError
 from roboenv.provisioning.chemlab_assets import resource
+from roboenv.provisioning.chemlab_catalog import public_capabilities
 
 
 class Instrument:
-    def __init__(self, root, row, instance):
+    def __init__(self, root, row, instance, *, scene_adapter=None):
         self.root, self.row, self.instance = root, row, instance
         self.contract = json.loads(resource(root, row["contract"]).read_text())
         registry = json.loads(files("roboenv").joinpath("assets/chemlab-runtimes.json").read_text())
@@ -34,7 +35,7 @@ class Instrument:
         if "clock" in params:
             kwargs["clock"] = lambda: self.time
         if "scene_adapter" in params:
-            kwargs["scene_adapter"] = None
+            kwargs["scene_adapter"] = scene_adapter
         if self.config.get("instance_kw"):
             kwargs[self.config["instance_kw"]] = instance
         self.host = (
@@ -45,21 +46,33 @@ class Instrument:
         if create == "type":
             self.host.create_instance(instance, row["id"])
         elif create == "plain":
-            self.host.create_instance(instance)
+            parameters = inspect.signature(self.host.create_instance).parameters
+            options = {"scene_adapter": scene_adapter} if "scene_adapter" in parameters else {}
+            self.host.create_instance(instance, **options)
         elif create == "scene":
-            self.host.create_instance(instance, None)
+            self.host.create_instance(instance, scene_adapter)
+        register_scene = getattr(self.host, "host_register_scene_adapter", None)
+        if scene_adapter is not None and callable(register_scene):
+            register_scene(instance, scene_adapter)
+        # Some released hosts lazily initialize the panel and reset its output
+        # directory on the first gesture. Initialize through their public API.
+        panel = getattr(self.host, "panel", None)
+        if callable(panel):
+            panel(instance) if inspect.signature(panel).parameters else panel()
         # Hosts may initialize/reset this attribute in create_instance, or use
         # getattr/__dict__ lazily. Set it after creation and before first capture.
         self.host.panel_capture_dir = self.capture_directory.name
         self.agent = self._session("roboenv_agent", "agent")
         self.owner = self._session("roboenv_owner", "evaluator")
-        self.capabilities = {
-            key: ({**value, "availability": "unsupported"} if key.startswith("scene.") else value)
-            for key, value in self.contract["capabilities"].items()
-            if value.get("visibility") == "agent"
-            and value.get("kind") != "simulation"
-            and not key.startswith(("sim.", "host.", "truth.", "plant.", "fault."))
-        }
+        self.scene_adapter = scene_adapter
+        self.capabilities = public_capabilities(self.contract)
+        if scene_adapter is None:
+            self.capabilities = {
+                key: (
+                    {**value, "availability": "unsupported"} if key.startswith("scene.") else value
+                )
+                for key, value in self.capabilities.items()
+            }
 
     def _public_result(self, value):
         if isinstance(value, list):
@@ -92,7 +105,7 @@ class Instrument:
     def invoke(self, capability, arguments, *, owner=False):
         if not owner and capability not in self.capabilities:
             raise DeviceError("permission_denied", "Capability is not exposed to agents")
-        if capability.startswith("scene."):
+        if capability.startswith("scene.") and self.scene_adapter is None:
             raise DeviceError("unsupported_action", "Native scene callbacks are not integrated")
         self.sequence += 1
         session = self.owner if owner else self.agent

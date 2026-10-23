@@ -1,8 +1,10 @@
 """Explicit instrument commands on the existing owner/device transport."""
 
 import re
+from dataclasses import replace
 
 from roboenv.devices.model import Action, BoundDevice
+from roboenv.provisioning.chemlab_catalog import instrument_facts
 
 from roboenv_runtime.bindings.motion import control_binding
 
@@ -32,6 +34,13 @@ def bind(spec, root, context):
     if definition.type != "other" or spec.name not in env.instruments:
         raise ValueError("ChemLab requires a declared instrument device")
     instrument = env.instruments[spec.name]
+    definition = replace(
+        definition,
+        intrinsics={
+            **definition.intrinsics,
+            "instrument": instrument_facts(instrument.row, instrument.contract),
+        },
+    )
     actions = {
         "read": Action(lambda args, execution: env.read_device(spec.name), EMPTY),
         "status": Action(lambda args, execution: {"loaded": True}, EMPTY),

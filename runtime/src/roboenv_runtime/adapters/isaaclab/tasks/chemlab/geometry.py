@@ -1,17 +1,25 @@
 """Resolve typed release bindings without interpreting executable prose."""
 
 import json
+import re
 
 import numpy as np
 from roboenv.provisioning.chemlab_assets import resource
 
 
 def component_links(contract, component):
-    links = [
-        item["selector"].removeprefix("link:")
-        for item in contract.get("components", {}).get(component, {}).get("geometry", [])
-        if item.get("artifact_id") == "model_urdf" and item.get("selector", "").startswith("link:")
-    ]
+    links = []
+    for item in contract.get("components", {}).get(component, {}).get("geometry", []):
+        if item.get("artifact_id") != "model_urdf":
+            continue
+        selector = item.get("selector", "")
+        match = re.fullmatch(r"link\[@name=[\"\']([^\"\']+)[\"\']\](?:/\w+)?", selector)
+        if match:
+            links.append(match[1])
+        elif selector.startswith("link:"):
+            links.append(selector.removeprefix("link:"))
+        elif selector.isidentifier():
+            links.append(selector)
     # Several panel components omit artifact selectors but use the same URDF ID.
     return links or ([component] if component else [])
 
@@ -31,8 +39,12 @@ def joint_bindings(instrument, model):
         slot, target = binding.get("state_id"), binding.get("target")
         if binding.get("channel") != "joint" or not slot:
             continue
+        if binding.get("direction") == "scene_to_process":
+            continue
         if target not in model.joint_map:
             links = component_links(contract, binding.get("component_id"))
+            if target in model.link_map:
+                links = [target]
             candidates = [
                 j.name
                 for j in model.robot.joints
@@ -49,6 +61,11 @@ def joint_bindings(instrument, model):
             continue
         unit = contract["state_slots"].get(slot, {}).get("unit")
         native_unit = "m" if joint.type == "prismatic" else "rad"
+        velocity = binding.get("attribute") == "velocity"
+        if velocity:
+            native_unit += "/s"
+        if unit in {"turn", "turns", "rev"} and native_unit == "rad":
+            transform = {"scale": 2 * np.pi, "offset": 0.0}
         if not transform and (unit != binding.get("unit") or unit != native_unit):
             continue
         result[key] = {
@@ -56,6 +73,7 @@ def joint_bindings(instrument, model):
             "state": slot,
             "scale": transform.get("scale", 1.0),
             "offset": transform.get("offset", 0.0),
+            "velocity": velocity,
         }
     return result
 
@@ -101,17 +119,29 @@ def screen_quad(mesh):
     return corners, normal
 
 
-def binding_report(instrument, joint_keys=(), panel_components=(), lamp_keys=(), visible_keys=()):
+def binding_report(
+    instrument, joint_keys=(), panel_components=(), lamp_keys=(), visible_keys=(), readout_keys=()
+):
     """Account for every channel, including unbound and unimplemented channels."""
-    report = {"synchronized": [], "unbound": [], "unsupported": []}
+    report = {
+        "synchronized": [],
+        "readout_only": [],
+        "unbound": [],
+        "unsupported": [],
+        "input_only": [],
+    }
     supported = set(joint_keys) | set(lamp_keys) | set(visible_keys)
     for key, binding in instrument.contract.get("model_bindings", {}).items():
-        if key in supported or (
+        if binding.get("direction") == "scene_to_process":
+            category = "input_only"
+        elif binding.get("state_id") is None:
+            category = "unbound"
+        elif key in readout_keys:
+            category = "readout_only"
+        elif key in supported or (
             binding.get("channel") == "display" and binding.get("component_id") in panel_components
         ):
             category = "synchronized"
-        elif binding.get("state_id") is None:
-            category = "unbound"
         else:
             category = "unsupported"
         report[category].append(key)

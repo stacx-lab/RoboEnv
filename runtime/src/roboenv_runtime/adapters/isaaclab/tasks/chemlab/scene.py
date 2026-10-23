@@ -5,6 +5,7 @@ state-to-joint mappings are recorded explicitly rather than guessed from prose.
 """
 
 import hashlib
+import json
 import sys
 import traceback
 from pathlib import Path
@@ -12,7 +13,8 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 
-from .geometry import binding_report, component_links, joint_bindings, panel_spec, screen_quad
+from .geometry import binding_report, component_links, joint_bindings, screen_quad
+from .readouts import capture, displays, readout_bindings
 
 
 def material(stage, shape, mesh, directory, index):
@@ -81,16 +83,17 @@ class InstrumentScene:
 
         self.app = launch_isaaclab("isaaclab", headless=True, enable_cameras=True)
         import isaaclab.sim as sim_utils
-        from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdShade, Vt
+        from pxr import Gf, Sdf, Tf, UsdGeom, UsdLux, UsdShade, Vt
         from scipy.spatial.transform import Rotation
-        from yourdfpy import URDF
 
         self.env, self.Gf, self.models = environment, Gf, {}
-        self.panels, self.lamps, self.visible, self.joints = {}, {}, {}, {}
+        self.panels, self.lamps, self.joints = {}, {}, {}
+        self.physics, self.colors, self.properties = {}, {}, {}
         self.panel_failures, self.visual_evidence = {}, {}
+        self.dashboard_points = []
         self.textures = TemporaryDirectory(prefix="chemlab-textures-")
         self.sim = sim_utils.SimulationContext(
-            sim_utils.SimulationCfg(dt=environment.control_interval, device="cuda:0")
+            sim_utils.SimulationCfg(dt=environment.control_interval / 10, device="cuda:0")
         )
         light = sim_utils.DomeLightCfg(intensity=500.0)
         light.func("/World/Light", light)
@@ -104,7 +107,7 @@ class InstrumentScene:
         floor.CreateSubdivisionSchemeAttr("none")
         self.mapping_report = {}
         for i, (name, instrument) in enumerate(environment.instruments.items()):
-            model = URDF.load(str(environment.depot / instrument.row["urdf"]))
+            model = environment.projections[name].model
             operations, shapes, surfaces, nodes_by_link = {}, {}, {}, {}
             for j, node in enumerate(model.scene.graph.nodes_geometry):
                 _, geometry = model.scene.graph[node]
@@ -137,10 +140,19 @@ class InstrumentScene:
                 mount.get("rotation_xyzw", [0.0, 0.0, 0.0, 1.0])
             ).as_matrix()
             self.models[name] = (model, operations, pose)
+            from .physics import InstrumentPhysics
+
+            self.physics[name] = InstrumentPhysics(self, name, instrument, pose)
             self.joints[name] = joint_bindings(instrument, model)
-            self.panels[name], self.lamps[name], self.visible[name] = {}, {}, {}
+            self.panels[name], self.lamps[name] = {}, {}
+            self.colors[name], self.properties[name] = {}, {}
             self.panel_failures[name] = {}
-            self.visual_evidence[name] = {"panels": {}, "joints": {}, "lamps": {}}
+            self.visual_evidence[name] = {
+                "panels": {},
+                "joints": {},
+                "lamps": {},
+                "supplements": environment.projections[name].supplements,
+            }
 
             def component_nodes(component, instrument=instrument, nodes_by_link=nodes_by_link):
                 return [
@@ -149,23 +161,36 @@ class InstrumentScene:
                     for node in nodes_by_link.get(link, [])
                 ]
 
-            for display, spec in panel_spec(instrument).get("displays", {}).items():
+            for display_index, (display, spec) in enumerate(displays(instrument).items()):
                 component = spec.get("component_id")
                 candidates = component_nodes(component)
-                if not candidates:
-                    self.panel_failures[name][display] = "No URDF display component"
-                    continue
                 # A component may contain a screen and decorative text meshes.
-                node = max(
-                    candidates, key=lambda n: model.scene.geometry[model.scene.graph[n][1]].area
+                node = (
+                    max(
+                        candidates, key=lambda n: model.scene.geometry[model.scene.graph[n][1]].area
+                    )
+                    if candidates
+                    else None
                 )
-                mesh = model.scene.geometry[model.scene.graph[node][1]]
-                try:
+                if node is not None:
+                    mesh = model.scene.geometry[model.scene.graph[node][1]]
                     corners, normal = screen_quad(mesh)
-                except ValueError as error:
-                    self.panel_failures[name][display] = str(error)
-                    continue
-                parent = str(shapes[node].GetPath()).rsplit("/", 1)[0]
+                    parent = str(shapes[node].GetPath()).rsplit("/", 1)[0]
+                else:
+                    # Some released panel components explicitly have no mesh.
+                    # Keep their pixels on a separate inspection board instead
+                    # of claiming a guessed placement is manufacturer geometry.
+                    parent = f"/World/{name}/panel_mirrors"
+                    mirror = UsdGeom.Xform.Define(self.sim.stage, parent)
+                    if not mirror.GetOrderedXformOps():
+                        mirror.AddTransformOp().Set(Gf.Matrix4d(pose.T.tolist()))
+                    x = model.scene.bounds[1, 0] + 0.08 + (display_index % 3) * 0.22
+                    z = 0.15 + (display_index // 3) * 0.16
+                    corners = np.array(
+                        [[x, 0, z], [x + 0.20, 0, z], [x + 0.20, 0, z + 0.12], [x, 0, z + 0.12]]
+                    )
+                    normal = np.array([0.0, -1.0, 0.0])
+                    self.dashboard_points.extend(corners @ pose[:3, :3].T + pose[:3, 3])
                 quad = UsdGeom.Mesh.Define(self.sim.stage, parent + f"/screen_{display}")
                 quad.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(corners.astype(np.float32)))
                 quad.CreateFaceVertexCountsAttr([4])
@@ -204,6 +229,8 @@ class InstrumentScene:
                     "normal": normal,
                     "component": component,
                     "kind": spec["kind"],
+                    "spec": spec,
+                    "placement": "instrument" if node is not None else "inspection_board",
                 }
 
             panel_components = {panel["component"] for panel in self.panels[name].values()}
@@ -211,16 +238,34 @@ class InstrumentScene:
                 slot, channel = binding.get("state_id"), binding.get("channel")
                 component = binding.get("component_id")
                 nodes = component_nodes(component)
+                if channel == "material" and nodes:
+                    self.colors[name][key] = [surfaces[node] for node in nodes]
+                if binding.get("attribute", "").startswith("custom_property:") and slot:
+                    property_name = binding["attribute"].split(":", 1)[1]
+                    prim = self.sim.stage.GetPrimAtPath(f"/World/{name}")
+                    attribute = prim.CreateAttribute(
+                        "chemlab:" + Tf.MakeValidIdentifier(property_name),
+                        Sdf.ValueTypeNames.String,
+                        custom=True,
+                    )
+                    self.properties[name][key] = (slot, attribute)
                 if (
-                    channel == "display"
-                    and binding.get("attribute") == "displayColor lamp on/off"
+                    channel in {"display", "material"}
+                    and instrument.contract["state_slots"]
+                    .get(slot, {})
+                    .get("value_schema", {})
+                    .get("type")
+                    == "boolean"
                     and nodes
                     and component not in panel_components
                 ):
                     lamps = []
                     for node in nodes:
                         lamp = UsdLux.SphereLight.Define(
-                            self.sim.stage, str(shapes[node].GetPath()).rsplit("/", 1)[0] + "/lamp"
+                            self.sim.stage,
+                            str(shapes[node].GetPath()).rsplit("/", 1)[0]
+                            + "/lamp_"
+                            + Tf.MakeValidIdentifier(key),
                         )
                         mesh = model.scene.geometry[model.scene.graph[node][1]]
                         position = mesh.centroid.copy()
@@ -232,10 +277,33 @@ class InstrumentScene:
                         lamp.CreateIntensityAttr(0.0)
                         lamps.append((surfaces[node], lamp))
                     self.lamps[name][key] = (slot, lamps)
-                if channel == "visibility" and nodes and slot:
-                    self.visible[name][key] = (slot, [shapes[n] for n in nodes])
         self.sim.reset()
+        self.bind_projections()
         self.sync()
+
+    def bind_projections(self):
+        for name, projection in self.env.projections.items():
+            _, operations, pose = self.models[name]
+            self.models[name] = (projection.model, operations, pose)
+            projection.commit = lambda name=name: self.sync_geometry(name)
+
+    def sync_geometry(self, name):
+        from pxr import UsdGeom
+
+        projection = self.env.projections[name]
+        _, operations, pose = self.models[name]
+        for node, operation in operations.items():
+            transform = pose @ projection.node_transform(node)
+            operation.Set(self.Gf.Matrix4d(transform.T.tolist()))
+            if not np.allclose(np.array(operation.Get()).T, transform, atol=1e-9):
+                raise RuntimeError("Isaac instrument transform readback differs")
+            shape = UsdGeom.Imageable(operation.GetAttr().GetPrim())
+            shape.CreateVisibilityAttr().Set(
+                UsdGeom.Tokens.inherited
+                if projection.node_visible(node)
+                else UsdGeom.Tokens.invisible
+            )
+        self.physics[name].sync(projection.config)
 
     def spectator_pose(self):
         from itertools import product
@@ -249,6 +317,9 @@ class InstrumentScene:
             bounds.append([corners.min(axis=0), corners.max(axis=0)])
         bounds = np.asarray(bounds)
         lower, upper = bounds[:, 0].min(axis=0), bounds[:, 1].max(axis=0)
+        if self.dashboard_points:
+            lower = np.minimum(lower, np.min(self.dashboard_points, axis=0))
+            upper = np.maximum(upper, np.max(self.dashboard_points, axis=0))
         center = (lower + upper) * 0.5
         extent = max(float(np.max(upper - lower)), 0.1)
         return look_at((center + extent * np.array([0.55, -1.5, 0.75])).tolist(), center.tolist())
@@ -258,7 +329,7 @@ class InstrumentScene:
 
         model, _, pose = self.models[name]
         panel = self.panels[name][display]
-        transform = pose @ model.scene.graph[panel["node"]][0]
+        transform = pose @ model.scene.graph[panel["node"]][0] if panel["node"] else pose
         corners = panel["corners"] @ transform[:3, :3].T + transform[:3, 3]
         normal = transform[:3, :3] @ panel["normal"]
         center = corners.mean(axis=0)
@@ -268,30 +339,21 @@ class InstrumentScene:
         return fit_view(center + normal * extent, center, corners, margin=0.08)
 
     def sync(self):
-        from pxr import UsdGeom
-
-        for name, (model, operations, pose) in self.models.items():
+        for name in self.models:
             instrument = self.env.instruments[name]
             state = instrument.read(owner=True)
-            config = {}
+            projection = self.env.projections[name]
+            config = projection.config
             active = []
             for key, mapping in self.joints[name].items():
                 value = state.get(mapping["state"], {}).get("value")
                 if type(value) in (float, int) and np.isfinite(value):
-                    config[mapping["target"]] = value * mapping["scale"] + mapping["offset"]
                     active.append(key)
-            model.update_cfg(config)
-            for node, operation in operations.items():
-                transform = pose @ model.scene.graph[node][0]
-                operation.Set(self.Gf.Matrix4d(transform.T.tolist()))
-                if not np.allclose(np.array(operation.Get()).T, transform, atol=1e-9):
-                    raise RuntimeError("Isaac instrument transform readback differs")
+            self.sync_geometry(name)
             self.visual_evidence[name]["joints"] = config
+            self.visual_evidence[name]["physics"] = self.physics[name].evidence
             for display, panel in self.panels[name].items():
-                response = instrument.invoke("panel.capture", {"display_id": display}, owner=True)
-                if response.get("status") != "succeeded":
-                    raise RuntimeError(f"Native panel capture failed: {display}")
-                captured = response["result"]["image"]
+                captured, mode = capture(instrument, display, panel["spec"])
                 path = Path(captured["path"]).resolve()
                 if not path.is_relative_to(instrument.capture_directory.name):
                     raise RuntimeError("Unowned native panel texture")
@@ -306,35 +368,60 @@ class InstrumentScene:
                     "width": captured["width"],
                     "height": captured["height"],
                     "bound": True,
+                    "mode": mode,
+                    "placement": panel["placement"],
                 }
             lamps, visible = [], []
+            colors = projection.colors()
+            for key, color in colors.items():
+                surfaces = self.colors[name].get(key, [])
+                for surface in surfaces:
+                    surface.GetInput("diffuseColor").DisconnectSource()
+                    surface.GetInput("diffuseColor").Set(self.Gf.Vec3f(*color))
+                if surfaces:
+                    lamps.append(key)
+                    self.visual_evidence[name]["lamps"][key] = color
+            for key, (slot, attribute) in self.properties[name].items():
+                if slot in state:
+                    attribute.Set(json.dumps(state[slot]["value"], sort_keys=True))
+                    lamps.append(key)
             for key, (slot, bindings) in self.lamps[name].items():
+                if key in colors:
+                    continue
                 value = state.get(slot, {}).get("value")
                 if type(value) is bool:
                     for surface, light in bindings:
-                        surface.GetInput("emissiveColor").Set(self.Gf.Vec3f(2.0 if value else 0.0))
-                        light.GetIntensityAttr().Set(2000.0 if value else 0.0)
+                        color = surface.GetInput("diffuseColor").Get()
+                        surface.GetInput("emissiveColor").Set(color * (2.0 if value else 0.0))
+                        light.GetIntensityAttr().Set(
+                            2000.0 if value and slot == "lamp.lit" else 0.0
+                        )
                     lamps.append(key)
                     self.visual_evidence[name]["lamps"][key] = value
-            for key, (slot, shapes) in self.visible[name].items():
-                value = state.get(slot, {}).get("value")
-                if type(value) is bool:
-                    for shape in shapes:
-                        shape.CreateVisibilityAttr().Set(
-                            UsdGeom.Tokens.inherited if value else UsdGeom.Tokens.invisible
-                        )
-                    visible.append(key)
+            native_panels, readout_keys = set(), set()
+            for display, panel in self.panels[name].items():
+                mode = self.visual_evidence[name]["panels"][display]["mode"]
+                if mode == "native" and panel["placement"] == "instrument":
+                    native_panels.add(panel["component"])
+                elif not mode.startswith("unavailable:"):
+                    readout_keys.update(readout_bindings(instrument, panel["spec"]))
             report = binding_report(
                 instrument,
-                active,
-                {p["component"] for p in self.panels[name].values()},
+                set(active) | projection.binding_keys(),
+                native_panels,
                 lamps,
                 visible,
+                readout_keys,
             )
             report["panels"] = sorted(self.panels[name])
             report["panel_failures"] = self.panel_failures[name]
             self.mapping_report[name] = report
         self.sim.render()
+
+    def step(self):
+        for _ in range(10):
+            self.sim.step(render=False)
+        self.sync()
 
     def close(self):
         self.textures.cleanup()

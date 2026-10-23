@@ -7,9 +7,10 @@ An agent selects instrument commands, reads agent-visible measurements and uses
 initialization, evaluator-only state, scoring, episode limits and evidence.
 Benchmark scheduling and Kinex policy evaluation belong outside RoboEnv.
 
-This is a partial instrument-interface integration, not a complete ChemLab scene
-or a Matterix replacement. Full asset acquisition and host initialization do not
-certify every instrument command, coupling, material transfer or scene binding.
+The integration covers the complete released instrument catalog and runtime
+factories. Scene coverage is reported separately for each contract binding.
+Specialized Matterix scene helpers absent from the public release remain deferred;
+runtime initialization does not certify every scientific model or workflow.
 
 ## Prepare
 
@@ -25,6 +26,7 @@ uv pip install --python /path/to/new/isaaclab-env/bin/python \
 export ROBOENV_ASSET_CACHE=/path/to/asset-cache
 python tools/prepare_chemlab.py
 python tools/prepare_chemlab.py --verify
+python tools/prepare_chemlab.py --verify --catalog-out generated/chemlab
 ```
 
 The asset tool requires Git and Git LFS. It stages a new checkout on the target
@@ -33,6 +35,14 @@ hashes, then records the instrument resource hashes. Existing depots are verifie
 and never reset or overwritten. Preserve a partial or modified depot and choose a
 new `--directory` to prepare another copy. Supply the same cache setting at launch;
 an explicit `backend_kwargs.asset_directory` selects a depot instead.
+
+`--catalog-out` generates all 203 workstation profiles and launchable exploration
+environments through the existing conflict-safe catalog writer. Each profile
+includes instrument identity, dimensions, public state schemas and declared command
+schemas. These environments use realtime execution and have no scored goals.
+They are separate from the four integration tasks checked into `catalog/`.
+Use the generated task file or `--catalog generated/chemlab` with normal task
+resolution. Generated asset catalogs stay outside Git.
 
 ChemLab adds `yourdfpy` for URDF visual geometry and `CoolProp` for upstream
 thermodynamic models. The supplemental dependency lock constrains these additions
@@ -76,7 +86,9 @@ The exported `devices.md` documents the live input schemas and unsupported actio
 
 Runtime `succeeded` means that the instrument accepted/completed that command;
 it does not mean that the task succeeded. Public `read` returns only contract
-slots marked `agent`. Owner/debug/simulation capabilities are excluded. Native
+slots marked `agent`. Owner/debug/clock/plant capabilities are excluded. Public
+`scene.*` capabilities use synchronous per-instance scene adapters; a capability's
+`simulation` kind does not make it owner-only. Native
 preconditions, units and unsupported capabilities remain authoritative. Asynchronous
 hosts also expose `operation_poll` and `operation_cancel`. Panel captures return
 PNG bytes as base64 with dimensions and checksum, never private host filenames.
@@ -116,28 +128,45 @@ No new adapter, transport or driver implementation is required.
 
 ## Geometry and validation boundaries
 
-The scene imports URDF visual geometry, UV textures and material opacity. Typed
-joint mappings reuse the contract's affine Matterix knob definitions; direct maps
-require compatible scalar units. Dynamic screens reuse upstream `panel.capture`
-pixels on geometry fitted to declared display components. Native panel close-ups
-and the overview use the existing spectator recorder. Lamps and Boolean visibility
-are mapped where their contract semantics are explicit. Stage transform and texture
-readback are recorded separately from runtime task success.
+The scene imports URDF visual geometry, UV textures and material opacity. Isaac
+Lab's URDF converter also imports released collision proxies and articulation
+joints. Fixed joints are merged; incompatible cross-axis mimic constraints use
+the released multiplier and offset through explicit runtime coordinates. These
+coordinates remain process-authoritative. Missing or assumed upstream mass and
+friction data do not become claims of calibrated contact physics. Typed joint
+maps reuse contract affine transforms and compatible scalar units. Velocities
+integrate only on the shared world clock, never on reads or scene synchronization.
+Explicit release formulas cover coupled seals, valves, probes and gantries.
+Native screens reuse upstream `panel.capture` pixels. Lamps, RGB indicators and
+visibility follow explicit release state. The existing spectator recorder captures
+the overview and native screen close-ups. Runtime outcomes and stage evidence
+remain separate.
 
-Every model-binding channel is accounted for in `scene_mappings`, including
-unsupported pose/material/display mappings and controls marked unbound upstream.
-Missing panel components and native capture preconditions are explicit failures,
-not silently ignored geometry. The audit's binding plan is CPU coverage, not proof
-that all 203 instruments have rendered correctly. Full capability execution and
-scientific accuracy are not certified by the audit.
+Released OBJ accessories omitted by the URDF export are loaded only when their
+manifest positions reproduce the published world bounds. The centrifuge's OBJ
+object names preserve separate rotor configurations and individual occupied sample
+slots. These supplemental visuals do not invent collision proxies absent from the
+release; their sources and collision limitations are recorded in scene evidence.
 
-Native `scene.*` commands are explicitly unavailable: this adapter does not provide
-the upstream synchronous scene callbacks. Previously supplying a no-op callback
-incorrectly let these commands appear supported. Contact dynamics, collision-based
-weighing, container/material transfers, inter-instrument coupling and unsupported
-pose/material channels remain incomplete. The released contracts reference Matterix
-scripts that are absent from the pinned release. This mode imports visual geometry;
-it does not import the complete PhysX articulation/contact model or run Matterix.
+Every model-binding channel is accounted for in `scene_mappings`: `synchronized`,
+`readout_only`, `unsupported`, `unbound`, or `input_only`. When the release omits
+screen geometry, native pixels appear on a separate inspection board. Public
+numerical fields without a released renderer use a labelled SI process readout.
+Both are `readout_only`, not evidence of the original physical screen mapping.
+Native panel precondition failures remain visible as unavailable panels with the
+native error code. CPU binding plans do not prove native GPU rendering. Public
+example execution records success, rejection, asynchronous acceptance and errors
+separately; rejected preconditions are not successful workflows.
+
+The adapter does not run Matterix. The release references `chemistry-sim-port`,
+`outputs/.../matterix_scene.py`, and specialized specimen/readout helpers absent
+from the pinned assets. A public-source search on 2026-10-22 checked
+[Matterix](https://github.com/AccelerationConsortium/Matterix), its public forks,
+[ChemLab-Assets](https://github.com/mbzuai-nlp/ChemLab-Assets), and indexed references
+to those paths. No matching implementation was found. Their dedicated deformation,
+scene coupling, contact-driven weighing and material-transfer integration is
+deferred until those sources are available. Released runtime operations retain
+their original semantics; no replacement chemical model is invented.
 
 Every host has a pinned factory entry in `src/roboenv/assets/chemlab-runtimes.json`.
 Updating the release requires auditing this table and rerunning native checks;
@@ -146,7 +175,7 @@ owner `backend_kwargs` for process/transport checks without Isaac rendering. Suc
 checks are not GPU or camera evidence.
 
 ```sh
-python tools/check_chemlab.py --geometry --out /path/to/new/audit.json
+python tools/check_chemlab.py --geometry --commands --out /path/to/new/audit.json
 ROBOENV_CHEMLAB_TEST_ASSETS=/path/to/verified/depot \
   python -m pytest tests/test_chemlab.py -q
 python tools/finalize_episode.py /path/to/run.json --out /path/to/new/owner
@@ -154,6 +183,8 @@ python tools/replay_chemlab.py /path/to/new/owner/owner-record.json \
   --out /path/to/new/replay.json
 python tests/chemlab_probe.py --assets /path/to/verified/depot --render \
   --task hood-light-sash --kinex /path/to/kinex --out /path/to/new/native-probe
+python tests/chemlab_scene_probe.py --directory /path/to/verified/depot \
+  --start 0 --count 8 --commands --out /path/to/new/native-catalog-batch
 ```
 
 Run the audit/replay tools in the prepared runtime interpreter. They record exact

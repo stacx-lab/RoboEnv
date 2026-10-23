@@ -10,6 +10,7 @@ import yaml
 from helpers import load_tool
 from roboenv.devices.model import DeviceError
 from roboenv.provisioning.chemlab_assets import resource
+from roboenv.provisioning.chemlab_catalog import generate, public_capabilities
 from roboenv.tasks.catalog import native_identity
 from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.isaaclab.tasks.chemlab.environment import ChemLabEnvironment, matches
@@ -82,6 +83,192 @@ def test_asset_paths_do_not_escape_depot(tmp_path):
     for name in ("../private", str(secret), "link", "missing"):
         with pytest.raises(ValueError, match="Missing or unsafe"):
             resource(root, name)
+
+
+def test_agent_scene_kind_is_not_an_owner_permission():
+    public = public_capabilities(
+        {
+            "capabilities": {
+                "scene.set_door": {"visibility": "agent", "kind": "simulation"},
+                "plant.configure": {"visibility": "agent", "kind": "configuration"},
+                "panel.frame": {"visibility": "evaluator", "kind": "query"},
+                "fault.acknowledge": {"visibility": "agent", "kind": "device_command"},
+                "fault.inject": {"visibility": "evaluator", "kind": "simulation"},
+            }
+        }
+    )
+    assert set(public) == {"scene.set_door", "fault.acknowledge"}
+
+
+def test_release_catalog_resolves_every_instrument_without_scored_goals(assets, tmp_path):
+    result = generate(tmp_path, assets, project=ROOT)
+    assert result["instruments"] == 203 and result["scored_tasks"] == 0
+    paths = sorted((tmp_path / "tasks").rglob("task.yaml"))
+    assert len(paths) == 203
+    for path in paths:
+        resolved = resolve_task(path, catalog=tmp_path)
+        assert resolved.task.execution_mode == "realtime"
+        assert resolved.task.backend_kwargs["task_spec"]["goals"] == []
+        profile = resolved.bindings.devices[0].resolved_profile(resolved.robot)
+        assert profile["intrinsics"]["instrument"]["asset_id"].startswith("instrument.")
+        assert "plant_configure" not in profile["access"]["driver"]["actions"]
+    # Regeneration uses the existing content-conflict policy.
+    generate(tmp_path, assets, project=ROOT)
+    paths[0].write_text("edited")
+    with pytest.raises(ValueError, match="edited/unmanaged"):
+        generate(tmp_path, assets, project=ROOT)
+
+
+def test_native_scene_commands_change_geometry_and_invalid_commands_do_not(assets):
+    import numpy as np
+
+    config = configuration("balance-power")
+    config["task_spec"]["goals"] = []
+    environment = ChemLabEnvironment(**config, asset_directory=assets, render=False)
+    try:
+        environment.reset(0)
+        projection = environment.projections["instrument"]
+        initial = projection.model.get_transform("door_left").copy()
+        response = environment.invoke(
+            "instrument",
+            "scene.set_door",
+            {
+                "side": "left",
+                "opening_m": 0.05,
+            },
+        )
+        assert response["status"] == "succeeded"
+        moved = projection.model.get_transform("door_left").copy()
+        assert np.isclose(np.linalg.norm(moved[:3, 3] - initial[:3, 3]), 0.05)
+        response = environment.invoke(
+            "instrument",
+            "scene.set_door",
+            {
+                "side": "left",
+                "opening_m": 100,
+            },
+        )
+        assert response["status"] == "rejected"
+        assert np.array_equal(projection.model.get_transform("door_left"), moved)
+        environment.reset(0)
+        assert np.allclose(
+            environment.projections["instrument"].model.get_transform("door_left"), initial
+        )
+    finally:
+        environment.close()
+
+
+def test_velocity_projection_uses_world_time_and_instances_are_isolated(assets):
+    import numpy as np
+    from roboenv.provisioning.chemlab_assets import catalog
+    from roboenv_runtime.adapters.isaaclab.tasks.chemlab.projection import InstrumentProjection
+
+    row = catalog(assets)["instrument.wtw_oxitopi"]
+    first = InstrumentProjection(assets, row, "first")
+    second = InstrumentProjection(assets, row, "second")
+    values = {"platform.stir_velocity_rad_s": 2.0}
+    first.update(values, dt=0.25)
+    assert first.config["magnet_rotor_1_joint"] == pytest.approx(0.5)
+    transform = first.model.get_transform("magnet_rotor_1").copy()
+    for _ in range(3):
+        first.update(values)
+    assert np.array_equal(transform, first.model.get_transform("magnet_rotor_1"))
+    second.update(values)
+    assert second.config["magnet_rotor_1_joint"] == 0
+    first.update(values, dt=0.25)
+    assert first.config["magnet_rotor_1_joint"] == pytest.approx(1.0)
+
+
+def test_released_accessories_and_individual_centrifuge_samples_are_visible(assets):
+    from roboenv.provisioning.chemlab_assets import catalog
+    from roboenv_runtime.adapters.isaaclab.tasks.chemlab.projection import InstrumentProjection
+
+    rows = catalog(assets)
+    projection = InstrumentProjection(assets, rows["instrument.jasco_ftir4700"], "instrument")
+    projection.update({"accessory.mode": "atr", "sample.loaded": False})
+    nodes = list(projection.model.scene.graph.nodes_geometry)
+    assert any("accessory_atr" in n and projection.node_visible(n) for n in nodes)
+    assert not any("accessory_transmission" in n and projection.node_visible(n) for n in nodes)
+    projection = InstrumentProjection(assets, rows["instrument.eppendorf_5910ri"], "instrument")
+    projection.update({"rotor.configuration": "fixed_angle", "sample.occupied_slots": ["slot_2"]})
+    shown = {source for node, source in projection.groups.items() if projection.node_visible(node)}
+    assert "rotor_fixed_plate" in shown and "rotor_large_hub" not in shown
+    assert "sample_carrier_2_body" in shown and "sample_carrier_1_body" not in shown
+    projection.update({"lid.locked": False, "alarm.imbalance": False})
+    shown = {source for node, source in projection.groups.items() if projection.node_visible(node)}
+    assert "eppendorf_5910ri__touchscreen" in shown
+    assert "lock_indicator" not in shown and "imbalance_indicator" not in shown
+
+
+def test_readout_projection_does_not_claim_native_scene_coverage():
+    from types import SimpleNamespace
+
+    from roboenv_runtime.adapters.isaaclab.tasks.chemlab.geometry import binding_report
+
+    report = binding_report(
+        SimpleNamespace(
+            contract={
+                "model_bindings": {
+                    "readout": {"state_id": "temperature", "channel": "material"},
+                    "input": {"state_id": None, "direction": "scene_to_process"},
+                    "unbound": {"state_id": None},
+                    "missing": {"state_id": "extension", "channel": "pose"},
+                }
+            }
+        ),
+        readout_keys={"readout", "unbound"},
+    )
+    assert report == {
+        "synchronized": [],
+        "readout_only": ["readout"],
+        "input_only": ["input"],
+        "unbound": ["unbound"],
+        "unsupported": ["missing"],
+    }
+
+
+def test_released_rack_formats_and_sampler_frames_follow_runtime_state(assets):
+    import numpy as np
+    from roboenv.provisioning.chemlab_assets import catalog
+    from roboenv_runtime.adapters.isaaclab.tasks.chemlab.projection import InstrumentProjection
+
+    rows = catalog(assets)
+    projection = InstrumentProjection(assets, rows["instrument.ziath_dp5_mirage_2023"], "rack")
+    for size in (24, 48, 96, 240):
+        projection.update({"scene.rack_format": size, "scene.rack_lift_m": 0.04})
+        shown = [
+            n for n in projection.model.scene.graph.nodes_geometry if projection.node_visible(n)
+        ]
+        assert any(f"supplement_rack_{size}_" in n for n in shown)
+        assert not any(
+            f"supplement_rack_{other}_" in n
+            for other in (24, 48, 96, 240)
+            if other != size
+            for n in shown
+        )
+        assert np.isclose(projection.model.get_transform("rack_carriage")[2, 3], 0.04)
+    projection = InstrumentProjection(assets, rows["instrument.agilent_gc8890b"], "gc")
+    for loaded in (False, True):
+        projection.update({"sample.loaded": loaded})
+        assert "sample_visibility" in projection.binding_keys()
+        nodes = [
+            n for n in projection.model.scene.graph.nodes_geometry if "supplement_sample_vial" in n
+        ]
+        assert nodes and all(projection.node_visible(n) == loaded for n in nodes)
+    projection = InstrumentProjection(assets, rows["instrument.agilent_hs8697"], "sampler")
+    node = next(
+        n
+        for n in projection.model.scene.graph.nodes_geometry
+        if projection.model.scene.graph.transforms.parents[n] == "manipulator_arm"
+    )
+    projection.update({"lid.angle_rad": 0.6, "manipulator.position_slot": "home"})
+    initial = projection.node_transform(node)
+    assert projection.config["lid_hinge_joint"] == 0.6
+    projection.update({"manipulator.position_slot": "tray_01"})
+    assert np.allclose(
+        projection.node_transform(node)[:3, 3] - initial[:3, 3], [-0.314, -0.395, -0.002]
+    )
+    assert "manipulator_pose" in projection.binding_keys()
 
 
 @pytest.mark.parametrize("name", SOLUTIONS)

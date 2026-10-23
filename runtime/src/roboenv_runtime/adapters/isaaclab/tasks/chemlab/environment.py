@@ -23,6 +23,7 @@ from roboenv_runtime.core.types import Budget, ScoreReport
 from ...common.recording import source_identity
 from ...common.spectator import SpectatorSource
 from .instrument import Instrument
+from .projection import InstrumentProjection
 
 
 def value_at(observations, slot, path=()):
@@ -77,7 +78,7 @@ class ChemLabEnvironment:
         self.implementation["chemlab-runtimes.json"] = hashlib.sha256(
             files("roboenv").joinpath("assets/chemlab-runtimes.json").read_bytes()
         ).hexdigest()
-        from roboenv.provisioning import chemlab_assets
+        from roboenv.provisioning import chemlab_assets, chemlab_catalog
 
         from roboenv_runtime.bindings.backends.isaaclab import chemlab as binding
         from roboenv_runtime.paths import repo_root
@@ -86,10 +87,12 @@ class ChemLabEnvironment:
             "runtime/locks/chemlab.txt": repo_root() / "runtime/locks/chemlab.txt",
             "binding.py": Path(binding.__file__),
             "assets.py": Path(chemlab_assets.__file__),
+            "catalog.py": Path(chemlab_catalog.__file__),
         }.items():
             self.implementation[name] = hashlib.sha256(path.read_bytes()).hexdigest()
         self.dependencies = {
-            name: version(name) for name in ("numpy", "scipy", "Pillow", "CoolProp")
+            name: version(name)
+            for name in ("numpy", "scipy", "Pillow", "CoolProp", "trimesh", "yourdfpy")
         }
         self.rows = catalog(self.depot)
         for name, spec in self.spec["instruments"].items():
@@ -159,8 +162,14 @@ class ChemLabEnvironment:
         self.commands = []
         for instrument in self.instruments.values():
             instrument.close()
+        self.projections = {
+            name: InstrumentProjection(self.depot, self.rows[spec["asset"]], name)
+            for name, spec in self.spec["instruments"].items()
+        }
         self.instruments = {
-            name: Instrument(self.depot, self.rows[spec["asset"]], name)
+            name: Instrument(
+                self.depot, self.rows[spec["asset"]], name, scene_adapter=self.projections[name]
+            )
             for name, spec in self.spec["instruments"].items()
         }
         for name, spec in self.spec["instruments"].items():
@@ -173,11 +182,13 @@ class ChemLabEnvironment:
                 if response.get("status") not in {"succeeded", "accepted"}:
                     raise ValueError(f"Instrument initialization failed: {name}: {response}")
         self.initial = self.owner_state()
+        self._project()
         if self.render_enabled:
             if self.native is None:
                 from .scene import InstrumentScene
 
                 self.native = InstrumentScene(self)
+            self.native.bind_projections()
             self.native.sync()
 
     def tick(self):
@@ -185,13 +196,20 @@ class ChemLabEnvironment:
             return
         for inst in self.instruments.values():
             inst.advance(self.control_interval)
+        self._project(self.control_interval)
         self.frame += 1
         state = self.owner_state()
         reached = bool(self.goals) and all(matches(state[g["instrument"]], g) for g in self.goals)
         self.held = self.held + self.control_interval if reached else 0.0
         self.completed |= self.held + 1e-9 >= self.dwell
         if self.native is not None:
-            self.native.sync()
+            self.native.step()
+
+    def _project(self, dt=0.0):
+        for name, instrument in self.instruments.items():
+            self.projections[name].update(
+                {key: value["value"] for key, value in instrument.read(owner=True).items()}, dt
+            )
 
     def read_device(self, name):
         return {
@@ -217,6 +235,7 @@ class ChemLabEnvironment:
                 "status": response.get("status"),
             }
         )
+        self._project()
         if self.native is not None:
             self.native.sync()
         return response
