@@ -60,7 +60,7 @@ sideboard and its two unsupported decorations are replaced when a task uses the
 functional drawer. A detailed open
 bookcase, two unscaled original HSSD consoles, low docking rails and a doorway
 between the existing entrance-corridor walls supply additional task fixtures.
-The door panel is sized to that aperture, with clearance through its full swing;
+The door panel is sized to that aperture, with clearance through a 90-degree opening;
 the door task removes one original wall ornament that intersects the new panel.
 These are documented adaptations to
 the house. The native mechanisms keep their joints and collision part names;
