@@ -1,4 +1,4 @@
-"""Version 3 household contracts, evaluated from native physical evidence.
+"""Version 3/4/5 household contracts, evaluated from native physical evidence.
 
 All event transitions run at the physics rate, including brief hand contacts
 and tool impacts. Tolerances implement visible relationships rather than
@@ -11,12 +11,13 @@ import math
 import numpy as np
 from roboenv_runtime.adapters.urdf_geometry import matrix
 
+from ...robots.booster_t2.scenes import load_scene
 from ...robots.booster_t2.household_models import (
     CART_BAY_INTERIOR,
     MODEL_NAMES,
     PORTAL_X,
     SURFACES,
-    model,
+    versioned_model,
 )
 
 
@@ -65,8 +66,9 @@ def validate(spec):
         "hold_s",
     }:
         raise ValueError("Invalid household task fields")
-    if type(spec["version"]) is not int or spec["version"] != 3 or spec["scene"] != "household":
-        raise ValueError("Expected a version 3 household scene")
+    if type(spec["version"]) is not int or (spec["version"], spec["scene"]) not in {(3, "household"), (4, "simple_household"), (5, "hssd_household")}:
+        raise ValueError("Expected a versioned household scene (3: authored, 4: composite, 5: full HSSD)")
+    surfaces = load_scene(spec["scene"]).surfaces
     vector(spec["start"], 3, "start")
     if spec["boxes"] != []:
         raise ValueError("Household tasks use physical receivers, not marker boxes")
@@ -81,7 +83,7 @@ def validate(spec):
                 not isinstance(name, str)
                 or not name.isidentifier()
                 or name in names
-                or name in SURFACES
+                or name in surfaces
             ):
                 raise ValueError("Invalid or duplicate household object")
             names.add(name)
@@ -91,7 +93,7 @@ def validate(spec):
             vector(d["pos"], 3, "object position")
             if type(d["yaw"]) not in (float, int) or not math.isfinite(d["yaw"]):
                 raise ValueError("Invalid object yaw")
-            m = model(d["model"])
+            m = versioned_model(d["model"], spec["version"])
             if bool(m.joints) != articulated:
                 raise ValueError("Asset must use its actual rigid or articulated representation")
             if articulated:
@@ -130,13 +132,13 @@ def validate(spec):
             raise ValueError(f"Invalid household binding type: {key}")
         values = value if isinstance(value, list) else [value]
         if not values or any(
-            not isinstance(n, str) or n not in names | set(SURFACES) for n in values
+            not isinstance(n, str) or n not in names | set(surfaces) for n in values
         ):
             raise ValueError(f"Unknown household goal binding: {key}")
         if len(values) != len(set(values)):
             raise ValueError("Repeated goal object")
         if key in {"table", "source", "surface", "desk"}:
-            if any(n not in SURFACES for n in values):
+            if any(n not in surfaces for n in values):
                 raise ValueError(f"{key} requires a room surface")
         elif any(n not in names for n in values):
             raise ValueError(f"{key} requires a task object")
@@ -167,6 +169,13 @@ def validate(spec):
     for a, b in (("item", "target"), ("item", "bowl"), ("item", "support")):
         if a in goal and b in goal and goal[a] == goal[b]:
             raise ValueError("An object cannot be its own receiver")
+    if spec["version"] == 5 and goal["kind"] == "parcel":
+        portal = load_scene(spec["scene"]).portal
+        door = all_defs[goal["door"]]
+        if not np.allclose(door["pos"], portal["hinge"], atol=1e-6) or not math.isclose(
+            door["yaw"], portal["yaw"], abs_tol=1e-6
+        ):
+            raise ValueError("The door must occupy the scene's physical doorway")
 
 
 class State:
@@ -175,6 +184,7 @@ class State:
     def __init__(self, spec):
         validate(spec)
         self.spec = copy.deepcopy(spec)
+        self.scene = load_scene(spec["scene"])
         self.goal = self.spec["stages"][0][0]
         self.reset()
 
@@ -194,6 +204,8 @@ class State:
         m = world.measurements
         self.initial = {n: m.pose(n)[0].copy() for n in m.models}
         self.previous = {n: p.copy() for n, p in self.initial.items()}
+        if self.spec["version"] == 5 and self.goal["kind"] == "parcel":
+            self.previous_root = world.root_pose()[0].copy()
         self.events = {
             "picked": [],
             "touch_stage": 0,
@@ -211,9 +223,11 @@ class State:
         for n, d in self.spec["items"].items():
             if d["fixed"] or n in self.events["picked"]:
                 continue
-            supported = any(
-                m.supported(n, t) for t in (*SURFACES, *m.models, "floor", "ground") if t != n
-            )
+            supports = set(SURFACES) | set(m.models) | {"floor", "ground"}
+            if self.spec["version"] == 5:
+                supports |= {entity[0] for pair in m.contacts.pairs.values() for entity in pair[:2]
+                             if entity[0] not in {"robot", "left_hand", "right_hand"}}
+            supported = any(m.supported(n, t) for t in supports if t != n)
             if m.held(n) and not supported:
                 self.events["picked"].append(n)
 
@@ -224,6 +238,9 @@ class State:
             e["carry_armed"] = True
         if held and not m.supported(item, source) and e.get("carry_armed"):
             e.update(carry_armed=False, carry_active=True, carry_invalid=False, tilt_since=None)
+            if self.spec["version"] == 5:
+                for key in ("crossed_aperture", "root_crossed_aperture", "passed_doorway"):
+                    e.pop(key, None)
         if e.get("carry_active"):
             if (
                 both
@@ -392,6 +409,13 @@ class State:
                 )
                 > 0.8
             )
+            if self.spec["version"] == 5:
+                bay = self.scene.cart_bay
+                c, s = math.cos(bay["yaw"]), math.sin(bay["yaw"])
+                local = (points[:, :2] - bay["center"]) @ np.array([[c, -s], [s, c]])
+                parked = bool(np.all(np.abs(local) < np.asarray(bay["size"]) / 2))
+                facing = float(np.dot(matrix([0, 0, 0, *q[1:], q[0]])[:3, :3]
+                                      @ np.array([0, -1, 0]), [*bay["outward"], 0])) > 0.8
             return {
                 "pulled_transport": e["pulled"] > 0.65 * e["distance"],
                 "in_bay": parked,
@@ -565,6 +589,11 @@ class State:
                 abs(seat_center[0] - center[0]) < (size[0] - seat.size[0]) / 2
                 and abs(seat_center[1] - center[1]) < size[1] / 2 - 0.05
             )
+            if self.spec["version"] == 5:
+                desk = self.scene.surfaces[g["desk"]]
+                local = desk.local(seat_center[:2])
+                tucked = (abs(local[0]) < (desk.size[0] - seat.size[0]) / 2
+                          and abs(local[1]) < desk.size[1] / 2 - 0.05)
             return {
                 "pushed": bool(e.get("pushed")),
                 "under_desk": tucked,
@@ -595,7 +624,33 @@ class State:
             if e.get("carry_active") and not e.get("carry_invalid"):
                 pos = m.pose(g["parcel"])[0]
                 root = m.world.root_pose()[0]
-                if pos[0] > PORTAL_X + 0.15 and root[0] > PORTAL_X + 0.15:
+                if self.spec["version"] == 5:
+                    portal = self.scene.portal
+                    normal = np.asarray(portal["normal"])
+                    tangent = np.array([-normal[1], normal[0]])
+                    old = self.previous[g["parcel"]][:2] - portal["center"]
+                    now = pos[:2] - portal["center"]
+                    # Crossing must intersect the physical aperture, not merely
+                    # finish on the other side of an infinite plane.
+                    if np.dot(old, normal) <= 0 < np.dot(now, normal):
+                        fraction = -np.dot(old, normal) / np.dot(now - old, normal)
+                        crossing = self.previous[g["parcel"]] + fraction * (pos - self.previous[g["parcel"]])
+                        boundary = m.points(g["parcel"]) - pos + crossing
+                        e["crossed_aperture"] = bool(
+                            np.all(np.abs((boundary[:, :2] - portal["center"]) @ tangent) < portal["width"] / 2)
+                            and np.all((boundary[:, 2] >= 0) & (boundary[:, 2] <= portal["height"]))
+                        )
+                    old_root = self.previous_root[:2] - portal["center"]
+                    now_root = root[:2] - portal["center"]
+                    if np.dot(old_root, normal) <= 0 < np.dot(now_root, normal):
+                        fraction = -np.dot(old_root, normal) / np.dot(now_root - old_root, normal)
+                        crossing = old_root + fraction * (now_root - old_root)
+                        e["root_crossed_aperture"] = bool(abs(np.dot(crossing, tangent)) < portal["width"] / 2)
+                    if (e.get("crossed_aperture") and e.get("root_crossed_aperture")
+                            and np.dot(now, normal) > 0.15
+                            and np.dot(root[:2] - portal["center"], normal) > 0.15):
+                        e["passed_doorway"] = True
+                elif pos[0] > PORTAL_X + 0.15 and root[0] > PORTAL_X + 0.15:
                     e["passed_doorway"] = True
             return {
                 "door_opened_first": bool(e.get("door_opened_first")),
@@ -625,6 +680,8 @@ class State:
             "settled_for_s": 0.0 if self.since is None else world.time - self.since,
         }
         self.previous = {n: m.pose(n)[0].copy() for n in m.models}
+        if self.spec["version"] == 5 and self.goal["kind"] == "parcel":
+            self.previous_root = world.root_pose()[0].copy()
         self.previous_joints = {
             n: dict(world.articulated_joints(n)) for n in self.spec["articulated"]
         }
@@ -632,7 +689,7 @@ class State:
 
     def record(self):
         return {
-            "version": 3,
+            "version": self.spec["version"],
             "stage": self.stage,
             "completed": self.completed,
             "since": self.since,

@@ -1,7 +1,7 @@
 id: isaaclab/t2-can-in-bowl
 robot: isaaclab/isaaclab-booster-t2
-instruction: Pick up the tomato soup can and put it inside the bowl. Let go and leave the can resting
-  securely inside, with the bowl standing on the table.
+instruction: Pick up the tomato soup can and put it inside the bowl. Let go and leave
+  the can resting securely inside, with the bowl standing on the table.
 seed: 0
 budget_mode: practice
 execution_mode: realtime
@@ -10,27 +10,27 @@ backend_kwargs:
   task_name: t2-household
   max_steps: null
   task_spec:
-    version: 3
-    scene: household
+    version: 5
+    scene: hssd_household
     start:
-    - 2
-    - 0.75
+    - -0.05115
+    - 0.21587
     - 1.5707963267948966
     items:
       can:
         model: can_tomato
         pos:
-        - 1.75
-        - 1.78
-        - 0.82
+        - -0.30115
+        - 1.24587
+        - 0.762082
         yaw: 0.0
         fixed: false
       bowl:
         model: bowl
         pos:
-        - 2.25
-        - 1.94
-        - 0.82
+        - 0.19885
+        - 1.40587
+        - 0.762082
         yaw: 0.0
         fixed: false
     boxes: []

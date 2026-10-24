@@ -41,18 +41,51 @@ hand grasp-center FK without simulator access. Hand stop preserves preload;
 opening requires an explicit command. No world pose or object truth is exported.
 
 RoboEnv includes two standalone examples: `isaaclab/t2-reach-table` for
-flat-ground locomotion and touch, and `isaaclab/t2-can-in-bowl` for authored household objects
+flat-ground locomotion and touch, and `isaaclab/t2-can-in-bowl` for SIMPLE household objects
 and grasp/release. The complete benchmark definitions live in RLE-Bench-inhouse
 `tasks/task11/catalog/`. All use the single `t2-household` factory with an explicit
 `backend_kwargs.task_spec`. RoboEnv owns scene construction, specification validation
 and native predicates; RLE owns benchmark definitions, instructions and selection.
 
-New household task specifications use version 3 and `scene: household`. The
-runtime builds a furnished room and reusable physical models from
-`household_models.py` and `household_usd.py`. Native dimensions also define
-receiver regions: bowls, trays, shape-sorter apertures, drawer cavities, hooks
-and parking furniture are actual collision geometry. Passive mechanisms include
-a balance scale, cart casters, lamp switch/head, pounding pegs and doors.
+Version 5 uses `scene: hssd_household`, the complete pinned HSSD 102344022
+residence used by the SIMPLE integration scenes. The original architecture,
+furniture proportions, textures and 2000-intensity dome are retained. The task
+catalog remaps the stations and routes onto measured furniture tops. Scene YAML
+binds actual USD colliders to semantic surfaces, including an activity-table
+alias for the dining table. Unknown house colliders retain distinct identities;
+the two measured floor meshes and six thin source rugs count as floor support.
+
+The office chair and office door leaf are removed for task access. One static
+sideboard and its two unsupported decorations are replaced when a task uses the
+functional drawer. A detailed open
+bookcase, two unscaled original HSSD consoles, low docking rails and a doorway
+between the existing entrance-corridor walls supply additional task fixtures.
+The door panel is sized to that aperture, with clearance through a 90-degree opening;
+the door task removes one original wall ornament that intersects the new panel.
+These are documented adaptations to
+the house. The native mechanisms keep their joints and collision part names;
+render geometry adds bounded edge rounding, continuous vessel rims and a swept
+mug handle. No scanned shell is laid over an incompatible articulated mechanism.
+Desk fitting, cart parking and doorway passage use the scene geometry, including
+its local frames, instead of the old room's world coordinates.
+
+Version 4 `scene: simple_household` remains the earlier composition of five HSSD
+furniture assets in the authored household floor plan. Its coordinates and
+physical contract remain available for historical inputs.
+Scans are normalized to the accepted physical dimensions. The cracker box's
+front remains local `-Y`. Imported visuals have no rigid bodies or extra collision
+hulls. The bowl uses an open compound shell calibrated from scan cross-sections,
+with a separately identified load-bearing bottom; its irregular rolled rim is
+an approximation and cannot satisfy the containment floor-contact condition.
+Other props retain their calibrated primitive collision approximations. Plates,
+trays, shape-sorter apertures, drawer cavities, hooks and parking furniture remain
+actual collision geometry. Passive mechanisms include the balance scale, cart
+casters, lamp switch/head, pounding pegs and door. Imported asset coverage is
+explicit; this does not claim that all 39 logical models are scanned assets.
+
+Version 3 `scene: household` retains its authored room and model definitions.
+Historical records must be replayed with their original frozen source, asset
+identity and task YAML: replay intentionally rejects different source hashes.
 
 `household_physics.py` reads each PhysX contact report after the native 200 Hz
 step, retaining sleeping contacts until a lost event. `release.py` evaluates

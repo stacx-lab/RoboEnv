@@ -10,6 +10,7 @@ from roboenv_runtime.adapters.isaaclab.robots.booster_t2.household_physics impor
     ContactPairs,
     collider_identity,
 )
+from roboenv_runtime.adapters.isaaclab.robots.booster_t2.scenes import load_scene
 from roboenv_runtime.adapters.isaaclab.tasks.t2_household.release import State, validate
 
 
@@ -187,6 +188,7 @@ class PhysicalFacts:
         )
 
         self.measurements = Measurements.__new__(Measurements)
+        self.measurements.scene = load_scene("household")
         self.measurements.models = {n: model(asset) for n, asset in assets.items()}
         self.measurements.definitions = {n: {"model": asset} for n, asset in assets.items()}
         self.measurements.contacts = ContactPairs()
@@ -306,6 +308,7 @@ class CarryFacts:
 
 def carry_state():
     state = State.__new__(State)
+    state.spec = {"version": 3}
     state.events = {}
     return state
 
@@ -364,6 +367,7 @@ def test_turn_requires_real_rotation_without_accumulating_quaternion_roundoff():
     m = facts.measurements
     m.contacts.feed("touch", ("box", "body", "carton"), ("left_hand", "hand", "palm"), [])
     state = State.__new__(State)
+    state.spec = {"version": 3}
     state.goal = {"kind": "turn", "item": "box", "mat": "mat", "plate": "plate"}
     state.events = {}
     for _ in range(100):
@@ -377,6 +381,7 @@ def test_carried_placement_cannot_be_reclassified_as_a_short_slide_on_the_mat():
     facts = PhysicalFacts({'can': 'can_tomato', 'mat': 'round_mat'})
     m = facts.measurements
     state = State.__new__(State)
+    state.spec = {"version": 3}
     state.goal = {'kind': 'slide', 'item': 'can', 'target': 'mat', 'surface': 'reading_desk'}
     state.events = {}
     facts.support('can', 'mat')
@@ -398,6 +403,7 @@ def test_lamp_requires_contacts_with_the_operated_parts_not_just_its_base():
     m.joint_speed = lambda n, j: 0.0
     m.lit_pages = lambda lamp, book: True
     state = State.__new__(State)
+    state.spec = {"version": 3}
     state.goal = {'kind': 'illuminate', 'lamp': 'lamp', 'book': 'book'}
     state.initial_joints = {'lamp': {'aim': 0.1, 'power': -0.3}}
     state.events = {}
@@ -419,6 +425,7 @@ def test_scale_rejects_a_weight_used_to_prop_or_counterbalance_the_beam():
     m.joint = lambda *args: 0.0
     m.joint_speed = lambda *args: 0.0
     state = State.__new__(State)
+    state.spec = {"version": 3}
     state.goal = {'kind': 'balance', 'scale': 'scale', 'weights': ['weight']}
     state.events = {}
     facts.support('weight', 'scale', receiver_link='pan')
@@ -433,6 +440,7 @@ def test_reinsertion_must_use_the_matching_aperture_again():
     m = facts.measurements
     m.inside = lambda *args: True
     state = State.__new__(State)
+    state.spec = {"version": 3}
     state.goal = {'kind': 'insert', 'sorter': 'sorter', 'cylinder': 'cylinder', 'cube': 'cube'}
     state.events = {'picked': ['cylinder', 'cube'], 'qualified': {}}
     state.previous = {'cylinder': np.array([-0.104, 0, 0.20]), 'cube': np.array([0.105, 0, 0.20])}
@@ -456,6 +464,7 @@ def test_airborne_cart_motion_does_not_count_as_pulling_on_its_wheels():
     m.world.root_pose = lambda: (p + [0, 0.6, 1.0], np.array([1.0, 0, 0, 0]))
     m.contacts.feed('handle', ('left_hand', 'hand', 'palm'), ('cart', 'base', 'handle'), [])
     state = State.__new__(State)
+    state.spec = {"version": 3}
     state.goal = {'kind': 'pull_cart', 'cart': 'cart'}
     state.previous = {'cart': p - [0, 0.02, 0]}
     state.events = {'distance': 0.0, 'pulled': 0.0}
@@ -464,3 +473,93 @@ def test_airborne_cart_motion_does_not_count_as_pulling_on_its_wheels():
     facts.support('cart', 'floor')
     state.events = {'distance': 0.0, 'pulled': 0.0}
     assert all(state._evaluate(m).values())
+
+
+@pytest.mark.parametrize(
+    "version,scene", [(3, "household"), (4, "simple_household"), (5, "hssd_household")]
+)
+def test_asset_version_selects_its_scene_and_preserves_goal_contract(version, scene):
+    spec = touch_spec()
+    spec.update(version=version, scene=scene)
+    validate(spec)
+    assert State(spec).record()["version"] == version
+    spec["scene"] = "household" if version == 4 else "simple_household"
+    with pytest.raises(ValueError, match="scene"):
+        validate(spec)
+
+
+def test_imported_furniture_contacts_keep_named_support_not_ground():
+    path = "/World/Household/dining_table/furniture/Geometry/Mesh/mesh/mesh_0"
+    assert collider_identity(path) == ("dining_table", "body", "mesh_0")
+    contacts = ContactPairs()
+    contacts.feed("support", ("can", "body", "bottom"), collider_identity(path),
+                  [(np.zeros(3), np.array([0., 0., 1.]), 1.2)])
+    assert contacts.upward_force("can", "dining_table") == pytest.approx(1.2)
+    assert contacts.upward_force("can", "ground") == 0
+
+
+def test_scanned_bowl_has_open_sloped_shell_and_load_bearing_bottom():
+    from roboenv_runtime.adapters.isaaclab.robots.booster_t2.simple_household import (
+        model as scan_model,
+    )
+
+    original = model("bowl")
+    bowl = scan_model("bowl")
+    assert bowl.links[0].mass == original.links[0].mass
+    floor, *walls = bowl.links[0].parts
+    assert floor.name == "floor" and floor.shape == "cylinder"
+    assert floor.pos[2] + floor.size[1] / 2 < .01
+    assert all(p.shape == "hull" for p in walls)
+    vertices = np.concatenate([np.asarray(p.size) for p in walls])
+    radial = np.linalg.norm(vertices[:, :2], axis=1)
+    # A centred 69 mm can fits all heights. No collision wedge crosses the
+    # cavity, and the visible scan's 260 mm rim is the physical outer diameter.
+    assert radial.min() > .035
+    assert radial.max() == pytest.approx(.13)
+    assert vertices[:, 2].max() == pytest.approx(.09)
+    assert radial[vertices[:, 2] > .085].min() > radial[vertices[:, 2] < .005].max()
+    assert {p.shape for p in model("bowl").links[0].parts} == {"cylinder", "box"}
+
+
+@pytest.mark.parametrize("relative,entity", [
+    ("furniture/eeaf34edd2065a3fa2af3fc021cd343ca029f696/mesh", "dining_table"),
+    ("walls/geometry_rs_3785/mesh", "floor"),
+    ("furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da32/mesh", "floor"),
+    ("furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da3/mesh", "floor"),
+    ("furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da3_extra/mesh",
+     "scene:furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da3_extra"),
+    ("furniture/unrelated/mesh", "scene:furniture/unrelated"),
+    ("furniture/eeaf34edd2065a3fa2af3fc021cd343ca029f696_extra/mesh",
+     "scene:furniture/eeaf34edd2065a3fa2af3fc021cd343ca029f696_extra"),
+])
+def test_full_house_contacts_distinguish_floor_furniture_and_exact_bindings(relative, entity):
+    scene = load_scene("hssd_household")
+    assert collider_identity("/World/Scene/" + relative, scene)[0] == entity
+
+
+def test_full_house_alias_uses_real_support_and_rotated_desk_uses_local_axes():
+    facts = PhysicalFacts({"can": "can_tomato"})
+    facts.measurements.scene = scene = load_scene("hssd_household")
+    facts.support("can", "dining_table")
+    assert facts.measurements.supported("can", "activity_table")
+    assert not facts.measurements.supported("can", "reading_desk")
+    desk = scene.surfaces["reading_desk"]
+    assert desk.contains(np.asarray(desk.center) + [0, .4])
+    assert not desk.contains(np.asarray(desk.center) + [.4, 0])
+
+
+def test_v5_contact_with_unbound_scene_furniture_prevents_false_pickup():
+    spec = touch_spec()
+    spec.update(version=5, scene="hssd_household")
+    spec["items"]["can"] = {"model": "can_tomato", "pos": [0, 0, .8], "yaw": 0., "fixed": False}
+    state = State(spec)
+    state.events = {"picked": []}
+    facts = PhysicalFacts({"can": "can_tomato"})
+    facts.measurements.scene = load_scene("hssd_household")
+    facts.measurements.held = lambda name: True
+    facts.support("can", "scene:furniture/unbound_shelf")
+    state._pickup_events(facts.measurements)
+    assert state.events["picked"] == []
+    facts.measurements.contacts.reset()
+    state._pickup_events(facts.measurements)
+    assert state.events["picked"] == ["can"]

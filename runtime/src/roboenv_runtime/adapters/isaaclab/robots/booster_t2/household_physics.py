@@ -5,14 +5,14 @@ import math
 import numpy as np
 
 from roboenv_runtime.adapters.urdf_geometry import matrix
-from .household_models import SURFACES, model
+from .household_models import versioned_model
 
 
 def quat_to_matrix(q):
     return matrix([0, 0, 0, *q[1:], q[0]])[:3, :3]
 
 
-def collider_identity(path):
+def collider_identity(path, scene=None):
     """Keep entity, articulation link and collision part distinct."""
     pieces = str(path).split("/")
     if "Robot" in pieces:
@@ -41,6 +41,8 @@ def collider_identity(path):
     if "Household" in pieces:
         i = pieces.index("Household")
         return (pieces[i + 1], "body", pieces[-1])
+    if "Scene" in pieces and scene is not None:
+        return (scene.collider_entity(path), "body", pieces[-1])
     return ("ground", "body", pieces[-1])
 
 
@@ -93,10 +95,11 @@ class Measurements:
         from pxr import PhysxSchema, UsdPhysics
 
         self.world = world
+        self.scene = world.task.scene
         carb.settings.get_settings().set_bool("/physics/disableContactProcessing", False)
         self.contacts = ContactPairs()
         self.models = {
-            n: model(d["model"])
+            n: versioned_model(d["model"], world.task.spec["version"])
             for collection in (world.task.spec["items"], world.task.spec["articulated"])
             for n, d in collection.items()
         }
@@ -144,7 +147,7 @@ class Measurements:
                 )
             self.contacts.feed(
                 key,
-                *[collider_identity(p) for p in paths],
+                *[collider_identity(p, self.scene) for p in paths],
                 points,
                 lost=header.type == ContactEventType.CONTACT_LOST,
             )
@@ -153,9 +156,10 @@ class Measurements:
         self.contacts.reset()
 
     def pose(self, name, link=None):
-        if name in SURFACES:
-            xy, _, height = SURFACES[name]
-            return np.array([*xy, height]), np.array([1.0, 0, 0, 0])
+        if name in self.scene.surfaces:
+            surface = self.scene.surfaces[name]
+            return np.array([*surface.center, surface.height]), np.array([
+                math.cos(surface.yaw / 2), 0, 0, math.sin(surface.yaw / 2)])
         if name in self.world._items:
             return self.world.item_pose(name)
         art = self.world._articulated[name]
@@ -199,6 +203,8 @@ class Measurements:
                             for z in (-1, 1)
                         ]
                     )
+                elif p.shape == "hull":
+                    local = np.asarray(p.size)
                 else:
                     local = np.array(
                         [
@@ -228,6 +234,9 @@ class Measurements:
         return self.contacts.touching(name, side + "_hand")
 
     def supported(self, name, target, link=None):
+        surface = self.scene.surfaces.get(target)
+        if surface is not None:
+            target = surface.entity
         return self.contacts.upward_force(name, target, link=link) > 0.02
 
     def hand_support(self, name, side):

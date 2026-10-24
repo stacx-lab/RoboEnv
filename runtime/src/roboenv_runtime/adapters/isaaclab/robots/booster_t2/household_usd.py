@@ -56,6 +56,14 @@ def part(stage, path, definition, material_root):
         shape.CreateHeightAttr(p.size[1])
         shape.CreateAxisAttr("Z")
         transform(shape.GetPrim(), p.pos, p.rpy)
+    elif p.shape == "hull":
+        shape = UsdGeom.Mesh.Define(stage, path)
+        shape.CreatePointsAttr([Gf.Vec3f(*v) for v in p.size])
+        shape.CreateFaceVertexCountsAttr([4] * 6)
+        shape.CreateFaceVertexIndicesAttr([0,1,3,2,4,6,7,5,0,4,5,1,2,3,7,6,0,2,6,4,1,5,7,3])
+        shape.CreateSubdivisionSchemeAttr("none")
+        transform(shape.GetPrim(), p.pos, p.rpy)
+        UsdPhysics.MeshCollisionAPI.Apply(shape.GetPrim()).CreateApproximationAttr("convexHull")
     else:
         shape = UsdGeom.Sphere.Define(stage, path)
         shape.CreateRadiusAttr(p.size[0])
@@ -78,9 +86,9 @@ def part(stage, path, definition, material_root):
     return prim
 
 
-def make_asset(name):
+def make_asset(name, definition=None):
     """Write a source-defined asset, never changing downloaded depots."""
-    m = model(name)
+    m = definition if definition is not None else model(name)
     identity = hashlib.sha256(
         Path(__file__).read_bytes() + repr((m, PALETTE)).encode()
     ).hexdigest()[:16]
