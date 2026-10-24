@@ -53,13 +53,16 @@ furniture proportions, textures and 2000-intensity dome are retained. The task
 catalog remaps the stations and routes onto measured furniture tops. Scene YAML
 binds actual USD colliders to semantic surfaces, including an activity-table
 alias for the dining table. Unknown house colliders retain distinct identities;
-only the two measured floor meshes count as floor support.
+the two measured floor meshes and six thin source rugs count as floor support.
 
 The office chair and office door leaf are removed for task access. One static
-sideboard is replaced when a task uses the functional drawer. A detailed open
+sideboard and its two unsupported decorations are replaced when a task uses the
+functional drawer. A detailed open
 bookcase, two unscaled original HSSD consoles, low docking rails and a doorway
 between the existing entrance-corridor walls supply additional task fixtures.
-The door panel is sized to that aperture. These are documented adaptations to
+The door panel is sized to that aperture, with clearance through its full swing;
+the door task removes one original wall ornament that intersects the new panel.
+These are documented adaptations to
 the house. The native mechanisms keep their joints and collision part names;
 render geometry adds bounded edge rounding, continuous vessel rims and a swept
 mug handle. No scanned shell is laid over an incompatible articulated mechanism.

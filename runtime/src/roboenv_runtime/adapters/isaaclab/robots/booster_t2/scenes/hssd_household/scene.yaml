@@ -95,6 +95,13 @@ collider_bindings:
   furniture/node_92e612b94ad5f151ccfea46e97d52bdb6c7e1d1: reading_desk
   walls/geometry_rs_3785: floor
   walls/geometry_rs_3839: floor
+  # Source floor coverings are 4.5 mm high; retain their actual contacts.
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da3: floor
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da31: floor
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da32: floor
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da33: floor
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da34: floor
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da35: floor
 excluded_prims:
 - furniture/node_2c16ad537bb150c79e4a42b24cd17b26c65e922
 - openings/openings_wall_9/node_00/node_00___SketchUp/node_00___SketchUp___instance_8
@@ -130,7 +137,7 @@ portal:
       - 0.12
       - 2.2
       pos:
-      - 2.17
+      - 2.145
       - -4.85
       - 1.1
     right:
@@ -159,5 +166,9 @@ camera_bounds:
   - 8.2
   - 2.7
 replacements:
+  door:
+  - furniture/cc2dad4684d908d0f19c4919b21ce0a724586a051
   drawer_cabinet:
   - furniture/acfe3955254d50d2134fa4ff31493b7d3f83cb0e1
+  - furniture/node_d19eb9741b4a00918b24be7c1e9898cb355ae1b
+  - furniture/node_fb3100902d859575057623870a2ee4159a9428e

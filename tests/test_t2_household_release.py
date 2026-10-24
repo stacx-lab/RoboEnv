@@ -524,6 +524,10 @@ def test_scanned_bowl_has_open_sloped_shell_and_load_bearing_bottom():
 @pytest.mark.parametrize("relative,entity", [
     ("furniture/eeaf34edd2065a3fa2af3fc021cd343ca029f696/mesh", "dining_table"),
     ("walls/geometry_rs_3785/mesh", "floor"),
+    ("furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da32/mesh", "floor"),
+    ("furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da3/mesh", "floor"),
+    ("furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da3_extra/mesh",
+     "scene:furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da3_extra"),
     ("furniture/unrelated/mesh", "scene:furniture/unrelated"),
     ("furniture/eeaf34edd2065a3fa2af3fc021cd343ca029f696_extra/mesh",
      "scene:furniture/eeaf34edd2065a3fa2af3fc021cd343ca029f696_extra"),
