@@ -162,6 +162,28 @@ def test_t2_head_view_accepts_native_rotation_roundoff_without_mutation():
     np.testing.assert_array_equal(transform, original)
 
 
+def test_hssd_drawer_hand_view_stays_in_front_of_the_dining_wall():
+    root = np.array([-.8, 2.4, .85])
+    palms = np.array([[-1., 2.56, .86], [-.6, 2.56, .86]])
+    original = palms.copy()
+    config = SimpleNamespace(width=640, height=480, intrinsics=lambda: np.eye(3))
+    world = SimpleNamespace(
+        definition={"version": 5}, robot=SimpleNamespace(camera=config),
+        native=SimpleNamespace(
+            root_pose=lambda: (root, [np.sqrt(.5), 0, 0, np.sqrt(.5)]),
+            link_poses=lambda names: (palms, None),
+        ),
+    )
+    view = matrix(t2_sources(world)["hand"].pose())
+    # The actual source wall's inner face is Y=3.28111; retain viewing clearance.
+    assert view[1, 3] <= 2.85
+    local = (palms - view[:3, 3]) @ view[:3, :3]
+    ndc = local[:, :2] / local[:, 2, None] / (np.tan(np.deg2rad(25)) * np.array([16 / 9, 1]))
+    assert np.all(local[:, 2] > 0)
+    assert np.all(np.abs(ndc) < .8)
+    np.testing.assert_array_equal(palms, original)
+
+
 @pytest.mark.parametrize("root", [[3.5, -.65, 1.], [2., -3.55, 1.], [6.8, .9, 1.]])
 def test_household_overview_stays_inside_robot_room(root):
     from roboenv_runtime.adapters.isaaclab.robots.booster_t2.spectator import household_eye

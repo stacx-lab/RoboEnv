@@ -4,7 +4,7 @@ from itertools import product
 
 import numpy as np
 
-from roboenv_runtime.adapters.urdf_geometry import matrix_pose
+from roboenv_runtime.adapters.urdf_geometry import matrix, matrix_pose
 
 from ...common.spectator import SpectatorSource, fit_view, look_at
 from .household_models import PORTAL_X, ROOM_BOUNDS
@@ -30,6 +30,9 @@ def hssd_eye(root, eye):
         low, high = (3.5, -4.65, .4), (7.4, -1.95, 2.65)
     elif y < -3.0:
         low, high = (2.3, -5.65, .4), (3.05, -3.05, 2.65)
+    elif x < 2.2 and .3 < y < 3.3:
+        # The dining-room north wall is inside the house's overall bounds.
+        low, high = (-2.1, -2.8, .4), (7.4, 2.85, 2.65)
     else:
         low, high = (-2.1, -2.8, .4), (7.4, 8.1, 2.65)
     return np.clip(eye, low, high)
@@ -75,7 +78,12 @@ def sources(world):
             eye = hssd_eye(world.native.root_pose()[0], eye)
         # Include fingers and nearby objects; widen only when the hands separate.
         bounds = (palms[:, None, :] + np.array(list(product((-0.16, 0.16), repeat=3))))
-        return fit_view(eye, target, bounds.reshape(-1, 3))
+        pose = fit_view(eye, target, bounds.reshape(-1, 3))
+        if world.definition["version"] == 5:
+            # Framing can move the eye backwards across a previously applied wall limit.
+            eye = hssd_eye(world.native.root_pose()[0], matrix(pose)[:3, 3])
+            return look_at(eye, target)
+        return pose
 
     fov_y = np.rad2deg(2 * np.arctan(config.height / (2 * config.intrinsics()[1, 1])))
     return {
