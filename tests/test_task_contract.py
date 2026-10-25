@@ -107,7 +107,7 @@ def test_sdk_buffered_writes_use_actions_for_every_actuator_type(kind, actions):
 
 def test_entire_catalog_uses_canonical_format_and_robot_bindings():
     catalog = load_catalog(ROOT / "catalog/tasks")
-    assert len(catalog) == 195
+    assert len(catalog) == 197
     synced = {"robocasa": 10, "libero": 40, "robotwin": 50, "robodojo": 42}
     counts = Counter(task.backend for task, _ in catalog.values())
     assert {backend: counts[backend] for backend in synced} == synced

@@ -401,7 +401,9 @@ def launch(
     _save(record_path, record)
     env = acceptance_environment()
     for key in list(env):
-        if ((key.startswith("ROBOENV_") and key != "ROBOENV_BEHAVIOR_ACCEPT_LICENSE")
+        if ((key.startswith("ROBOENV_") and key not in {
+            "ROBOENV_BEHAVIOR_ACCEPT_LICENSE", "ROBOENV_ASSET_CACHE",
+        })
                 or key in {"PYTHONPATH", "PYTHONHOME"}):
             env.pop(key)
     env.update(
@@ -494,6 +496,7 @@ def launch(
                         inventory["devices"],
                         directory / "devices",
                         {key: record[key] for key in ("endpoint", "session", "generation")},
+                        resources=robot / "devices",
                     )
                     record["state"] = "ready"
                     _save(record_path, record)

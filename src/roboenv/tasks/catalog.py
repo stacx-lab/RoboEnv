@@ -230,7 +230,13 @@ def native_identity(task):
         "libero": ("suite_name", "task_id"),
         "behavior": ("activity_name",),
     }.get(task.backend, ("task_name",))
-    return (task.backend, task.robot, *(task.backend_kwargs[key] for key in selectors))
+    identity = (task.backend, task.robot, *(task.backend_kwargs[key] for key in selectors))
+    if task.backend == "isaaclab":
+        # One registered factory can construct multiple scenes and goal sequences.
+        definition = json.dumps(task.backend_kwargs.get("task_spec", {}),
+                                sort_keys=True, separators=(",", ":"), allow_nan=False)
+        return (*identity, definition)
+    return identity
 
 
 def discover(project, destination, backends=BACKENDS):

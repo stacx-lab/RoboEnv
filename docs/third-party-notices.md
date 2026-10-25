@@ -88,3 +88,19 @@ mesh assets are not embedded in RoboEnv wheels. The checked-in scene records
 its source file hashes and the shared target/workpiece translation. Panda/tool
 geometry retains the archive's component notices. No policy weights or reference
 solutions are included.
+
+## Booster T2
+
+The T2 controller configuration, PD actuator model, robot kinematics and Isaac
+scene construction were adapted from `ZhenyuWu323/locomanip_agentic` revision
+`0bbcdc7016d9febe84d7fb98fcdb0b9b7792e962`. That snapshot has no root source
+license; this attribution does not grant a redistribution license. The T2 model's
+BSD notice is retained in the independent asset depot at `assets/robots/T2/LICENSE`.
+Public mesh-free URDF geometry is derived from that model. The fixed ONNX
+controller and robot meshes remain external, checksum-pinned assets.
+
+The HSSD residence and GraspNet objects come from the `USC-PSI-Lab/SIMPLE` dataset
+revision `f5b58ab75210367c71ff7347155a656d403169a8`. The T2 asset manifest retains
+download and extracted-file checksums. Those assets retain their original terms;
+they are not embedded in SDK/runtime wheels. Benchmark trials publish evidence,
+not the model or source asset depot.

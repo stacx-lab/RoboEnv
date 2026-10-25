@@ -1,0 +1,167 @@
+hssd: '102344022'
+translation:
+- 5.79
+- -4.12
+- 0.0
+start:
+- -0.05
+- 0.15
+- 1.5707963267948966
+surfaces:
+  dining_table:
+    center:
+    - -0.05115
+    - 1.46587
+    size:
+    - 2.28518
+    - 0.96435
+    height: 0.762082
+    yaw: 0
+    entity: dining_table
+  activity_table:
+    center:
+    - -0.05115
+    - 1.46587
+    size:
+    - 2.28518
+    - 0.96435
+    height: 0.762082
+    yaw: 0
+    entity: dining_table
+  kitchen_island:
+    center:
+    - 0.04989
+    - -1.47335
+    size:
+    - 1.74335
+    - 0.84492
+    height: 0.902768
+    yaw: 0
+    entity: kitchen_island
+  sideboard:
+    center:
+    - 0.90294
+    - 3.04051
+    size:
+    - 1.524
+    - 0.45724
+    height: 0.86377
+    yaw: 0
+    entity: sideboard
+  reading_desk:
+    center:
+    - 3.66344
+    - -3.71457
+    size:
+    - 1.0033
+    - 0.55229
+    height: 0.7493
+    yaw: -1.5707963267948966
+    entity: reading_desk
+  book_shelf:
+    center:
+    - 4.8
+    - -1.94
+    size:
+    - 0.85
+    - 0.34
+    height: 0.65
+    yaw: 0
+    entity: book_shelf
+  parcel_console:
+    center:
+    - 1.65
+    - -0.05
+    size:
+    - 1.0
+    - 0.35
+    height: 0.82547
+    yaw: 1.5707963267948966
+    entity: parcel_console
+  entry_console:
+    center:
+    - 0.5
+    - -5.95
+    size:
+    - 1.0
+    - 0.35
+    height: 0.82547
+    yaw: 0.0
+    entity: entry_console
+collider_bindings:
+  furniture/eeaf34edd2065a3fa2af3fc021cd343ca029f696: dining_table
+  furniture/af102d5ce3df9cc58b991eb618a86f66c5901efe: kitchen_island
+  furniture/acfe3955254d50d2134fa4ff31493b7d3f83cb0e: sideboard
+  furniture/node_92e612b94ad5f151ccfea46e97d52bdb6c7e1d1: reading_desk
+  walls/geometry_rs_3785: floor
+  walls/geometry_rs_3839: floor
+  # Source floor coverings are 4.5 mm high; retain their actual contacts.
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da3: floor
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da31: floor
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da32: floor
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da33: floor
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da34: floor
+  furniture/node_8318e28b6a29f37de6f9ada88399ee8e0659da35: floor
+excluded_prims:
+- furniture/node_2c16ad537bb150c79e4a42b24cd17b26c65e922
+- openings/openings_wall_9/node_00/node_00___SketchUp/node_00___SketchUp___instance_8
+cart_bay:
+  center:
+  - 1.8
+  - -1.5
+  size:
+  - 0.79
+  - 0.82
+  yaw: 0.0
+  outward:
+  - 0.0
+  - 1.0
+portal:
+  center:
+  - 2.67
+  - -4.85
+  normal:
+  - 0.0
+  - -1.0
+  width: 0.94
+  height: 2.1
+  hinge:
+  - 2.2
+  - -4.85
+  - 0.01
+  yaw: -1.5707963267948966
+  frame:
+    left:
+      size:
+      - 0.045
+      - 0.12
+      - 2.2
+      pos:
+      - 2.145
+      - -4.85
+      - 1.1
+    right:
+      size:
+      - 0.045
+      - 0.12
+      - 2.2
+      pos:
+      - 3.18
+      - -4.85
+      - 1.1
+    lintel:
+      size:
+      - 1.06
+      - 0.12
+      - 0.08
+      pos:
+      - 2.6775
+      - -4.85
+      - 2.16
+replacements:
+  door:
+  - furniture/cc2dad4684d908d0f19c4919b21ce0a724586a051
+  drawer_cabinet:
+  - furniture/acfe3955254d50d2134fa4ff31493b7d3f83cb0e1
+  - furniture/node_d19eb9741b4a00918b24be7c1e9898cb355ae1b
+  - furniture/node_fb3100902d859575057623870a2ee4159a9428e

@@ -28,7 +28,8 @@ def test_registered_other_robot_uses_shared_adapter_and_clock(monkeypatch):
         close=lambda: calls.append(("close",)),
         score=lambda: score,
         budget=lambda: Budget(
-            used=state["ticks"], max=10 if state["mode"] == "stepped" else None,
+            used=state["ticks"],
+            max=10 if state["mode"] == "stepped" else None,
         ),
         record=lambda: {"ticks": state["ticks"], "robot": "other_robot"},
     )
@@ -47,7 +48,9 @@ def test_registered_other_robot_uses_shared_adapter_and_clock(monkeypatch):
     monkeypatch.setitem(sys.modules, module.__name__, module)
     monkeypatch.setitem(registry.TASKS, OtherTask.name, module.__name__)
     task = Task(
-        id="isaaclab/other-layout", robot="isaaclab/other-robot", instruction="Move the object",
+        id="isaaclab/other-layout",
+        robot="isaaclab/other-robot",
+        instruction="Move the object",
         backend_kwargs={"task_name": OtherTask.name, "task_spec": {"target": 2}},
         stop_on_success=True,
     )
@@ -89,7 +92,12 @@ def test_unknown_task_is_rejected_before_import_or_native_start(monkeypatch, nam
 
 def test_builtin_registration_is_cpu_importable_and_selects_distinct_scenes():
     tasks = [registry.get_task(name) for name in registry.TASKS]
-    assert {task.embodiment for task in tasks} == {"go2_d1", "yam", "roboballet_eight_panda"}
+    assert {task.embodiment for task in tasks} == {
+        "go2_d1",
+        "yam",
+        "roboballet_eight_panda",
+        "booster_t2",
+    }
     assert len({task.scene_type for task in tasks if task.embodiment == "go2_d1"}) == 3
 
 

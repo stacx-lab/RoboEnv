@@ -15,6 +15,9 @@ ABC-derived tabletop hardware. The former G1 practice task,
 profiles, bindings, runtime and task-specific asset tools have been removed.
 SIMPLE's G1 integration is separate and remains supported.
 
+The [Booster T2 integration](booster-t2.md) adds whole-body locomotion, two arms,
+Revo2 hands and a head RGB-D camera through the same owner, bindings and clock.
+
 Standalone Isaac Lab remains pinned to `99f1423`, with its existing resolved
 dependency lock, coverage compatibility patch and opt-in CloudXR patch. The
 proposed update to `998bf88` was reverted because its dependencies conflict with
