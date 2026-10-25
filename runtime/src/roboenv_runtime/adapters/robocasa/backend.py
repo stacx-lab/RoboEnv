@@ -51,7 +51,6 @@ class RoboCasaEnv:
         camera_names: tuple[str, ...] = DEFAULT_CAMERAS,
         camera_size: tuple[int, int] = (256, 256),
         obj_instance_split: str | None = None,
-        predicate_diagnostics: bool = False,
     ) -> None:
         if max_steps is not None and (type(max_steps) is not int or max_steps <= 0):
             raise ValueError("max_steps must be a positive integer or null")
@@ -76,8 +75,6 @@ class RoboCasaEnv:
         self._max_steps = max_steps
         self._step_count = 0
         self._task_completed = False
-        self.predicate_diagnostics = predicate_diagnostics
-        self.diagnostics = None
         controller_config = joint_controller_config(robot)
         env_kwargs: dict[str, Any] = {
             "robots": robot,
@@ -206,17 +203,10 @@ class RoboCasaEnv:
                 context._set_mujoco_context_and_buffers()
 
     def reset(self, *, seed=None):
-        if self.diagnostics is not None:
-            self.diagnostics.detach()
-            self.diagnostics = None
         if seed is not None:
             self.seed = seed
             self.env.rng = np.random.default_rng(seed)
         self._obs = self.env.reset()
-        if self.predicate_diagnostics:
-            from .diagnostics import PredicateDiagnostics
-
-            self.diagnostics = PredicateDiagnostics(self.env, self.task_name)
         self._step_count = 0
         self._task_completed = False
         self._stream_commands = {}
