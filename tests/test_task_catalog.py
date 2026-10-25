@@ -18,8 +18,12 @@ def test_native_identity_distinguishes_definitions_of_one_isaac_factory():
     from roboenv.tasks.catalog import native_identity
     from roboenv.tasks.model import Task
 
-    first = Task.load(ROOT / "catalog/tasks/isaaclab/t2-reach-table/task.yaml")
-    second = Task.load(ROOT / "catalog/tasks/isaaclab/t2-can-in-bowl/task.yaml")
+    first = Task.load(ROOT / "catalog/tasks/isaaclab/t2-can-in-bowl/task.yaml")
+    import copy
+
+    definition = copy.deepcopy(first.backend_kwargs["task_spec"])
+    definition["items"]["can"]["pos"][0] += 0.1
+    second = replace(first, backend_kwargs={**first.backend_kwargs, "task_spec": definition})
     assert first.backend_kwargs["task_name"] == second.backend_kwargs["task_name"]
     assert native_identity(first) != native_identity(second)
     renamed = replace(first, id="isaaclab/renamed", execution_mode="stepped",

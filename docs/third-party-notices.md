@@ -99,10 +99,7 @@ BSD notice is retained in the independent asset depot at `assets/robots/T2/LICEN
 Public mesh-free URDF geometry is derived from that model. The fixed ONNX
 controller and robot meshes remain external, checksum-pinned assets.
 
-Articulated-object MJCF loading and passive dynamics are adapted from the same
-project at revision `5592abeda35ec3c128dd1d136f14b28ba7c1bcdc`.
-
-The kitchen house, GraspNet objects and articulated models come from `USC-PSI-Lab/SIMPLE` dataset
+The HSSD residence and GraspNet objects come from the `USC-PSI-Lab/SIMPLE` dataset
 revision `f5b58ab75210367c71ff7347155a656d403169a8`. The T2 asset manifest retains
 download and extracted-file checksums. Those assets retain their original terms;
 they are not embedded in SDK/runtime wheels. Benchmark trials publish evidence,

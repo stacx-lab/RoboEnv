@@ -53,7 +53,7 @@ Add `--record` to launch for [spectator videos](docs/spectator.md).
 | LIBERO | [Panda tasks and scene catalogs](docs/setup.md#libero-tasks) |
 | RoboDojo | [ARX X5 setup](docs/setup.md#prepare-a-simulator) |
 | BEHAVIOR | [Household task setup](docs/setup.md#prepare-a-simulator) |
-| Isaac Lab | [Setup](docs/isaaclab.md), [Go2–D1](docs/go2-d1.md), [YAM calibration](docs/yam-calibration.md) |
+| Isaac Lab | [Setup](docs/isaaclab.md), [Booster T2](docs/booster-t2.md), [Go2–D1](docs/go2-d1.md), [YAM calibration](docs/yam-calibration.md) |
 | SIMPLE | [G1 tasks](docs/simple.md) |
 | ABC | [Bimanual YAM tasks](docs/abc.md) |
 

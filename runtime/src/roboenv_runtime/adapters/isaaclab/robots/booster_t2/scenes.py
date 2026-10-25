@@ -1,5 +1,4 @@
-"""Scenes: the house a task takes place in, shared by many tasks, and SIMPLE's objects that tasks
-put in it.
+"""Pinned HSSD scene layout, furniture supports and semantic collider bindings.
 
 Each scene is a folder here with a `scene.yaml`: which of SIMPLE's HSSD houses it is, where it
 sits in the world, the robot's default start and the furniture tops tasks put objects on. The
@@ -75,7 +74,6 @@ class Scene:
         self.collider_bindings = dict(spec.get("collider_bindings", {}))
         self.cart_bay = spec.get("cart_bay")
         self.portal = spec.get("portal")
-        self.camera_bounds = spec.get("camera_bounds")
         self.excluded_prims = tuple(spec.get("excluded_prims", ()))
         self.replacements = spec.get("replacements", {})
 
@@ -109,7 +107,7 @@ class Scene:
 
 def scene_names() -> list[str]:
     """Names of the scenes in `SCENE_DIR`, sorted."""
-    return sorted(["household", "simple_household", *(p.name for p in SCENE_DIR.iterdir() if (p / "scene.yaml").is_file())])
+    return sorted(p.name for p in SCENE_DIR.iterdir() if (p / "scene.yaml").is_file())
 
 
 def load_scene(name: str) -> Scene:
@@ -118,94 +116,9 @@ def load_scene(name: str) -> Scene:
     Raises:
         ValueError: No such scene.
     """
-    if name in ("household", "simple_household"):
-        from .household_models import SURFACES
-
-        return Scene(name, {"hssd": "102344022" if name == "simple_household" else "authored-household-v1", "translation": [0., 0., 0.],
-            "start": [-2., .7, float(np.pi / 2)], "surfaces": {
-                k: {"center": list(xy), "size": list(size), "height": height}
-                for k, (xy, size, height) in SURFACES.items()}})
     if name not in scene_names():
         raise ValueError(f"no scene {name!r}; scenes: {', '.join(scene_names())}")
     return Scene(name, yaml.safe_load((SCENE_DIR / name / "scene.yaml").read_text()))
-
-
-def graspnet_usd(model: int, asset_directory: Path) -> Path:
-    """SIMPLE's USD of GraspNet-1B object `model`, as downloaded.
-
-    Raises:
-        FileNotFoundError: It has not been downloaded.
-    """
-    path = asset_directory / "scenes" / "graspnet" / f"{model:03d}_ruled.usd"
-    if not path.is_file():
-        raise FileNotFoundError(f"{path} is missing; run tools/prepare_booster_t2.py")
-    return path
-
-@dataclass(frozen=True)
-class JointDynamics:
-    """Passive dynamics of one joint of an articulated object, from SIMPLE's MJCF."""
-
-    damping: float
-    """Viscous damping, N·m·s/rad (hinge) or N·s/m (slide)."""
-    friction: float
-    """Friction loss, N·m (hinge) or N (slide)."""
-    armature: float
-    """Armature, kg·m² (hinge) or kg (slide)."""
-
-
-@dataclass(frozen=True)
-class ArticulatedModel:
-    """One of SIMPLE's articulated objects (`articulated:<id>`), as downloaded."""
-
-    mjcf: Path
-    """The MJCF SIMPLE simulates it with."""
-    floating: bool
-    """Whether it has a free base; otherwise its base is fixed in the world."""
-    joints: dict[str, JointDynamics]
-    """Hinge and slide joints by name."""
-    bounds: np.ndarray
-    """Bounding box of its geometry at rest in its model's frame (the MJCF's world frame): rows
-    min, max. Shape (2, 3), m."""
-
-
-def articulated_model(model: int, asset_directory: Path) -> ArticulatedModel:
-    """SIMPLE's articulated object `model`, from the MJCF SIMPLE simulates it with.
-
-    Raises:
-        FileNotFoundError: It has not been downloaded.
-    """
-    import mujoco
-    import numpy as np
-
-    mjcf = asset_directory / "scenes" / "articulated" / f"{model:03d}" / "output_mjcf" / f"{model:03d}.xml"
-    if not mjcf.is_file():
-        raise FileNotFoundError(f"{mjcf} is missing; run tools/prepare_booster_t2.py --download")
-    m = mujoco.MjModel.from_xml_path(str(mjcf))
-    d = mujoco.MjData(m)
-    mujoco.mj_kinematics(m, d)
-    kinds = [int(k) for k in m.jnt_type]
-    joints = {}
-    for j, kind in enumerate(kinds):
-        if kind in (mujoco.mjtJoint.mjJNT_HINGE.value, mujoco.mjtJoint.mjJNT_SLIDE.value):
-            dof = m.jnt_dofadr[j]
-            joints[m.joint(j).name] = JointDynamics(
-                float(m.dof_damping[dof]),
-                float(m.dof_frictionloss[dof]),
-                float(m.dof_armature[dof]),
-            )
-    points = []
-    for g in range(m.ngeom):
-        if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH.value:
-            k = m.geom_dataid[g]
-            v = m.mesh_vert[m.mesh_vertadr[k] : m.mesh_vertadr[k] + m.mesh_vertnum[k]]
-            points.append(v @ d.geom_xmat[g].reshape(3, 3).T + d.geom_xpos[g])
-    points = np.concatenate(points)
-    return ArticulatedModel(
-        mjcf,
-        mujoco.mjtJoint.mjJNT_FREE.value in kinds,
-        joints,
-        np.array([points.min(0), points.max(0)]),
-    )
 
 
 def house_usd(scene: Scene) -> Path:

@@ -2,7 +2,7 @@
 
 import copy
 
-from .scoring import validate
+from .release import validate
 
 
 class Task:
@@ -11,11 +11,6 @@ class Task:
 
     @staticmethod
     def definition(task_spec):
-        if isinstance(task_spec, dict) and task_spec.get("version") in (3, 4, 5):
-            from .release import validate as validate_household
-
-            validate_household(task_spec)
-            return copy.deepcopy(task_spec)
         validate(task_spec)
         return copy.deepcopy(task_spec)
 

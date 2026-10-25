@@ -21,7 +21,6 @@ def test_downloader_uses_immutable_sources_and_extracts_only_pinned_members(tmp_
     pin = {
         "files": {"assets/robot": sha(data)},
         "scene_files": {"scenes/hssd/42/42.usd": sha(scene)},
-        "articulated_files": {},
         "source_revision": "a" * 40,
         "scene_source": {
             "repository": "owner/data",

@@ -28,21 +28,14 @@ def checksum(path):
     return digest.hexdigest()
 
 
-def selected_files(*, scenes=True, articulated=True):
+def selected_files():
     pin = asset_pin()
-    entries = dict(pin["files"])
-    if scenes:
-        entries.update(pin.get("scene_files", {}))
-        if not pin.get("scene_files"):
-            raise ValueError("T2 scene assets have not been pinned")
-    if articulated:
-        entries.update(pin["articulated_files"])
-    return entries
+    return {**pin["files"], **pin["scene_files"]}
 
 
-def verify_assets(directory, *, scenes=True, articulated=False):
+def verify_assets(directory):
     directory = Path(directory).resolve()
-    entries = selected_files(scenes=scenes, articulated=articulated)
+    entries = selected_files()
     for name, expected in entries.items():
         path = directory / name
         if not path.resolve().is_relative_to(directory) or not path.is_file():
@@ -71,12 +64,12 @@ def _download(url, destination, expected):
         raise ValueError(f"Downloaded T2 asset checksum mismatch: {destination.name}")
 
 
-def download_assets(directory, *, scenes=True, articulated=True):
+def download_assets(directory):
     """Fetch missing pinned files; never replace an existing, different asset."""
     directory = Path(directory).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     pin = asset_pin()
-    entries = selected_files(scenes=scenes, articulated=articulated)
+    entries = selected_files()
     missing = {}
     for name, expected in entries.items():
         path = directory / name
@@ -96,22 +89,17 @@ def download_assets(directory, *, scenes=True, articulated=True):
         try:
             for name, expected in missing.items():
                 temporary = staging / "asset"
-                if name.startswith("scenes/hssd/") or name.startswith("scenes/articulated/"):
-                    archive_name = (
-                        f"scenes_hssd_{Path(name).parts[2]}.zip"
-                        if name.startswith("scenes/hssd/")
-                        else "assets_articulated.zip"
-                    )
+                if name.startswith("scenes/hssd/"):
+                    archive_name = f"scenes_hssd_{Path(name).parts[2]}.zip"
                     if archive_name not in archives:
                         archive = staging / archive_name
                         _download(
                             f"{dataset}/{archive_name}", archive, source["downloads"][archive_name]
                         )
                         archives[archive_name] = zipfile.ZipFile(archive)
-                    member = name.replace("scenes/articulated/", "assets/articulated/", 1)
                     # Extract only a manifest-named regular file, never archive paths or symlinks.
                     with (
-                        archives[archive_name].open(member) as stream,
+                        archives[archive_name].open(name) as stream,
                         temporary.open("wb") as output,
                     ):
                         shutil.copyfileobj(stream, output)
@@ -136,20 +124,20 @@ def download_assets(directory, *, scenes=True, articulated=True):
         finally:
             for archive in archives.values():
                 archive.close()
-    return verify_assets(directory, scenes=scenes, articulated=articulated)
+    return verify_assets(directory)
 
 
-def prepare_assets(project, *, source=None, scenes=True, articulated=True, download=False):
+def prepare_assets(project, *, source=None, download=False):
     """Copy a verified portable depot, preserving any different existing files."""
     target = asset_root(project)
     if download and source is not None:
         raise ValueError("Select either --download or --source")
     if download:
-        download_assets(target, scenes=scenes, articulated=articulated)
+        download_assets(target)
     source = Path(source).resolve() if source else target.resolve()
-    identity = verify_assets(source, scenes=scenes, articulated=articulated)
+    identity = verify_assets(source)
     if source != target.resolve():
-        entries = selected_files(scenes=scenes, articulated=articulated)
+        entries = selected_files()
         for name, expected in entries.items():
             destination = target / name
             if not destination.resolve().is_relative_to(target.resolve()):

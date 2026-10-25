@@ -16,8 +16,8 @@ from roboenv_runtime.adapters.isaaclab.tasks.t2_household.release import State, 
 
 def touch_spec():
     return {
-        "version": 3,
-        "scene": "household",
+        "version": 5,
+        "scene": "hssd_household",
         "start": [-2.0, 0.7, 1.57],
         "items": {
             n: {"model": n + "_block", "pos": [x, 1.76, 0.82], "yaw": 0.0, "fixed": True}
@@ -152,7 +152,7 @@ def test_invalid_release_definition_is_rejected_before_simulator_creation(change
         validate(spec)
 
 
-def test_all_authored_assets_have_valid_unique_physical_parts_and_joint_frames():
+def test_all_household_assets_have_valid_unique_physical_parts_and_joint_frames():
     for name in MODEL_NAMES:
         definition = model(name)
         links = {link.name for link in definition.links}
@@ -160,7 +160,14 @@ def test_all_authored_assets_have_valid_unique_physical_parts_and_joint_frames()
         for link in definition.links:
             assert link.mass > 0
             assert len({p.name for p in link.parts}) == len(link.parts)
-            assert all(p.name.isidentifier() and min(p.size) > 0 for p in link.parts)
+            for part in link.parts:
+                assert part.name.isidentifier()
+                if part.shape == "hull":
+                    vertices = np.asarray(part.size)
+                    assert vertices.shape == (8, 3) and np.isfinite(vertices).all()
+                    assert np.all(np.ptp(vertices, axis=0) > 0)
+                else:
+                    assert min(part.size) > 0
         assert all(
             j.parent in links
             and j.child in links
@@ -188,7 +195,7 @@ class PhysicalFacts:
         )
 
         self.measurements = Measurements.__new__(Measurements)
-        self.measurements.scene = load_scene("household")
+        self.measurements.scene = load_scene("hssd_household")
         self.measurements.models = {n: model(asset) for n, asset in assets.items()}
         self.measurements.definitions = {n: {"model": asset} for n, asset in assets.items()}
         self.measurements.contacts = ContactPairs()
@@ -263,6 +270,79 @@ def test_release_distinguishes_unloaded_touch_from_a_loaded_grasp():
     assert not m.on("can", "plate", True)
 
 
+@pytest.mark.parametrize("side", ["left", "right"])
+@pytest.mark.parametrize("finger", ["middle", "ring", "pinky"])
+def test_anatomical_hand_owns_reused_opposite_mesh_leaf(side, finger):
+    other = "left" if side == "right" else "right"
+    root = f"/World/Robot/Geometry/trunk/{side}_shoulder_pitch_link/{side}_wrist_roll_link"
+    path = (f"{root}/{side}_{finger}_proximal_link/{side}_{finger}_touch_link_1/"
+            f"{other}_{finger}_touch_link")
+    assert collider_identity(path)[0] == side + "_hand"
+    assert collider_identity(root + "/cylinder")[0] == "robot"
+    facts = PhysicalFacts({"can": "can_tomato"})
+    m = facts.measurements
+    for i, p in enumerate((path, root + f"/{side}_thumb_distal_link/mesh")):
+        m.contacts.feed(i, ("can", "body", "wall"), collider_identity(p),
+                        [(np.zeros(3), np.array([(-1.) ** i, 0, 0]), 3.)])
+    assert m.hand_support("can", side)
+    assert not m.hand_support("can", other)
+    assert not m.released("can")
+    m.contacts.reset()
+    assert m.released("can")
+
+
+@pytest.mark.parametrize("axis,sign", [(0, -1), (0, 1), (1, -1), (1, 1)])
+def test_v5_drawer_containment_matches_each_physical_inner_wall(axis, sign):
+
+    facts = PhysicalFacts({"remote": "remote", "drawer": "drawer_cabinet"})
+    m = facts.measurements
+    m.world.task = SimpleNamespace(spec={"version": 5})
+    m.models["drawer"] = model("drawer_cabinet")
+    half = np.asarray(m.models["drawer"].regions["inside"][2])
+    points = np.array([[-.02, -.02, .014], [.02, .02, .049]])
+    points[:, axis] += sign * (half[axis] - .02 - .001)
+    facts.boundary["remote"] = points
+    facts.support("remote", "drawer", receiver_link="drawer")
+    assert m.inside("remote", "drawer")
+    points[:, axis] += sign * .003
+    assert not m.inside("remote", "drawer")
+    points[:, axis] -= sign * .003
+    m.contacts.reset()
+    assert not m.inside("remote", "drawer")
+
+
+def test_support_force_does_not_qualify_an_item_embedded_in_tabletop():
+    facts = PhysicalFacts({"can": "can_tomato"})
+    m = facts.measurements
+    m.scene = load_scene("hssd_household")
+    surface = m.scene.surfaces["kitchen_island"]
+    facts.support("can", "kitchen_island")
+    facts.boundary["can"] = np.array([[*surface.center, surface.height - .059],
+                                      [*surface.center, surface.height + .05]])
+    assert not m.on("can", "kitchen_island")
+    facts.boundary["can"][:, 2] += .059
+    assert m.on("can", "kitchen_island")
+
+
+def test_initialization_rejects_motion_but_reports_stationary_fixture_contact():
+    facts = PhysicalFacts({"chair": "chair"})
+    m = facts.measurements
+    m.scene = load_scene("hssd_household")
+    m.world._items = {}
+    before = {"chair": (np.zeros(3), np.array([1., 0, 0, 0]))}
+    assert m.initialization_checks(before)["chair"]["valid"]
+    # A tool origin can settle several centimetres into its holder while the
+    # physical handle remains supported above the table.
+    facts.poses["chair"][0][2] = -.029
+    assert m.initialization_checks(before)["chair"]["valid"]
+    facts.poses["chair"][0][0] = .34
+    assert not m.initialization_checks(before)["chair"]["valid"]
+    facts.poses["chair"][0][0] = 0
+    m.contacts.feed("hand", ("chair", "body", "back"), ("right_hand", "hand", "palm"), [])
+    checks = m.initialization_checks(before)["chair"]
+    assert checks["robot_contact"] and checks["valid"]
+
+
 def test_receiver_center_follows_moved_receiver_without_hidden_world_anchor():
     facts = PhysicalFacts({"can": "can_tomato", "plate": "plate"})
     facts.support("can", "plate")
@@ -308,7 +388,7 @@ class CarryFacts:
 
 def carry_state():
     state = State.__new__(State)
-    state.spec = {"version": 3}
+    state.spec = {"version": 5}
     state.events = {}
     return state
 
@@ -367,7 +447,7 @@ def test_turn_requires_real_rotation_without_accumulating_quaternion_roundoff():
     m = facts.measurements
     m.contacts.feed("touch", ("box", "body", "carton"), ("left_hand", "hand", "palm"), [])
     state = State.__new__(State)
-    state.spec = {"version": 3}
+    state.spec = {"version": 5}
     state.goal = {"kind": "turn", "item": "box", "mat": "mat", "plate": "plate"}
     state.events = {}
     for _ in range(100):
@@ -381,7 +461,7 @@ def test_carried_placement_cannot_be_reclassified_as_a_short_slide_on_the_mat():
     facts = PhysicalFacts({'can': 'can_tomato', 'mat': 'round_mat'})
     m = facts.measurements
     state = State.__new__(State)
-    state.spec = {"version": 3}
+    state.spec = {"version": 5}
     state.goal = {'kind': 'slide', 'item': 'can', 'target': 'mat', 'surface': 'reading_desk'}
     state.events = {}
     facts.support('can', 'mat')
@@ -403,7 +483,7 @@ def test_lamp_requires_contacts_with_the_operated_parts_not_just_its_base():
     m.joint_speed = lambda n, j: 0.0
     m.lit_pages = lambda lamp, book: True
     state = State.__new__(State)
-    state.spec = {"version": 3}
+    state.spec = {"version": 5}
     state.goal = {'kind': 'illuminate', 'lamp': 'lamp', 'book': 'book'}
     state.initial_joints = {'lamp': {'aim': 0.1, 'power': -0.3}}
     state.events = {}
@@ -425,7 +505,7 @@ def test_scale_rejects_a_weight_used_to_prop_or_counterbalance_the_beam():
     m.joint = lambda *args: 0.0
     m.joint_speed = lambda *args: 0.0
     state = State.__new__(State)
-    state.spec = {"version": 3}
+    state.spec = {"version": 5}
     state.goal = {'kind': 'balance', 'scale': 'scale', 'weights': ['weight']}
     state.events = {}
     facts.support('weight', 'scale', receiver_link='pan')
@@ -440,7 +520,7 @@ def test_reinsertion_must_use_the_matching_aperture_again():
     m = facts.measurements
     m.inside = lambda *args: True
     state = State.__new__(State)
-    state.spec = {"version": 3}
+    state.spec = {"version": 5}
     state.goal = {'kind': 'insert', 'sorter': 'sorter', 'cylinder': 'cylinder', 'cube': 'cube'}
     state.events = {'picked': ['cylinder', 'cube'], 'qualified': {}}
     state.previous = {'cylinder': np.array([-0.104, 0, 0.20]), 'cube': np.array([0.105, 0, 0.20])}
@@ -458,13 +538,15 @@ def test_reinsertion_must_use_the_matching_aperture_again():
 def test_airborne_cart_motion_does_not_count_as_pulling_on_its_wheels():
     facts = PhysicalFacts({'cart': 'cart'})
     m = facts.measurements
-    p = np.array([3.6, -2.18, 0.0])
+    scene = load_scene("hssd_household")
+    p = np.array([*scene.cart_bay["center"], 0.0])
     facts.poses['cart'] = (p, np.array([0.0, 0, 0, 1.0]))
     facts.boundary['cart'] = p + np.array([[-0.275, -0.25, 0.1], [0.275, 0.25, 0.9]])
     m.world.root_pose = lambda: (p + [0, 0.6, 1.0], np.array([1.0, 0, 0, 0]))
     m.contacts.feed('handle', ('left_hand', 'hand', 'palm'), ('cart', 'base', 'handle'), [])
     state = State.__new__(State)
-    state.spec = {"version": 3}
+    state.spec = {"version": 5}
+    state.scene = scene
     state.goal = {'kind': 'pull_cart', 'cart': 'cart'}
     state.previous = {'cart': p - [0, 0.02, 0]}
     state.events = {'distance': 0.0, 'pulled': 0.0}
@@ -475,17 +557,17 @@ def test_airborne_cart_motion_does_not_count_as_pulling_on_its_wheels():
     assert all(state._evaluate(m).values())
 
 
-@pytest.mark.parametrize(
-    "version,scene", [(3, "household"), (4, "simple_household"), (5, "hssd_household")]
-)
-def test_asset_version_selects_its_scene_and_preserves_goal_contract(version, scene):
+@pytest.mark.parametrize("version,scene", [(2, "kitchen"), (3, "household"),
+                                           (4, "simple_household"), (5, "household")])
+def test_retired_scenes_are_rejected_before_simulator_creation(version, scene):
     spec = touch_spec()
-    spec.update(version=version, scene=scene)
     validate(spec)
-    assert State(spec).record()["version"] == version
-    spec["scene"] = "household" if version == 4 else "simple_household"
-    with pytest.raises(ValueError, match="scene"):
+    assert State(spec).record()["version"] == 5
+    spec.update(version=version, scene=scene)
+    with pytest.raises(ValueError, match="version 5.*hssd_household"):
         validate(spec)
+    with pytest.raises(ValueError, match="no scene"):
+        load_scene(scene)
 
 
 def test_imported_furniture_contacts_keep_named_support_not_ground():
@@ -499,13 +581,8 @@ def test_imported_furniture_contacts_keep_named_support_not_ground():
 
 
 def test_scanned_bowl_has_open_sloped_shell_and_load_bearing_bottom():
-    from roboenv_runtime.adapters.isaaclab.robots.booster_t2.simple_household import (
-        model as scan_model,
-    )
-
-    original = model("bowl")
-    bowl = scan_model("bowl")
-    assert bowl.links[0].mass == original.links[0].mass
+    bowl = model("bowl")
+    assert bowl.links[0].mass == 0.18
     floor, *walls = bowl.links[0].parts
     assert floor.name == "floor" and floor.shape == "cylinder"
     assert floor.pos[2] + floor.size[1] / 2 < .01
@@ -518,7 +595,6 @@ def test_scanned_bowl_has_open_sloped_shell_and_load_bearing_bottom():
     assert radial.max() == pytest.approx(.13)
     assert vertices[:, 2].max() == pytest.approx(.09)
     assert radial[vertices[:, 2] > .085].min() > radial[vertices[:, 2] < .005].max()
-    assert {p.shape for p in model("bowl").links[0].parts} == {"cylinder", "box"}
 
 
 @pytest.mark.parametrize("relative,entity", [
@@ -563,3 +639,35 @@ def test_v5_contact_with_unbound_scene_furniture_prevents_false_pickup():
     facts.measurements.contacts.reset()
     state._pickup_events(facts.measurements)
     assert state.events["picked"] == ["can"]
+
+
+def test_mirrored_island_collision_preserves_vertices_and_render_mesh():
+    pytest.importorskip('pxr.PhysxSchema')
+    from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdShade
+    from roboenv_runtime.adapters.isaaclab.robots.booster_t2.hssd_household_usd import (
+        island_colliders,
+    )
+
+    stage = Usd.Stage.CreateInMemory()
+    root = UsdGeom.Xform.Define(stage, '/World/Scene/furniture/island')
+    root.AddScaleOp().Set(Gf.Vec3f(-1, 1, 1))
+    source = UsdGeom.Mesh.Define(stage, str(root.GetPath()) + '/top')
+    source.CreatePointsAttr([(-1, -1, 1), (1, -1, 1), (1, 1, 1), (-1, 1, 1)])
+    source.CreateFaceVertexCountsAttr([4])
+    source.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+    UsdPhysics.CollisionAPI.Apply(source.GetPrim())
+    UsdShade.Material.Define(stage, '/World/material')
+    scene = SimpleNamespace(collider_bindings={'furniture/island': 'kitchen_island'})
+    original = list(source.GetPointsAttr().Get())
+    island_colliders(stage, scene, '/World/material')
+    target = UsdGeom.Mesh.Get(stage, str(root.GetPath()) + '/Collision/mesh_0')
+    assert list(source.GetPointsAttr().Get()) == original
+    assert list(source.GetFaceVertexIndicesAttr().Get()) == [0, 1, 2, 3]
+    assert not UsdPhysics.CollisionAPI(source).GetCollisionEnabledAttr().Get()
+    assert UsdPhysics.CollisionAPI(target).GetCollisionEnabledAttr().Get()
+    transform = np.asarray(target.ComputeLocalToWorldTransform(Usd.TimeCode.Default()))
+    assert np.allclose(transform, np.eye(4))
+    points = np.asarray(target.GetPointsAttr().Get())
+    assert np.allclose(points, np.asarray(original) * [-1, 1, 1])
+    a, b, c = points[list(target.GetFaceVertexIndicesAttr().Get())[:3]]
+    assert np.cross(b - a, c - a)[2] > 0

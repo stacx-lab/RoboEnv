@@ -123,7 +123,7 @@ def run(task, interpreter, out, mode, seed):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--task", default="isaaclab/t2-reach-table")
+    parser.add_argument("--task", default="isaaclab/t2-can-in-bowl")
     parser.add_argument("--python", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument("--mode", choices=("realtime", "stepped"), required=True)

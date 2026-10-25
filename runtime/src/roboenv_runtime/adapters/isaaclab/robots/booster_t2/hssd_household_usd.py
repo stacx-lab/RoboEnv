@@ -14,10 +14,9 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade, UsdPhysics, PhysxSchema
 
 from . import household_usd
 from .assets import generated_directory
-from .household_models import box
-from .hssd_household import model
-from .simple_household import SCANS
-from .simple_household_usd import _scan, _textures, _furniture_asset
+from .household_models import box, model
+from .asset_bindings import SCANS
+from .imported_assets import _scan, _textures, _furniture_asset
 
 
 def mesh(stage, path, points, faces, material, normals=None, uv=None):
@@ -185,6 +184,45 @@ def make_asset(name, assets):
         _scan(stage, name, assets)
     layer.Export(str(path))
     return path
+
+
+def island_colliders(stage, scene, material_path):
+    """Bake the mirrored island into outward-wound world-space collision meshes.
+
+    PhysX triangle meshes must not inherit the source's negative scale. Keep
+    the render meshes and their normals/UVs untouched, and preserve every
+    collision vertex (including the thin countertop and the cabinet below).
+    """
+    relative = next(path for path, entity in scene.collider_bindings.items()
+                    if entity == "kitchen_island")
+    root = stage.GetPrimAtPath("/World/Scene/" + relative)
+    sources = [UsdGeom.Mesh(p) for p in Usd.PrimRange(root)
+               if p.IsA(UsdGeom.Mesh) and p.HasAPI(UsdPhysics.CollisionAPI)]
+    collision_root = UsdGeom.Xform.Define(stage, str(root.GetPath()) + "/Collision")
+    collision_root.SetResetXformStack(True)
+    material = UsdShade.Material.Get(stage, material_path)
+    for index, source in enumerate(sources):
+        transform = np.asarray(source.ComputeLocalToWorldTransform(Usd.TimeCode.Default()))
+        points = np.asarray(source.GetPointsAttr().Get())
+        points = (np.c_[points, np.ones(len(points))] @ transform)[:, :3]
+        counts = list(source.GetFaceVertexCountsAttr().Get())
+        indices = list(source.GetFaceVertexIndicesAttr().Get())
+        reflected = np.linalg.det(transform[:3, :3]) < 0
+        if reflected != (source.GetOrientationAttr().Get() == "leftHanded"):
+            offset = 0
+            for count in counts:
+                indices[offset:offset + count] = reversed(indices[offset:offset + count])
+                offset += count
+        target = UsdGeom.Mesh.Define(stage, str(collision_root.GetPath()) + f"/mesh_{index}")
+        target.CreatePointsAttr([Gf.Vec3f(*map(float, p)) for p in points])
+        target.CreateFaceVertexCountsAttr(counts)
+        target.CreateFaceVertexIndicesAttr(indices)
+        target.CreateSubdivisionSchemeAttr("none")
+        target.CreateVisibilityAttr("invisible")
+        UsdPhysics.CollisionAPI.Apply(source.GetPrim()).CreateCollisionEnabledAttr(False)
+        UsdPhysics.CollisionAPI.Apply(target.GetPrim())
+        UsdPhysics.MeshCollisionAPI.Apply(target.GetPrim()).CreateApproximationAttr("none")
+        UsdShade.MaterialBindingAPI.Apply(target.GetPrim()).Bind(material, materialPurpose="physics")
 
 
 def fixtures(stage, scene):

@@ -13,9 +13,6 @@ from roboenv.devices.export import driver_resources
 from roboenv.tasks.resolve import resolve_task
 from roboenv_runtime.adapters.isaaclab.registry import get_task
 from roboenv_runtime.adapters.isaaclab.robots.booster_t2.environment import T2Env
-from roboenv_runtime.adapters.isaaclab.robots.booster_t2.scenes import load_scene
-from roboenv_runtime.adapters.isaaclab.robots.booster_t2.task import Box
-from roboenv_runtime.adapters.isaaclab.tasks.t2_household.scoring import State
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog"
@@ -27,7 +24,7 @@ def task(name):
 
 def test_t2_catalogs_and_portable_resources_are_closed():
     paths = sorted((CATALOG / "tasks/isaaclab").glob("t2-*/task.yaml"))
-    assert {p.parent.name for p in paths} == {"t2-reach-table", "t2-can-in-bowl"}
+    assert {p.parent.name for p in paths} == {"t2-can-in-bowl", "t2-ordered-reach"}
     for path in paths:
         resolved = resolve_task(path, catalog=CATALOG)
         spec = resolved.task.backend_kwargs
@@ -81,53 +78,6 @@ def test_nonfinite_and_out_of_range_base_commands_are_rejected_before_effects():
         assert not env.velocity.any()
 
 
-def test_placement_requires_lift_release_and_continuous_dwell():
-    # Preserve the version-2 predicate contract for historical replay inputs.
-    spec = task("t2-reach-table")["backend_kwargs"]["task_spec"]
-    spec.update(scene="kitchen", hold_s=0.5)
-    spec["items"] = {"box": {"model": 12, "xy": [-0.3, -1.15],
-                             "surface": "kitchen_island", "yaw": 0.0}}
-    spec["boxes"] = [{"name": "zone", "pos": [-.3, 1.26, .761],
-                      "size": [.36, .36, .002], "color": [0, 1, 0]}]
-    spec["stages"] = [[{"kind": "place", "item": "box", "surface": "dining_table",
-                        "zone": "zone", "upright": False}]]
-    state = State(spec)
-    pos = np.array([-0.30, -1.15, 1.0])
-    gap = [0.0]
-    corners = np.array([[-0.32, 1.24, 0.761], [-0.28, 1.28, 0.95]])
-    world = SimpleNamespace(
-        time=0.0,
-        task=SimpleNamespace(scene=load_scene("kitchen"), boxes=[Box(**spec["boxes"][0])]),
-        item_pose=lambda name: (pos.copy(), np.array([1, 0, 0, 0])),
-        item_speed=lambda name: 0.0,
-        item_velocity=lambda name: np.zeros(6),
-        item_gap=lambda name, hands: gap[0],
-        item_corners=lambda name: corners,
-        link_poses=lambda names: (np.zeros((12, 3)), None),
-    )
-    state.initialize(world)
-    pos[:] = [-0.30, 1.26, 1.0]
-    gap[0] = 0.1
-    for world.time in (0.0, 0.6, 1.2):
-        state.update(world)
-    assert not state.completed  # Sliding or teleporting to the destination is insufficient.
-    pos[2], gap[0] = 1.1, 0.0
-    for world.time in (1.3, 1.5):
-        state.update(world)
-    assert state.lifted["box"]
-    pos[2], gap[0] = 0.85, 0.1
-    world.time = 1.6
-    state.update(world)
-    gap[0], world.time = 0.0, 2.0
-    state.update(world)
-    assert state.since is None  # Recontact breaks the dwell.
-    gap[0] = 0.1
-    for world.time in (2.1, 2.59):
-        state.update(world)
-    assert not state.completed
-    world.time = 2.6
-    state.update(world)
-    assert state.completed
 
 
 def test_replay_comparison_rejects_state_and_outcome_tampering():

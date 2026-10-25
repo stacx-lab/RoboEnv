@@ -182,15 +182,3 @@ def test_hssd_drawer_hand_view_stays_in_front_of_the_dining_wall():
     assert np.all(local[:, 2] > 0)
     assert np.all(np.abs(ndc) < .8)
     np.testing.assert_array_equal(palms, original)
-
-
-@pytest.mark.parametrize("root", [[3.5, -.65, 1.], [2., -3.55, 1.], [6.8, .9, 1.]])
-def test_household_overview_stays_inside_robot_room(root):
-    from roboenv_runtime.adapters.isaaclab.robots.booster_t2.spectator import household_eye
-
-    root = np.asarray(root)
-    eye = household_eye(root, root + [2.5, -3., 1.6])
-    assert -4.9 <= eye[0] <= 7.3
-    assert -4.2 <= eye[1] <= 4.2
-    # The old parcel view was across the opaque dividing wall.
-    assert (root[0] < 5.) == (eye[0] < 5.)

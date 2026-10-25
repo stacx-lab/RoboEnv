@@ -54,10 +54,7 @@ class T2Env:
         self.definition = task.definition(task_spec)
         self.task_name = task_name
         self.asset_directory = Path(asset_directory or asset_root(repo_root())).resolve()
-        authored = self.definition["version"] in (3, 4, 5)
-        self.asset_identity = verify_assets(self.asset_directory,
-            scenes=bool(self.definition["scene"]) and self.definition["version"] != 3,
-            articulated=bool(self.definition["articulated"]) and not authored)
+        self.asset_identity = verify_assets(self.asset_directory)
         self.policy_config = PolicyConfig(asset_directory=self.asset_directory)
         self.robot = RobotConfig(asset_directory=self.asset_directory)
         self.policy = LocoManipController(self.policy_config, self.robot,
@@ -121,9 +118,6 @@ class T2Env:
             start += rng.uniform([-0.015, -0.015, -0.02], [0.015, 0.015, 0.02])
         self.task.start = tuple(start)
         self.native._item_start = copy.deepcopy(self._item_start)
-        if seed and self.definition["version"] not in (3, 4, 5):
-            for pose in self.native._item_start.values():
-                pose[:2] = (np.asarray(pose[:2]) + rng.uniform(-0.015, 0.015, 2)).tolist()
         self.native.reset()
         self.policy.reset()
         self.steps, self.fallen, self.events = 0, False, []
@@ -136,11 +130,17 @@ class T2Env:
         self.palm_offset = {s: np.zeros(3) for s in ("left", "right")}
         self.last_palm_target = {}
         self.images = {}
+        measurements = self.native.measurements
+        before = {n: measurements.pose(n) for n in measurements.models}
         # Settling is owner initialization, excluded from the episode's 50 Hz budget.
         for _ in range(100):
             self._advance()
             if self._fallen():
                 raise ValueError("T2 fell during initialization; do not substitute the seed")
+        physics_checks = measurements.initialization_checks(before) if before else {}
+        invalid = {n: result for n, result in physics_checks.items() if not result["valid"]}
+        if invalid:
+            raise ValueError("T2 props invalid after initialization: " + json.dumps(invalid))
         self.native._time = 0.0
         self.task.reset()
         self.task.state.initialize(self.native)
@@ -150,6 +150,7 @@ class T2Env:
             "task_name": self.task_name, "control_protocol": "booster-t2-palm-wbc/1",
             "control_interval_s": self.control_interval, "physics_interval_s": 0.005,
             "initialization_frames": 100, "loaded_state_sha256": checksum(self.initial_state),
+            "physics_checks": physics_checks,
             "asset_sha256": self.asset_identity["asset_sha256"],
             "sources_sha256": checksum(self.sources), "task_sha256": checksum(self.definition),
             "policy_sha256": hashlib.sha256(self.policy_config.onnx.read_bytes()).hexdigest(),
@@ -252,8 +253,6 @@ class T2Env:
         self.steps += 1
         self.images = {}
         self.fallen = self._fallen()
-        if not self.fallen and self.definition["version"] not in (3, 4, 5):
-            self.task.evaluate(self.native)
 
     def read_device(self, name):
         from .controller.rotations import quat_to_matrix

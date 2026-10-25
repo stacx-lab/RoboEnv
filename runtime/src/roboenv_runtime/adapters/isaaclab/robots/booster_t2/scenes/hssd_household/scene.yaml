@@ -158,13 +158,6 @@ portal:
       - 2.6775
       - -4.85
       - 2.16
-camera_bounds:
-- - -2.2
-  - -2.8
-  - 0.5
-- - 7.5
-  - 8.2
-  - 2.7
 replacements:
   door:
   - furniture/cc2dad4684d908d0f19c4919b21ce0a724586a051

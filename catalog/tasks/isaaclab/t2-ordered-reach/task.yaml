@@ -1,0 +1,43 @@
+id: isaaclab/t2-ordered-reach
+robot: isaaclab/isaaclab-booster-t2
+instruction: Walk to the table with the blue and red blocks. Touch the blue block
+  with your left hand and move that hand away, then touch the red block with your
+  right hand and move that hand away.
+seed: 0
+budget_mode: practice
+execution_mode: realtime
+stop_on_success: false
+backend_kwargs:
+  task_name: t2-household
+  max_steps: null
+  task_spec:
+    version: 5
+    scene: hssd_household
+    start:
+    - -0.05115
+    - 0.11587
+    - 1.5707963267948966
+    items:
+      blue:
+        model: blue_block
+        pos:
+        - -0.30115
+        - 1.22587
+        - 0.762082
+        yaw: 0.0
+        fixed: true
+      red:
+        model: red_block
+        pos:
+        - 0.19885
+        - 1.22587
+        - 0.762082
+        yaw: 0.0
+        fixed: true
+    boxes: []
+    articulated: {}
+    stages:
+    - - kind: ordered_touch
+        blue: blue
+        red: red
+    hold_s: 0.35

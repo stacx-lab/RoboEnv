@@ -8,15 +8,13 @@ import numpy as np
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils, PhysxSchema
 
 from .assets import generated_directory
-from .household_models import SURFACES
-from . import household_usd
-from .simple_household import FURNITURE, SCANS, SURFACE_ASSETS, TEXTURES, model
+from .asset_bindings import FURNITURE, SCANS, TEXTURES
 
 
 def _folder(assets):
     identity = hashlib.sha256((str(assets.resolve()) + repr((SCANS, FURNITURE, TEXTURES))).encode()
                               + Path(__file__).read_bytes()).hexdigest()[:16]
-    folder = generated_directory() / "simple_household" / identity
+    folder = generated_directory() / "imported_assets" / identity
     folder.mkdir(parents=True, exist_ok=True)
     return folder
 
@@ -113,20 +111,6 @@ def _scan(stage, name, assets):
             UsdGeom.Imageable(prim).CreateVisibilityAttr("invisible")
 
 
-def make_asset(name, assets):
-    assets = Path(assets)
-    definition = model(name)
-    path = _folder(assets) / (name + "-" + hashlib.sha256(repr(definition).encode()).hexdigest()[:12] + ".usdc")
-    if path.is_file():
-        return path
-    source = household_usd.make_asset(name, definition)
-    layer = Sdf.Layer.OpenAsAnonymous(str(source))
-    stage = Usd.Stage.Open(layer)
-    _textures(stage, "/Asset", assets)
-    if name in SCANS:
-        _scan(stage, name, assets)
-    layer.Export(str(path))
-    return path
 
 
 def _furniture_asset(key, assets):
@@ -136,7 +120,7 @@ def _furniture_asset(key, assets):
         return path
     from .scenes import load_scene, house_usd
 
-    scene = load_scene("kitchen")
+    scene = load_scene("hssd_household")
     scene.asset_directory = assets / "scenes"
     source = Usd.Stage.Open(str(house_usd(scene)))
     while instances := [p for p in Usd.PrimRange(source.GetDefaultPrim(), Usd.TraverseInstanceProxies())
@@ -172,34 +156,3 @@ def _furniture_asset(key, assets):
     geom.AddTranslateOp().Set(Gf.Vec3d(*map(float, -np.array([*(lo[:2]+hi[:2])/2, lo[2]]))))
     stage.GetRootLayer().Save()
     return path
-
-
-def room(stage, assets):
-    assets = Path(assets)
-    root = household_usd.room(stage)
-    _textures(stage, root, assets)
-    # The task layout and portal stay fixed; imported furniture replaces the
-    # corresponding authored solid, never an invisible duplicate support.
-    placements = {n: (key, yaw, (*SURFACES[n][0], 0.), (*SURFACES[n][1], SURFACES[n][2]))
-                  for n, (key, yaw) in SURFACE_ASSETS.items()}
-    placements["sofa"] = ("sofa", 0, (0., 0., 0.), (2.15, 0.85, 0.93))
-    for name, (key, yaw, pos, size) in placements.items():
-        path = _furniture_asset(key, assets)
-        source = Usd.Stage.Open(str(path))
-        bound = UsdGeom.BBoxCache(Usd.TimeCode.Default(), ["default", "render"]).ComputeWorldBound(source.GetDefaultPrim()).ComputeAlignedRange()
-        extent = np.array(bound.GetMax()) - np.array(bound.GetMin())
-        if yaw == 90:
-            extent = extent[[1,0,2]]
-        target = f"{root}/{name}"
-        stage.RemovePrim(target)
-        outer = UsdGeom.Xform.Define(stage, target)
-        outer.AddTranslateOp().Set(Gf.Vec3d(*pos))
-        outer.AddScaleOp().Set(Gf.Vec3f(*map(float, np.array(size)/extent)))
-        mesh = UsdGeom.Xform.Define(stage, target + "/furniture")
-        mesh.GetPrim().GetReferences().AddReference(str(path))
-        mesh.AddRotateZOp().Set(float(yaw))
-        for prim in Usd.PrimRange(outer.GetPrim()):
-            if prim.HasAPI(UsdPhysics.CollisionAPI):
-                UsdShade.MaterialBindingAPI.Apply(prim).Bind(
-                    UsdShade.Material.Get(stage, root + "/Materials/physics"), materialPurpose="physics")
-    return root

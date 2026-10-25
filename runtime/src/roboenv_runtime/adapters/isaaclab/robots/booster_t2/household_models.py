@@ -1,7 +1,8 @@
-"""Authored household solids, passive mechanisms and functional geometry in metres.
+"""Household collision solids, passive mechanisms and functional regions in metres.
 
-Visual and collision parts share geometry. Cavities are compound solids, never
-convex hulls of a hollow object. This module has no simulator dependency.
+These definitions calibrate the scanned props and native mechanisms in the HSSD
+house. Cavities are compound solids, never convex hulls of a hollow object.
+This module has no simulator dependency.
 """
 
 from dataclasses import dataclass, field
@@ -122,23 +123,6 @@ def basin_parts(size=(0.36, 0.26), wall=0.06, material="oak"):
     ]
 
 
-def table_parts(size=(1.4, 0.8), height=0.82, material="oak_light"):
-    x, y = size
-    return [
-        box("top", (x, y, 0.045), (0, 0, height - 0.0225), material),
-        *[
-            box(
-                f"leg_{i}",
-                (0.065, 0.065, height - 0.045),
-                (a * (x / 2 - 0.08), b * (y / 2 - 0.08), (height - 0.045) / 2),
-                "walnut",
-            )
-            for i, (a, b) in enumerate(((-1, -1), (-1, 1), (1, -1), (1, 1)))
-        ],
-        box("apron", (x - 0.12, 0.04, 0.11), (0, y / 2 - 0.055, height - 0.10), "oak"),
-    ]
-
-
 def model(name):
     """Return a new definition; mutations cannot affect a later episode."""
     if name in ("can_tomato", "can_beans"):
@@ -227,8 +211,35 @@ def model(name):
             radius=size / 2 if name == "cylinder_block" else size / math.sqrt(2),
             height=size,
         )
-    if name in ("plate", "dish", "bowl"):
-        radius, height = {"plate": (0.19, 0.025), "dish": (0.13, 0.022), "bowl": (0.13, 0.09)}[name]
+    if name == "bowl":
+        # Radial cross-section measured from GraspNet 006, fitted to the accepted
+        # bowl diameter/height. Convex wedges preserve the open cavity. The
+        # bottom is a separate load-bearing part used by the containment test.
+        profile = ((.004, .0735, .0755), (.006, .07537, .07719),
+                   (.010, .07932, .08128), (.015, .08454, .08659),
+                   (.025, .09349, .09527), (.035, .10034, .10214),
+                   (.045, .10571, .10735), (.055, .11029, .11197),
+                   (.065, .11368, .11526), (.075, .11583, .11734),
+                   (.080, .11684, .11831), (.084, .118, .129),
+                   (.087, .121, .130), (.090, .125, .128))
+        parts = [cylinder("floor", .0758, .004, (0, 0, .002), "ceramic")]
+        for level, (lower, upper) in enumerate(zip(profile, profile[1:])):
+            for i in range(40):
+                # The working wall follows measured triangle cross-sections
+                # within 3 mm. The scan's irregular rolled lip is approximated
+                # separately; it is never a valid containment support surface.
+                angles = (2 * math.pi * i / 40 - 0.0005,
+                          2 * math.pi * (i + 1) / 40 + 0.0005)
+                points = tuple((r * math.cos(a), r * math.sin(a), z)
+                               for z, inner, outer in (lower, upper)
+                               for r in (inner, outer)
+                               for a in angles)
+                parts.append(Part(f"wall_{level}_{i}", "hull", points, material="ceramic"))
+        return Model([Link("body", parts, 0.18)],
+                     regions={"inside": ("body", (0, 0, 0.045), (0.116, 0.116, 0.045))},
+                     radius=0.13, height=0.09)
+    if name in ("plate", "dish"):
+        radius, height = {"plate": (0.19, 0.025), "dish": (0.13, 0.022)}[name]
         parts = tray_parts(radius, height)
         return Model(
             [Link("body", parts, 0.18)],
@@ -561,6 +572,9 @@ def model(name):
             box("face", (0.80, 0.035, 0.19), (0, -0.24, 0.065), "oak"),
             cylinder("pull", 0.012, 0.23, (0, -0.29, 0.08), "brass", (0, math.pi / 2, 0)),
         ]
+        parts = {part.name: part for part in drawer}
+        half = tuple(parts[wall].pos[axis] - parts[wall].size[axis] / 2
+                     for wall, axis in (("right", 0), ("back", 1)))
         return Model(
             [Link("base", base, 8.0), Link("drawer", drawer, 0.8, (0, 0, 0.61))],
             [
@@ -569,13 +583,16 @@ def model(name):
                 )
             ],
             True,
-            {"inside": ("drawer", (0, 0, 0.075), (0.335, 0.205, 0.065))},
+            {"inside": ("drawer", (0, 0, 0.075), (*half, 0.065))},
             height=0.86,
         )
     if name == "trash_bin":
-        body = basin_parts((0.32, 0.30), 0.77, "teal")
+        body = [
+            cylinder("floor", .16, .014, (0, 0, .007), "metal"),
+            *ring("wall", .154, .012, .77, .385, "metal", 64),
+        ]
         lid = [
-            box("lid", (0.35, 0.33, 0.025), (0, -0.15, 0), "oak_light"),
+            cylinder("lid", .17, .025, (0, -.15, 0), "metal"),
             cylinder("handle", 0.012, 0.12, (0, -0.24, 0.026), "brass", (0, math.pi / 2, 0)),
         ]
         return Model(
@@ -589,14 +606,28 @@ def model(name):
             height=0.83,
         )
     if name == "door":
+        from .scenes import load_scene
+
+        portal = load_scene("hssd_household").portal
+        width, height = portal["width"], portal["height"]
         panel = [
-            box("panel", (0.045, 1.38, 2.12), (0, 0.69, 1.06), "oak_light"),
-            box("inset", (0.048, 1.13, 1.65), (0, 0.69, 1.12), "cream", collision=False),
-            cylinder("handle", 0.014, 0.16, (-0.06, 1.18, 1.0), "brass", (math.pi / 2, 0, 0)),
+            box("panel", (.045, width, height), (0, width / 2, height / 2), "oak_light"),
+            box("inset", (.048, width - .20, height - .35), (0, width / 2, height / 2), "cream", collision=False),
+            cylinder("handle", 0.014, 0.16, (-.06, width - .16, 1.), "brass", (math.pi / 2, 0, 0)),
         ]
+        # The scene owns the jamb; the hinge adds no second collision post.
+        for side in (-1, 1):
+            for level, z in enumerate((.53, 1.49)):
+                for edge, y in enumerate((.13, width-.13)):
+                    panel.append(box(f"moulding_{side}_{level}_{edge}".replace("-", "m"),
+                                     (.006, .025, .70), (side*.025, y, z), "oak_light", collision=False))
+                for edge, dz in enumerate((-.35, .35)):
+                    panel.append(box(f"rail_{side}_{level}_{edge}".replace("-", "m"),
+                                     (.006, width-.235, .025), (side*.025, width/2, z+dz),
+                                     "oak_light", collision=False))
         return Model(
             [
-                Link("base", [box("hinge_post", (0.11, 0.11, 2.2), (0, 0, 1.1), "walnut")], 10.0),
+                Link("base", [cylinder("hinge_post", .012, .20, (0, 0, 1.0), "brass", collision=False)], 10.0),
                 Link("panel", panel, 3.0),
             ],
             [Joint("hinge", "base", "panel", "revolute", "Z", (0, 0, 0), (-1.8, 0), 0.3, 0.1)],
@@ -638,10 +669,7 @@ def model(name):
         )
     if name in ("cart", "chair"):
         cart = name == "cart"
-        base = [
-            box("deck", (0.55, 0.48, 0.035), (0, 0, 0.22), "oak_light"),
-            box("back", (0.55, 0.035, 0.44), (0, 0.22, 0.46), "teal"),
-        ]
+        base = [box("deck", (0.55, 0.48, 0.035), (0, 0, 0.22), "oak_light")] if cart else []
         if cart:
             base += [
                 box("upper_shelf", (0.55, 0.48, 0.025), (0, 0, 0.62), "oak_light"),
@@ -656,6 +684,14 @@ def model(name):
                 box("seat", (0.51, 0.43, 0.07), (0, -0.025, 0.49), "fabric"),
                 box("backrest", (0.51, 0.07, 0.37), (0, 0.19, 0.73), "fabric"),
             ]
+        if cart:
+            base += [cylinder(f"shelf_post_{i}", .012, .40, (x, y, .42), "metal")
+                     for i, (x, y) in enumerate(((-.25, -.22), (.25, -.22), (-.25, .22), (.25, .22)))]
+        else:
+            base.append(cylinder("column", .032, .31, (0, 0, .305), "metal"))
+            for i, (x, y) in enumerate(((-.23, -.19), (.23, -.19), (-.23, .19), (.23, .19))):
+                base.append(box(f"spoke_{i}", (math.hypot(x, y), .03, .025),
+                                (x/2, y/2, .145), "metal", (0, 0, math.atan2(y, x))))
         links = [Link("base", base, 2.2 if cart else 2.0)]
         joints = []
         for i, (x, y) in enumerate(((-0.23, -0.19), (0.23, -0.19), (-0.23, 0.19), (0.23, 0.19))):
@@ -710,19 +746,6 @@ def model(name):
     raise ValueError(f"Unknown household asset: {name}")
 
 
-def versioned_model(name, version):
-    """One model dispatch for validation, native bodies and measurements."""
-    if version == 5:
-        from .hssd_household import model as definition
-    elif version == 4:
-        from .simple_household import model as definition
-    elif version == 3:
-        definition = model
-    else:
-        raise ValueError(f"Unsupported household model version: {version}")
-    return definition(name)
-
-
 MODEL_NAMES = frozenset(
     (
         "can_tomato",
@@ -766,18 +789,3 @@ MODEL_NAMES = frozenset(
         "chair",
     )
 )
-
-ROOM_BOUNDS = ((-5.2, -4.5), (7.6, 4.5))
-PORTAL_X = 5.0
-CART_BAY_INTERIOR = ((3.205, -2.595), (3.995, -1.775))
-
-SURFACES = {
-    "activity_table": ((-2.0, 2.0), (1.5, 0.8), 0.82),
-    "dining_table": ((2.0, 2.0), (1.5, 0.85), 0.82),
-    "reading_desk": ((-2.0, -2.5), (1.5, 0.8), 0.82),
-    "kitchen_island": ((2.0, -2.3), (1.5, 0.85), 0.90),
-    "sideboard": ((-4.0, 0.0), (0.65, 1.5), 0.85),
-    "book_shelf": ((0.0, 3.65), (1.2, 0.38), 0.95),
-    "parcel_console": ((3.75, 0.9), (0.65, 1.2), 0.85),
-    "entry_console": ((6.8, 0.9), (0.65, 1.2), 0.85),
-}

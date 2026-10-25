@@ -5,7 +5,7 @@ import math
 import numpy as np
 
 from roboenv_runtime.adapters.urdf_geometry import matrix
-from .household_models import versioned_model
+from .household_models import model
 
 
 def quat_to_matrix(q):
@@ -17,23 +17,15 @@ def collider_identity(path, scene=None):
     pieces = str(path).split("/")
     if "Robot" in pieces:
         text = "/".join(pieces[pieces.index("Robot") + 1 :]).lower()
-        for side in ("left", "right"):
-            if side + "_" in text and any(
-                s in text
-                for s in (
-                    "palm",
-                    "thumb",
-                    "index",
-                    "middle",
-                    "ring",
-                    "pinky",
-                    "hand",
-                    side + "_base_link",
-                )
-            ):
-                # The importer can retain a shared leaf name such as "mesh".
-                # Keep the link path so distinct fingers remain distinct.
-                return (side + "_hand", "hand", text)
+        # Follow the anatomical branch from the root. Imported right fingertips
+        # can reuse a mesh leaf named left_middle_touch_link (and vice versa).
+        # The first hand link owns the collider; a leaf cannot override it.
+        for link in text.split("/"):
+            for side in ("left", "right"):
+                if link.startswith(tuple(side + "_" + name for name in (
+                    "palm", "thumb", "index", "middle", "ring", "pinky", "hand", "base_link",
+                ))):
+                    return (side + "_hand", "hand", text)
         return ("robot", "body", pieces[-1])
     if "Task" in pieces:
         i = pieces.index("Task")
@@ -99,7 +91,7 @@ class Measurements:
         carb.settings.get_settings().set_bool("/physics/disableContactProcessing", False)
         self.contacts = ContactPairs()
         self.models = {
-            n: versioned_model(d["model"], world.task.spec["version"])
+            n: model(d["model"])
             for collection in (world.task.spec["items"], world.task.spec["articulated"])
             for n, d in collection.items()
         }
@@ -154,6 +146,44 @@ class Measurements:
 
     def reset(self):
         self.contacts.reset()
+
+    def initialization_checks(self, before):
+        """Check prop motion and support geometry during owner settling.
+
+        Moving mechanism joints (such as a settling balance beam) are allowed;
+        these checks compare the root of each prop, not its moving links.
+        Vertical settling depends on the model's origin and holder geometry;
+        use support penetration rather than a universal vertical-drop limit.
+        Report robot contact separately: touching a fixed fixture is not itself
+        penetration or unintended motion, and must not reject a valid layout.
+        """
+        checks = {}
+        for name, (position, rotation) in before.items():
+            after, quat = self.pose(name)
+            displacement = float(np.linalg.norm(after - position))
+            horizontal = float(np.linalg.norm(after[:2] - position[:2]))
+            cosine = abs(float(np.dot(rotation, quat))) / (
+                float(np.linalg.norm(rotation) * np.linalg.norm(quat)))
+            angle = 2 * math.acos(float(np.clip(cosine, 0, 1)))
+            robot_contact = any(
+                self.contacts.touching(name, entity)
+                for entity in ("robot", "left_hand", "right_hand")
+            )
+            # The island is the authored support for these props. Other tasks
+            # can start in holders or on mechanism tops at different heights.
+            island = self.scene.surfaces["kitchen_island"]
+            definition = self.definitions[name]
+            depth = (self.surface_penetration(name, "kitchen_island")
+                     if name in self.world._items and
+                     abs(definition["pos"][2] - island.height) < 0.005 and
+                     island.contains(definition["pos"][:2]) else 0.0)
+            checks[name] = {"displacement_m": displacement, "rotation_rad": angle,
+                            "horizontal_displacement_m": horizontal,
+                            "robot_contact": robot_contact, "support_penetration_m": depth,
+                            "valid": bool(np.isfinite([displacement, angle, depth]).all()
+                                          and horizontal <= 0.02 and angle <= 0.175
+                                          and depth <= 0.002)}
+        return checks
 
     def pose(self, name, link=None):
         if name in self.scene.surfaces:
@@ -258,6 +288,8 @@ class Measurements:
     def on(self, name, target, center=False):
         if not self.supported(name, target) or not self.released(name) or not self.quiet(name):
             return False
+        if self.surface_penetration(name, target) > 0.002:
+            return False
         if center:
             local = self.local(self.pose(name)[0], target)
             # Receiver-relative central area, generous enough for stable
@@ -265,6 +297,16 @@ class Measurements:
             radius = self.models[target].radius
             return bool(np.linalg.norm(local[:2]) <= 0.40 * radius)
         return True
+
+    def surface_penetration(self, name, target):
+        """Depth below a named support top, using only points over its footprint."""
+        surface = self.scene.surfaces.get(target)
+        if surface is None:
+            return 0.0
+        points = self.points(name)
+        over = np.all(np.abs(surface.local(points[:, :2])) <= np.asarray(surface.size) / 2,
+                      axis=1)
+        return max(0.0, float(surface.height - points[over, 2].min())) if over.any() else 0.0
 
     def inside(self, name, target, region="inside", *, settled=True):
         link, center, half = self.models[target].regions[region]
@@ -275,7 +317,10 @@ class Measurements:
         if m in ("bowl", "plate", "dish", "balance_scale"):
             fits = np.max(np.linalg.norm(pts[:, :2], axis=1)) <= half[0] + 0.003
         else:
-            fits = np.all(np.abs(pts[:, :2]) <= np.asarray(half[:2]) + 0.003)
+            # The drawer region is derived from its physical inner walls.
+            # Keep only numerical tolerance, not an extra strip inside the wood.
+            tolerance = 0.0001 if m == "drawer_cabinet" else 0.003
+            fits = np.all(np.abs(pts[:, :2]) <= np.asarray(half[:2]) + tolerance)
         floor = self.contacts.touching(
             name, target, part="floor", link=link
         ) or self.contacts.touching(name, target, part="bottom", link=link)
